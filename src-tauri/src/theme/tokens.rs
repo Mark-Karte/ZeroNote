@@ -31,6 +31,8 @@ pub const BASE: &[(&str, &str)] = &[
     ("font-line-height-editor", "1.5"),
     ("font-weight-normal", "400"),
     ("font-weight-medium", "600"),
+    // Разрядка для набранных прописными подписей: без неё они читаются хуже.
+    ("font-letter-spacing-caps", "0.06em"),
     // Скругления.
     ("radius-sm", "3px"),
     ("radius-md", "5px"),
@@ -72,6 +74,9 @@ pub const METRICS_NORMAL: &[(&str, &str)] = &[
     ("control-toolbar-height", "36px"),
     ("control-row-height", "24px"),
     ("control-icon-size", "16px"),
+    ("control-dialog-min-width", "420px"),
+    ("control-dialog-max-width", "560px"),
+    ("control-popup-min-width", "260px"),
 ];
 
 /// Метрики компактной плотности.
@@ -99,6 +104,9 @@ pub const METRICS_COMPACT: &[(&str, &str)] = &[
     ("control-toolbar-height", "30px"),
     ("control-row-height", "20px"),
     ("control-icon-size", "14px"),
+    ("control-dialog-min-width", "360px"),
+    ("control-dialog-max-width", "500px"),
+    ("control-popup-min-width", "220px"),
 ];
 
 /// Семантические роли, выраженные через палитру.

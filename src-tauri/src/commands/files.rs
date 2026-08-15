@@ -206,6 +206,29 @@ pub fn convert_encoding(
     Ok(buffer.clone())
 }
 
+/// Добавить или убрать метку порядка байтов при записи.
+///
+/// Отдельной командой, а не частью смены кодировки: это независимое свойство
+/// файла, и менять его пользователь может не трогая кодировку.
+#[tauri::command]
+pub fn set_bom(state: tauri::State<'_, AppState>, id: BufferId, bom: bool) -> Fallible<Buffer> {
+    let mut buffers = state.buffers.lock().expect("реестр буферов повреждён");
+    let buffer = buffers
+        .get_mut(id)
+        .ok_or_else(|| format!("буфер {id} не найден"))?;
+
+    if bom && buffer.encoding.bom_bytes().is_empty() {
+        return Err(format!(
+            "у кодировки {} не бывает метки порядка байтов",
+            buffer.encoding.label()
+        ));
+    }
+
+    buffer.bom = bom;
+    buffer.modified = true;
+    Ok(buffer.clone())
+}
+
 /// Сменить тип переноса строк для записи.
 #[tauri::command]
 pub fn set_line_ending(

@@ -8,13 +8,15 @@
   import EditorHost from './EditorHost.svelte';
   import NoticeStrip from './NoticeStrip.svelte';
   import StatusBar from './StatusBar.svelte';
+  import Modal from './Modal.svelte';
   import { tabs } from '../state/tabs.svelte';
-  import { openDropped } from '../actions/files';
+  import { openDropped, closeAllTabs } from '../actions/files';
   import { startupPaths } from '../ipc/files';
   import { installGlobalKeymap } from '../keymap/global';
 
   let removeKeymap: (() => void) | null = null;
   let unlistenDrop: UnlistenFn | null = null;
+  let unlistenClose: UnlistenFn | null = null;
   let dropActive = $state(false);
 
   onMount(async () => {
@@ -26,6 +28,16 @@
     if (paths.length > 0) {
       await openDropped(paths);
     }
+
+    // Закрытие окна перехватывается: несохранённые буферы должны спросить,
+    // а не исчезнуть. Событие приходит уже после того, как Windows решила
+    // закрыть окно, поэтому закрытие нужно подтвердить вручную.
+    unlistenClose = await getCurrentWindow().onCloseRequested(async (event) => {
+      event.preventDefault();
+      if (await closeAllTabs()) {
+        await getCurrentWindow().destroy();
+      }
+    });
 
     unlistenDrop = await getCurrentWindow().onDragDropEvent((event) => {
       if (event.payload.type === 'over') {
@@ -42,6 +54,7 @@
   onDestroy(() => {
     removeKeymap?.();
     unlistenDrop?.();
+    unlistenClose?.();
   });
 </script>
 
@@ -60,6 +73,7 @@
   {/if}
 
   <StatusBar />
+  <Modal />
 </div>
 
 <style>

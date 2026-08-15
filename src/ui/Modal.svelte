@@ -1,0 +1,160 @@
+<script lang="ts">
+  import { modal } from '../state/modal.svelte';
+
+  const request = $derived(modal.request);
+  let primaryButton = $state<HTMLButtonElement | null>(null);
+
+  function pick(id: string | null): void {
+    request?.resolve(id);
+  }
+
+  function cancel(): void {
+    const fallback = request?.choices.find((c) => c.cancel);
+    pick(fallback ? fallback.id : null);
+  }
+
+  function onKeyDown(event: KeyboardEvent): void {
+    if (!request) return;
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      cancel();
+      return;
+    }
+
+    if (event.key === 'Enter') {
+      const primary = request.choices.find((c) => c.primary);
+      if (primary) {
+        event.preventDefault();
+        event.stopPropagation();
+        pick(primary.id);
+      }
+    }
+  }
+
+  // Фокус уводится в диалог: иначе клавиатура продолжает работать с редактором
+  // под ним, а Enter и Escape до диалога не доходят.
+  $effect(() => {
+    if (request && primaryButton) {
+      primaryButton.focus();
+    }
+  });
+</script>
+
+<!-- Перехват, а не всплытие: оконная раскладка тоже стоит на перехвате,
+     и без этого Escape ушёл бы ей, а не диалогу. -->
+<svelte:window onkeydowncapture={onKeyDown} />
+
+{#if request}
+  <div class="layer">
+    <!-- Затемнение отдельным слоем, чтобы прозрачность не досталась
+         содержимому диалога. -->
+    <button class="backdrop" type="button" aria-label="Закрыть" onclick={cancel}
+    ></button>
+
+    <div class="dialog" role="dialog" aria-modal="true" aria-label={request.title}>
+      <h2 class="title">{request.title}</h2>
+      <p class="text">{request.text}</p>
+      <div class="buttons">
+        {#each request.choices as choice (choice.id)}
+          {#if choice.primary}
+            <button
+              class="button primary"
+              type="button"
+              bind:this={primaryButton}
+              onclick={() => pick(choice.id)}
+            >
+              {choice.label}
+            </button>
+          {:else}
+            <button class="button" type="button" onclick={() => pick(choice.id)}>
+              {choice.label}
+            </button>
+          {/if}
+        {/each}
+      </div>
+    </div>
+  </div>
+{/if}
+
+<style>
+  .layer {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: var(--zn-z-dialog);
+  }
+
+  .backdrop {
+    position: absolute;
+    inset: 0;
+    padding: 0;
+    border: none;
+    background-color: var(--zn-color-bg-canvas);
+    /* Затемнение фона. Прозрачность — единственная величина оформления,
+       которую незачем выносить в токен: она не про палитру, а про то,
+       что под слоем что-то есть. */
+    opacity: 0.75;
+    cursor: default;
+  }
+
+  .dialog {
+    position: relative;
+    min-width: min(var(--zn-control-dialog-min-width), 90vw);
+    max-width: min(var(--zn-control-dialog-max-width), 92vw);
+    padding: var(--zn-space-5);
+    background-color: var(--zn-color-bg-raised);
+    border: var(--zn-border-width) solid var(--zn-color-border-default);
+    border-radius: var(--zn-radius-lg);
+    box-shadow: var(--zn-shadow-overlay);
+  }
+
+  .title {
+    margin: 0 0 var(--zn-space-3) 0;
+    color: var(--zn-color-fg-default);
+    font-size: var(--zn-font-size-ui);
+    font-weight: var(--zn-font-weight-medium);
+  }
+
+  .text {
+    margin: 0 0 var(--zn-space-5) 0;
+    color: var(--zn-color-fg-muted);
+    white-space: pre-line;
+  }
+
+  .buttons {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--zn-space-3);
+  }
+
+  .button {
+    padding: var(--zn-space-2) var(--zn-space-4);
+    border: var(--zn-border-width) solid var(--zn-color-border-default);
+    border-radius: var(--zn-radius-md);
+    background-color: var(--zn-color-bg-surface);
+    color: var(--zn-color-fg-default);
+    font-family: inherit;
+    font-size: var(--zn-font-size-ui);
+    cursor: default;
+  }
+
+  .button:hover {
+    background-color: var(--zn-color-bg-hover);
+  }
+
+  .button.primary {
+    background-color: var(--zn-color-accent);
+    border-color: var(--zn-color-accent);
+    color: var(--zn-color-fg-on-accent);
+  }
+
+  .button.primary:hover {
+    background-color: var(--zn-color-accent-hover);
+    border-color: var(--zn-color-accent-hover);
+  }
+</style>

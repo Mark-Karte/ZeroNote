@@ -62,6 +62,9 @@ export const convertEncoding = (
   text: string,
 ): Promise<Buffer> => invoke('convert_encoding', { id, encoding, text });
 
+export const setBom = (id: number, bom: boolean): Promise<Buffer> =>
+  invoke('set_bom', { id, bom });
+
 export const setLineEnding = (id: number, lineEnding: LineEnding): Promise<Buffer> =>
   invoke('set_line_ending', { id, lineEnding });
 

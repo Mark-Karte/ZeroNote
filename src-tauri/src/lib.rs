@@ -92,6 +92,7 @@ pub fn run() {
             commands::files::reload_buffer,
             commands::files::reinterpret_encoding,
             commands::files::convert_encoding,
+            commands::files::set_bom,
             commands::files::set_line_ending,
             commands::files::set_modified,
             commands::files::save_buffer,

@@ -1,4 +1,4 @@
-import { open as openDialog, save as saveDialog, ask, message } from '@tauri-apps/plugin-dialog';
+import { open as openDialog, save as saveDialog, message } from '@tauri-apps/plugin-dialog';
 import * as ipc from '../ipc/files';
 import {
   activeTab,
@@ -8,8 +8,11 @@ import {
   resetBaseline,
   tabById,
   textOf,
+  tabs,
   close as closeTabState,
 } from '../state/tabs.svelte';
+import { askChoice } from '../state/modal.svelte';
+import { resolveMixedLineEndings } from './encoding';
 
 /**
  * Действия над файлами: то, что вызывается из меню, горячих клавиш и вкладок.
@@ -65,6 +68,10 @@ export async function openDropped(paths: string[]): Promise<void> {
 async function writeTo(id: number, path?: string): Promise<boolean> {
   const tab = tabById(id);
   if (!tab) return false;
+
+  // Файл со смешанными переносами нельзя записать обратно как есть, и решать
+  // за пользователя, к чему его привести, мы не будем (Р-018).
+  if (!(await resolveMixedLineEndings(id))) return false;
 
   try {
     const meta = await ipc.saveBuffer(id, textOf(tab), path);
@@ -124,12 +131,21 @@ export async function closeTab(id: number): Promise<boolean> {
   if (!tab) return true;
 
   if (tab.meta.modified) {
-    const answer = await ask(
+    // Три варианта, а не два: у системного диалога Tauri их только два, и
+    // «отмена» в нём означала бы «не сохранять», то есть тихую потерю правок.
+    const answer = await askChoice(
+      'Есть несохранённые изменения',
       `Сохранить изменения в «${tab.meta.title}» перед закрытием?`,
-      { title: 'ZeroNote', kind: 'warning', okLabel: 'Сохранить', cancelLabel: 'Не сохранять' },
+      [
+        { id: 'cancel', label: 'Отмена', cancel: true },
+        { id: 'discard', label: 'Не сохранять' },
+        { id: 'save', label: 'Сохранить', primary: true },
+      ],
     );
 
-    if (answer) {
+    if (answer === null || answer === 'cancel') return false;
+
+    if (answer === 'save') {
       // Именно этот буфер, а не активный: закрывать можно и не текущую вкладку.
       const saved = await save(id);
       // Не сохранилось — закрывать нельзя, иначе правки пропадут молча.
@@ -138,5 +154,21 @@ export async function closeTab(id: number): Promise<boolean> {
   }
 
   await closeTabState(id);
+  return true;
+}
+
+/**
+ * Закрыть все вкладки, спрашивая про каждую изменённую.
+ *
+ * Возвращает `false`, если пользователь передумал хотя бы на одной: тогда
+ * закрытие окна должно быть отменено целиком.
+ */
+export async function closeAllTabs(): Promise<boolean> {
+  // Копия списка: закрытие меняет исходный массив прямо во время обхода.
+  const ids = tabs.items.map((t) => t.meta.id);
+
+  for (const id of ids) {
+    if (!(await closeTab(id))) return false;
+  }
   return true;
 }
