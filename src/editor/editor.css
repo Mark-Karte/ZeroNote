@@ -1,0 +1,84 @@
+/*
+ * Оформление CodeMirror.
+ *
+ * Написано обычным CSS по классам `.cm-*`, а не через `EditorView.theme()`,
+ * намеренно: тест `tests/tokens.test.ts` проверяет файлы CSS и блоки <style>,
+ * но не выражения в TypeScript. Опиши мы тему объектом в коде — зашитый цвет
+ * прошёл бы мимо сторожа. Здесь он не пройдёт.
+ */
+
+.cm-editor {
+  height: 100%;
+  background-color: var(--zn-color-bg-canvas);
+  color: var(--zn-color-fg-default);
+  font-family: var(--zn-font-family-editor);
+  font-size: var(--zn-font-size-editor);
+}
+
+/* Своя рамка фокуса здесь не нужна: редактор занимает всё окно. */
+.cm-editor.cm-focused {
+  outline: none;
+}
+
+.cm-editor .cm-scroller {
+  font-family: inherit;
+  line-height: var(--zn-font-line-height-editor);
+}
+
+/* base.css запрещает выделение мышью в интерфейсе — в тексте оно нужно. */
+.cm-editor .cm-content {
+  user-select: text;
+  caret-color: var(--zn-color-fg-default);
+}
+
+.cm-editor .cm-gutters {
+  background-color: var(--zn-color-bg-canvas);
+  color: var(--zn-color-fg-subtle);
+  border-right: var(--zn-border-width) solid var(--zn-color-border-subtle);
+}
+
+.cm-editor .cm-activeLineGutter {
+  background-color: var(--zn-color-bg-hover);
+  color: var(--zn-color-fg-muted);
+}
+
+.cm-editor .cm-activeLine {
+  background-color: var(--zn-color-bg-hover);
+}
+
+.cm-editor .cm-cursor,
+.cm-editor .cm-dropCursor {
+  border-left-color: var(--zn-color-fg-default);
+}
+
+/* Собственная отрисовка выделения CodeMirror и системная — обе должны
+   слушаться токенов, иначе в одной из тем текст пропадает на фоне. */
+.cm-editor .cm-selectionBackground,
+.cm-editor .cm-content ::selection,
+.cm-editor .cm-line::selection {
+  background-color: var(--zn-color-bg-selected);
+}
+
+.cm-editor.cm-focused .cm-selectionBackground {
+  background-color: var(--zn-color-bg-selected);
+}
+
+/* Полоса прокрутки редактора: системная в тёмной теме выглядит чужеродно. */
+.cm-editor .cm-scroller::-webkit-scrollbar {
+  width: var(--zn-space-4);
+  height: var(--zn-space-4);
+}
+
+.cm-editor .cm-scroller::-webkit-scrollbar-thumb {
+  background-color: var(--zn-color-border-default);
+  border-radius: var(--zn-radius-sm);
+}
+
+.cm-editor .cm-scroller::-webkit-scrollbar-thumb:hover {
+  background-color: var(--zn-color-fg-subtle);
+}
+
+.cm-editor .cm-scroller::-webkit-scrollbar-corner,
+.cm-editor .cm-scroller::-webkit-scrollbar-track {
+  background-color: transparent;
+}

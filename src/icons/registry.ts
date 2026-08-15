@@ -16,9 +16,42 @@ export type IconName =
   | 'status.folder-alert'
   | 'status.theme-light'
   | 'status.theme-dark'
-  | 'status.warning';
+  | 'status.warning'
+  | 'window.minimize'
+  | 'window.maximize'
+  | 'window.restore'
+  | 'window.close'
+  | 'tab.close'
+  | 'tab.modified'
+  | 'file.markdown'
+  | 'file.text'
+  | 'file.code';
 
 const ICONS: Record<IconName, string> = {
+  // Кнопки окна. Формы взяты из системного набора Windows 11, чтобы
+  // собственный заголовок не выглядел чужеродно.
+  'window.minimize':
+    '<svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1"><path d="M0 5.5h10"/></svg>',
+  'window.maximize':
+    '<svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1"><rect x="0.5" y="0.5" width="9" height="9" rx="1"/></svg>',
+  'window.restore':
+    '<svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1"><rect x="0.5" y="2.5" width="7" height="7" rx="1"/><path d="M2.5 2.5v-1a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-1"/></svg>',
+  'window.close':
+    '<svg viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1"><path d="M0.5 0.5l9 9M9.5 0.5l-9 9"/></svg>',
+
+  'tab.close':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>',
+  // Точка вместо крестика на изменённой вкладке — как в VS Code.
+  'tab.modified':
+    '<svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="3.6"/></svg>',
+
+  'file.markdown':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"><path d="M9 1.6H4a1.4 1.4 0 0 0-1.4 1.4v10a1.4 1.4 0 0 0 1.4 1.4h8a1.4 1.4 0 0 0 1.4-1.4V6z"/><path d="M9 1.6V6h4.4"/><path d="M5.2 11.6V8.4l1.5 1.8 1.5-1.8v3.2" stroke-linecap="round"/></svg>',
+  'file.text':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"><path d="M9 1.6H4a1.4 1.4 0 0 0-1.4 1.4v10a1.4 1.4 0 0 0 1.4 1.4h8a1.4 1.4 0 0 0 1.4-1.4V6z"/><path d="M9 1.6V6h4.4"/><path d="M5.4 9h5.2M5.4 11.4h3.4" stroke-linecap="round"/></svg>',
+  'file.code':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"><path d="M9 1.6H4a1.4 1.4 0 0 0-1.4 1.4v10a1.4 1.4 0 0 0 1.4 1.4h8a1.4 1.4 0 0 0 1.4-1.4V6z"/><path d="M9 1.6V6h4.4"/><path d="M6.4 8.8L5 10.2l1.4 1.4M9.6 8.8L11 10.2l-1.4 1.4" stroke-linecap="round"/></svg>',
+
   'status.folder':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h2.3c.4 0 .78.16 1.06.44L8 4.5h4.5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z"/></svg>',
 

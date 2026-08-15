@@ -3,3 +3,4 @@
 
 pub mod atomic_save;
 pub mod paths;
+pub mod text_file;

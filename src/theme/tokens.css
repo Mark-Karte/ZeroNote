@@ -65,7 +65,11 @@
   --zn-border-width-thick: 2px;
 
   --zn-control-statusbar-height: 24px;
+  --zn-control-titlebar-height: 34px;
   --zn-control-tab-height: 32px;
+  --zn-control-tab-min-width: 110px;
+  --zn-control-tab-max-width: 220px;
+  --zn-control-window-button-width: 46px;
   --zn-control-toolbar-height: 36px;
   --zn-control-row-height: 24px;
   --zn-control-icon-size: 16px;

@@ -1,38 +1,90 @@
 <script lang="ts">
   import Icon from './Icon.svelte';
   import { appearance } from '../theme/store.svelte';
+  import { activeTab } from '../state/tabs.svelte';
 
-  // TODO(задача 4): сюда добавляются кодировка, тип переносов строк
-  // и позиция курсора. TODO(задача 2 -> окно параметров): элементы строки
-  // состояния должны стать настраиваемыми.
-  const state = $derived(appearance.current);
+  // TODO(задача 4, часть 2): кодировка и переносы станут кнопками — «интерпретировать
+  // как» и «преобразовать в» уже есть в ядре, нужен выпадающий список.
+  // TODO(задача 7): позиция курсора и выделение.
+  // TODO(окно параметров): состав строки состояния должен настраиваться.
+  const look = $derived(appearance.current);
+  const tab = $derived(activeTab());
+
+  const EOL_LABEL: Record<string, string> = {
+    lf: 'LF',
+    'cr-lf': 'CRLF',
+    cr: 'CR',
+  };
+
+  const ENCODING_LABEL: Record<string, string> = {
+    utf8: 'UTF-8',
+    'utf16-le': 'UTF-16 LE',
+    'utf16-be': 'UTF-16 BE',
+    windows1251: 'windows-1251',
+    windows1252: 'windows-1252',
+    ibm866: 'IBM866',
+    'koi8-r': 'KOI8-R',
+  };
 </script>
 
 <footer class="statusbar">
-  {#if state}
-    <span class="item" title={state.dataDir}>
-      <Icon name={state.portable ? 'status.folder' : 'status.folder-alert'} />
-      {state.portable ? 'данные рядом с приложением' : 'данные в запасной папке'}
+  {#if look}
+    <span class="item" title={look.dataDir}>
+      <Icon name={look.portable ? 'status.folder' : 'status.folder-alert'} />
+      {look.portable ? 'данные рядом с приложением' : 'данные в запасной папке'}
+    </span>
+  {/if}
+
+  <span class="spacer"></span>
+
+  {#if tab}
+    {#if tab.meta.readOnly}
+      <span class="item warn" title="Правка запрещена">
+        {tab.meta.large ? 'большой файл, только чтение' : 'только чтение'}
+      </span>
+    {/if}
+
+    {#if tab.meta.lossy}
+      <span class="item warn" title="При чтении встретились байты, недопустимые в этой кодировке. Сохранение изменит файл.">
+        <Icon name="status.warning" />
+        потери при чтении
+      </span>
+    {/if}
+
+    <span
+      class="item"
+      class:warn={tab.meta.eolMixed}
+      title={tab.meta.eolMixed
+        ? 'В файле разные типы переносов. При сохранении будет предложено привести к одному.'
+        : 'Тип переноса строк'}
+    >
+      {EOL_LABEL[tab.meta.eol] ?? tab.meta.eol}{tab.meta.eolMixed ? ' (смешанные)' : ''}
     </span>
 
-    <span class="spacer"></span>
+    <span
+      class="item"
+      class:uncertain={!tab.meta.encodingConfident}
+      title={tab.meta.encodingConfident
+        ? 'Кодировка файла'
+        : 'Кодировка определена эвристикой и может быть неверной'}
+    >
+      {ENCODING_LABEL[tab.meta.encoding] ?? tab.meta.encoding}{tab.meta.bom ? ' + BOM' : ''}
+    </span>
+  {/if}
 
-    {#if state.problems.length > 0}
-      <span class="item problem" title={state.problems.join('\n')}>
+  {#if look}
+    {#if look.problems.length > 0}
+      <span class="item warn" title={look.problems.join('\n')}>
         <Icon name="status.warning" />
-        {state.problems.length}
+        {look.problems.length}
       </span>
     {/if}
 
     <span class="item">
-      {state.density === 'compact' ? 'компактно' : 'обычно'}
-    </span>
-
-    <span class="item">
       <Icon
-        name={state.appearance === 'dark' ? 'status.theme-dark' : 'status.theme-light'}
+        name={look.appearance === 'dark' ? 'status.theme-dark' : 'status.theme-light'}
       />
-      {state.themeName}
+      {look.themeName}
     </span>
   {/if}
 </footer>
@@ -40,6 +92,7 @@
 <style>
   .statusbar {
     display: flex;
+    flex: none;
     align-items: center;
     gap: var(--zn-space-4);
     height: var(--zn-control-statusbar-height);
@@ -62,7 +115,14 @@
     flex: 1;
   }
 
-  .problem {
+  .warn {
     color: var(--zn-color-warning);
+  }
+
+  /* Кодировка, угаданная эвристикой, показывается тише уверенной:
+     это подсказка «проверь глазами», а не утверждение. */
+  .uncertain {
+    color: var(--zn-color-fg-subtle);
+    font-style: italic;
   }
 </style>

@@ -5,3 +5,4 @@
 //! из команд, тестируется обычным `cargo test` без запуска приложения.
 
 pub mod appearance;
+pub mod files;

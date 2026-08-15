@@ -4,8 +4,10 @@
 //! из интеграционных тестов в `tests/` без запуска приложения.
 
 pub mod bench;
+pub mod cli;
 pub mod commands;
 pub mod fsx;
+pub mod model;
 pub mod settings;
 pub mod state;
 pub mod text;
@@ -59,6 +61,7 @@ fn prepare_state() -> AppState {
     AppState {
         data_dir,
         startup_notices: notices,
+        buffers: std::sync::Mutex::new(model::buffer::Buffers::new()),
     }
 }
 
@@ -71,6 +74,7 @@ pub fn run() {
     let watched_dir = app_state.data_dir.path.clone();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(app_state)
         .setup(move |app| {
             // `app.handle()` даёт ручку к приложению, которую можно передать
@@ -81,6 +85,19 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::appearance::appearance_state,
             commands::appearance::builtin_theme_source,
+            commands::files::startup_paths,
+            commands::files::list_buffers,
+            commands::files::new_buffer,
+            commands::files::open_file,
+            commands::files::reload_buffer,
+            commands::files::reinterpret_encoding,
+            commands::files::convert_encoding,
+            commands::files::set_line_ending,
+            commands::files::set_modified,
+            commands::files::save_buffer,
+            commands::files::close_buffer,
+            commands::files::reorder_buffer,
+            commands::files::list_encodings,
             bench::bench_config,
             bench::bench_ready,
             bench::bench_gen_only,
