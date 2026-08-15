@@ -3,6 +3,8 @@
   "private": true,
   "version": "0.1.0",
   "license": "MIT",
+  "author": "Mark Karte",
+  "contributors": ["Claude (Anthropic)"],
   "type": "module",
   "scripts": {
     "dev": "vite",
