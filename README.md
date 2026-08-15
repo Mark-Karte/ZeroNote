@@ -113,4 +113,4 @@ Get-FileHash .\ZeroNote_0.1.0_x64-setup.exe -Algorithm SHA256
 
 ## Лицензия
 
-TODO: выбрать до публикации.
+MIT — см. [LICENSE](LICENSE).

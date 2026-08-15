@@ -2,6 +2,7 @@
 name = "zeronote"
 version = "0.1.0"
 description = "ZeroNote — редактор текста и заметок"
+license = "MIT"
 edition = "2024"
 rust-version = "1.85"
 
