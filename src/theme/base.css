@@ -1,0 +1,52 @@
+/*
+ * Базовые правила для элементов документа. Только токены, никаких литералов —
+ * этот файл проверяется тем же тестом, что и компоненты.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/*
+ * Высота протягивается до самого корня приложения. Без #app цепочка рвётся:
+ * height: 100% в оболочке считается от блока нулевой высоты, и строка
+ * состояния прилипает к содержимому вместо низа окна.
+ */
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--zn-color-bg-canvas);
+  color: var(--zn-color-fg-default);
+  font-family: var(--zn-font-family-ui);
+  font-size: var(--zn-font-size-ui);
+  font-weight: var(--zn-font-weight-normal);
+  line-height: var(--zn-font-line-height-ui);
+  /* Интерфейс редактора не резиновая веб-страница: выделение текста мышью
+     в панелях только мешает. В самом редакторе оно будет включено обратно. */
+  user-select: none;
+}
+
+/*
+ * Сообщает системе, в каком виде рисовать нативные элементы: полосы прокрутки,
+ * фокусные кольца, поля ввода. Без этого в тёмной теме остаются светлые
+ * системные полосы прокрутки. Атрибут выставляет theme/apply.ts.
+ */
+:root[data-appearance='light'] {
+  color-scheme: light;
+}
+
+:root[data-appearance='dark'] {
+  color-scheme: dark;
+}
+
+:focus-visible {
+  outline: var(--zn-border-width-thick) solid var(--zn-color-border-focus);
+  outline-offset: var(--zn-space-1);
+}

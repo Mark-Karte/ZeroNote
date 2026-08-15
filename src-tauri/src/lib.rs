@@ -4,14 +4,82 @@
 //! из интеграционных тестов в `tests/` без запуска приложения.
 
 pub mod bench;
+pub mod commands;
+pub mod fsx;
+pub mod settings;
+pub mod state;
+pub mod theme;
+pub mod watch;
+
+use state::AppState;
+
+/// Подготовка папки с данными.
+///
+/// Возвращает состояние и список сообщений для пользователя. Ошибку разрешения
+/// путей не превращаем в панику: приложение должно открыться и объяснить, что
+/// не так, а не молча исчезнуть.
+fn prepare_state() -> AppState {
+    let mut notices = Vec::new();
+
+    let data_dir = match fsx::paths::resolve() {
+        Ok(dir) => {
+            if !dir.portable {
+                notices.push(format!(
+                    "Папка рядом с приложением недоступна на запись. \
+                     Настройки и черновики хранятся в {}.",
+                    dir.path.display()
+                ));
+            }
+            dir
+        }
+        Err(e) => {
+            // Крайний случай: писать некуда вообще. Работаем на умолчаниях,
+            // но говорим об этом прямо — иначе пользователь потеряет черновики,
+            // не подозревая об этом.
+            notices.push(format!(
+                "{e}. Настройки не сохраняются, черновики не пишутся."
+            ));
+            fsx::paths::DataDir {
+                path: std::env::temp_dir().join("ZeroNote"),
+                portable: false,
+            }
+        }
+    };
+
+    // Образец настроек кладём при первом запуске: пустая папка ничего не
+    // объясняет, а файл с комментариями — объясняет.
+    if let Err(e) = settings::write_default_if_missing(&data_dir.settings_file()) {
+        notices.push(format!("не удалось создать settings.toml: {e}"));
+    }
+    if let Err(e) = std::fs::create_dir_all(data_dir.themes_dir()) {
+        notices.push(format!("не удалось создать папку тем: {e}"));
+    }
+
+    AppState {
+        data_dir,
+        startup_notices: notices,
+    }
+}
 
 pub fn run() {
     // Первым делом — засечь момент старта, до любой другой работы,
     // иначе замер холодного старта окажется заниженным.
     bench::init();
 
+    let app_state = prepare_state();
+    let watched_dir = app_state.data_dir.path.clone();
+
     tauri::Builder::default()
+        .manage(app_state)
+        .setup(move |app| {
+            // `app.handle()` даёт ручку к приложению, которую можно передать
+            // в другой поток. Клонируем её, потому что сам `app` остаётся здесь.
+            watch::spawn(app.handle().clone(), watched_dir);
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
+            commands::appearance::appearance_state,
+            commands::appearance::builtin_theme_source,
             bench::bench_config,
             bench::bench_ready,
             bench::bench_gen_only,

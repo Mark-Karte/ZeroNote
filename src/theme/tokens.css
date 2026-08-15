@@ -1,0 +1,85 @@
+/*
+ * Слой токенов оформления — единственное место во фронтенде, где разрешены
+ * литеральные цвета и размеры. Всё остальное обязано ссылаться сюда через
+ * var(--zn-...). Это проверяет тест tests/tokens.test.ts, а не договорённость.
+ *
+ * Значения здесь — только опорные, на случай, до того как применится тема.
+ * Настоящие значения приходят из Rust: src-tauri/src/theme/tokens.rs собирает
+ * их из темы, плотности и настроек пользователя, а theme/apply.ts выставляет
+ * на :root. Окно показывается уже после применения, поэтому вспышки не бывает.
+ *
+ * Набор имён здесь и в tokens.rs обязан совпадать ровно — расхождение валит
+ * тест. Значения расходиться могут: они всё равно перезаписываются.
+ */
+
+:root {
+  /* --- Цвет: семантические роли. Палитра сюда не попадает: компонент не
+     должен знать, какой именно серый ему достался. --- */
+  --zn-color-bg-canvas: #ffffff;
+  --zn-color-bg-surface: #f5f6f8;
+  --zn-color-bg-raised: #ffffff;
+  --zn-color-bg-hover: #eaecf0;
+  --zn-color-bg-active: #dde1e7;
+  --zn-color-bg-selected: #dbe6fe;
+
+  --zn-color-fg-default: #1a1e26;
+  --zn-color-fg-muted: #5b6472;
+  --zn-color-fg-subtle: #8b93a1;
+  --zn-color-fg-on-accent: #ffffff;
+
+  --zn-color-accent: #2563eb;
+  --zn-color-accent-hover: #1d4ed8;
+
+  --zn-color-border-default: #d5dae1;
+  --zn-color-border-subtle: #e7eaee;
+  --zn-color-border-focus: #2563eb;
+
+  --zn-color-danger: #c62828;
+  --zn-color-warning: #b45309;
+  --zn-color-success: #15803d;
+
+  /* --- Типографика --- */
+  --zn-font-family-ui: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --zn-font-family-editor: 'Cascadia Mono', Consolas, 'Courier New', monospace;
+  --zn-font-size-ui: 13px;
+  --zn-font-size-ui-small: 11px;
+  --zn-font-size-editor: 14px;
+  --zn-font-line-height-ui: 1.4;
+  --zn-font-line-height-editor: 1.5;
+  --zn-font-weight-normal: 400;
+  --zn-font-weight-medium: 600;
+
+  /* --- Метрика. Меняется вместе с плотностью интерфейса. --- */
+  --zn-space-1: 2px;
+  --zn-space-2: 4px;
+  --zn-space-3: 8px;
+  --zn-space-4: 12px;
+  --zn-space-5: 16px;
+  --zn-space-6: 24px;
+
+  --zn-radius-sm: 3px;
+  --zn-radius-md: 5px;
+  --zn-radius-lg: 8px;
+
+  --zn-border-width: 1px;
+  --zn-border-width-thick: 2px;
+
+  --zn-control-statusbar-height: 24px;
+  --zn-control-tab-height: 32px;
+  --zn-control-toolbar-height: 36px;
+  --zn-control-row-height: 24px;
+  --zn-control-icon-size: 16px;
+
+  /* --- Глубина --- */
+  --zn-shadow-raised: 0 1px 2px rgba(16, 24, 40, 0.1);
+  --zn-shadow-overlay: 0 8px 24px rgba(16, 24, 40, 0.16);
+
+  --zn-z-panel: 10;
+  --zn-z-overlay: 100;
+  --zn-z-dialog: 1000;
+
+  /* --- Движение. Первый круг разрешает только базовые переходы. --- */
+  --zn-motion-duration-fast: 90ms;
+  --zn-motion-duration-normal: 160ms;
+  --zn-motion-easing: cubic-bezier(0.2, 0, 0, 1);
+}

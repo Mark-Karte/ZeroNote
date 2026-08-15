@@ -2,6 +2,11 @@ import { mount } from 'svelte';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import App from './App.svelte';
 import { benchConfig, benchReady, benchWriteReport, benchExit } from './ipc/bench';
+import { benchReport } from './bench/report-state.svelte';
+import { startAppearance } from './theme/store.svelte';
+
+import './theme/tokens.css';
+import './theme/base.css';
 
 /**
  * Ждём кадр после монтирования. `requestAnimationFrame` срабатывает перед
@@ -17,6 +22,10 @@ function afterFirstPaint(): Promise<void> {
 
 async function main(): Promise<void> {
   const config = await benchConfig();
+
+  // Оформление применяется до монтирования: так интерфейс сразу рисуется
+  // в нужной теме и не мигает светлой заготовкой из tokens.css.
+  await startAppearance();
 
   mount(App, { target: document.getElementById('app')! });
 
@@ -36,7 +45,6 @@ async function main(): Promise<void> {
       await benchWriteReport(config.outPath, report);
       await benchExit();
     } else {
-      const { benchReport } = await import('./bench/report-state.svelte');
       benchReport.text = report;
     }
     return;
