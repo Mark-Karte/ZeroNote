@@ -8,6 +8,7 @@ pub mod commands;
 pub mod fsx;
 pub mod settings;
 pub mod state;
+pub mod text;
 pub mod theme;
 pub mod watch;
 
@@ -86,6 +87,7 @@ pub fn run() {
             bench::bench_gen_text,
             bench::bench_gen_bytes,
             bench::bench_sink_text,
+            bench::bench_run_open,
             bench::bench_write_report,
             bench::bench_exit,
         ])

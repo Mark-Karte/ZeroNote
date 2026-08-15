@@ -60,6 +60,7 @@ pub fn parse_args(args: &[String]) -> BenchConfig {
     let mode = match mode.as_deref() {
         Some("startup") => Some("startup".to_owned()),
         Some("ipc") => Some("ipc".to_owned()),
+        Some("open") => Some("open".to_owned()),
         _ => None,
     };
 
@@ -155,6 +156,78 @@ pub fn bench_gen_bytes(mib: usize, cyrillic: bool) -> tauri::ipc::Response {
 #[tauri::command]
 pub fn bench_sink_text(text: String) -> usize {
     std::hint::black_box(&text).len()
+}
+
+// --- Замер открытия файла: диск -> байты -> определение -> раскодирование ---
+
+/// Сколько раз повторяется каждый замер. Берётся медиана.
+const OPEN_RUNS: usize = 7;
+
+/// Прогнать замер открытия файлов и вернуть готовый отчёт.
+///
+/// Замер целиком в Rust намеренно: это путь, которым файл попадает в буфер,
+/// и границы IPC в нём нет. Смешивать одно с другим — значит мерить не то.
+#[tauri::command]
+pub fn bench_run_open() -> Result<String, String> {
+    use crate::text::document;
+    use crate::text::encoding::{encode, Encoding};
+
+    let dir = std::env::temp_dir().join(format!("zeronote-bench-open-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+
+    let line = "Съешь же ещё этих мягких французских булок, да выпей чаю. 0123456789\r\n";
+
+    let mut report = String::from("| Файл | Размер | Открытие (медиана) | Строк |\n|---|---|---|---|\n");
+
+    for (label, encoding, mib) in [
+        ("UTF-8", Encoding::Utf8, 5usize),
+        ("windows-1251", Encoding::Windows1251, 5),
+        ("UTF-16 LE", Encoding::Utf16Le, 5),
+        ("UTF-8", Encoding::Utf8, 10),
+    ] {
+        // Собираем текст такого размера, чтобы ФАЙЛ вышел нужного размера:
+        // в UTF-16 байт вдвое больше, чем в UTF-8, в windows-1251 вдвое меньше.
+        //
+        // Длина строки в байтах считается один раз. Наращивать текст, каждый
+        // раз перекодируя его целиком ради проверки размера, — квадратичная
+        // работа: на пяти мегабайтах это десятки секунд вместо миллисекунд.
+        let target_bytes = mib * 1024 * 1024;
+        let line_bytes = encode(line, encoding).map_err(|e| e.to_string())?.len();
+        let repeats = target_bytes.div_ceil(line_bytes);
+
+        let mut text = String::with_capacity(line.len() * repeats);
+        for _ in 0..repeats {
+            text.push_str(line);
+        }
+
+        let bytes = encode(&text, encoding).map_err(|e| e.to_string())?;
+        let path = dir.join(format!("{}-{mib}.txt", encoding.label().replace(' ', "")));
+        std::fs::write(&path, &bytes).map_err(|e| e.to_string())?;
+
+        let mut samples = Vec::with_capacity(OPEN_RUNS);
+        let mut lines = 0usize;
+
+        // Прогревочный проход: первое чтение оплачивает попадание файла в кэш.
+        let _ = std::fs::read(&path);
+
+        for _ in 0..OPEN_RUNS {
+            let start = Instant::now();
+            let raw = std::fs::read(&path).map_err(|e| e.to_string())?;
+            let document = document::read(&raw).map_err(|e| e.to_string())?;
+            samples.push(start.elapsed().as_secs_f64() * 1000.0);
+            lines = document.text.lines().count();
+        }
+
+        samples.sort_by(|a, b| a.partial_cmp(b).expect("время не бывает NaN"));
+        let median = samples[samples.len() / 2];
+
+        report.push_str(&format!(
+            "| {label} | {mib} МиБ | {median:.1} мс | {lines} |\n"
+        ));
+    }
+
+    let _ = std::fs::remove_dir_all(&dir);
+    Ok(report)
 }
 
 #[tauri::command]

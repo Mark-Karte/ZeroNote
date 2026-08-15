@@ -11,7 +11,7 @@
 # Замеры на отладочной сборке бессмысленны и скриптом не поддерживаются.
 
 param(
-    [ValidateSet('all', 'startup', 'ipc')]
+    [ValidateSet('all', 'startup', 'ipc', 'open')]
     [string]$Only = 'all',
 
     [int]$Runs = 9
@@ -97,15 +97,17 @@ function Measure-Startup {
     if ($warmMedian -gt 800) { Write-Host 'ПРЕВЫШЕНА цель тёплого старта' -ForegroundColor Red }
 }
 
-function Measure-Ipc {
-    $reportPath = Join-Path $outDir 'ipc.md'
+function Measure-InApp {
+    param([string]$Mode, [string]$Title, [string]$FileName)
+
+    $reportPath = Join-Path $outDir $FileName
     if (Test-Path $reportPath) { Remove-Item $reportPath -Force }
 
     Write-Host ''
-    Write-Host '=== Граница Rust <-> фронтенд ===' -ForegroundColor Cyan
+    Write-Host "=== $Title ===" -ForegroundColor Cyan
 
     $proc = Start-Process -FilePath $exe `
-        -ArgumentList @('--bench', 'ipc', '--bench-out', $reportPath) `
+        -ArgumentList @('--bench', $Mode, '--bench-out', $reportPath) `
         -PassThru -WindowStyle Normal
     $proc.WaitForExit()
 
@@ -120,7 +122,13 @@ function Measure-Ipc {
 }
 
 if ($Only -eq 'all' -or $Only -eq 'startup') { Measure-Startup }
-if ($Only -eq 'all' -or $Only -eq 'ipc') { Measure-Ipc }
+if ($Only -eq 'all' -or $Only -eq 'open') {
+    Measure-InApp -Mode 'open' -Title 'Открытие файла: диск, кодировка, раскодирование' -FileName 'open.md'
+    Write-Host 'Цель: файл 5 МБ <= 500 мс' -ForegroundColor DarkGray
+}
+if ($Only -eq 'all' -or $Only -eq 'ipc') {
+    Measure-InApp -Mode 'ipc' -Title 'Граница Rust <-> фронтенд' -FileName 'ipc.md'
+}
 
 Write-Host ''
 Write-Host "Отчёты: $outDir" -ForegroundColor DarkGray

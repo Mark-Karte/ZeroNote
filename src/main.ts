@@ -1,7 +1,13 @@
 import { mount } from 'svelte';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import App from './App.svelte';
-import { benchConfig, benchReady, benchWriteReport, benchExit } from './ipc/bench';
+import {
+  benchConfig,
+  benchReady,
+  benchRunOpen,
+  benchWriteReport,
+  benchExit,
+} from './ipc/bench';
 import { benchReport } from './bench/report-state.svelte';
 import { startAppearance } from './theme/store.svelte';
 
@@ -37,10 +43,14 @@ async function main(): Promise<void> {
 
   const startupMs = await benchReady();
 
-  if (config.mode === 'ipc') {
-    const { runIpcSuite, formatMarkdown } = await import('./bench/ipc-suite');
-    const rows = await runIpcSuite();
-    const report = formatMarkdown(rows);
+  if (config.mode === 'ipc' || config.mode === 'open') {
+    const report =
+      config.mode === 'open'
+        ? await benchRunOpen()
+        : await import('./bench/ipc-suite').then(async (suite) =>
+            suite.formatMarkdown(await suite.runIpcSuite()),
+          );
+
     if (config.outPath) {
       await benchWriteReport(config.outPath, report);
       await benchExit();

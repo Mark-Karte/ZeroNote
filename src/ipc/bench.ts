@@ -5,7 +5,7 @@ import { invoke } from '@tauri-apps/api/core';
  * В обычном запуске `mode` равен null и приложение ведёт себя как приложение.
  */
 export interface BenchConfig {
-  mode: 'startup' | 'ipc' | null;
+  mode: 'startup' | 'ipc' | 'open' | null;
   outPath: string | null;
 }
 
@@ -40,6 +40,14 @@ export async function benchGenBytes(mib: number, cyrillic: boolean): Promise<Arr
 /** Отправить текст из фронтенда в ядро. Это путь сброса черновика и сохранения файла. */
 export function benchSinkText(text: string): Promise<number> {
   return invoke<number>('bench_sink_text', { text });
+}
+
+/**
+ * Замер открытия файла целиком в ядре: диск → байты → определение кодировки →
+ * раскодирование. Границы IPC в этом пути нет, поэтому и в замере её нет.
+ */
+export function benchRunOpen(): Promise<string> {
+  return invoke<string>('bench_run_open');
 }
 
 export function benchWriteReport(path: string, content: string): Promise<void> {
