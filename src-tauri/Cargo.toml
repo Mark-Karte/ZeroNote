@@ -1,0 +1,32 @@
+[package]
+name = "zeronote"
+version = "0.1.0"
+description = "ZeroNote — редактор текста и заметок"
+edition = "2024"
+rust-version = "1.85"
+
+[lib]
+# `tauri build` собирает бинарник из main.rs, а вся логика живёт в библиотеке.
+# Разделение нужно для тестов: интеграционные тесты в tests/ подключают
+# библиотеку как обычный крейт и работают без запуска приложения.
+name = "zeronote_lib"
+crate-type = ["lib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+# Скорость важнее размера: цели по производительности — часть спецификации.
+opt-level = 3
+# Одна единица кодогенерации + LTO дают заметный выигрыш на старте за счёт
+# лучшей инлайн-оптимизации. Платим временем сборки, а не временем работы.
+codegen-units = 1
+lto = true
+strip = true
+# panic = "abort" сознательно НЕ включён: паника в обработчике команды не должна
+# убивать процесс вместе с несохранёнными черновиками (инвариант 4).
