@@ -8,6 +8,7 @@ pub mod cli;
 pub mod commands;
 pub mod fsx;
 pub mod model;
+pub mod session;
 pub mod settings;
 pub mod state;
 pub mod text;
@@ -99,6 +100,10 @@ pub fn run() {
             commands::files::close_buffer,
             commands::files::reorder_buffer,
             commands::files::list_encodings,
+            commands::session::save_session,
+            commands::session::flush_drafts,
+            commands::session::drop_draft,
+            commands::session::restore_session,
             bench::bench_config,
             bench::bench_ready,
             bench::bench_gen_only,

@@ -9,7 +9,8 @@
   import NoticeStrip from './NoticeStrip.svelte';
   import StatusBar from './StatusBar.svelte';
   import Modal from './Modal.svelte';
-  import { tabs } from '../state/tabs.svelte';
+  import { tabs, restore } from '../state/tabs.svelte';
+  import { flushNow } from '../state/persist.svelte';
   import { openDropped, closeAllTabs } from '../actions/files';
   import { startupPaths } from '../ipc/files';
   import { installGlobalKeymap } from '../keymap/global';
@@ -19,11 +20,20 @@
   let unlistenClose: UnlistenFn | null = null;
   let dropActive = $state(false);
 
+  /** О чём не удалось восстановить — показывается той же полосой, что и прочее. */
+  const restoreNotices = $state<string[]>([]);
+
   onMount(async () => {
     removeKeymap = installGlobalKeymap();
 
-    // TODO(задача 5): здесь же восстанавливается сессия. Пока открываются
-    // только файлы, переданные в командной строке.
+    // Сессия восстанавливается до файлов из командной строки: если файл
+    // уже был открыт в прошлый раз, он просто станет активным, а не откроется
+    // второй вкладкой.
+    const notices = await restore();
+    for (const notice of notices) {
+      restoreNotices.push(notice);
+    }
+
     const paths = await startupPaths();
     if (paths.length > 0) {
       await openDropped(paths);
@@ -36,7 +46,11 @@
       event.preventDefault();
       if (await closeAllTabs()) {
         await getCurrentWindow().destroy();
+        return;
       }
+      // Закрытие отменили — но всё, что успели напечатать, лучше сбросить
+      // на диск прямо сейчас, не дожидаясь таймера.
+      await flushNow();
     });
 
     unlistenDrop = await getCurrentWindow().onDragDropEvent((event) => {
@@ -60,7 +74,7 @@
 
 <div class="shell" class:drop={dropActive}>
   <TitleBar />
-  <NoticeStrip />
+  <NoticeStrip extra={restoreNotices} />
 
   {#if tabs.items.length > 0}
     <TabStrip />

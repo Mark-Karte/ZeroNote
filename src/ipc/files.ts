@@ -84,3 +84,32 @@ export const reorderBuffer = (id: number, to: number): Promise<Buffer[]> =>
   invoke('reorder_buffer', { id, to });
 
 export const listEncodings = (): Promise<EncodingOption[]> => invoke('list_encodings');
+
+// --- Сессия и черновики (инвариант 4) ---
+
+export interface ViewState {
+  id: number;
+  cursor: number;
+  scrollTop: number;
+}
+
+export interface RestoredBuffer extends BufferWithText {
+  cursor: number;
+  scrollTop: number;
+}
+
+export interface RestoredSession {
+  buffers: RestoredBuffer[];
+  active: number | null;
+  notices: string[];
+}
+
+export const saveSession = (views: ViewState[], active: number | null): Promise<void> =>
+  invoke('save_session', { views, active });
+
+export const flushDrafts = (entries: { id: number; text: string }[]): Promise<void> =>
+  invoke('flush_drafts', { entries });
+
+export const dropDraft = (id: number): Promise<void> => invoke('drop_draft', { id });
+
+export const restoreSession = (): Promise<RestoredSession> => invoke('restore_session');

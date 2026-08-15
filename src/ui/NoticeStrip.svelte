@@ -2,9 +2,16 @@
   import Icon from './Icon.svelte';
   import { appearance } from '../theme/store.svelte';
 
-  // Проблемы с настройками и темами показываются, а не прячутся в лог:
+  interface Props {
+    /** Сообщения не про оформление: что не удалось восстановить из сессии. */
+    extra?: string[];
+  }
+
+  let { extra = [] }: Props = $props();
+
+  // Проблемы с настройками, темами и сессией показываются, а не прячутся в лог:
   // пользователь правит эти файлы руками и должен видеть, что пошло не так.
-  const problems = $derived(appearance.current?.problems ?? []);
+  const problems = $derived([...(appearance.current?.problems ?? []), ...extra]);
 </script>
 
 {#if problems.length > 0}

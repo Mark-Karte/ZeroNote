@@ -30,6 +30,7 @@
     const tab = tabById(mounted);
     if (tab) {
       tab.editor = view.state;
+      tab.scrollTop = view.scrollDOM.scrollTop;
     }
   }
 
@@ -38,10 +39,23 @@
       state: EditorState.create({ doc: '' }),
       parent: host,
     });
+
+    // Прокрутка не входит в EditorState, поэтому запоминается отдельно —
+    // и для переключения вкладок, и для восстановления сессии.
+    view.scrollDOM.addEventListener('scroll', onScroll, { passive: true });
   });
+
+  function onScroll(): void {
+    if (!view || mounted === null) return;
+    const tab = tabById(mounted);
+    if (tab) {
+      tab.scrollTop = view.scrollDOM.scrollTop;
+    }
+  }
 
   onDestroy(() => {
     stash();
+    view?.scrollDOM.removeEventListener('scroll', onScroll);
     view?.destroy();
     view = null;
   });
@@ -65,6 +79,9 @@
 
     view.setState(tab.editor);
     mounted = id;
+    // Прокрутка выставляется после смены состояния: до неё содержимого
+    // нужной высоты в разметке ещё нет и прокручивать некуда.
+    view.scrollDOM.scrollTop = tab.scrollTop;
     view.focus();
   });
 </script>

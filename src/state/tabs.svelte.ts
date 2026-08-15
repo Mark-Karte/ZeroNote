@@ -1,8 +1,11 @@
 import { EditorState, type Text } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import * as ipc from '../ipc/files';
-import type { Buffer, BufferWithText } from '../ipc/files';
+import type { Buffer, BufferWithText, ViewState } from '../ipc/files';
 import { extensionsFor } from '../editor/setup';
+// Взаимный импорт с persist: там только функции, и зовутся они в рантайме,
+// поэтому порядок загрузки модулей роли не играет.
+import { forgetDraft, noteEdit, noteStructureChange } from './persist.svelte';
 
 /**
  * Вкладки и их содержимое.
@@ -20,6 +23,14 @@ import { extensionsFor } from '../editor/setup';
 export interface Tab {
   meta: Buffer;
   editor: EditorState;
+  /**
+   * Прокрутка редактора.
+   *
+   * Отдельным полем, потому что в `EditorState` её нет: положение прокрутки —
+   * свойство представления, а не документа. Записывается редактором при
+   * прокрутке и восстанавливается при возврате на вкладку.
+   */
+  scrollTop: number;
 }
 
 /** Порядок в массиве — это порядок вкладок, такой же, как в ядре. */
@@ -41,6 +52,16 @@ export const tabs = $state<{ items: Tab[]; activeId: number | null }>({
  */
 const baselines = new Map<number, Text>();
 
+/**
+ * Буферы, поднятые из черновика после аварийного завершения.
+ *
+ * Для них исходного текста мы не знаем: на диске лежит одно, в черновике
+ * другое, и сравнивать не с чем. Такой буфер считается изменённым до первого
+ * сохранения — иначе, стерев в нём всё, пользователь получил бы «чистую»
+ * вкладку и закрыл бы её без вопросов, потеряв восстановленное.
+ */
+const restoredDirty = new Set<number>();
+
 export function activeTab(): Tab | null {
   if (tabs.activeId === null) return null;
   return tabs.items.find((t) => t.meta.id === tabs.activeId) ?? null;
@@ -53,6 +74,15 @@ export function tabById(id: number): Tab | null {
 /** Текст буфера во внутреннем виде — с переводами строк `\n`. */
 export function textOf(tab: Tab): string {
   return tab.editor.doc.toString();
+}
+
+/** То, что нужно сессии от вида: где курсор и куда прокручено. */
+export function viewStateOf(tab: Tab): ViewState {
+  return {
+    id: tab.meta.id,
+    cursor: tab.editor.selection.main.head,
+    scrollTop: tab.scrollTop,
+  };
 }
 
 /**
@@ -68,33 +98,41 @@ function onEditorUpdate(id: number, view: EditorView): void {
   tab.editor = view.state;
 
   const baseline = baselines.get(id);
-  const modified = baseline ? !view.state.doc.eq(baseline) : false;
+  const modified = restoredDirty.has(id) || (baseline ? !view.state.doc.eq(baseline) : false);
 
   if (modified !== tab.meta.modified) {
     tab.meta = { ...tab.meta, modified };
     void ipc.setModified(id, modified);
   }
+
+  // Черновик уйдёт на диск через задержку — инвариант 4.
+  noteEdit();
 }
 
-function makeState(meta: Buffer, text: string): EditorState {
+function makeState(meta: Buffer, text: string, cursor = 0): EditorState {
   return EditorState.create({
     doc: text,
+    // Курсор за пределами документа уронил бы создание состояния: снимок мог
+    // относиться к более длинному тексту, чем оказался на диске.
+    selection: { anchor: Math.min(cursor, text.length) },
     extensions: extensionsFor(meta, (view) => onEditorUpdate(meta.id, view)),
   });
 }
 
-function put(meta: Buffer, text: string): void {
-  const editor = makeState(meta, text);
+function put(meta: Buffer, text: string, cursor = 0, scrollTop = 0): void {
+  const editor = makeState(meta, text, cursor);
   baselines.set(meta.id, editor.doc);
 
   const existing = tabById(meta.id);
   if (existing) {
     existing.meta = meta;
     existing.editor = editor;
+    existing.scrollTop = scrollTop;
   } else {
-    tabs.items.push({ meta, editor });
+    tabs.items.push({ meta, editor, scrollTop });
   }
   tabs.activeId = meta.id;
+  noteStructureChange();
 }
 
 /** Обновить сведения о буфере, не трогая содержимое. */
@@ -110,11 +148,39 @@ export function resetBaseline(id: number): void {
   const tab = tabById(id);
   if (tab) {
     baselines.set(id, tab.editor.doc);
+    // Буфер сохранён — теперь есть с чем сравнивать, подпорка не нужна.
+    restoredDirty.delete(id);
   }
 }
 
 export function setActive(id: number): void {
   tabs.activeId = id;
+  noteStructureChange();
+}
+
+/**
+ * Восстановить вкладки из сессии.
+ *
+ * Содержимое приходит из ядра готовым: для изменённых буферов — из черновика,
+ * для остальных — перечитанным с диска. Фронтенду остаётся расставить их
+ * по местам, сохранив порядок, курсоры и прокрутку.
+ */
+export async function restore(): Promise<string[]> {
+  const session = await ipc.restoreSession();
+
+  for (const item of session.buffers) {
+    const { text, cursor, scrollTop, ...meta } = item;
+    const editor = makeState(meta, text, cursor);
+
+    if (meta.modified) {
+      restoredDirty.add(meta.id);
+    }
+    baselines.set(meta.id, editor.doc);
+    tabs.items.push({ meta, editor, scrollTop });
+  }
+
+  tabs.activeId = session.active ?? tabs.items.at(-1)?.meta.id ?? null;
+  return session.notices;
 }
 
 export async function createEmpty(): Promise<void> {
@@ -141,12 +207,17 @@ export async function close(id: number): Promise<void> {
   await ipc.closeBuffer(id);
   tabs.items.splice(index, 1);
   baselines.delete(id);
+  restoredDirty.delete(id);
+  // Черновик закрытой вкладки больше не нужен: восстанавливать её не будем.
+  await forgetDraft(id);
 
-  if (tabs.activeId !== id) return;
+  if (tabs.activeId === id) {
+    // Активной становится соседняя вкладка: та, что была справа, иначе слева.
+    const next = tabs.items[index] ?? tabs.items[index - 1] ?? null;
+    tabs.activeId = next ? next.meta.id : null;
+  }
 
-  // Активной становится соседняя вкладка: та, что была справа, иначе слева.
-  const next = tabs.items[index] ?? tabs.items[index - 1] ?? null;
-  tabs.activeId = next ? next.meta.id : null;
+  noteStructureChange();
 }
 
 /**
@@ -175,4 +246,5 @@ export async function commitOrder(id: number): Promise<void> {
   const index = tabs.items.findIndex((t) => t.meta.id === id);
   if (index < 0) return;
   await ipc.reorderBuffer(id, index);
+  noteStructureChange();
 }

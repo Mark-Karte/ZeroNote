@@ -83,8 +83,35 @@ impl Buffers {
         }
     }
 
+    /// Восстановить реестр из сессии.
+    ///
+    /// Номера буферов берутся из снимка, а не выдаются заново: по ним названы
+    /// файлы черновиков, и переименование сломало бы связь. Счётчики тоже
+    /// восстанавливаются, чтобы новая вкладка не получила номер уже открытой.
+    pub fn restore(items: Vec<Buffer>, next_id: BufferId, next_untitled: u32) -> Buffers {
+        // Страховка от испорченного снимка: счётчик обязан быть больше любого
+        // выданного номера, иначе следующий буфер затрёт существующий.
+        let highest = items.iter().map(|b| b.id).max().unwrap_or(0);
+
+        Buffers {
+            next_id: next_id.max(highest + 1),
+            next_untitled: next_untitled.max(1),
+            items,
+        }
+    }
+
     pub fn list(&self) -> &[Buffer] {
         &self.items
+    }
+
+    /// Счётчики нужны снимку сессии: без них номера буферов начались бы
+    /// заново и разошлись бы с именами файлов черновиков.
+    pub fn next_id(&self) -> BufferId {
+        self.next_id
+    }
+
+    pub fn next_untitled(&self) -> u32 {
+        self.next_untitled
     }
 
     pub fn get(&self, id: BufferId) -> Option<&Buffer> {

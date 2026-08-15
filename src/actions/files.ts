@@ -12,6 +12,7 @@ import {
   close as closeTabState,
 } from '../state/tabs.svelte';
 import { askChoice } from '../state/modal.svelte';
+import { forgetDraft, noteStructureChange } from '../state/persist.svelte';
 import { resolveMixedLineEndings } from './encoding';
 
 /**
@@ -78,6 +79,9 @@ async function writeTo(id: number, path?: string): Promise<boolean> {
     applyMeta(meta);
     // Текущий текст становится исходным: буфер чист.
     resetBaseline(id);
+    // Содержимое доехало до настоящего файла — черновик больше не нужен.
+    await forgetDraft(id);
+    noteStructureChange();
     return true;
   } catch (error) {
     await report(error);
