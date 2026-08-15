@@ -71,11 +71,36 @@ export const setLineEnding = (id: number, lineEnding: LineEnding): Promise<Buffe
 export const setModified = (id: number, modified: boolean): Promise<void> =>
   invoke('set_modified', { id, modified });
 
+export interface SaveResult {
+  /** Файл на диске изменился с момента чтения. Ничего не записано. */
+  conflict: boolean;
+  buffer: Buffer | null;
+}
+
 export const saveBuffer = (
   id: number,
   text: string,
   path?: string,
-): Promise<Buffer> => invoke('save_buffer', { id, text, path: path ?? null });
+  force = false,
+): Promise<SaveResult> =>
+  invoke('save_buffer', { id, text, path: path ?? null, force });
+
+export type ExternalStatus = 'modified' | 'removed';
+
+export interface ExternalChange {
+  id: number;
+  status: ExternalStatus;
+}
+
+export const checkExternal = (): Promise<ExternalChange[]> => invoke('check_external');
+
+/** Принять состояние файла как эталонное, оставив содержимое буфера. */
+export const acceptExternal = (id: number): Promise<Buffer> =>
+  invoke('accept_external', { id });
+
+/** Файл исчез, содержимое остаётся в редакторе. */
+export const markDetached = (id: number): Promise<Buffer> =>
+  invoke('mark_detached', { id });
 
 export const closeBuffer = (id: number): Promise<boolean> =>
   invoke('close_buffer', { id });

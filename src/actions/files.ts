@@ -14,6 +14,7 @@ import {
 import { askChoice } from '../state/modal.svelte';
 import { forgetDraft, noteStructureChange } from '../state/persist.svelte';
 import { resolveMixedLineEndings } from './encoding';
+import { confirmOverwrite } from './external';
 
 /**
  * Действия над файлами: то, что вызывается из меню, горячих клавиш и вкладок.
@@ -75,8 +76,18 @@ async function writeTo(id: number, path?: string): Promise<boolean> {
   if (!(await resolveMixedLineEndings(id))) return false;
 
   try {
-    const meta = await ipc.saveBuffer(id, textOf(tab), path);
-    applyMeta(meta);
+    let result = await ipc.saveBuffer(id, textOf(tab), path);
+
+    // Файл изменили между чтением и сохранением. Молча затирать чужую
+    // работу нельзя — спрашиваем и пишем только с разрешения.
+    if (result.conflict) {
+      if (!(await confirmOverwrite(id))) return false;
+      result = await ipc.saveBuffer(id, textOf(tab), path, true);
+    }
+
+    if (!result.buffer) return false;
+
+    applyMeta(result.buffer);
     // Текущий текст становится исходным: буфер чист.
     resetBaseline(id);
     // Содержимое доехало до настоящего файла — черновик больше не нужен.

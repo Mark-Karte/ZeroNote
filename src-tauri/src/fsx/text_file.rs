@@ -50,6 +50,31 @@ fn to_millis(time: SystemTime) -> Option<u64> {
         .map(|d| d.as_millis() as u64)
 }
 
+/// Что стало с файлом с момента последнего чтения.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ExternalStatus {
+    Unchanged,
+    /// Содержимое изменил кто-то другой.
+    Modified,
+    /// Файла больше нет: удалён, переименован или стал недоступен.
+    Removed,
+}
+
+/// Сверить файл на диске с тем, каким он был при чтении.
+///
+/// Сравниваются время изменения и размер вместе. Только времени мало:
+/// файловые системы Windows хранят его с грубым шагом, и быстрая правка
+/// может не сдвинуть отметку. Только размера — тем более: правка часто
+/// не меняет длину файла.
+pub fn compare_with_disk(path: &Path, known: DiskState) -> ExternalStatus {
+    match DiskState::of(path) {
+        Ok(current) if current == known => ExternalStatus::Unchanged,
+        Ok(_) => ExternalStatus::Modified,
+        Err(_) => ExternalStatus::Removed,
+    }
+}
+
 #[derive(Debug)]
 pub struct OpenedFile {
     pub path: PathBuf,
@@ -267,5 +292,91 @@ mod tests {
     fn missing_file_is_an_error_not_a_panic() {
         let path = temp_dir("missing").join("нет-такого.txt");
         assert!(matches!(open(&path), Err(OpenError::Io { .. })));
+    }
+
+    /// Нетронутый файл не должен выглядеть изменённым: иначе редактор
+    /// будет донимать вопросами при каждом возврате в окно.
+    #[test]
+    fn untouched_file_looks_unchanged() {
+        let dir = temp_dir("ext-same");
+        let path = dir.join("файл.txt");
+        std::fs::write(&path, "содержимое").unwrap();
+
+        let known = open(&path).unwrap().disk;
+
+        assert_eq!(compare_with_disk(&path, known), ExternalStatus::Unchanged);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Правка снаружи обязана быть замечена.
+    #[test]
+    fn external_edit_is_noticed() {
+        let dir = temp_dir("ext-edit");
+        let path = dir.join("файл.txt");
+        std::fs::write(&path, "было").unwrap();
+
+        let known = open(&path).unwrap().disk;
+        std::fs::write(&path, "стало заметно длиннее").unwrap();
+
+        assert_eq!(compare_with_disk(&path, known), ExternalStatus::Modified);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Правка, не меняющая длину файла, — самый коварный случай:
+    /// её ловит только отметка времени.
+    #[test]
+    fn same_length_edit_is_noticed() {
+        let dir = temp_dir("ext-samelen");
+        let path = dir.join("файл.txt");
+        std::fs::write(&path, "aaaa").unwrap();
+
+        let known = open(&path).unwrap().disk;
+        // Ждём, чтобы отметка времени заведомо изменилась: файловые системы
+        // Windows хранят её с грубым шагом.
+        std::thread::sleep(std::time::Duration::from_millis(30));
+        std::fs::write(&path, "bbbb").unwrap();
+
+        assert_eq!(compare_with_disk(&path, known), ExternalStatus::Modified);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Исчезнувший файл — отдельный случай, а не «изменился»:
+    /// пользователю о нём надо сказать по-другому.
+    #[test]
+    fn removed_file_is_a_separate_case() {
+        let dir = temp_dir("ext-gone");
+        let path = dir.join("файл.txt");
+        std::fs::write(&path, "содержимое").unwrap();
+
+        let known = open(&path).unwrap().disk;
+        std::fs::remove_file(&path).unwrap();
+
+        assert_eq!(compare_with_disk(&path, known), ExternalStatus::Removed);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Наше собственное сохранение не должно выглядеть чужой правкой,
+    /// иначе редактор спрашивал бы про файл, который сам же и записал.
+    #[test]
+    fn our_own_save_is_not_an_external_change() {
+        let dir = temp_dir("ext-own");
+        let path = dir.join("файл.txt");
+        std::fs::write(&path, "было\r\n").unwrap();
+
+        let opened = open(&path).unwrap();
+        let after_save = write(
+            &path,
+            "стало\n",
+            opened.document.encoding,
+            opened.document.bom,
+            opened.document.eol.dominant,
+        )
+        .unwrap();
+
+        assert_eq!(
+            compare_with_disk(&path, after_save),
+            ExternalStatus::Unchanged
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

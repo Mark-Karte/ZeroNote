@@ -12,12 +12,14 @@
   import { tabs, restore } from '../state/tabs.svelte';
   import { flushNow } from '../state/persist.svelte';
   import { openDropped, closeAllTabs } from '../actions/files';
+  import { checkExternalChanges } from '../actions/external';
   import { startupPaths } from '../ipc/files';
   import { installGlobalKeymap } from '../keymap/global';
 
   let removeKeymap: (() => void) | null = null;
   let unlistenDrop: UnlistenFn | null = null;
   let unlistenClose: UnlistenFn | null = null;
+  let unlistenFocus: UnlistenFn | null = null;
   let dropActive = $state(false);
 
   /** О чём не удалось восстановить — показывается той же полосой, что и прочее. */
@@ -53,6 +55,12 @@
       await flushNow();
     });
 
+    // Файлы сверяются с диском при возвращении фокуса в окно: именно тогда
+    // пользователь мог что-то сделать с ними в другой программе (Р-014).
+    unlistenFocus = await getCurrentWindow().onFocusChanged(({ payload }) => {
+      if (payload) void checkExternalChanges();
+    });
+
     unlistenDrop = await getCurrentWindow().onDragDropEvent((event) => {
       if (event.payload.type === 'over') {
         dropActive = true;
@@ -69,6 +77,7 @@
     removeKeymap?.();
     unlistenDrop?.();
     unlistenClose?.();
+    unlistenFocus?.();
   });
 </script>
 

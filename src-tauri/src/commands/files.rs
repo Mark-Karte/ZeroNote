@@ -266,15 +266,32 @@ pub fn set_modified(
     Ok(())
 }
 
+/// Чем кончилось сохранение.
+///
+/// Отдельный тип, а не строка ошибки: расхождение с диском — не сбой, а
+/// вопрос к пользователю, и отличать его от настоящей ошибки записи надо
+/// надёжно, а не разбором текста сообщения.
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveResult {
+    /// Файл на диске изменился с момента чтения. Ничего не записано.
+    pub conflict: bool,
+    pub buffer: Option<Buffer>,
+}
+
 /// Сохранить буфер. `path` задан — это «сохранить как».
+///
+/// `force` пропускает проверку расхождения с диском: так вызывающий код
+/// подтверждает перезапись после вопроса пользователю.
 #[tauri::command]
 pub fn save_buffer(
     state: tauri::State<'_, AppState>,
     id: BufferId,
     text: String,
     path: Option<String>,
-) -> Fallible<Buffer> {
-    let (target, encoding, bom, line_ending, read_only) = {
+    force: bool,
+) -> Fallible<SaveResult> {
+    let (target, encoding, bom, line_ending, read_only, known_disk) = {
         let buffers = state.buffers.lock().expect("реестр буферов повреждён");
         let buffer = buffers
             .get(id)
@@ -294,6 +311,7 @@ pub fn save_buffer(
             buffer.bom,
             buffer.eol,
             buffer.read_only,
+            buffer.disk,
         )
     };
 
@@ -303,15 +321,105 @@ pub fn save_buffer(
         return Err("файл открыт только для чтения".to_owned());
     }
 
+    // Проверка прямо перед записью — последняя возможность заметить, что файл
+    // изменили снаружи, пока мы его редактировали. Только для сохранения
+    // в тот же файл: «сохранить как» пишет в другой, и сравнивать не с чем.
+    if !force && path.is_none() {
+        if let Some(known) = known_disk
+            && let Ok(current) = text_file::DiskState::of(&target)
+            && current != known
+        {
+            return Ok(SaveResult {
+                conflict: true,
+                buffer: None,
+            });
+        }
+    }
+
     let disk = text_file::write(&target, &text, encoding, bom, line_ending)
         .map_err(|e| e.to_string())?;
 
     let mut buffers = state.buffers.lock().expect("реестр буферов повреждён");
     buffers.mark_saved(id, target, disk);
+
+    Ok(SaveResult {
+        conflict: false,
+        buffer: buffers.get(id).cloned(),
+    })
+}
+
+// --- Отслеживание внешних изменений ---
+
+use text_file::ExternalStatus;
+
+#[derive(Debug, Clone, Copy, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalChange {
+    pub id: BufferId,
+    pub status: ExternalStatus,
+}
+
+/// Сверить состояние файлов на диске с тем, каким оно было при чтении.
+///
+/// Опрос, а не подписка на события файловой системы: см. DESIGN.md, решение
+/// Р-014. Вызывается при получении окном фокуса — именно тогда, когда
+/// пользователь мог что-то сделать с файлом в другой программе.
+#[tauri::command]
+pub fn check_external(state: tauri::State<'_, AppState>) -> Vec<ExternalChange> {
+    let buffers = state.buffers.lock().expect("реестр буферов повреждён");
+
     buffers
-        .get(id)
-        .cloned()
-        .ok_or_else(|| format!("буфер {id} не найден"))
+        .list()
+        .iter()
+        .filter_map(|buffer| {
+            let path = buffer.path.as_ref()?;
+            let known = buffer.disk?;
+
+            match text_file::compare_with_disk(path, known) {
+                ExternalStatus::Unchanged => None,
+                status => Some(ExternalChange {
+                    id: buffer.id,
+                    status,
+                }),
+            }
+        })
+        .collect()
+}
+
+/// Принять текущее состояние файла как эталонное, не трогая содержимое буфера.
+///
+/// Нужно, когда пользователь решил оставить свои правки: без этого вопрос
+/// повторялся бы при каждом возврате в окно.
+#[tauri::command]
+pub fn accept_external(state: tauri::State<'_, AppState>, id: BufferId) -> Fallible<Buffer> {
+    let mut buffers = state.buffers.lock().expect("реестр буферов повреждён");
+    let buffer = buffers
+        .get_mut(id)
+        .ok_or_else(|| format!("буфер {id} не найден"))?;
+
+    if let Some(path) = &buffer.path {
+        buffer.disk = text_file::DiskState::of(path).ok();
+    }
+    // Содержимое буфера теперь заведомо расходится с файлом.
+    buffer.modified = true;
+
+    Ok(buffer.clone())
+}
+
+/// Файл исчез, а содержимое пользователь решил оставить.
+///
+/// Путь сохраняется — по нему буфер и запишется обратно при сохранении, —
+/// но сведений о файле на диске больше нет, и сверять их не с чем.
+#[tauri::command]
+pub fn mark_detached(state: tauri::State<'_, AppState>, id: BufferId) -> Fallible<Buffer> {
+    let mut buffers = state.buffers.lock().expect("реестр буферов повреждён");
+    let buffer = buffers
+        .get_mut(id)
+        .ok_or_else(|| format!("буфер {id} не найден"))?;
+
+    buffer.disk = None;
+    buffer.modified = true;
+    Ok(buffer.clone())
 }
 
 #[tauri::command]

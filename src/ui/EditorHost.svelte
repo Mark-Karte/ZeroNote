@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, untrack } from 'svelte';
   import { EditorView } from '@codemirror/view';
   import { EditorState } from '@codemirror/state';
   import { tabs, tabById } from '../state/tabs.svelte';
@@ -25,13 +25,19 @@
    * Подмена состояния ничего не теряет: курсоры, прокрутка и история отмены
    * входят в `EditorState`, а не в представление.
    */
-  function stash(): void {
-    if (!view || mounted === null) return;
-    const tab = tabById(mounted);
-    if (tab) {
-      tab.editor = view.state;
-      tab.scrollTop = view.scrollDOM.scrollTop;
-    }
+  function stash(id: number | null): void {
+    if (!view || id === null) return;
+    const tab = tabById(id);
+    if (!tab) return;
+
+    const state = view.state;
+    const scrollTop = view.scrollDOM.scrollTop;
+    // Запись в уходящую вкладку не должна становиться зависимостью эффекта:
+    // иначе он вызовет сам себя.
+    untrack(() => {
+      tab.editor = state;
+      tab.scrollTop = scrollTop;
+    });
   }
 
   onMount(() => {
@@ -54,35 +60,49 @@
   }
 
   onDestroy(() => {
-    stash();
+    stash(mounted);
     view?.scrollDOM.removeEventListener('scroll', onScroll);
     view?.destroy();
     view = null;
   });
 
+  /**
+   * Следим не только за сменой активной вкладки, но и за подменой её
+   * состояния.
+   *
+   * Одной только `activeId` недостаточно, и это стоило дефекта: перечитывание
+   * файла с диска и «интерпретировать как» подменяют `tab.editor`, не трогая
+   * активную вкладку. Эффект, зависящий только от номера, такую подмену
+   * не замечал — модель обновлялась, а на экране оставался прежний текст.
+   *
+   * Сравнение идёт по тождеству объекта состояния. Собственные правки
+   * пользователя тоже проходят здесь, но там `tab.editor` и есть текущее
+   * состояние представления, поэтому ничего не происходит.
+   */
   $effect(() => {
     const id = tabs.activeId;
-    if (!view || id === mounted) return;
+    const tab = id === null ? null : tabById(id);
+    const wanted = tab ? tab.editor : null;
 
-    // Порядок важен: сначала сохранить состояние уходящей вкладки,
-    // иначе правки последних секунд пропадут.
-    stash();
+    if (!view) return;
 
-    if (id === null) {
-      mounted = null;
+    if (id !== mounted) {
+      stash(mounted);
+      mounted = id;
+    }
+
+    if (!wanted) {
       view.setState(EditorState.create({ doc: '' }));
       return;
     }
 
-    const tab = tabById(id);
-    if (!tab) return;
-
-    view.setState(tab.editor);
-    mounted = id;
-    // Прокрутка выставляется после смены состояния: до неё содержимого
-    // нужной высоты в разметке ещё нет и прокручивать некуда.
-    view.scrollDOM.scrollTop = tab.scrollTop;
-    view.focus();
+    if (view.state !== wanted) {
+      view.setState(wanted);
+      // Прокрутка выставляется после смены состояния: до неё содержимого
+      // нужной высоты в разметке ещё нет и прокручивать некуда.
+      view.scrollDOM.scrollTop = tab!.scrollTop;
+      view.focus();
+    }
   });
 </script>
 
