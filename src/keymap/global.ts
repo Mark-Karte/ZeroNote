@@ -1,78 +1,85 @@
-import {
-  newFile,
-  openFiles,
-  saveActive,
-  saveActiveAs,
-  closeTab,
-} from '../actions/files';
-import { activeTab } from '../state/tabs.svelte';
+import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+import { bindingOf } from './binding';
+import { COMMANDS } from './registry';
 
 /**
- * Оконные сочетания клавиш.
+ * Оконный диспетчер горячих клавиш.
  *
- * Полная раскладка Notepad++ и её переназначение — задача 7. Здесь только то,
- * без чего редактором нельзя пользоваться, плюс отъём у вебвью сочетаний,
- * которые он считает своими.
- *
- * Обработчик стоит на этапе перехвата (`capture`) намеренно: иначе Ctrl+S
- * достанется сначала CodeMirror или вебвью, и до нас не дойдёт.
+ * Стоит на этапе перехвата (`capture`) намеренно: иначе Ctrl+S достался бы
+ * сначала CodeMirror или вебвью, и до нас не дошёл бы. Раскладка приходит
+ * из ядра — там она собирается из умолчаний Notepad++ и файла пользователя.
  */
 
-interface Binding {
-  key: string;
-  ctrl?: boolean;
-  shift?: boolean;
-  run: () => void | Promise<unknown>;
+export interface KeymapState {
+  bindings: Record<string, string>;
+  commands: { id: string; title: string }[];
+  problems: string[];
 }
 
-const BINDINGS: Binding[] = [
-  { key: 'n', ctrl: true, run: newFile },
-  { key: 'o', ctrl: true, run: openFiles },
-  { key: 's', ctrl: true, run: saveActive },
-  { key: 's', ctrl: true, shift: true, run: saveActiveAs },
-  {
-    key: 'w',
-    ctrl: true,
-    run: () => {
-      const tab = activeTab();
-      return tab ? closeTab(tab.meta.id) : undefined;
-    },
-  },
-];
+let bindings: Record<string, string> = {};
 
 /**
- * Сочетания, которые вебвью обрабатывает сам и которые в редакторе означают
- * совсем другое. Их надо просто отнять, даже если своего действия пока нет:
- * F5 перезагружает страницу и стирает все несохранённые буферы, Ctrl+P
- * открывает системную печать, Ctrl+± меняет масштаб всего интерфейса.
+ * Сочетания, которые вебвью считает своими и которые в редакторе означают
+ * совсем другое. Их надо отнять, даже если своего действия пока нет: F5
+ * перезагружает страницу и стирает несохранённые буферы, Ctrl+P открывает
+ * системную печать, Ctrl+± меняет масштаб всего интерфейса.
  *
- * Свои действия им назначаются в задаче 7.
+ * Как только сочетание займёт наша команда, оно уйдёт отсюда само собой:
+ * список проверяется только для несвязанных.
  */
-function isWebviewDefaultToSuppress(event: KeyboardEvent): boolean {
-  if (event.key === 'F5' || event.key === 'F3') return true;
-  if (!event.ctrlKey) return false;
-  return ['p', 'r', 'f', 'g', 'j', 'u', '+', '-', '=', '0'].includes(
-    event.key.toLowerCase(),
-  );
+const WEBVIEW_DEFAULTS = new Set([
+  'f5',
+  'f3',
+  'ctrl+p',
+  'ctrl+r',
+  'ctrl+f',
+  'ctrl+j',
+  'ctrl+u',
+  'ctrl+shift+r',
+  'ctrl+=',
+  'ctrl+-',
+  'ctrl+0',
+]);
+
+export async function loadKeymap(): Promise<string[]> {
+  const state = await invoke<KeymapState>('keymap_state');
+  bindings = state.bindings;
+
+  const problems = [...state.problems];
+
+  // Сочетание, указывающее на команду без обработчика, не сделает ничего —
+  // и понять почему будет неоткуда. Тест сверяет списки при сборке, но
+  // проверка на живом приложении ловит и то, чего тест не видит:
+  // например, недособранный реестр из-за порядка загрузки модулей.
+  const orphans = [...new Set(Object.values(bindings))].filter((id) => !COMMANDS[id]);
+  if (orphans.length > 0) {
+    problems.push(`команды без обработчика: ${orphans.join(', ')}`);
+  }
+  if (Object.keys(bindings).length === 0) {
+    problems.push('раскладка пуста: горячие клавиши не работают');
+  }
+
+  return problems;
 }
 
-export function installGlobalKeymap(): () => void {
+export function installGlobalKeymap(onProblems: (problems: string[]) => void): () => void {
   const onKeyDown = (event: KeyboardEvent): void => {
-    for (const binding of BINDINGS) {
-      if (
-        event.key.toLowerCase() === binding.key &&
-        event.ctrlKey === Boolean(binding.ctrl) &&
-        event.shiftKey === Boolean(binding.shift) &&
-        !event.altKey
-      ) {
+    const binding = bindingOf(event);
+    if (binding === null) return;
+
+    const command = bindings[binding];
+    if (command) {
+      const run = COMMANDS[command];
+      if (run) {
         event.preventDefault();
         event.stopPropagation();
-        void binding.run();
+        void run();
         return;
       }
     }
 
-    if (isWebviewDefaultToSuppress(event)) {
+    if (WEBVIEW_DEFAULTS.has(binding)) {
       event.preventDefault();
     }
   };
@@ -85,8 +92,15 @@ export function installGlobalKeymap(): () => void {
   window.addEventListener('keydown', onKeyDown, { capture: true });
   window.addEventListener('wheel', onWheel, { passive: false });
 
+  // Правка keymap.toml применяется на лету тем же событием, что и темы:
+  // ядро следит за файлами и сообщает об изменении.
+  const unlisten = listen('appearance-changed', () => {
+    void loadKeymap().then(onProblems);
+  });
+
   return () => {
     window.removeEventListener('keydown', onKeyDown, { capture: true });
     window.removeEventListener('wheel', onWheel);
+    void unlisten.then((stop) => stop());
   };
 }

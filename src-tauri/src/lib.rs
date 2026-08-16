@@ -7,6 +7,7 @@ pub mod bench;
 pub mod cli;
 pub mod commands;
 pub mod fsx;
+pub mod keymap;
 pub mod model;
 pub mod session;
 pub mod settings;
@@ -55,6 +56,14 @@ fn prepare_state() -> AppState {
     if let Err(e) = settings::write_default_if_missing(&data_dir.settings_file()) {
         notices.push(format!("не удалось создать settings.toml: {e}"));
     }
+    // Тот же приём с образцом: пустая папка ничего не объясняет,
+    // а файл с комментариями объясняет.
+    let keymap_file = data_dir.path.join("keymap.toml");
+    if !keymap_file.exists()
+        && let Err(e) = std::fs::write(&keymap_file, keymap::DEFAULT_TEMPLATE)
+    {
+        notices.push(format!("не удалось создать keymap.toml: {e}"));
+    }
     if let Err(e) = std::fs::create_dir_all(data_dir.themes_dir()) {
         notices.push(format!("не удалось создать папку тем: {e}"));
     }
@@ -86,6 +95,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::appearance::appearance_state,
             commands::appearance::builtin_theme_source,
+            commands::keymap::keymap_state,
             commands::files::startup_paths,
             commands::files::list_buffers,
             commands::files::new_buffer,

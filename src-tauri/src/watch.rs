@@ -37,6 +37,7 @@ fn snapshot(data_dir: &Path) -> Snapshot {
     };
 
     record(data_dir.join("settings.toml"));
+    record(data_dir.join("keymap.toml"));
 
     if let Ok(entries) = std::fs::read_dir(data_dir.join("themes")) {
         let mut theme_files: Vec<PathBuf> = entries

@@ -3,6 +3,7 @@
   import { EditorView } from '@codemirror/view';
   import { EditorState } from '@codemirror/state';
   import { tabs, tabById } from '../state/tabs.svelte';
+  import { setEditorView } from '../editor/current';
   import '../editor/editor.css';
 
   let host: HTMLDivElement;
@@ -49,6 +50,9 @@
     // Прокрутка не входит в EditorState, поэтому запоминается отдельно —
     // и для переключения вкладок, и для восстановления сессии.
     view.scrollDOM.addEventListener('scroll', onScroll, { passive: true });
+
+    // Командам правки нужен доступ к редактору из обычного кода.
+    setEditorView(view);
   });
 
   function onScroll(): void {
@@ -64,6 +68,7 @@
     view?.scrollDOM.removeEventListener('scroll', onScroll);
     view?.destroy();
     view = null;
+    setEditorView(null);
   });
 
   /**

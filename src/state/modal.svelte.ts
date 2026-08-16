@@ -26,6 +26,8 @@ export interface ModalRequest {
   title: string;
   text: string;
   choices: Choice[];
+  /** Диалог с полем ввода: ответом становится введённая строка. */
+  input?: { initial: string } | undefined;
   resolve: (id: string | null) => void;
 }
 
@@ -42,18 +44,42 @@ export function askChoice(
   text: string,
   choices: Choice[],
 ): Promise<string | null> {
+  return open({ title, text, choices });
+}
+
+/**
+ * Спросить строку.
+ *
+ * Возвращает введённое или `null`, если пользователь отказался. Используется
+ * переходом к строке; пригодится всему, где нужен короткий ввод.
+ */
+export function askInput(
+  title: string,
+  text: string,
+  initial = '',
+): Promise<string | null> {
+  return open({
+    title,
+    text,
+    input: { initial },
+    choices: [
+      { id: 'cancel', label: 'Отмена', cancel: true },
+      { id: 'ok', label: 'Перейти', primary: true },
+    ],
+  });
+}
+
+function open(request: Omit<ModalRequest, 'resolve'>): Promise<string | null> {
   // Два вопроса одновременно — ошибка в вызывающем коде, но подвесить
   // предыдущее обещание навсегда всё равно нельзя.
   modal.request?.resolve(null);
 
   return new Promise((resolve) => {
     modal.request = {
-      title,
-      text,
-      choices,
-      resolve: (id) => {
+      ...request,
+      resolve: (value) => {
         modal.request = null;
-        resolve(id);
+        resolve(value);
       },
     };
   });

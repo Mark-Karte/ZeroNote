@@ -3,9 +3,17 @@
 
   const request = $derived(modal.request);
   let primaryButton = $state<HTMLButtonElement | null>(null);
+  let field = $state<HTMLInputElement | null>(null);
+  let value = $state('');
 
   function pick(id: string | null): void {
-    request?.resolve(id);
+    // У диалога с полем ввода ответом служит введённое, а не имя кнопки:
+    // вызывающему коду нужна строка, а не «нажали ОК».
+    if (request?.input && id !== null && id !== 'cancel') {
+      request.resolve(value);
+      return;
+    }
+    request?.resolve(id === 'cancel' ? null : id);
   }
 
   function cancel(): void {
@@ -34,11 +42,21 @@
   }
 
   // Фокус уводится в диалог: иначе клавиатура продолжает работать с редактором
-  // под ним, а Enter и Escape до диалога не доходят.
+  // под ним, а Enter и Escape до диалога не доходят. При наличии поля ввода
+  // фокус достаётся ему — печатать сразу удобнее, чем сначала целиться мышью.
   $effect(() => {
-    if (request && primaryButton) {
+    if (!request) return;
+    if (field) {
+      field.focus();
+      field.select();
+    } else if (primaryButton) {
       primaryButton.focus();
     }
+  });
+
+  // Начальное значение ставится один раз на каждый новый вопрос.
+  $effect(() => {
+    value = request?.input?.initial ?? '';
   });
 </script>
 
@@ -56,6 +74,9 @@
     <div class="dialog" role="dialog" aria-modal="true" aria-label={request.title}>
       <h2 class="title">{request.title}</h2>
       <p class="text">{request.text}</p>
+      {#if request.input}
+        <input class="field" type="text" bind:this={field} bind:value />
+      {/if}
       <div class="buttons">
         {#each request.choices as choice (choice.id)}
           {#if choice.primary}
@@ -120,9 +141,26 @@
   }
 
   .text {
-    margin: 0 0 var(--zn-space-5) 0;
+    margin: 0 0 var(--zn-space-4) 0;
     color: var(--zn-color-fg-muted);
     white-space: pre-line;
+  }
+
+  .field {
+    width: 100%;
+    margin-bottom: var(--zn-space-5);
+    padding: var(--zn-space-2) var(--zn-space-3);
+    border: var(--zn-border-width) solid var(--zn-color-border-default);
+    border-radius: var(--zn-radius-md);
+    background-color: var(--zn-color-bg-canvas);
+    color: var(--zn-color-fg-default);
+    font-family: var(--zn-font-family-editor);
+    font-size: var(--zn-font-size-ui);
+  }
+
+  .field:focus {
+    outline: none;
+    border-color: var(--zn-color-border-focus);
   }
 
   .buttons {

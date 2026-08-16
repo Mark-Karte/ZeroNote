@@ -158,6 +158,18 @@ export function setActive(id: number): void {
   noteStructureChange();
 }
 
+/** Переключение вкладок по кругу: за последней снова идёт первая. */
+function step(delta: 1 | -1): void {
+  if (tabs.items.length === 0) return;
+  const index = tabs.items.findIndex((t) => t.meta.id === tabs.activeId);
+  const from = index < 0 ? 0 : index;
+  const next = (from + delta + tabs.items.length) % tabs.items.length;
+  setActive(tabs.items[next]!.meta.id);
+}
+
+export const nextTab = (): void => step(1);
+export const previousTab = (): void => step(-1);
+
 /**
  * Восстановить вкладки из сессии.
  *

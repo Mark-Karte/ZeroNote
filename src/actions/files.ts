@@ -135,6 +135,21 @@ export async function saveActiveAs(): Promise<boolean> {
   return tab ? saveAs(tab.meta.id) : false;
 }
 
+/** Сохранить все изменённые вкладки. Отказ на любой прекращает обход. */
+export async function saveAll(): Promise<boolean> {
+  for (const id of tabs.items.map((t) => t.meta.id)) {
+    const tab = tabById(id);
+    if (!tab?.meta.modified) continue;
+    if (!(await save(id))) return false;
+  }
+  return true;
+}
+
+export async function closeActiveTab(): Promise<boolean> {
+  const tab = activeTab();
+  return tab ? closeTab(tab.meta.id) : true;
+}
+
 /**
  * Закрыть вкладку, спросив про несохранённые правки.
  *

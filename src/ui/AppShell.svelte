@@ -14,7 +14,7 @@
   import { openDropped, closeAllTabs } from '../actions/files';
   import { checkExternalChanges } from '../actions/external';
   import { startupPaths } from '../ipc/files';
-  import { installGlobalKeymap } from '../keymap/global';
+  import { installGlobalKeymap, loadKeymap } from '../keymap/global';
 
   let removeKeymap: (() => void) | null = null;
   let unlistenDrop: UnlistenFn | null = null;
@@ -26,7 +26,15 @@
   const restoreNotices = $state<string[]>([]);
 
   onMount(async () => {
-    removeKeymap = installGlobalKeymap();
+    for (const problem of await loadKeymap()) {
+      restoreNotices.push(problem);
+    }
+    removeKeymap = installGlobalKeymap((problems) => {
+      // Правку keymap.toml показываем той же полосой: пользователь правит
+      // файл руками и должен видеть, если ошибся.
+      restoreNotices.length = 0;
+      restoreNotices.push(...problems);
+    });
 
     // Сессия восстанавливается до файлов из командной строки: если файл
     // уже был открыт в прошлый раз, он просто станет активным, а не откроется
