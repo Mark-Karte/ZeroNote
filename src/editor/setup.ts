@@ -10,13 +10,14 @@ import {
   rectangularSelection,
 } from '@codemirror/view';
 import { history, historyKeymap, defaultKeymap } from '@codemirror/commands';
+import { search, highlightSelectionMatches } from '@codemirror/search';
 import type { Buffer } from '../ipc/files';
 
 /**
  * Набор расширений редактора для конкретного буфера.
  *
- * Раскладка Notepad++ появится в задаче 7 и ляжет поверх этой; сейчас
- * подключён набор по умолчанию, чтобы редактор был работоспособен.
+ * Раскладка Notepad++ живёт в оконном диспетчере (`keymap/`), а не здесь:
+ * она общая для всего приложения, а не только для области текста.
  * Подсветка синтаксиса — этап 2.
  */
 export function extensionsFor(
@@ -37,6 +38,13 @@ export function extensionsFor(
     // правильное умолчание. Переключатель — задача полировки.
     EditorState.allowMultipleSelections.of(true),
     keymap.of([...defaultKeymap, ...historyKeymap]),
+
+    // Поиск подключается ради состояния запроса и подсветки совпадений.
+    // Собственная панель CodeMirror намеренно не открывается: её разметка
+    // несёт свои размеры и цвета, то есть прошла бы мимо слоя токенов.
+    // Панель у нас своя, в `ui/SearchPanel.svelte`.
+    search(),
+    highlightSelectionMatches(),
 
     // Упрощённый режим больших файлов и файлы «только для чтения».
     // `readOnly` запрещает правку, `editable` убирает курсор ввода:

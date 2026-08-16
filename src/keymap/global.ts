@@ -30,12 +30,9 @@ let bindings: Record<string, string> = {};
  */
 const WEBVIEW_DEFAULTS = new Set([
   'f5',
-  'f3',
   'ctrl+p',
   'ctrl+r',
-  'ctrl+f',
   'ctrl+j',
-  'ctrl+u',
   'ctrl+shift+r',
   'ctrl+=',
   'ctrl+-',
@@ -63,6 +60,22 @@ export async function loadKeymap(): Promise<string[]> {
   return problems;
 }
 
+/**
+ * Фокус находится в обычном поле ввода — в панели поиска или в диалоге.
+ *
+ * Область текста CodeMirror сюда не попадает: она устроена как
+ * `contenteditable`, но команды правки в ней как раз и должны работать.
+ */
+function inFormField(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.closest('.cm-content')) return false;
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target.isContentEditable
+  );
+}
+
 export function installGlobalKeymap(onProblems: (problems: string[]) => void): () => void {
   const onKeyDown = (event: KeyboardEvent): void => {
     const binding = bindingOf(event);
@@ -70,6 +83,16 @@ export function installGlobalKeymap(onProblems: (problems: string[]) => void): (
 
     const command = bindings[binding];
     if (command) {
+      // В поле ввода команды правки текста означают совсем другое: Ctrl+A
+      // должен выделить содержимое поля, а не весь документ, Ctrl+Z —
+      // отменить набор в поле, а не в буфере. Отдаём такие сочетания полю.
+      //
+      // Остальное — сохранение, поиск, переключение вкладок — работает
+      // отовсюду: это действия над приложением, а не над текстом под курсором.
+      if (command.startsWith('edit.') && inFormField(event.target)) {
+        return;
+      }
+
       const run = COMMANDS[command];
       if (run) {
         event.preventDefault();

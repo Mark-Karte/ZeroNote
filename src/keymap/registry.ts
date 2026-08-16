@@ -9,6 +9,7 @@ import {
   closeActiveTab,
 } from '../actions/files';
 import { goToLineDialog } from '../actions/navigate';
+import { openSearch, findNext, findPrevious } from '../state/search.svelte';
 import { nextTab, previousTab } from '../state/tabs.svelte';
 
 /**
@@ -46,6 +47,11 @@ export const COMMANDS: Record<CommandId, () => void | Promise<unknown>> = {
   'edit.move-line-down': inEditor(edit.moveLineDown),
   'edit.upper-case': inEditor(edit.upperCase),
   'edit.lower-case': inEditor(edit.lowerCase),
+
+  'search.find': () => openSearch('find'),
+  'search.replace': () => openSearch('replace'),
+  'search.find-next': findNext,
+  'search.find-previous': findPrevious,
 
   'view.go-to-line': goToLineDialog,
   'view.next-tab': nextTab,

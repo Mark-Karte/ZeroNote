@@ -6,6 +6,7 @@
   import TitleBar from './TitleBar.svelte';
   import TabStrip from './TabStrip.svelte';
   import EditorHost from './EditorHost.svelte';
+  import SearchPanel from './SearchPanel.svelte';
   import NoticeStrip from './NoticeStrip.svelte';
   import StatusBar from './StatusBar.svelte';
   import Modal from './Modal.svelte';
@@ -95,6 +96,7 @@
 
   {#if tabs.items.length > 0}
     <TabStrip />
+    <SearchPanel />
     <EditorHost />
   {:else}
     <main class="workarea">
