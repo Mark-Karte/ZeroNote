@@ -38,6 +38,23 @@
   --zn-color-warning: #b45309;
   --zn-color-success: #15803d;
 
+  /* --- Подсветка синтаксиса. Такие же токены, как всё остальное (Р-047). --- */
+  --zn-color-syntax-keyword: #6f42c1;
+  --zn-color-syntax-string: #2a7a3f;
+  --zn-color-syntax-comment: #7a828e;
+  --zn-color-syntax-number: #a15c00;
+  --zn-color-syntax-type: #0f7d8c;
+  --zn-color-syntax-function: #1a5fb4;
+  --zn-color-syntax-operator: #4b5563;
+  --zn-color-syntax-variable: #1a1e26;
+  --zn-color-syntax-punctuation: #5b6472;
+  --zn-color-syntax-heading: #1a5fb4;
+  --zn-color-syntax-link: #2563eb;
+  --zn-color-syntax-emphasis: #1a1e26;
+  --zn-color-syntax-strong: #1a1e26;
+  --zn-color-syntax-quote: #5b6472;
+  --zn-color-syntax-invalid: #c62828;
+
   /* --- Типографика --- */
   --zn-font-family-ui: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
   --zn-font-family-editor: 'Cascadia Mono', Consolas, 'Courier New', monospace;

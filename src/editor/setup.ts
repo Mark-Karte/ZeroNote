@@ -1,4 +1,4 @@
-import { EditorState, type Extension } from '@codemirror/state';
+import { Compartment, EditorState, type Extension } from '@codemirror/state';
 import {
   EditorView,
   keymap,
@@ -11,14 +11,28 @@ import {
 } from '@codemirror/view';
 import { history, historyKeymap, defaultKeymap } from '@codemirror/commands';
 import { search, highlightSelectionMatches } from '@codemirror/search';
+import { syntaxColors } from '../theme/syntax';
 import type { Buffer } from '../ipc/files';
+
+/**
+ * Отсек, в который приезжает язык подсветки.
+ *
+ * Язык грузится асинхронно, а состояние вкладки нужно создать сразу — иначе
+ * открытие файла ждало бы скачивания парсера. Отсек позволяет подменить часть
+ * настроек уже существующего состояния, не пересобирая его целиком и не теряя
+ * историю отмены.
+ *
+ * Один на всё приложение, а не по одному на вкладку: отсек — это ключ
+ * в настройках состояния, и у каждого состояния своё содержимое под этим
+ * ключом.
+ */
+export const languageCompartment = new Compartment();
 
 /**
  * Набор расширений редактора для конкретного буфера.
  *
  * Раскладка Notepad++ живёт в оконном диспетчере (`keymap/`), а не здесь:
  * она общая для всего приложения, а не только для области текста.
- * Подсветка синтаксиса — этап 2.
  */
 export function extensionsFor(
   meta: Buffer,
@@ -27,6 +41,11 @@ export function extensionsFor(
   const readOnly = meta.readOnly;
 
   return [
+    // Пусто до тех пор, пока не приедет язык. Большие файлы остаются
+    // без подсветки навсегда — это записанная политика больших файлов.
+    languageCompartment.of([]),
+    syntaxColors,
+
     lineNumbers(),
     highlightActiveLineGutter(),
     highlightActiveLine(),

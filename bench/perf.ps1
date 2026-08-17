@@ -11,7 +11,7 @@
 # Замеры на отладочной сборке бессмысленны и скриптом не поддерживаются.
 
 param(
-    [ValidateSet('all', 'startup', 'ipc', 'open', 'tree', 'index')]
+    [ValidateSet('all', 'startup', 'ipc', 'open', 'tree', 'index', 'highlight')]
     [string]$Only = 'all',
 
     [int]$Runs = 9
@@ -133,6 +133,10 @@ if ($Only -eq 'all' -or $Only -eq 'tree') {
 if ($Only -eq 'all' -or $Only -eq 'index') {
     Measure-InApp -Mode 'index' -Title 'Индексация 10 000 файлов' -FileName 'index.md'
     Write-Host 'Цель: полная индексация <= 30 с, интерфейс отзывчив' -ForegroundColor DarkGray
+}
+if ($Only -eq 'all' -or $Only -eq 'highlight') {
+    Measure-InApp -Mode 'highlight' -Title 'Подсветка синтаксиса: открытие и ввод' -FileName 'highlight.md'
+    Write-Host 'Цель: ввод символа при открытом файле 10 МБ без заметной задержки' -ForegroundColor DarkGray
 }
 if ($Only -eq 'all' -or $Only -eq 'ipc') {
     Measure-InApp -Mode 'ipc' -Title 'Граница Rust <-> фронтенд' -FileName 'ipc.md'

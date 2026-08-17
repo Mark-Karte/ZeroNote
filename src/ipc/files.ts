@@ -116,11 +116,14 @@ export interface ViewState {
   id: number;
   cursor: number;
   scrollTop: number;
+  /** Язык подсветки, выбранный вручную. `null` — определять по имени файла. */
+  language: string | null;
 }
 
 export interface RestoredBuffer extends BufferWithText {
   cursor: number;
   scrollTop: number;
+  language: string | null;
 }
 
 export interface RestoredSession {

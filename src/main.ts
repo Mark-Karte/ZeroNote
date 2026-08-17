@@ -49,7 +49,8 @@ async function main(): Promise<void> {
     config.mode === 'ipc' ||
     config.mode === 'open' ||
     config.mode === 'tree' ||
-    config.mode === 'index'
+    config.mode === 'index' ||
+    config.mode === 'highlight'
   ) {
     let report: string;
     if (config.mode === 'open') {
@@ -58,6 +59,12 @@ async function main(): Promise<void> {
       report = await benchRunTree();
     } else if (config.mode === 'index') {
       report = await benchRunIndex();
+    } else if (config.mode === 'highlight') {
+      // Замер целиком во фронтенде: подсветка живёт здесь (Р-042),
+      // и границы IPC в этом пути нет.
+      report = await import('./bench/highlight-suite').then(async (suite) =>
+        suite.formatMarkdown(await suite.runHighlightSuite()),
+      );
     } else {
       report = await import('./bench/ipc-suite').then(async (suite) =>
         suite.formatMarkdown(await suite.runIpcSuite()),

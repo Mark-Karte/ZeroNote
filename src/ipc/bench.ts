@@ -5,7 +5,7 @@ import { invoke } from '@tauri-apps/api/core';
  * В обычном запуске `mode` равен null и приложение ведёт себя как приложение.
  */
 export interface BenchConfig {
-  mode: 'startup' | 'ipc' | 'open' | 'tree' | 'index' | null;
+  mode: 'startup' | 'ipc' | 'open' | 'tree' | 'index' | 'highlight' | null;
   outPath: string | null;
 }
 

@@ -146,6 +146,30 @@ pub const SEMANTIC_COLORS: &[(&str, &str)] = &[
     ("color-danger", "{palette.danger}"),
     ("color-warning", "{palette.warning}"),
     ("color-success", "{palette.success}"),
+    // Подсветка синтаксиса — такие же токены, как всё остальное (Р-047).
+    // Иначе тема перестаёт быть темой: цвета кода остались бы прежними при
+    // смене оформления, и светлая тема с тёмными цветами кода выглядела бы
+    // сломанной.
+    //
+    // Часть ролей выражена через общую палитру, а не через свои цвета:
+    // обычный текст в коде — это просто текст, а знаки препинания тише его.
+    // Своих цветов у них быть не должно, иначе автор темы обязан подобрать
+    // пятнадцать оттенков вместо восьми.
+    ("color-syntax-keyword", "{palette.syn-keyword}"),
+    ("color-syntax-string", "{palette.syn-string}"),
+    ("color-syntax-comment", "{palette.syn-comment}"),
+    ("color-syntax-number", "{palette.syn-number}"),
+    ("color-syntax-type", "{palette.syn-type}"),
+    ("color-syntax-function", "{palette.syn-function}"),
+    ("color-syntax-operator", "{palette.syn-operator}"),
+    ("color-syntax-variable", "{palette.fg-0}"),
+    ("color-syntax-punctuation", "{palette.fg-1}"),
+    ("color-syntax-heading", "{palette.syn-heading}"),
+    ("color-syntax-link", "{palette.accent}"),
+    ("color-syntax-emphasis", "{palette.fg-0}"),
+    ("color-syntax-strong", "{palette.fg-0}"),
+    ("color-syntax-quote", "{palette.fg-1}"),
+    ("color-syntax-invalid", "{palette.danger}"),
 ];
 
 /// Полный список имён токенов. Используется для проверки пользовательских тем

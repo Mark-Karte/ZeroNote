@@ -16,7 +16,8 @@ type Fallible<T> = Result<T, String>;
 
 /// Состояние вида, которым владеет фронтенд: курсор и прокрутка.
 /// Ядро их не знает и знать не может — они живут в CodeMirror.
-#[derive(Debug, Clone, Copy, serde::Deserialize)]
+// Без `Copy`: язык — строка, а строку нельзя скопировать побитово.
+#[derive(Debug, Clone, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ViewState {
     pub id: BufferId,
@@ -24,6 +25,9 @@ pub struct ViewState {
     pub cursor: usize,
     #[serde(default)]
     pub scroll_top: f64,
+    /// Выбранный вручную язык подсветки. Ядро его не толкует.
+    #[serde(default)]
+    pub language: Option<String>,
 }
 
 fn snapshot_of(buffer: &Buffer, view: Option<&ViewState>) -> BufferSnapshot {
@@ -46,6 +50,7 @@ fn snapshot_of(buffer: &Buffer, view: Option<&ViewState>) -> BufferSnapshot {
         has_draft: !buffer.large && (buffer.modified || buffer.path.is_none()),
         cursor: view.map(|v| v.cursor).unwrap_or(0),
         scroll_top: view.map(|v| v.scroll_top).unwrap_or(0.0),
+        language: view.and_then(|v| v.language.clone()),
     }
 }
 
@@ -149,6 +154,7 @@ pub struct RestoredBuffer {
     pub buffer: BufferWithText,
     pub cursor: usize,
     pub scroll_top: f64,
+    pub language: Option<String>,
 }
 
 /// Восстановить сессию при запуске.
@@ -273,6 +279,7 @@ pub fn restore_session(state: tauri::State<'_, AppState>) -> RestoredSession {
             },
             cursor: item.cursor,
             scroll_top: item.scroll_top,
+            language: item.language.clone(),
         });
         buffers.push(buffer);
     }

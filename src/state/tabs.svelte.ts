@@ -2,7 +2,13 @@ import { EditorState, type Text } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
 import * as ipc from '../ipc/files';
 import type { Buffer, BufferWithText, ViewState } from '../ipc/files';
-import { extensionsFor } from '../editor/setup';
+import { extensionsFor, languageCompartment } from '../editor/setup';
+import { editorView } from '../editor/current';
+import {
+  languageById,
+  languageForFile,
+  type Language,
+} from '../editor/langs';
 // Взаимный импорт с persist: там только функции, и зовутся они в рантайме,
 // поэтому порядок загрузки модулей роли не играет.
 import { forgetDraft, noteEdit, noteStructureChange } from './persist.svelte';
@@ -32,6 +38,13 @@ export interface Tab {
    * прокрутке и восстанавливается при возврате на вкладку.
    */
   scrollTop: number;
+  /**
+   * Язык подсветки, выбранный пользователем вручную.
+   *
+   * `null` — определять по имени файла. Хранится отдельно от `meta`, потому
+   * что это свойство вкладки во фронтенде, а не сведения о буфере из ядра.
+   */
+  language: string | null;
 }
 
 /** Порядок в массиве — это порядок вкладок, такой же, как в ядре. */
@@ -83,6 +96,7 @@ export function viewStateOf(tab: Tab): ViewState {
     id: tab.meta.id,
     cursor: tab.editor.selection.main.head,
     scrollTop: tab.scrollTop,
+    language: tab.language,
   };
 }
 
@@ -120,7 +134,13 @@ function makeState(meta: Buffer, text: string, cursor = 0): EditorState {
   });
 }
 
-function put(meta: Buffer, text: string, cursor = 0, scrollTop = 0): void {
+function put(
+  meta: Buffer,
+  text: string,
+  cursor = 0,
+  scrollTop = 0,
+  language: string | null = null,
+): void {
   const editor = makeState(meta, text, cursor);
   baselines.set(meta.id, editor.doc);
 
@@ -129,10 +149,67 @@ function put(meta: Buffer, text: string, cursor = 0, scrollTop = 0): void {
     existing.meta = meta;
     existing.editor = editor;
     existing.scrollTop = scrollTop;
+    existing.language = language;
   } else {
-    tabs.items.push({ meta, editor, scrollTop });
+    tabs.items.push({ meta, editor, scrollTop, language });
   }
   tabs.activeId = meta.id;
+  // Язык грузится и встаёт на место сам: ждать его открытие файла не должно.
+  void applyLanguage(meta.id);
+  noteStructureChange();
+}
+
+/**
+ * Какой язык должен действовать на вкладке.
+ *
+ * Выбор пользователя главнее имени файла: он для того и сделан.
+ */
+export function languageOf(tab: Tab): Language | null {
+  return tab.language !== null
+    ? languageById(tab.language)
+    : languageForFile(tab.meta.path ?? tab.meta.title);
+}
+
+/**
+ * Загрузить язык и подставить его в состояние вкладки.
+ *
+ * Загрузка асинхронная, поэтому подстановка идёт через отсек: пересобирать
+ * состояние целиком значило бы потерять историю отмены и положение курсора.
+ */
+async function applyLanguage(id: number): Promise<void> {
+  const tab = tabById(id);
+  if (!tab) return;
+
+  // Свыше порога подсветки нет — это записанная политика больших файлов:
+  // разбор десятков мегабайт съел бы и память, и отзывчивость.
+  const language = tab.meta.large ? null : languageOf(tab);
+  const support = language ? await language.load() : [];
+
+  // За время загрузки вкладку могли закрыть или переключить язык ещё раз.
+  const current = tabById(id);
+  if (!current || languageOf(current)?.id !== language?.id) return;
+
+  const effects = languageCompartment.reconfigure(support);
+  const view = editorView();
+
+  if (tabs.activeId === id && view) {
+    // Вкладка на экране: правим живое представление, иначе оно осталось бы
+    // со старым состоянием, а прокрутка отскочила бы к сохранённой.
+    view.dispatch({ effects });
+    current.editor = view.state;
+  } else {
+    current.editor = current.editor.update({ effects }).state;
+  }
+}
+
+/** Выбрать язык подсветки вручную. `null` — снова определять по имени. */
+export function setLanguage(id: number, language: string | null): void {
+  const tab = tabById(id);
+  if (!tab) return;
+
+  tab.language = language;
+  void applyLanguage(id);
+  // Выбор — часть сессии: он не должен теряться при перезапуске.
   noteStructureChange();
 }
 
@@ -182,14 +259,16 @@ export async function restore(): Promise<string[]> {
   const session = await ipc.restoreSession();
 
   for (const item of session.buffers) {
-    const { text, cursor, scrollTop, ...meta } = item;
+    const { text, cursor, scrollTop, language, ...meta } = item;
     const editor = makeState(meta, text, cursor);
 
     if (meta.modified) {
       restoredDirty.add(meta.id);
     }
     baselines.set(meta.id, editor.doc);
-    tabs.items.push({ meta, editor, scrollTop });
+    tabs.items.push({ meta, editor, scrollTop, language: language ?? null });
+    // Язык подтягивается в фоне: старт не должен ждать разбора парсеров.
+    void applyLanguage(meta.id);
   }
 
   await restoreFromSession(

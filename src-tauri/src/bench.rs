@@ -63,6 +63,7 @@ pub fn parse_args(args: &[String]) -> BenchConfig {
         Some("open") => Some("open".to_owned()),
         Some("tree") => Some("tree".to_owned()),
         Some("index") => Some("index".to_owned()),
+        Some("highlight") => Some("highlight".to_owned()),
         _ => None,
     };
 

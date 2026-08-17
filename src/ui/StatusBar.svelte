@@ -3,7 +3,8 @@
   import Popup from './Popup.svelte';
   import type { PopupItem } from './popup-item';
   import { appearance } from '../theme/store.svelte';
-  import { activeTab } from '../state/tabs.svelte';
+  import { activeTab, languageOf, setLanguage } from '../state/tabs.svelte';
+  import { LANGUAGES, languageForFile } from '../editor/langs';
   import { indexing, cancel as cancelIndexing } from '../state/index.svelte';
   import type { EncodingId, LineEnding } from '../ipc/files';
   import { convertTo, reinterpretAs, setBom, setLineEnding } from '../actions/encoding';
@@ -37,10 +38,12 @@
 
   const ENCODING_LABEL = Object.fromEntries(ENCODINGS.map((e) => [e.id, e.label]));
 
-  let openMenu = $state<'encoding' | 'eol' | null>(null);
+  type Menu = 'encoding' | 'eol' | 'language';
+
+  let openMenu = $state<Menu | null>(null);
   let anchorRect = $state<DOMRect | null>(null);
 
-  function toggle(menu: 'encoding' | 'eol', event: MouseEvent): void {
+  function toggle(menu: Menu, event: MouseEvent): void {
     if (openMenu === menu) {
       openMenu = null;
       return;
@@ -116,6 +119,43 @@
     openMenu = null;
     if (tab) await setLineEnding(tab.meta.id, id as LineEnding);
   }
+
+  /** Язык, действующий сейчас, и признак «выбран вручную». */
+  const language = $derived(tab ? languageOf(tab) : null);
+  const autoLanguage = $derived(
+    tab ? languageForFile(tab.meta.path ?? tab.meta.title) : null,
+  );
+
+  const languageItems = $derived.by((): PopupItem[] => {
+    if (!tab) return [];
+
+    return [
+      {
+        id: 'auto',
+        label: autoLanguage ? `По имени файла (${autoLanguage.label})` : 'По имени файла',
+        section: 'Подсветка',
+        checked: tab.language === null,
+        hint: 'Определять язык по расширению. Незнакомое — обычный текст.',
+      },
+      {
+        id: 'none',
+        label: 'Без подсветки',
+        checked: tab.language === 'none',
+      },
+      ...LANGUAGES.map((lang, index) => ({
+        id: lang.id,
+        label: lang.label,
+        section: index === 0 ? 'Выбрать язык' : undefined,
+        checked: tab.language === lang.id,
+      })),
+    ];
+  });
+
+  function pickLanguage(id: string): void {
+    openMenu = null;
+    if (!tab) return;
+    setLanguage(tab.meta.id, id === 'auto' ? null : id);
+  }
 </script>
 
 <footer class="statusbar">
@@ -166,6 +206,17 @@
 
     <button
       class="item action"
+      type="button"
+      title={tab.language === null
+        ? 'Язык подсветки определён по имени файла — нажмите, чтобы сменить'
+        : 'Язык подсветки выбран вручную — нажмите, чтобы сменить'}
+      onclick={(e) => toggle('language', e)}
+    >
+      {language ? language.label : 'обычный текст'}
+    </button>
+
+    <button
+      class="item action"
       class:warn={tab.meta.eolMixed}
       type="button"
       title={tab.meta.eolMixed
@@ -209,6 +260,15 @@
     items={encodingItems}
     anchor={anchorRect}
     onpick={pickEncoding}
+    onclose={() => (openMenu = null)}
+  />
+{/if}
+
+{#if openMenu === 'language' && anchorRect}
+  <Popup
+    items={languageItems}
+    anchor={anchorRect}
+    onpick={pickLanguage}
     onclose={() => (openMenu = null)}
   />
 {/if}

@@ -71,6 +71,13 @@ pub struct BufferSnapshot {
     /// Прокрутка в пикселях.
     #[serde(default)]
     pub scroll_top: f64,
+    /// Язык подсветки, выбранный пользователем вручную.
+    ///
+    /// `None` — определять по имени файла. Ядро в этот выбор не вникает:
+    /// подсветка живёт во фронтенде (Р-042), а сессия просто переносит его
+    /// между запусками.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub language: Option<String>,
 }
 
 fn yes() -> bool {
@@ -286,6 +293,7 @@ mod tests {
                     has_draft: true,
                     cursor: 42,
                     scroll_top: 120.5,
+                    language: Some("markdown".to_owned()),
                 },
                 BufferSnapshot {
                     id: 2,
@@ -304,6 +312,7 @@ mod tests {
                     has_draft: true,
                     cursor: 0,
                     scroll_top: 0.0,
+                    language: None,
                 },
             ],
         }
