@@ -1,8 +1,17 @@
 import { open as openDialog, message } from '@tauri-apps/plugin-dialog';
 
-import { roots, add, remove, createProjectFile, toggleSidebar } from '../state/roots.svelte';
+import {
+  roots,
+  add,
+  remove,
+  createProjectFile,
+  toggleSidebar,
+  showPanel,
+} from '../state/roots.svelte';
 import { noteStructureChange } from '../state/persist.svelte';
 import { askChoice } from '../state/modal.svelte';
+import { open as openPalette } from '../state/palette.svelte';
+import { focusSearch } from '../state/project-search.svelte';
 
 /**
  * Действия над корнями: то, что вызывается из панели и горячих клавиш.
@@ -63,6 +72,18 @@ export async function createProject(id: number): Promise<void> {
   } catch (error) {
     await report(error);
   }
+}
+
+/** Быстрое открытие по имени. */
+export function quickOpen(): void {
+  openPalette();
+}
+
+/** Поиск по проекту: открыть панель и забрать фокус в поле. */
+export function searchInProject(): void {
+  showPanel('search');
+  focusSearch();
+  noteStructureChange();
 }
 
 export function toggleSidebarPanel(): void {

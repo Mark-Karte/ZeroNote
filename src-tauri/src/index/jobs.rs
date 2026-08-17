@@ -183,6 +183,15 @@ impl Index {
         query::search(&connection, input, root_id, limit).map_err(|e| e.to_string())
     }
 
+    /// Все файлы индекса: номер корня, путь, имя. Нужно быстрому открытию.
+    pub fn files(&self) -> Vec<(RootId, String, String)> {
+        let Some(connection) = &self.connection else {
+            return Vec::new();
+        };
+        let connection = connection.lock().expect("соединение с индексом повреждено");
+        writer::all_files(&connection).unwrap_or_default()
+    }
+
     /// Сколько файлов корня лежит в индексе. Нужно строке состояния.
     pub fn count(&self, root_id: RootId) -> u64 {
         let Some(connection) = &self.connection else {

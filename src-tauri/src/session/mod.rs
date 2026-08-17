@@ -128,6 +128,11 @@ pub struct WorkspaceSnapshot {
     /// из темы. Так умолчание остаётся в одном месте — в токенах.
     #[serde(default)]
     pub sidebar_width: u32,
+    /// Какая панель была показана: `tree` или `search`. Строка, а не
+    /// перечисление: панелей будет больше, и файл сессии от старой версии
+    /// не должен отвергаться из-за незнакомого имени.
+    #[serde(default)]
+    pub sidebar_panel: String,
     /// Открытые корни. Поле появилось вместе с задачей 9 и имеет умолчание:
     /// файл сессии от версии 0.1.0 обязан читаться (Р-051).
     #[serde(default)]
@@ -258,6 +263,7 @@ mod tests {
             next_root_id: 2,
             sidebar: true,
             sidebar_width: 280,
+            sidebar_panel: "search".to_owned(),
             roots: vec![RootSnapshot {
                 id: 1,
                 path: PathBuf::from(r"C:\заметки"),

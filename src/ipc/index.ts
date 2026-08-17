@@ -30,6 +30,25 @@ export interface Hit {
 export const MARK_START = '\u0001';
 export const MARK_END = '\u0002';
 
+/** Файл, найденный по имени. */
+export interface FileHit {
+  rootId: number;
+  path: string;
+  name: string;
+  /** Позиции совпавших букв в `name`, в символах. */
+  matched: number[];
+  score: number;
+}
+
+/**
+ * Быстрое открытие: нечёткий поиск по именам.
+ *
+ * Пустой запрос выдаёт список файлов, а не пустоту: палитра при открытии
+ * должна что-то показывать.
+ */
+export const findFiles = (query: string, limit?: number): Promise<FileHit[]> =>
+  invoke('find_files', { query, limit: limit ?? null });
+
 /** Событие ядра: ход индексации изменился. */
 export const INDEX_PROGRESS = 'index-progress';
 

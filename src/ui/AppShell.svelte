@@ -11,6 +11,9 @@
   import StatusBar from './StatusBar.svelte';
   import Modal from './Modal.svelte';
   import Sidebar from './sidebar/Sidebar.svelte';
+  import IconStrip from './sidebar/IconStrip.svelte';
+  import Palette from './palette/Palette.svelte';
+  import { searchFocusRequest } from '../state/project-search.svelte';
   import { tabs, restore } from '../state/tabs.svelte';
   import { flushNow } from '../state/persist.svelte';
   import { roots, refresh as refreshRoots, rootProblems } from '../state/roots.svelte';
@@ -122,8 +125,15 @@
   <NoticeStrip extra={[...restoreNotices, ...rootProblems()]} />
 
   <div class="body">
+    <!-- Полоса значков показывается тем, кто работает с папками: либо панель
+         открыта, либо корень уже добавлен. Тому, кто правит одиночные файлы,
+         постоянная полоса сбоку не нужна — этим ZeroNote и отличается от
+         редактора, который умеет только проекты. -->
+    {#if roots.sidebar || roots.items.length > 0}
+      <IconStrip />
+    {/if}
     {#if roots.sidebar}
-      <Sidebar />
+      <Sidebar searchFocus={searchFocusRequest.value} />
     {/if}
 
     <div class="main">
@@ -142,6 +152,7 @@
 
   <StatusBar />
   <Modal />
+  <Palette />
 </div>
 
 <style>

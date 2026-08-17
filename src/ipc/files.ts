@@ -130,6 +130,8 @@ export interface RestoredSession {
   sidebar: boolean;
   /** Ноль — ширина не подгонялась, действует значение из темы. */
   sidebarWidth: number;
+  /** Какая панель была показана: `tree` или `search`. */
+  sidebarPanel: string;
   notices: string[];
 }
 
@@ -138,8 +140,9 @@ export const saveSession = (
   active: number | null,
   sidebar: boolean,
   sidebarWidth: number,
+  sidebarPanel: string,
 ): Promise<void> =>
-  invoke('save_session', { views, active, sidebar, sidebarWidth });
+  invoke('save_session', { views, active, sidebar, sidebarWidth, sidebarPanel });
 
 export const flushDrafts = (entries: { id: number; text: string }[]): Promise<void> =>
   invoke('flush_drafts', { entries });

@@ -154,6 +154,7 @@ pub fn run() {
             commands::index::cancel_index,
             commands::index::reindex_root,
             commands::index::search_project,
+            commands::index::find_files,
             commands::session::save_session,
             commands::session::flush_drafts,
             commands::session::drop_draft,

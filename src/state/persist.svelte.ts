@@ -40,7 +40,13 @@ async function writeSession(): Promise<void> {
   const views: ipc.ViewState[] = tabs.items.map((tab) => viewStateOf(tab));
   // Сами корни ядро берёт из своего реестра — отсюда едет только то, чего оно
   // знать не может: открыта ли панель.
-  await ipc.saveSession(views, tabs.activeId, roots.sidebar, roots.sidebarWidth);
+  await ipc.saveSession(
+    views,
+    tabs.activeId,
+    roots.sidebar,
+    roots.sidebarWidth,
+    roots.panel,
+  );
 }
 
 async function writeDrafts(): Promise<void> {

@@ -82,6 +82,7 @@
   --zn-control-sidebar-max-width: 640px;
   --zn-control-tree-indent: 14px;
   --zn-control-tree-row-height: 22px;
+  --zn-control-strip-width: 40px;
 
   /* --- Глубина --- */
   --zn-shadow-raised: 0 1px 2px rgba(16, 24, 40, 0.1);

@@ -4,6 +4,7 @@
 //! `index/query.rs`.
 
 use crate::index::jobs::Progress;
+use crate::index::names::FileHit;
 use crate::index::query::Hit;
 use crate::model::root::RootId;
 use crate::state::AppState;
@@ -57,6 +58,44 @@ pub fn cancel_index(state: tauri::State<'_, AppState>) {
 #[tauri::command]
 pub fn reindex_root(state: tauri::State<'_, AppState>, root_id: RootId) {
     schedule_scan(&state, root_id);
+}
+
+/// Быстрое открытие: нечёткий поиск по именам файлов.
+///
+/// Пустой запрос выдаёт список файлов, а не пустоту: палитра при открытии
+/// должна что-то показывать.
+#[tauri::command]
+pub fn find_files(
+    state: tauri::State<'_, AppState>,
+    query: String,
+    limit: Option<u32>,
+) -> Vec<FileHit> {
+    let files = state.index.lock().expect("индекс повреждён").files();
+
+    // Путь корня из сопоставления убираем. Иначе совпадать будет он сам:
+    // папка вроде `C:\Users\пользователь\Desktop\Project` содержит столько
+    // букв, что под неё подходит почти любой запрос, и в выдачу попадают
+    // все файлы проекта разом. Найдено это живой проверкой, а не тестом.
+    let prefixes: Vec<(u64, String)> = {
+        let roots = state.roots.lock().expect("реестр корней повреждён");
+        roots
+            .list()
+            .iter()
+            .map(|root| (root.id, root.path.display().to_string()))
+            .collect()
+    };
+
+    let relative = files.into_iter().map(|(root_id, path, name)| {
+        let inside = prefixes
+            .iter()
+            .find(|(id, _)| *id == root_id)
+            .and_then(|(_, prefix)| path.get(prefix.len()..))
+            .map(|tail| tail.trim_start_matches(['\\', '/']).to_owned())
+            .unwrap_or_else(|| path.clone());
+        (root_id, path, name, inside)
+    });
+
+    crate::index::names::best(&query, relative, limit.unwrap_or(50) as usize)
 }
 
 /// Поиск по содержимому.

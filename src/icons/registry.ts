@@ -28,6 +28,8 @@ export type IconName =
   | 'action.project-file'
   | 'tree.chevron'
   | 'tree.folder-open'
+  | 'panel.tree'
+  | 'panel.search'
   | 'file.markdown'
   | 'file.text'
   | 'file.code';
@@ -57,6 +59,12 @@ const ICONS: Record<IconName, string> = {
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>',
   'action.project-file':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"><path d="M9 1.6H4a1.4 1.4 0 0 0-1.4 1.4v10a1.4 1.4 0 0 0 1.4 1.4h8a1.4 1.4 0 0 0 1.4-1.4V6z"/><path d="M9 1.6V6h4.4"/><path d="M8 8.4v3.6M6.2 10.2h3.6" stroke-linecap="round"/></svg>',
+
+  // Полоса значков боковой панели (Р-044).
+  'panel.tree':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h4l1 1.2h6"/><path d="M2.5 3.5v9h11v-7.8"/><path d="M5.5 7.2h5M5.5 9.8h3"/></svg>',
+  'panel.search':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="7" cy="7" r="4.2"/><path d="M10.2 10.2l3.3 3.3"/></svg>',
 
   // Уголок раскрытия. Одна форма на оба состояния: раскрытая папка получает
   // тот же значок повёрнутым, иначе два похожих значка пришлось бы держать

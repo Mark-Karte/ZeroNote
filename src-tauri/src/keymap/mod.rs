@@ -41,6 +41,8 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("view.previous-tab", "Предыдущая вкладка"),
     ("view.sidebar", "Показать боковую панель"),
     ("project.add-root", "Открыть папку"),
+    ("project.quick-open", "Быстрое открытие по имени"),
+    ("project.search", "Найти в проекте"),
 ];
 
 /// Раскладка по умолчанию — Notepad++ 8.x.
@@ -75,6 +77,11 @@ pub const DEFAULTS: &[(&str, &str)] = &[
     // в нём тоже нет. Взяты привычные по VS Code — решение Р-053.
     ("ctrl+b", "view.sidebar"),
     ("ctrl+shift+o", "project.add-root"),
+    // Ctrl+P в Notepad++ — печать, которой у нас нет и в первом круге
+    // не будет. Ctrl+Shift+F там же — «найти в файлах», то есть ровно
+    // тот же смысл, что и у нас.
+    ("ctrl+p", "project.quick-open"),
+    ("ctrl+shift+f", "project.search"),
 ];
 
 /// Именованные клавиши, которые разрешено использовать в сочетаниях.

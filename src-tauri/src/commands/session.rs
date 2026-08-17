@@ -57,6 +57,7 @@ pub fn save_session(
     active: Option<BufferId>,
     sidebar: bool,
     sidebar_width: u32,
+    sidebar_panel: String,
 ) -> Fallible<()> {
     // Корни берутся первыми и своей блокировкой: две блокировки, взятые
     // в разном порядке разными командами, — это взаимная блокировка, которая
@@ -84,6 +85,7 @@ pub fn save_session(
             next_root_id,
             sidebar,
             sidebar_width,
+            sidebar_panel,
             roots,
             buffers: buffers
                 .list()
@@ -134,6 +136,7 @@ pub struct RestoredSession {
     pub roots: Vec<RootView>,
     pub sidebar: bool,
     pub sidebar_width: u32,
+    pub sidebar_panel: String,
     /// О чём надо сказать пользователю: пропавшие файлы, нечитаемые черновики,
     /// недоступные папки.
     pub notices: Vec<String>,
@@ -165,6 +168,7 @@ pub fn restore_session(state: tauri::State<'_, AppState>) -> RestoredSession {
             roots: Vec::new(),
             sidebar: false,
             sidebar_width: 0,
+            sidebar_panel: String::new(),
             notices,
         };
     };
@@ -291,6 +295,7 @@ pub fn restore_session(state: tauri::State<'_, AppState>) -> RestoredSession {
         roots: root_views,
         sidebar: snapshot.sidebar,
         sidebar_width: snapshot.sidebar_width,
+        sidebar_panel: snapshot.sidebar_panel,
         notices,
     }
 }

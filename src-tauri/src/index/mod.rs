@@ -13,6 +13,7 @@
 //! не должен ждать индексацию хранилища на десять тысяч файлов.
 
 pub mod jobs;
+pub mod names;
 pub mod query;
 pub mod schema;
 pub mod writer;

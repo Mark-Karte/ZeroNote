@@ -1,17 +1,30 @@
 <script lang="ts">
   import Icon from '../Icon.svelte';
   import FileTree from './FileTree.svelte';
+  import ProjectSearch from './ProjectSearch.svelte';
   import { roots, setSidebarWidth } from '../../state/roots.svelte';
   import { addRootDialog } from '../../actions/project';
   import { noteStructureChange } from '../../state/persist.svelte';
 
   /**
-   * Боковая панель: список корней и дерево файлов.
-   *
-   * Полоса значков (Р-044) появится вместе со второй панелью — результатами
-   * поиска в задаче 12. Полоса с единственным значком занимает место и ничего
-   * не объясняет.
+   * Боковая панель. Что в ней показано, решает полоса значков рядом (Р-044).
    */
+
+  interface Props {
+    /** Панель поиска просит забрать фокус в поле ввода. */
+    searchFocus?: number;
+  }
+
+  let { searchFocus = 0 }: Props = $props();
+
+  let searchPanel: ReturnType<typeof ProjectSearch> | undefined = $state();
+
+  $effect(() => {
+    // Зависимость от счётчика, а не от факта: повторное нажатие Ctrl+Shift+F
+    // при уже открытой панели тоже должно возвращать фокус в поле.
+    void searchFocus;
+    if (roots.panel === 'search') searchPanel?.focusField();
+  });
 
   let panel: HTMLElement | undefined = $state();
   let dragging = $state(false);
@@ -97,24 +110,28 @@
   bind:this={panel}
   style:width={roots.sidebarWidth > 0 ? `${roots.sidebarWidth}px` : null}
 >
-  <header class="head">
-    <span class="title">Папки</span>
-    <button
-      class="action"
-      type="button"
-      onclick={addRootDialog}
-      title="Открыть папку (Ctrl+Shift+O)"
-      aria-label="Открыть папку"
-    >
-      <Icon name="action.add-folder" />
-    </button>
-  </header>
-
-  {#if roots.items.length === 0}
-    <p class="empty">Папок нет</p>
-    <p class="hint">Ctrl+Shift+O — открыть папку как проект</p>
+  {#if roots.panel === 'search'}
+    <ProjectSearch bind:this={searchPanel} />
   {:else}
-    <FileTree />
+    <header class="head">
+      <span class="title">Папки</span>
+      <button
+        class="action"
+        type="button"
+        onclick={addRootDialog}
+        title="Открыть папку (Ctrl+Shift+O)"
+        aria-label="Открыть папку"
+      >
+        <Icon name="action.add-folder" />
+      </button>
+    </header>
+
+    {#if roots.items.length === 0}
+      <p class="empty">Папок нет</p>
+      <p class="hint">Ctrl+Shift+O — открыть папку как проект</p>
+    {:else}
+      <FileTree />
+    {/if}
   {/if}
 </aside>
 

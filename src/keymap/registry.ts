@@ -9,7 +9,12 @@ import {
   closeActiveTab,
 } from '../actions/files';
 import { goToLineDialog } from '../actions/navigate';
-import { addRootDialog, toggleSidebarPanel } from '../actions/project';
+import {
+  addRootDialog,
+  toggleSidebarPanel,
+  quickOpen,
+  searchInProject,
+} from '../actions/project';
 import { openSearch, findNext, findPrevious } from '../state/search.svelte';
 import { nextTab, previousTab } from '../state/tabs.svelte';
 
@@ -60,6 +65,8 @@ export const COMMANDS: Record<CommandId, () => void | Promise<unknown>> = {
   'view.sidebar': toggleSidebarPanel,
 
   'project.add-root': addRootDialog,
+  'project.quick-open': quickOpen,
+  'project.search': searchInProject,
 };
 
 export function commandIds(): CommandId[] {

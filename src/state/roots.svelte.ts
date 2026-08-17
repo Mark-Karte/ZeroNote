@@ -12,11 +12,20 @@ import { expand, forgetRoot } from './tree.svelte';
  * приходят имена, доступность и жалобы на `zeronote.toml`. Здесь только
  * отражение этого списка для интерфейса.
  */
-export const roots = $state<{ items: Root[]; sidebar: boolean; sidebarWidth: number }>({
+/** Какая панель показана в боковой полосе. */
+export type PanelId = 'tree' | 'search';
+
+export const roots = $state<{
+  items: Root[];
+  sidebar: boolean;
+  sidebarWidth: number;
+  panel: PanelId;
+}>({
   items: [],
   sidebar: false,
   /** Ноль — «как в теме»: ширину задаёт токен, пока её не подгонят руками. */
   sidebarWidth: 0,
+  panel: 'tree',
 });
 
 /** Жалобы всех корней разом — для полосы предупреждений. */
@@ -58,6 +67,12 @@ export function setSidebarWidth(width: number): void {
   roots.sidebarWidth = width;
 }
 
+/** Показать панель, открыв полосу, если она была закрыта. */
+export function showPanel(panel: PanelId): void {
+  roots.panel = panel;
+  roots.sidebar = true;
+}
+
 export async function createProjectFile(id: number): Promise<Root> {
   const root = await ipc.createProjectFile(id);
   put(root);
@@ -81,10 +96,14 @@ export async function restoreFromSession(
   items: Root[],
   sidebar: boolean,
   sidebarWidth: number,
+  panel: string,
 ): Promise<void> {
   roots.items.splice(0, roots.items.length, ...items);
   roots.sidebar = sidebar;
   roots.sidebarWidth = sidebarWidth;
+  // Неизвестное имя панели из чужой или будущей версии не должно оставлять
+  // полосу пустой.
+  roots.panel = panel === 'search' ? 'search' : 'tree';
 
   // Какие папки внутри были раскрыты, мы не помним — и не пытаемся: список
   // раскрытых узлов быстро устаревает, а восстановление несуществующих

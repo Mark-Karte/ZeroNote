@@ -191,6 +191,30 @@ pub fn known_paths(
     Ok(out)
 }
 
+/// Все файлы в индексе: номер корня, путь, имя.
+///
+/// Нужно быстрому открытию. Отдельного списка имён специально для него нет
+/// намеренно: второй список пришлось бы согласовывать с индексом, а проход
+/// по десяти тысячам строк стоит доли миллисекунды.
+pub fn all_files(
+    connection: &Connection,
+) -> Result<Vec<(RootId, String, String)>, IndexError> {
+    let mut statement = connection.prepare("SELECT root_id, path, name FROM files")?;
+    let rows = statement.query_map([], |row| {
+        Ok((
+            row.get::<_, i64>(0)? as RootId,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+        ))
+    })?;
+
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
+}
+
 /// Сколько файлов корня в индексе.
 pub fn count(connection: &Connection, root_id: RootId) -> Result<u64, IndexError> {
     let value: i64 = connection.query_row(

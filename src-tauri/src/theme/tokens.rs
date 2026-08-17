@@ -84,6 +84,7 @@ pub const METRICS_NORMAL: &[(&str, &str)] = &[
     // Отдельно от `control-row-height`: строка дерева плотнее прочих списков,
     // и подгонка одного не должна двигать другое.
     ("control-tree-row-height", "22px"),
+    ("control-strip-width", "40px"),
 ];
 
 /// Метрики компактной плотности.
@@ -119,6 +120,7 @@ pub const METRICS_COMPACT: &[(&str, &str)] = &[
     ("control-sidebar-max-width", "560px"),
     ("control-tree-indent", "12px"),
     ("control-tree-row-height", "19px"),
+    ("control-strip-width", "34px"),
 ];
 
 /// Семантические роли, выраженные через палитру.
