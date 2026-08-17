@@ -21,9 +21,16 @@ use std::path::{Path, PathBuf};
 use crate::fsx::atomic_save;
 use crate::fsx::text_file::DiskState;
 use crate::model::buffer::BufferId;
+use crate::model::root::RootId;
 use crate::text::encoding::Encoding;
 use crate::text::eol::Eol;
 
+/// Версия формата сессии.
+///
+/// Появление корней её не подняло, и это решение Р-051: `read_session`
+/// отвергает файл чужой версии целиком, то есть подъём версии означал бы
+/// «при обновлении у всех молча закрылись открытые вкладки». Новое поле
+/// с умолчанием обходится без этого.
 pub const SESSION_SCHEMA: u32 = 1;
 
 /// Снимок одного буфера. Содержимого здесь нет — оно в черновике.
@@ -79,7 +86,25 @@ impl BufferSnapshot {
     }
 }
 
+/// Снимок одного корня.
+///
+/// Только путь и номер: имя, правила игнорирования и всё остальное живёт
+/// в `zeronote.toml` и перечитывается при запуске. Копия этих сведений
+/// в файле сессии устарела бы в тот же день, когда пользователь поправил
+/// файл проекта.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "kebab-case")]
+pub struct RootSnapshot {
+    pub id: RootId,
+    pub path: PathBuf,
+}
+
 /// Снимок одного окна.
+///
+/// Поля-значения объявлены раньше полей-списков, и это требование формата,
+/// а не вкусовщина: в TOML всё, что идёт после таблицы, принадлежит этой
+/// таблице, поэтому одиночное значение после `[[buffers]]` записалось бы
+/// внутрь последнего буфера.
 #[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct WorkspaceSnapshot {
@@ -93,6 +118,16 @@ pub struct WorkspaceSnapshot {
     /// Какой номер выдавать следующему безымянному буферу.
     #[serde(default)]
     pub next_untitled: u32,
+    /// Какой номер выдавать следующему корню.
+    #[serde(default)]
+    pub next_root_id: RootId,
+    /// Была ли открыта боковая панель.
+    #[serde(default)]
+    pub sidebar: bool,
+    /// Открытые корни. Поле появилось вместе с задачей 9 и имеет умолчание:
+    /// файл сессии от версии 0.1.0 обязан читаться (Р-051).
+    #[serde(default)]
+    pub roots: Vec<RootSnapshot>,
     /// Порядок в списке — порядок вкладок.
     #[serde(default)]
     pub buffers: Vec<BufferSnapshot>,
@@ -216,6 +251,12 @@ mod tests {
             active: Some(2),
             next_id: 3,
             next_untitled: 2,
+            next_root_id: 2,
+            sidebar: true,
+            roots: vec![RootSnapshot {
+                id: 1,
+                path: PathBuf::from(r"C:\заметки"),
+            }],
             buffers: vec![
                 BufferSnapshot {
                     id: 1,
@@ -266,6 +307,37 @@ mod tests {
         let restored = read_session(&dir).expect("сессия должна прочитаться");
 
         assert_eq!(restored, snapshot());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Файл сессии от версии 0.1.0 обязан читаться: корни добавлены полем
+    /// с умолчанием именно ради этого (Р-051). Подними мы версию формата —
+    /// у каждого тестировщика при обновлении молча закрылись бы все вкладки.
+    #[test]
+    fn session_without_roots_still_opens() {
+        let dir = temp_dir("old-format");
+        std::fs::write(
+            session_path(&dir),
+            concat!(
+                "schema = 1\n",
+                "[[workspaces]]\n",
+                "active = 1\n",
+                "next-id = 2\n",
+                "next-untitled = 1\n",
+                "[[workspaces.buffers]]\n",
+                "id = 1\n",
+                "title = \"заметка.md\"\n",
+                "encoding = \"utf8\"\n",
+                "eol = \"cr-lf\"\n",
+            ),
+        )
+        .unwrap();
+
+        let restored = read_session(&dir).expect("старая сессия должна читаться");
+
+        assert_eq!(restored.buffers.len(), 1);
+        assert!(restored.roots.is_empty());
+        assert!(!restored.sidebar);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

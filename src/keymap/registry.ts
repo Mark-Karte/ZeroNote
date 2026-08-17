@@ -9,6 +9,7 @@ import {
   closeActiveTab,
 } from '../actions/files';
 import { goToLineDialog } from '../actions/navigate';
+import { addRootDialog, toggleSidebarPanel } from '../actions/project';
 import { openSearch, findNext, findPrevious } from '../state/search.svelte';
 import { nextTab, previousTab } from '../state/tabs.svelte';
 
@@ -56,6 +57,9 @@ export const COMMANDS: Record<CommandId, () => void | Promise<unknown>> = {
   'view.go-to-line': goToLineDialog,
   'view.next-tab': nextTab,
   'view.previous-tab': previousTab,
+  'view.sidebar': toggleSidebarPanel,
+
+  'project.add-root': addRootDialog,
 };
 
 export function commandIds(): CommandId[] {

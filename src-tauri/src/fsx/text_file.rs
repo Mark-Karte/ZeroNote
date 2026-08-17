@@ -121,6 +121,14 @@ impl std::fmt::Display for OpenError {
 impl std::error::Error for OpenError {}
 
 pub fn open(path: &Path) -> Result<OpenedFile, OpenError> {
+    open_with_hint(path, None)
+}
+
+/// Открыть файл, зная кодировку по умолчанию его проекта.
+///
+/// Подсказка применяется только там, где определение не уверено, — подробности
+/// в `document::read_with_hint`.
+pub fn open_with_hint(path: &Path, hint: Option<Encoding>) -> Result<OpenedFile, OpenError> {
     let meta = std::fs::metadata(path).map_err(|source| OpenError::Io {
         path: path.to_path_buf(),
         source,
@@ -138,7 +146,7 @@ pub fn open(path: &Path) -> Result<OpenedFile, OpenError> {
         source,
     })?;
 
-    let document = document::read(&bytes).map_err(|source| OpenError::Read {
+    let document = document::read_with_hint(&bytes, hint).map_err(|source| OpenError::Read {
         path: path.to_path_buf(),
         source,
     })?;

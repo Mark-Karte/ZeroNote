@@ -70,7 +70,11 @@ pub fn open_file(state: tauri::State<'_, AppState>, path: String) -> Fallible<Bu
         return reload_buffer(state, id);
     }
 
-    let opened = text_file::open(&path).map_err(|e| e.to_string())?;
+    // Проект, которому файл принадлежит, может знать его кодировку лучше
+    // эвристики. Подсказка берётся до чтения и только помогает угадать —
+    // см. `document::read_with_hint`.
+    let opened = text_file::open_with_hint(&path, state.encoding_hint(&path))
+        .map_err(|e| e.to_string())?;
 
     let mut buffers = state.buffers.lock().expect("реестр буферов повреждён");
     let buffer = buffers
@@ -109,7 +113,8 @@ pub fn reload_buffer(
             .ok_or_else(|| "у буфера нет файла на диске".to_owned())?
     };
 
-    let opened = text_file::open(&path).map_err(|e| e.to_string())?;
+    let opened = text_file::open_with_hint(&path, state.encoding_hint(&path))
+        .map_err(|e| e.to_string())?;
 
     let mut buffers = state.buffers.lock().expect("реестр буферов повреждён");
     let buffer = buffers

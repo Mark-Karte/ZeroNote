@@ -1,5 +1,6 @@
 import * as ipc from '../ipc/files';
 import { tabs, textOf, viewStateOf } from './tabs.svelte';
+import { roots } from './roots.svelte';
 
 /**
  * Сохранение сессии и черновиков — инвариант 4.
@@ -37,7 +38,9 @@ function draftable() {
 async function writeSession(): Promise<void> {
   sessionTimer = null;
   const views: ipc.ViewState[] = tabs.items.map((tab) => viewStateOf(tab));
-  await ipc.saveSession(views, tabs.activeId);
+  // Сами корни ядро берёт из своего реестра — отсюда едет только то, чего оно
+  // знать не может: открыта ли панель.
+  await ipc.saveSession(views, tabs.activeId, roots.sidebar);
 }
 
 async function writeDrafts(): Promise<void> {

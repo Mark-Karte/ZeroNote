@@ -5,10 +5,12 @@
 
 use crate::fsx::text_file;
 use crate::model::buffer::{Buffer, BufferId, Buffers};
-use crate::session::{self, BufferSnapshot, WorkspaceSnapshot};
+use crate::model::root::{Root, Roots};
+use crate::session::{self, BufferSnapshot, RootSnapshot, WorkspaceSnapshot};
 use crate::state::AppState;
 
 use super::files::BufferWithText;
+use super::roots::RootView;
 
 type Fallible<T> = Result<T, String>;
 
@@ -53,7 +55,24 @@ pub fn save_session(
     state: tauri::State<'_, AppState>,
     views: Vec<ViewState>,
     active: Option<BufferId>,
+    sidebar: bool,
 ) -> Fallible<()> {
+    // Корни берутся первыми и своей блокировкой: две блокировки, взятые
+    // в разном порядке разными командами, — это взаимная блокировка, которая
+    // проявится один раз в год и будет выглядеть как зависшее окно.
+    let (roots, next_root_id) = {
+        let roots = state.roots.lock().expect("реестр корней повреждён");
+        let list = roots
+            .list()
+            .iter()
+            .map(|root| RootSnapshot {
+                id: root.id,
+                path: root.path.clone(),
+            })
+            .collect();
+        (list, roots.next_id())
+    };
+
     let snapshot = {
         let buffers = state.buffers.lock().expect("реестр буферов повреждён");
 
@@ -61,6 +80,9 @@ pub fn save_session(
             active,
             next_id: buffers.next_id(),
             next_untitled: buffers.next_untitled(),
+            next_root_id,
+            sidebar,
+            roots,
             buffers: buffers
                 .list()
                 .iter()
@@ -107,7 +129,10 @@ pub fn drop_draft(state: tauri::State<'_, AppState>, id: BufferId) {
 pub struct RestoredSession {
     pub buffers: Vec<RestoredBuffer>,
     pub active: Option<BufferId>,
-    /// О чём надо сказать пользователю: пропавшие файлы, нечитаемые черновики.
+    pub roots: Vec<RootView>,
+    pub sidebar: bool,
+    /// О чём надо сказать пользователю: пропавшие файлы, нечитаемые черновики,
+    /// недоступные папки.
     pub notices: Vec<String>,
 }
 
@@ -134,9 +159,35 @@ pub fn restore_session(state: tauri::State<'_, AppState>) -> RestoredSession {
         return RestoredSession {
             buffers: Vec::new(),
             active: None,
+            roots: Vec::new(),
+            sidebar: false,
             notices,
         };
     };
+
+    // Корни восстанавливаются до файлов: открываемый файл должен уже знать
+    // свой проект, иначе подсказка по кодировке опоздает ровно на один запуск.
+    let restored_roots: Vec<Root> = snapshot
+        .roots
+        .iter()
+        .map(|item| Root::load(item.id, item.path.clone()))
+        .collect();
+
+    for root in &restored_roots {
+        // Недоступную папку из списка не выбрасываем: это может быть
+        // отключённый диск или сетевой ресурс (Р-052). Но и молчать о ней
+        // нельзя — пустое дерево без объяснений выглядит как поломка.
+        if !root.available {
+            notices.push(format!("папка недоступна: {}", root.path.display()));
+        }
+        for problem in &root.problems {
+            notices.push(problem.clone());
+        }
+    }
+
+    let root_views: Vec<RootView> = restored_roots.iter().map(RootView::of).collect();
+    *state.roots.lock().expect("реестр корней повреждён") =
+        Roots::restore(restored_roots, snapshot.next_root_id);
 
     let mut buffers = Vec::new();
     let mut restored = Vec::new();
@@ -154,7 +205,7 @@ pub fn restore_session(state: tauri::State<'_, AppState>) -> RestoredSession {
             (Some(text), _) => (text, buffer_from(item, true)),
 
             // Черновика нет, но есть файл — читаем с диска.
-            (None, Some(path)) => match text_file::open(path) {
+            (None, Some(path)) => match text_file::open_with_hint(path, state.encoding_hint(path)) {
                 Ok(opened) => {
                     let mut buffer = buffer_from(item, false);
                     // Сведения о файле берём свежие: за время простоя он мог
@@ -209,6 +260,8 @@ pub fn restore_session(state: tauri::State<'_, AppState>) -> RestoredSession {
     RestoredSession {
         buffers: restored,
         active,
+        roots: root_views,
+        sidebar: snapshot.sidebar,
         notices,
     }
 }

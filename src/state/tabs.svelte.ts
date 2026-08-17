@@ -6,6 +6,7 @@ import { extensionsFor } from '../editor/setup';
 // Взаимный импорт с persist: там только функции, и зовутся они в рантайме,
 // поэтому порядок загрузки модулей роли не играет.
 import { forgetDraft, noteEdit, noteStructureChange } from './persist.svelte';
+import { restoreFromSession } from './roots.svelte';
 
 /**
  * Вкладки и их содержимое.
@@ -190,6 +191,8 @@ export async function restore(): Promise<string[]> {
     baselines.set(meta.id, editor.doc);
     tabs.items.push({ meta, editor, scrollTop });
   }
+
+  restoreFromSession(session.roots, session.sidebar);
 
   tabs.activeId = session.active ?? tabs.items.at(-1)?.meta.id ?? null;
   return session.notices;

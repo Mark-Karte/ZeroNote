@@ -23,6 +23,9 @@ export type IconName =
   | 'window.close'
   | 'tab.close'
   | 'tab.modified'
+  | 'action.add-folder'
+  | 'action.remove'
+  | 'action.project-file'
   | 'file.markdown'
   | 'file.text'
   | 'file.code';
@@ -44,6 +47,14 @@ const ICONS: Record<IconName, string> = {
   // Точка вместо крестика на изменённой вкладке — как в VS Code.
   'tab.modified':
     '<svg viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="3.6"/></svg>',
+
+  // Действия боковой панели.
+  'action.add-folder':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"><path d="M14 8.5V6a1.5 1.5 0 0 0-1.5-1.5H8L6.86 3.44A1.5 1.5 0 0 0 5.8 3H3.5A1.5 1.5 0 0 0 2 4.5v7A1.5 1.5 0 0 0 3.5 13H8"/><path d="M11.5 9.5v4M9.5 11.5h4" stroke-linecap="round"/></svg>',
+  'action.remove':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>',
+  'action.project-file':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"><path d="M9 1.6H4a1.4 1.4 0 0 0-1.4 1.4v10a1.4 1.4 0 0 0 1.4 1.4h8a1.4 1.4 0 0 0 1.4-1.4V6z"/><path d="M9 1.6V6h4.4"/><path d="M8 8.4v3.6M6.2 10.2h3.6" stroke-linecap="round"/></svg>',
 
   'file.markdown':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"><path d="M9 1.6H4a1.4 1.4 0 0 0-1.4 1.4v10a1.4 1.4 0 0 0 1.4 1.4h8a1.4 1.4 0 0 0 1.4-1.4V6z"/><path d="M9 1.6V6h4.4"/><path d="M5.2 11.6V8.4l1.5 1.8 1.5-1.8v3.2" stroke-linecap="round"/></svg>',

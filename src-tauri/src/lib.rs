@@ -9,6 +9,7 @@ pub mod commands;
 pub mod fsx;
 pub mod keymap;
 pub mod model;
+pub mod project;
 pub mod session;
 pub mod settings;
 pub mod state;
@@ -72,6 +73,7 @@ fn prepare_state() -> AppState {
         data_dir,
         startup_notices: notices,
         buffers: std::sync::Mutex::new(model::buffer::Buffers::new()),
+        roots: std::sync::Mutex::new(model::root::Roots::new()),
     }
 }
 
@@ -113,6 +115,11 @@ pub fn run() {
             commands::files::close_buffer,
             commands::files::reorder_buffer,
             commands::files::list_encodings,
+            commands::roots::list_roots,
+            commands::roots::add_root,
+            commands::roots::remove_root,
+            commands::roots::refresh_roots,
+            commands::roots::create_project_file,
             commands::session::save_session,
             commands::session::flush_drafts,
             commands::session::drop_draft,

@@ -45,13 +45,30 @@ impl std::error::Error for ReadError {}
 
 /// Прочитать байты, определив кодировку.
 pub fn read(bytes: &[u8]) -> Result<TextDocument, ReadError> {
+    read_with_hint(bytes, None)
+}
+
+/// То же, но с подсказкой от проекта (`[editor] default_encoding`).
+///
+/// Подсказка вступает в дело в одном-единственном случае: определение
+/// не уверено и остановилось на однобайтовой кодировке. Это ровно тот случай,
+/// когда ошибается эвристика и когда проект знает ответ лучше — «вся папка
+/// в windows-1251».
+///
+/// Всё остальное подсказка не трогает, и это принципиально. Метка порядка
+/// байтов, годный UTF-8 и UTF-16 без метки — это знание, а не догадка;
+/// подменять их настройкой значило бы превратить чужой файл в кашу по воле
+/// строчки в конфиге. Инвариант 5 держится на том, что кодировка определяется
+/// по содержимому, а не назначается.
+pub fn read_with_hint(bytes: &[u8], hint: Option<Encoding>) -> Result<TextDocument, ReadError> {
     let detection = detect::detect(bytes).map_err(ReadError::Detect)?;
-    Ok(decode_with(
-        bytes,
-        detection.encoding,
-        detection.bom,
-        detection.confident,
-    ))
+
+    let encoding = match hint {
+        Some(hint) if !detection.confident && detection.encoding.is_single_byte() => hint,
+        _ => detection.encoding,
+    };
+
+    Ok(decode_with(bytes, encoding, detection.bom, detection.confident))
 }
 
 /// Прочитать те же байты другой кодировкой — операция «интерпретировать как».
@@ -135,6 +152,37 @@ mod tests {
     use super::*;
 
     const RUSSIAN: &str = "Съешь же ещё этих мягких французских булок.";
+
+    /// Подсказка проекта решает там, где определение только гадает.
+    #[test]
+    fn project_hint_replaces_a_guess() {
+        // Короткая строка в KOI8-R: эвристике тут выбирать почти не из чего.
+        let bytes = encoding::encode("Привет", Encoding::Koi8R).unwrap();
+
+        let guessed = read(&bytes).unwrap();
+        assert!(!guessed.encoding_confident, "иначе тест ничего не проверяет");
+
+        let hinted = read_with_hint(&bytes, Some(Encoding::Koi8R)).unwrap();
+
+        assert_eq!(hinted.encoding, Encoding::Koi8R);
+        assert_eq!(hinted.text, "Привет");
+    }
+
+    /// А там, где кодировка известна точно, подсказка молчит: иначе строка
+    /// в конфиге превращала бы чужой файл в кашу.
+    #[test]
+    fn project_hint_never_overrides_knowledge() {
+        let utf8 = encoding::encode(RUSSIAN, Encoding::Utf8).unwrap();
+        let with_bom = to_bytes(RUSSIAN, Encoding::Utf16Le, true, Eol::Lf).unwrap();
+
+        let first = read_with_hint(&utf8, Some(Encoding::Windows1251)).unwrap();
+        let second = read_with_hint(&with_bom, Some(Encoding::Windows1251)).unwrap();
+
+        assert_eq!(first.encoding, Encoding::Utf8);
+        assert_eq!(first.text, RUSSIAN);
+        assert_eq!(second.encoding, Encoding::Utf16Le);
+        assert_eq!(second.text, RUSSIAN);
+    }
 
     /// Набор образцов, покрывающий инвариант 1: кодировка, метка порядка
     /// байтов, тип переносов, наличие финального перевода строки.

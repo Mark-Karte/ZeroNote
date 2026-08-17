@@ -77,6 +77,7 @@
   --zn-control-dialog-min-width: 420px;
   --zn-control-dialog-max-width: 560px;
   --zn-control-popup-min-width: 260px;
+  --zn-control-sidebar-width: 240px;
 
   /* --- Глубина --- */
   --zn-shadow-raised: 0 1px 2px rgba(16, 24, 40, 0.1);

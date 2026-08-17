@@ -4,6 +4,8 @@ use std::sync::Mutex;
 
 use crate::fsx::paths::DataDir;
 use crate::model::buffer::Buffers;
+use crate::model::root::Roots;
+use crate::text::encoding::Encoding;
 
 /// Хранится в Tauri и достаётся командам через `tauri::State`.
 pub struct AppState {
@@ -26,4 +28,23 @@ pub struct AppState {
     /// со списком и не звать под ней ничего, что лезет на диск. Иначе
     /// медленная запись файла заморозит все остальные команды.
     pub buffers: Mutex<Buffers>,
+
+    /// Открытые корни. Отдельная блокировка от буферов, а не одна общая на всё
+    /// состояние: открытие файла читает корни, и общий замок заставил бы его
+    /// ждать любую работу со списком вкладок.
+    pub roots: Mutex<Roots>,
+}
+
+impl AppState {
+    /// Чем считать файл, кодировку которого не удалось определить надёжно.
+    ///
+    /// Ответ знает проект, которому файл принадлежит: если вся папка в одной
+    /// однобайтовой кодировке, эвристика на коротком файле ошибётся, а проект
+    /// нет. Файл вне корней подсказки не получает — угадывать за него некому.
+    pub fn encoding_hint(&self, path: &std::path::Path) -> Option<Encoding> {
+        let roots = self.roots.lock().expect("реестр корней повреждён");
+        roots
+            .for_path(path)
+            .and_then(|root| root.project.editor.default_encoding)
+    }
 }

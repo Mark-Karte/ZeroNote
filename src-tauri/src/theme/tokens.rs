@@ -77,6 +77,7 @@ pub const METRICS_NORMAL: &[(&str, &str)] = &[
     ("control-dialog-min-width", "420px"),
     ("control-dialog-max-width", "560px"),
     ("control-popup-min-width", "260px"),
+    ("control-sidebar-width", "240px"),
 ];
 
 /// Метрики компактной плотности.
@@ -107,6 +108,7 @@ pub const METRICS_COMPACT: &[(&str, &str)] = &[
     ("control-dialog-min-width", "360px"),
     ("control-dialog-max-width", "500px"),
     ("control-popup-min-width", "220px"),
+    ("control-sidebar-width", "200px"),
 ];
 
 /// Семантические роли, выраженные через палитру.

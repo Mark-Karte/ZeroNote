@@ -126,11 +126,16 @@ export interface RestoredBuffer extends BufferWithText {
 export interface RestoredSession {
   buffers: RestoredBuffer[];
   active: number | null;
+  roots: import('./roots').Root[];
+  sidebar: boolean;
   notices: string[];
 }
 
-export const saveSession = (views: ViewState[], active: number | null): Promise<void> =>
-  invoke('save_session', { views, active });
+export const saveSession = (
+  views: ViewState[],
+  active: number | null,
+  sidebar: boolean,
+): Promise<void> => invoke('save_session', { views, active, sidebar });
 
 export const flushDrafts = (entries: { id: number; text: string }[]): Promise<void> =>
   invoke('flush_drafts', { entries });

@@ -39,6 +39,8 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("view.go-to-line", "Перейти к строке"),
     ("view.next-tab", "Следующая вкладка"),
     ("view.previous-tab", "Предыдущая вкладка"),
+    ("view.sidebar", "Показать боковую панель"),
+    ("project.add-root", "Открыть папку"),
 ];
 
 /// Раскладка по умолчанию — Notepad++ 8.x.
@@ -69,6 +71,10 @@ pub const DEFAULTS: &[(&str, &str)] = &[
     ("ctrl+g", "view.go-to-line"),
     ("ctrl+tab", "view.next-tab"),
     ("ctrl+shift+tab", "view.previous-tab"),
+    // Двух сочетаний из Notepad++ здесь нет и быть не может: папки как проекта
+    // в нём тоже нет. Взяты привычные по VS Code — решение Р-053.
+    ("ctrl+b", "view.sidebar"),
+    ("ctrl+shift+o", "project.add-root"),
 ];
 
 /// Именованные клавиши, которые разрешено использовать в сочетаниях.

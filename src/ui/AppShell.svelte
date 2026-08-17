@@ -10,8 +10,10 @@
   import NoticeStrip from './NoticeStrip.svelte';
   import StatusBar from './StatusBar.svelte';
   import Modal from './Modal.svelte';
+  import Sidebar from './sidebar/Sidebar.svelte';
   import { tabs, restore } from '../state/tabs.svelte';
   import { flushNow } from '../state/persist.svelte';
+  import { roots, refresh as refreshRoots, rootProblems } from '../state/roots.svelte';
   import { openDropped, closeAllTabs } from '../actions/files';
   import { checkExternalChanges } from '../actions/external';
   import { startupPaths } from '../ipc/files';
@@ -67,7 +69,11 @@
     // Файлы сверяются с диском при возвращении фокуса в окно: именно тогда
     // пользователь мог что-то сделать с ними в другой программе (Р-014).
     unlistenFocus = await getCurrentWindow().onFocusChanged(({ payload }) => {
-      if (payload) void checkExternalChanges();
+      if (!payload) return;
+      void checkExternalChanges();
+      // Тогда же перечитываются корни: zeronote.toml могли поправить в другой
+      // программе, а пропавший сетевой диск — подключить обратно.
+      void refreshRoots();
     });
 
     unlistenDrop = await getCurrentWindow().onDragDropEvent((event) => {
@@ -92,18 +98,26 @@
 
 <div class="shell" class:drop={dropActive}>
   <TitleBar />
-  <NoticeStrip extra={restoreNotices} />
+  <NoticeStrip extra={[...restoreNotices, ...rootProblems()]} />
 
-  {#if tabs.items.length > 0}
-    <TabStrip />
-    <SearchPanel />
-    <EditorHost />
-  {:else}
-    <main class="workarea">
-      <p class="empty">Нет открытых файлов</p>
-      <p class="hint">Ctrl+N — новый, Ctrl+O — открыть, либо перетащите файл сюда</p>
-    </main>
-  {/if}
+  <div class="body">
+    {#if roots.sidebar}
+      <Sidebar />
+    {/if}
+
+    <div class="main">
+      {#if tabs.items.length > 0}
+        <TabStrip />
+        <SearchPanel />
+        <EditorHost />
+      {:else}
+        <main class="workarea">
+          <p class="empty">Нет открытых файлов</p>
+          <p class="hint">Ctrl+N — новый, Ctrl+O — открыть, либо перетащите файл сюда</p>
+        </main>
+      {/if}
+    </div>
+  </div>
 
   <StatusBar />
   <Modal />
@@ -122,6 +136,23 @@
 
   .shell.drop {
     border-color: var(--zn-color-accent);
+  }
+
+  /* Панель и рабочая область — в строку. `min-height: 0` обязателен обоим:
+     без него содержимое с прокруткой распирает строку и строка состояния
+     уезжает за нижний край окна. На этом однажды уже попались. */
+  .body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .main {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
   }
 
   .workarea {
