@@ -34,7 +34,30 @@ pub struct Project {
     #[serde(default)]
     pub ignore: IgnoreSettings,
     #[serde(default)]
+    pub index: IndexSettings,
+    #[serde(default)]
     pub editor: EditorSettings,
+}
+
+/// Раздел `[index]`.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct IndexSettings {
+    /// Файлы крупнее в индекс не попадают.
+    ///
+    /// Поиск по журналу на сто мегабайт не нужен никому, а времени и памяти
+    /// он стоит заметно. Списка расширений при этом нет намеренно: его
+    /// пришлось бы вечно дополнять, и он молча терял бы чужие текстовые
+    /// форматы. Двоичные файлы отсеиваются по содержимому.
+    pub max_file_size: u64,
+}
+
+impl Default for IndexSettings {
+    fn default() -> Self {
+        IndexSettings {
+            max_file_size: 2 * 1024 * 1024,
+        }
+    }
 }
 
 /// Раздел `[project]`.
@@ -92,6 +115,7 @@ impl Default for Project {
             schema: PROJECT_SCHEMA,
             project: Meta::default(),
             ignore: IgnoreSettings::default(),
+            index: IndexSettings::default(),
             editor: EditorSettings::default(),
         }
     }
@@ -207,6 +231,11 @@ use_gitignore = true
 #
 #   rules = ["*.tmp", "черновики/", "!node_modules/"]
 rules = []
+
+[index]
+# Файлы крупнее в поиск по проекту не попадают. Двоичные отсеиваются
+# по содержимому, списка расширений нет.
+max_file_size = 2097152
 
 [editor]
 # Чем считать файл, кодировку которого не удалось определить надёжно.

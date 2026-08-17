@@ -62,6 +62,7 @@ pub fn parse_args(args: &[String]) -> BenchConfig {
         Some("ipc") => Some("ipc".to_owned()),
         Some("open") => Some("open".to_owned()),
         Some("tree") => Some("tree".to_owned()),
+        Some("index") => Some("index".to_owned()),
         _ => None,
     };
 
@@ -351,6 +352,86 @@ pub fn bench_run_tree() -> Result<String, String> {
         TREE_FILES * 2
     ));
 
+    let _ = std::fs::remove_dir_all(&dir);
+    Ok(report)
+}
+
+// --- Замер индексации ---
+
+/// Прогнать замер индексации и вернуть готовый отчёт.
+///
+/// Меряется то, что определяет ощущение от работы: сколько идёт первая полная
+/// индексация хранилища, во что обходится повторный проход (он же — старт
+/// с готовым индексом) и сколько занимает поиск.
+#[tauri::command]
+pub fn bench_run_index() -> Result<String, String> {
+    use crate::index::{jobs, query, schema, writer};
+    use crate::project::{IgnoreSettings, ignore};
+
+    let dir = std::env::temp_dir().join(format!("zeronote-bench-index-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    make_tree_fixture(&dir).map_err(|e| e.to_string())?;
+
+    let rules = ignore::build(&dir, &IgnoreSettings::default());
+    let db_path = dir.join("index.db");
+    let db = schema::open(&db_path).map_err(|e| e.to_string())?;
+    let max_size = crate::project::IndexSettings::default().max_file_size;
+
+    let mut report = String::from("| Что | Файлов | Время |\n|---|---|---|\n");
+
+    // Обход отдельно от записи: полезно видеть, что дороже — диск или база.
+    let start = Instant::now();
+    let files = jobs::collect_files(&dir, &rules, &|| false).ok_or("обход прерван")?;
+    let walk_ms = start.elapsed().as_secs_f64() * 1000.0;
+    report.push_str(&format!(
+        "| Обход дерева | {} | {walk_ms:.0} мс |\n",
+        files.len()
+    ));
+
+    let start = Instant::now();
+    {
+        let transaction = db.unchecked_transaction().map_err(|e| e.to_string())?;
+        for path in &files {
+            let _ = writer::index_file(&db, 1, path, max_size);
+        }
+        transaction.commit().map_err(|e| e.to_string())?;
+    }
+    let first_ms = start.elapsed().as_secs_f64() * 1000.0;
+    report.push_str(&format!(
+        "| Первая индексация | {} | {first_ms:.0} мс |\n",
+        writer::count(&db, 1).unwrap_or(0)
+    ));
+
+    // Повторный проход — то же, что происходит при каждом запуске приложения
+    // с уже готовым индексом.
+    let start = Instant::now();
+    for path in &files {
+        let _ = writer::index_file(&db, 1, path, max_size);
+    }
+    let again_ms = start.elapsed().as_secs_f64() * 1000.0;
+    report.push_str(&format!(
+        "| Повторный проход | {} | {again_ms:.0} мс |\n",
+        files.len()
+    ));
+
+    let start = Instant::now();
+    let hits = query::search(&db, "заметка", None, 200).map_err(|e| e.to_string())?;
+    let search_ms = start.elapsed().as_secs_f64() * 1000.0;
+    report.push_str(&format!(
+        "| Поиск по содержимому | {} найдено | {search_ms:.1} мс |\n",
+        hits.len()
+    ));
+
+    let db_size = std::fs::metadata(&db_path).map(|m| m.len()).unwrap_or(0);
+    report.push_str(&format!(
+        "\nБаза индекса: {:.1} МиБ на {} файлов.\n\
+         Повторный проход — это цена запуска с готовым индексом: он сверяет\n\
+         время и размер и содержимое не перечитывает.\n",
+        db_size as f64 / (1024.0 * 1024.0),
+        TREE_FILES * 2
+    ));
+
+    drop(db);
     let _ = std::fs::remove_dir_all(&dir);
     Ok(report)
 }

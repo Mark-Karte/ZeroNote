@@ -7,6 +7,7 @@ pub mod bench;
 pub mod cli;
 pub mod commands;
 pub mod fsx;
+pub mod index;
 pub mod keymap;
 pub mod model;
 pub mod project;
@@ -73,10 +74,11 @@ fn prepare_state() -> AppState {
 
     AppState {
         data_dir,
-        startup_notices: notices,
+        startup_notices: std::sync::Mutex::new(notices),
         buffers: std::sync::Mutex::new(model::buffer::Buffers::new()),
         roots: std::sync::Mutex::new(model::root::Roots::new()),
         watchers: std::sync::Mutex::new(tree::watch::Watchers::default()),
+        index: std::sync::Mutex::new(index::jobs::Index::default()),
     }
 }
 
@@ -105,6 +107,19 @@ pub fn run() {
                 .lock()
                 .expect("наблюдатели повреждены")
                 .start(app.handle().clone());
+
+            // Индекс: база и рабочий поток. Без него приложение работает,
+            // просто не ищет по проекту, — поэтому отказ не останавливает
+            // запуск, а едет пользователю полосой предупреждений.
+            let data_dir = state.data_dir.path.clone();
+            let opened = state
+                .index
+                .lock()
+                .expect("индекс повреждён")
+                .start(app.handle().clone(), &data_dir);
+            if let Err(message) = opened {
+                state.notice(message);
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -134,6 +149,11 @@ pub fn run() {
             commands::roots::refresh_roots,
             commands::roots::create_project_file,
             commands::tree::read_children,
+            commands::index::index_progress,
+            commands::index::index_count,
+            commands::index::cancel_index,
+            commands::index::reindex_root,
+            commands::index::search_project,
             commands::session::save_session,
             commands::session::flush_drafts,
             commands::session::drop_draft,
@@ -146,6 +166,7 @@ pub fn run() {
             bench::bench_sink_text,
             bench::bench_run_open,
             bench::bench_run_tree,
+            bench::bench_run_index,
             bench::bench_write_report,
             bench::bench_exit,
         ])

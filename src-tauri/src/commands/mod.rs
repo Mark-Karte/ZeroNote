@@ -6,6 +6,7 @@
 
 pub mod appearance;
 pub mod files;
+pub mod index;
 pub mod keymap;
 pub mod roots;
 pub mod session;

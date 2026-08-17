@@ -200,8 +200,22 @@ pub fn restore_session(state: tauri::State<'_, AppState>) -> RestoredSession {
         }
     }
 
+    let available: Vec<_> = restored_roots
+        .iter()
+        .filter(|root| root.available)
+        .map(|root| root.id)
+        .collect();
+
     *state.roots.lock().expect("реестр корней повреждён") =
         Roots::restore(restored_roots, snapshot.next_root_id);
+
+    // Индексация восстановленных корней идёт в фоне и старт не задерживает:
+    // цель по тёплому старту — 800 мс, а обход хранилища столько не стоит.
+    // Полный проход дешёв, потому что сверяет время и размер и перечитывает
+    // только изменившееся за время простоя.
+    for id in available {
+        super::index::schedule_scan(&state, id);
+    }
 
     let mut buffers = Vec::new();
     let mut restored = Vec::new();

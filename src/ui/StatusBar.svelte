@@ -4,6 +4,7 @@
   import type { PopupItem } from './popup-item';
   import { appearance } from '../theme/store.svelte';
   import { activeTab } from '../state/tabs.svelte';
+  import { indexing, cancel as cancelIndexing } from '../state/index.svelte';
   import type { EncodingId, LineEnding } from '../ipc/files';
   import { convertTo, reinterpretAs, setBom, setLineEnding } from '../actions/encoding';
 
@@ -123,6 +124,25 @@
       <Icon name={look.portable ? 'status.folder' : 'status.folder-alert'} />
       {look.portable ? 'данные рядом с приложением' : 'данные в запасной папке'}
     </span>
+  {/if}
+
+  {#if indexing.progress.running}
+    <span class="item" title="Идёт индексация проекта. Поиск уже работает, но находит не всё.">
+      {#if indexing.progress.total > 0}
+        индексация: {indexing.progress.done} из {indexing.progress.total}
+      {:else}
+        индексация: обход папок
+      {/if}
+    </span>
+    <button
+      class="item action"
+      type="button"
+      onclick={cancelIndexing}
+      title="Остановить индексацию"
+      aria-label="Остановить индексацию"
+    >
+      <Icon name="action.remove" />
+    </button>
   {/if}
 
   <span class="spacer"></span>

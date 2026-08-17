@@ -20,13 +20,15 @@
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, Sender};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::fsx::atomic_save;
 use crate::model::root::RootId;
+use crate::project::ignore::IgnoreRules;
 
 /// Событие фронтенду: список папок, содержимое которых могло измениться.
 pub const TREE_CHANGED: &str = "tree-changed";
@@ -155,11 +157,52 @@ fn collect(app: AppHandle, rx: Receiver<PathBuf>) {
             continue;
         }
 
+        // Индекс перечитывает те же папки — но, в отличие от дерева, все,
+        // а не только раскрытые: файл, не попавший в индекс, не найдётся
+        // никогда, и то, что его сейчас не видно на экране, тут ни при чём.
+        reindex(&app, &dirs);
+
         let payload: Vec<String> = dirs.iter().map(|p| p.display().to_string()).collect();
         // Само событие несёт только имена папок: содержимое фронтенд
         // запрашивает сам и только для раскрытых. Присылать содержимое
         // означало бы слать то, что никто не смотрит.
         let _ = app.emit(TREE_CHANGED, payload);
+    }
+}
+
+/// Отправить изменившиеся папки на переиндексацию, разложив их по корням.
+///
+/// Папки группируются по корню-хозяину: правила игнорирования и предел размера
+/// у каждого корня свои, и задание должно приехать с настройками того корня,
+/// которому папка принадлежит.
+fn reindex(app: &AppHandle, dirs: &BTreeSet<PathBuf>) {
+    let state = app.state::<crate::state::AppState>();
+
+    // Под блокировкой реестра — только раскладка по корням; на диск отсюда
+    // не ходим.
+    let mut jobs: HashMap<RootId, (Vec<PathBuf>, Arc<IgnoreRules>, u64)> = HashMap::new();
+    {
+        let roots = state.roots.lock().expect("реестр корней повреждён");
+        for dir in dirs {
+            let Some(root) = roots.for_path(dir) else {
+                continue;
+            };
+            jobs.entry(root.id)
+                .or_insert_with(|| {
+                    (
+                        Vec::new(),
+                        root.rules.clone(),
+                        root.project.index.max_file_size,
+                    )
+                })
+                .0
+                .push(dir.clone());
+        }
+    }
+
+    let index = state.index.lock().expect("индекс повреждён");
+    for (root_id, (dirs, rules, max_size)) in jobs {
+        index.rescan_dirs(root_id, dirs, rules, max_size);
     }
 }
 

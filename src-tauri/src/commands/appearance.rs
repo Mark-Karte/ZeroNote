@@ -138,7 +138,10 @@ pub fn appearance_state(state: tauri::State<'_, AppState>, system_dark: bool) ->
         &state.data_dir.path,
         state.data_dir.portable,
         system_dark,
-        &state.startup_notices,
+        &state
+            .startup_notices
+            .lock()
+            .expect("список предупреждений повреждён"),
     )
 }
 

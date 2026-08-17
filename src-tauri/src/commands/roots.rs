@@ -74,6 +74,10 @@ pub fn add_root(state: tauri::State<'_, AppState>, path: String) -> Fallible<Roo
         .expect("наблюдатели повреждены")
         .watch(view.id, std::path::Path::new(&view.path));
 
+    // Индексация уходит в фон и на возврат из команды не влияет: папка
+    // должна появиться в дереве сразу, а не через полминуты (инвариант 6).
+    super::index::schedule_scan(&state, view.id);
+
     Ok(view)
 }
 
@@ -90,6 +94,13 @@ pub fn remove_root(state: tauri::State<'_, AppState>, id: RootId) -> bool {
             .lock()
             .expect("наблюдатели повреждены")
             .unwatch(id);
+        // Индекс убранного корня больше не нужен: он занимает место и портит
+        // выдачу поиска путями, которых в рабочем пространстве уже нет.
+        state
+            .index
+            .lock()
+            .expect("индекс повреждён")
+            .forget_root(id);
     }
     removed
 }

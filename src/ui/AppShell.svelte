@@ -16,6 +16,8 @@
   import { roots, refresh as refreshRoots, rootProblems } from '../state/roots.svelte';
   import { refreshDirs } from '../state/tree.svelte';
   import { TREE_CHANGED } from '../ipc/tree';
+  import { applyProgress, refreshProgress } from '../state/index.svelte';
+  import { INDEX_PROGRESS, type IndexProgress } from '../ipc/index';
   import { openDropped, closeAllTabs } from '../actions/files';
   import { checkExternalChanges } from '../actions/external';
   import { startupPaths } from '../ipc/files';
@@ -26,6 +28,7 @@
   let unlistenClose: UnlistenFn | null = null;
   let unlistenFocus: UnlistenFn | null = null;
   let unlistenTree: UnlistenFn | null = null;
+  let unlistenIndex: UnlistenFn | null = null;
   let dropActive = $state(false);
 
   /** О чём не удалось восстановить — показывается той же полосой, что и прочее. */
@@ -85,6 +88,13 @@
       void refreshDirs(event.payload);
     });
 
+    // Ход индексации: состояние приходит событиями, а не опросом.
+    unlistenIndex = await listen<IndexProgress>(INDEX_PROGRESS, (event) => {
+      applyProgress(event.payload);
+    });
+    // Одно состояние на старте: индексация могла начаться до подписки.
+    void refreshProgress();
+
     unlistenDrop = await getCurrentWindow().onDragDropEvent((event) => {
       if (event.payload.type === 'over') {
         dropActive = true;
@@ -103,6 +113,7 @@
     unlistenClose?.();
     unlistenFocus?.();
     unlistenTree?.();
+    unlistenIndex?.();
   });
 </script>
 

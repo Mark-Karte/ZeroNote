@@ -11,7 +11,7 @@
 # Замеры на отладочной сборке бессмысленны и скриптом не поддерживаются.
 
 param(
-    [ValidateSet('all', 'startup', 'ipc', 'open', 'tree')]
+    [ValidateSet('all', 'startup', 'ipc', 'open', 'tree', 'index')]
     [string]$Only = 'all',
 
     [int]$Runs = 9
@@ -129,6 +129,10 @@ if ($Only -eq 'all' -or $Only -eq 'open') {
 if ($Only -eq 'all' -or $Only -eq 'tree') {
     Measure-InApp -Mode 'tree' -Title 'Дерево файлов: чтение папки и полный обход' -FileName 'tree.md'
     Write-Host 'Цели: папка на 10 000 записей <= 300 мс, полный обход <= 3 с' -ForegroundColor DarkGray
+}
+if ($Only -eq 'all' -or $Only -eq 'index') {
+    Measure-InApp -Mode 'index' -Title 'Индексация 10 000 файлов' -FileName 'index.md'
+    Write-Host 'Цель: полная индексация <= 30 с, интерфейс отзывчив' -ForegroundColor DarkGray
 }
 if ($Only -eq 'all' -or $Only -eq 'ipc') {
     Measure-InApp -Mode 'ipc' -Title 'Граница Rust <-> фронтенд' -FileName 'ipc.md'
