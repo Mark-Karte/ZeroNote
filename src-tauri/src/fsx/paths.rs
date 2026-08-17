@@ -103,13 +103,21 @@ fn preferred_dir() -> PathBuf {
     }
 }
 
-/// Запасной вариант: `%LOCALAPPDATA%\ZeroNote`.
+/// Запасной вариант: `%LOCALAPPDATA%\ZeroNote-data`.
+///
+/// Имя с суффиксом, а не просто `ZeroNote`, — не косметика. Установщик кладёт
+/// приложение именно в `%LOCALAPPDATA%\ZeroNote`, и совпадение означало бы, что
+/// запасные данные пишутся внутрь папки установки: их снёс бы деинсталлятор,
+/// а при переустановке они смешались бы с файлами программы.
+///
+/// Обнаружено при первой настоящей установке из пакета — до этого запасной путь
+/// выглядел безобидно.
 fn fallback_dir() -> PathBuf {
     match std::env::var_os("LOCALAPPDATA") {
-        Some(local) => PathBuf::from(local).join("ZeroNote"),
+        Some(local) => PathBuf::from(local).join("ZeroNote-data"),
         // Переменной нет только в очень поломанном окружении.
         // Тогда пусть будет хотя бы рядом с текущей директорией.
-        None => PathBuf::from(".zeronote"),
+        None => PathBuf::from(".zeronote-data"),
     }
 }
 
@@ -195,6 +203,27 @@ mod tests {
 
         assert!(result.is_err());
         let _ = fs::remove_dir_all(&base);
+    }
+
+    /// Запасная папка не должна совпадать с папкой установки.
+    ///
+    /// Установщик кладёт приложение в `%LOCALAPPDATA%\ZeroNote`; если запасной
+    /// путь окажется тем же, данные попадут внутрь папки программы и будут
+    /// удалены вместе с ней.
+    #[test]
+    fn fallback_is_not_the_install_directory() {
+        let fallback = fallback_dir();
+        let install = std::env::var_os("LOCALAPPDATA")
+            .map(|local| PathBuf::from(local).join("ZeroNote"));
+
+        if let Some(install) = install {
+            assert_ne!(fallback, install);
+            assert!(
+                !fallback.starts_with(&install),
+                "запасная папка не должна лежать внутри папки установки: {}",
+                fallback.display()
+            );
+        }
     }
 
     /// Пробный файл не должен оставаться в папке пользователя.
