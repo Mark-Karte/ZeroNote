@@ -78,6 +78,12 @@ pub const METRICS_NORMAL: &[(&str, &str)] = &[
     ("control-dialog-max-width", "560px"),
     ("control-popup-min-width", "260px"),
     ("control-sidebar-width", "240px"),
+    ("control-sidebar-min-width", "160px"),
+    ("control-sidebar-max-width", "640px"),
+    ("control-tree-indent", "14px"),
+    // Отдельно от `control-row-height`: строка дерева плотнее прочих списков,
+    // и подгонка одного не должна двигать другое.
+    ("control-tree-row-height", "22px"),
 ];
 
 /// Метрики компактной плотности.
@@ -109,6 +115,10 @@ pub const METRICS_COMPACT: &[(&str, &str)] = &[
     ("control-dialog-max-width", "500px"),
     ("control-popup-min-width", "220px"),
     ("control-sidebar-width", "200px"),
+    ("control-sidebar-min-width", "140px"),
+    ("control-sidebar-max-width", "560px"),
+    ("control-tree-indent", "12px"),
+    ("control-tree-row-height", "19px"),
 ];
 
 /// Семантические роли, выраженные через палитру.

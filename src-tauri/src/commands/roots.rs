@@ -61,14 +61,37 @@ pub fn add_root(state: tauri::State<'_, AppState>, path: String) -> Fallible<Roo
         return Err(format!("{} — это не папка", path.display()));
     }
 
-    let mut roots = state.roots.lock().expect("реестр корней повреждён");
-    Ok(RootView::of(roots.add(path)))
+    let view = {
+        let mut roots = state.roots.lock().expect("реестр корней повреждён");
+        RootView::of(roots.add(path))
+    };
+
+    // Наблюдатель ставится уже без блокировки реестра: обращение к системе
+    // не должно задерживать остальные команды.
+    state
+        .watchers
+        .lock()
+        .expect("наблюдатели повреждены")
+        .watch(view.id, std::path::Path::new(&view.path));
+
+    Ok(view)
 }
 
 #[tauri::command]
 pub fn remove_root(state: tauri::State<'_, AppState>, id: RootId) -> bool {
-    let mut roots = state.roots.lock().expect("реестр корней повреждён");
-    roots.remove(id)
+    let removed = {
+        let mut roots = state.roots.lock().expect("реестр корней повреждён");
+        roots.remove(id)
+    };
+
+    if removed {
+        state
+            .watchers
+            .lock()
+            .expect("наблюдатели повреждены")
+            .unwatch(id);
+    }
+    removed
 }
 
 /// Перечитать корни: файлы проектов и доступность папок.
@@ -78,9 +101,23 @@ pub fn remove_root(state: tauri::State<'_, AppState>, id: RootId) -> bool {
 /// `zeronote.toml` в другой программе или подключить пропавший диск.
 #[tauri::command]
 pub fn refresh_roots(state: tauri::State<'_, AppState>) -> Vec<RootView> {
-    let mut roots = state.roots.lock().expect("реестр корней повреждён");
-    roots.reload_all();
-    roots.list().iter().map(RootView::of).collect()
+    let views: Vec<RootView> = {
+        let mut roots = state.roots.lock().expect("реестр корней повреждён");
+        roots.reload_all();
+        roots.list().iter().map(RootView::of).collect()
+    };
+
+    // Корень мог стать доступным — подключили диск, поднялся VPN. Тогда самое
+    // время начать за ним следить. Уже поставленных наблюдателей не трогаем:
+    // пересоздавать их на каждое переключение окна незачем.
+    let mut watchers = state.watchers.lock().expect("наблюдатели повреждены");
+    for view in &views {
+        if view.available && !watchers.is_watching(view.id) {
+            watchers.watch(view.id, std::path::Path::new(&view.path));
+        }
+    }
+
+    views
 }
 
 /// Создать `zeronote.toml` в корне — по явной команде пользователя.

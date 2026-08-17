@@ -1,18 +1,102 @@
 <script lang="ts">
   import Icon from '../Icon.svelte';
-  import { roots } from '../../state/roots.svelte';
-  import { addRootDialog, removeRoot, createProject } from '../../actions/project';
+  import FileTree from './FileTree.svelte';
+  import { roots, setSidebarWidth } from '../../state/roots.svelte';
+  import { addRootDialog } from '../../actions/project';
+  import { noteStructureChange } from '../../state/persist.svelte';
 
   /**
-   * Боковая панель: корни рабочего пространства.
+   * Боковая панель: список корней и дерево файлов.
    *
-   * Дерева файлов здесь пока нет — оно задача 10 и встанет внутрь этой же
-   * панели. Полоса значков (Р-044) появится тогда же, когда панелей станет
-   * больше одной: полоса с единственным значком объясняет меньше, чем занимает.
+   * Полоса значков (Р-044) появится вместе со второй панелью — результатами
+   * поиска в задаче 12. Полоса с единственным значком занимает место и ничего
+   * не объясняет.
    */
+
+  let panel: HTMLElement | undefined = $state();
+  let dragging = $state(false);
+  /** Ширина для доступности: реальная, а не «ноль значит из темы». */
+  let width = $state(0);
+
+  function limits(): { min: number; max: number } {
+    const style = getComputedStyle(document.documentElement);
+    const read = (name: string, fallback: number): number => {
+      const parsed = Number.parseFloat(style.getPropertyValue(name));
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+    };
+    // Пределы — тоже токены: в компактной плотности они другие. Запасные
+    // числа нужны на случай, если оформление ещё не применилось.
+    return {
+      min: read('--zn-control-sidebar-min-width', 160),
+      max: read('--zn-control-sidebar-max-width', 640),
+    };
+  }
+
+  const bounds = $derived.by(() => {
+    void roots.sidebarWidth;
+    return limits();
+  });
+
+  $effect(() => {
+    void roots.sidebarWidth;
+    width = Math.round(panel?.getBoundingClientRect().width ?? 0);
+  });
+
+  /**
+   * Перетаскивание границы.
+   *
+   * Указатель захватывается на самой рукоятке: без этого быстрый рывок
+   * уводит курсор за пределы элемента, и перетаскивание обрывается на середине.
+   */
+  function startDrag(event: PointerEvent): void {
+    if (!panel) return;
+    const handle = event.currentTarget as HTMLElement;
+    const left = panel.getBoundingClientRect().left;
+    const { min, max } = limits();
+
+    handle.setPointerCapture(event.pointerId);
+    dragging = true;
+
+    const move = (e: PointerEvent): void => {
+      const width = Math.round(Math.min(max, Math.max(min, e.clientX - left)));
+      setSidebarWidth(width);
+    };
+
+    const finish = (): void => {
+      handle.removeEventListener('pointermove', move);
+      handle.removeEventListener('pointerup', finish);
+      handle.removeEventListener('pointercancel', finish);
+      dragging = false;
+      // Ширина — часть сессии: подогнав панель, пользователь не должен
+      // обнаружить её прежней после перезапуска.
+      noteStructureChange();
+    };
+
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', finish);
+    handle.addEventListener('pointercancel', finish);
+  }
+
+  /** Клавиатурная подгонка: панель должна настраиваться и без мыши. */
+  function nudge(event: KeyboardEvent): void {
+    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+    event.preventDefault();
+
+    const { min, max } = limits();
+    const current = panel?.getBoundingClientRect().width ?? min;
+    const step = event.shiftKey ? 40 : 8;
+    const next = current + (event.key === 'ArrowRight' ? step : -step);
+
+    setSidebarWidth(Math.round(Math.min(max, Math.max(min, next))));
+    noteStructureChange();
+  }
 </script>
 
-<aside class="sidebar">
+<aside
+  class="sidebar"
+  bind:this={panel}
+  style:width={roots.sidebarWidth > 0 ? `${roots.sidebarWidth}px` : null}
+>
   <header class="head">
     <span class="title">Папки</span>
     <button
@@ -30,38 +114,35 @@
     <p class="empty">Папок нет</p>
     <p class="hint">Ctrl+Shift+O — открыть папку как проект</p>
   {:else}
-    <ul class="list">
-      {#each roots.items as root (root.id)}
-        <li class="root" class:missing={!root.available}>
-          <Icon name={root.available ? 'status.folder' : 'status.folder-alert'} />
-          <span class="name" title={root.path}>{root.name}</span>
-
-          {#if !root.hasProjectFile}
-            <button
-              class="action"
-              type="button"
-              onclick={() => createProject(root.id)}
-              title="Создать zeronote.toml"
-              aria-label="Создать файл проекта"
-            >
-              <Icon name="action.project-file" />
-            </button>
-          {/if}
-
-          <button
-            class="action"
-            type="button"
-            onclick={() => removeRoot(root.id)}
-            title="Убрать папку из рабочего пространства"
-            aria-label="Убрать папку"
-          >
-            <Icon name="action.remove" />
-          </button>
-        </li>
-      {/each}
-    </ul>
+    <FileTree />
   {/if}
 </aside>
+
+<!-- Рукоятка — отдельный элемент рядом с панелью, а не её граница: так она
+     не съезжает вместе с содержимым и не мешает прокрутке дерева.
+
+     Это разделитель с фокусом — по ARIA такой считается управляющим элементом
+     («оконный разделитель»), и значения aria-value* здесь не украшение: без них
+     экранный диктор не сможет сказать, что именно меняют стрелки.
+
+     Предупреждения ниже сняты сознательно: проверяющий держит role="separator"
+     в списке неинтерактивных ролей, но по спецификации разделитель с tabindex
+     как раз интерактивен. Правильна разметка, а не список. -->
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<div
+  class="handle"
+  class:dragging
+  role="separator"
+  aria-orientation="vertical"
+  aria-label="Ширина боковой панели"
+  aria-valuenow={width}
+  aria-valuemin={bounds.min}
+  aria-valuemax={bounds.max}
+  tabindex="0"
+  onpointerdown={startDrag}
+  onkeydown={nudge}
+></div>
 
 <style>
   .sidebar {
@@ -70,9 +151,7 @@
     width: var(--zn-control-sidebar-width);
     flex: none;
     min-height: 0;
-    overflow: auto;
     background-color: var(--zn-color-bg-surface);
-    border-right: var(--zn-border-width) solid var(--zn-color-border-subtle);
   }
 
   .head {
@@ -118,48 +197,6 @@
     outline-offset: calc(-1 * var(--zn-border-width-thick));
   }
 
-  .list {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .root {
-    display: flex;
-    align-items: center;
-    gap: var(--zn-space-3);
-    min-height: var(--zn-control-row-height);
-    padding: 0 var(--zn-space-2) 0 var(--zn-space-4);
-    color: var(--zn-color-fg-default);
-    font-size: var(--zn-font-size-ui);
-  }
-
-  .root:hover {
-    background-color: var(--zn-color-bg-hover);
-  }
-
-  /* Кнопки появляются на наведении и на клавиатурном фокусе: иначе до них
-     нельзя добраться без мыши. */
-  .root .action {
-    visibility: hidden;
-  }
-
-  .root:hover .action,
-  .root:focus-within .action {
-    visibility: visible;
-  }
-
-  .name {
-    flex: 1;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
-
-  .missing {
-    color: var(--zn-color-fg-subtle);
-  }
-
   .empty,
   .hint {
     margin: 0;
@@ -170,5 +207,26 @@
   .hint {
     padding-top: 0;
     font-size: var(--zn-font-size-ui-small);
+  }
+
+  /* Рукоятка шире видимой линии: попасть в границу толщиной в пиксель
+     мышью нельзя, а расширять саму линию — значит рисовать полосу. */
+  .handle {
+    flex: none;
+    width: var(--zn-space-3);
+    margin-right: calc(-1 * var(--zn-space-3) + var(--zn-border-width));
+    border-left: var(--zn-border-width) solid var(--zn-color-border-subtle);
+    cursor: col-resize;
+    z-index: var(--zn-z-panel);
+  }
+
+  .handle:hover,
+  .handle.dragging,
+  .handle:focus-visible {
+    border-left-color: var(--zn-color-accent);
+  }
+
+  .handle:focus-visible {
+    outline: none;
   }
 </style>

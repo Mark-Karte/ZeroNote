@@ -11,7 +11,7 @@
 # Замеры на отладочной сборке бессмысленны и скриптом не поддерживаются.
 
 param(
-    [ValidateSet('all', 'startup', 'ipc', 'open')]
+    [ValidateSet('all', 'startup', 'ipc', 'open', 'tree')]
     [string]$Only = 'all',
 
     [int]$Runs = 9
@@ -125,6 +125,10 @@ if ($Only -eq 'all' -or $Only -eq 'startup') { Measure-Startup }
 if ($Only -eq 'all' -or $Only -eq 'open') {
     Measure-InApp -Mode 'open' -Title 'Открытие файла: диск, кодировка, раскодирование' -FileName 'open.md'
     Write-Host 'Цель: файл 5 МБ <= 500 мс' -ForegroundColor DarkGray
+}
+if ($Only -eq 'all' -or $Only -eq 'tree') {
+    Measure-InApp -Mode 'tree' -Title 'Дерево файлов: чтение папки и полный обход' -FileName 'tree.md'
+    Write-Host 'Цели: папка на 10 000 записей <= 300 мс, полный обход <= 3 с' -ForegroundColor DarkGray
 }
 if ($Only -eq 'all' -or $Only -eq 'ipc') {
     Measure-InApp -Mode 'ipc' -Title 'Граница Rust <-> фронтенд' -FileName 'ipc.md'

@@ -5,7 +5,7 @@ import { invoke } from '@tauri-apps/api/core';
  * В обычном запуске `mode` равен null и приложение ведёт себя как приложение.
  */
 export interface BenchConfig {
-  mode: 'startup' | 'ipc' | 'open' | null;
+  mode: 'startup' | 'ipc' | 'open' | 'tree' | null;
   outPath: string | null;
 }
 
@@ -48,6 +48,17 @@ export function benchSinkText(text: string): Promise<number> {
  */
 export function benchRunOpen(): Promise<string> {
   return invoke<string>('bench_run_open');
+}
+
+/**
+ * Замер дерева: чтение одной папки и, отдельно, полный обход.
+ *
+ * Дерево читает по папке, поэтому его цена — первое число. Второе нужно
+ * индексу задачи 11 и меряется заранее, чтобы обещание про тридцать секунд
+ * не оказалось выдумкой.
+ */
+export function benchRunTree(): Promise<string> {
+  return invoke<string>('bench_run_tree');
 }
 
 export function benchWriteReport(path: string, content: string): Promise<void> {

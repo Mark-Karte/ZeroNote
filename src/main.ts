@@ -5,6 +5,7 @@ import {
   benchConfig,
   benchReady,
   benchRunOpen,
+  benchRunTree,
   benchWriteReport,
   benchExit,
 } from './ipc/bench';
@@ -43,13 +44,17 @@ async function main(): Promise<void> {
 
   const startupMs = await benchReady();
 
-  if (config.mode === 'ipc' || config.mode === 'open') {
-    const report =
-      config.mode === 'open'
-        ? await benchRunOpen()
-        : await import('./bench/ipc-suite').then(async (suite) =>
-            suite.formatMarkdown(await suite.runIpcSuite()),
-          );
+  if (config.mode === 'ipc' || config.mode === 'open' || config.mode === 'tree') {
+    let report: string;
+    if (config.mode === 'open') {
+      report = await benchRunOpen();
+    } else if (config.mode === 'tree') {
+      report = await benchRunTree();
+    } else {
+      report = await import('./bench/ipc-suite').then(async (suite) =>
+        suite.formatMarkdown(await suite.runIpcSuite()),
+      );
+    }
 
     if (config.outPath) {
       await benchWriteReport(config.outPath, report);

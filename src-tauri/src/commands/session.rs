@@ -56,6 +56,7 @@ pub fn save_session(
     views: Vec<ViewState>,
     active: Option<BufferId>,
     sidebar: bool,
+    sidebar_width: u32,
 ) -> Fallible<()> {
     // Корни берутся первыми и своей блокировкой: две блокировки, взятые
     // в разном порядке разными командами, — это взаимная блокировка, которая
@@ -82,6 +83,7 @@ pub fn save_session(
             next_untitled: buffers.next_untitled(),
             next_root_id,
             sidebar,
+            sidebar_width,
             roots,
             buffers: buffers
                 .list()
@@ -131,6 +133,7 @@ pub struct RestoredSession {
     pub active: Option<BufferId>,
     pub roots: Vec<RootView>,
     pub sidebar: bool,
+    pub sidebar_width: u32,
     /// О чём надо сказать пользователю: пропавшие файлы, нечитаемые черновики,
     /// недоступные папки.
     pub notices: Vec<String>,
@@ -161,6 +164,7 @@ pub fn restore_session(state: tauri::State<'_, AppState>) -> RestoredSession {
             active: None,
             roots: Vec::new(),
             sidebar: false,
+            sidebar_width: 0,
             notices,
         };
     };
@@ -186,6 +190,16 @@ pub fn restore_session(state: tauri::State<'_, AppState>) -> RestoredSession {
     }
 
     let root_views: Vec<RootView> = restored_roots.iter().map(RootView::of).collect();
+
+    {
+        let mut watchers = state.watchers.lock().expect("наблюдатели повреждены");
+        for root in &restored_roots {
+            if root.available {
+                watchers.watch(root.id, &root.path);
+            }
+        }
+    }
+
     *state.roots.lock().expect("реестр корней повреждён") =
         Roots::restore(restored_roots, snapshot.next_root_id);
 
@@ -262,6 +276,7 @@ pub fn restore_session(state: tauri::State<'_, AppState>) -> RestoredSession {
         active,
         roots: root_views,
         sidebar: snapshot.sidebar,
+        sidebar_width: snapshot.sidebar_width,
         notices,
     }
 }

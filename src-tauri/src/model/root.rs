@@ -9,6 +9,7 @@
 //! Два похожих реестра, устроенных по-разному, — лишняя работа для памяти.
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use crate::project::ignore::{self, IgnoreRules};
 use crate::project::{self, Project};
@@ -84,7 +85,14 @@ pub struct Root {
     /// полосой предупреждений, а не в лог.
     pub problems: Vec<String>,
     pub project: Project,
-    pub rules: IgnoreRules,
+    /// Правила в общем владении.
+    ///
+    /// `Arc` здесь не украшение: чтение папки лезет на диск, а держать при
+    /// этом блокировку реестра корней нельзя — медленный сетевой диск
+    /// заморозил бы все остальные команды. Поэтому под блокировкой берётся
+    /// дешёвая копия указателя, блокировка отпускается, и папка читается уже
+    /// без неё. Само правило при этом не копируется.
+    pub rules: Arc<IgnoreRules>,
 }
 
 impl std::fmt::Debug for Root {
@@ -136,7 +144,7 @@ impl Root {
             available,
             problems,
             project: loaded.project,
-            rules,
+            rules: Arc::new(rules),
             path,
         }
     }

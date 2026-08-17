@@ -61,6 +61,7 @@ pub fn parse_args(args: &[String]) -> BenchConfig {
         Some("startup") => Some("startup".to_owned()),
         Some("ipc") => Some("ipc".to_owned()),
         Some("open") => Some("open".to_owned()),
+        Some("tree") => Some("tree".to_owned()),
         _ => None,
     };
 
@@ -225,6 +226,130 @@ pub fn bench_run_open() -> Result<String, String> {
             "| {label} | {mib} МиБ | {median:.1} мс | {lines} |\n"
         ));
     }
+
+    let _ = std::fs::remove_dir_all(&dir);
+    Ok(report)
+}
+
+// --- Замер дерева файлов: чтение папки и полный обход ---
+
+/// Сколько файлов в стенде дерева. Число из спецификации: показатели этапа 2
+/// сформулированы про хранилище на десять тысяч файлов.
+const TREE_FILES: usize = 10_000;
+
+/// Разложить файлы по папкам и вернуть путь к стенду.
+///
+/// Раскладка нарочно двоякая, и обе части полноразмерные: цель про папку
+/// на десять тысяч записей должна мериться папкой на десять тысяч записей,
+/// а не половиной от неё.
+///
+/// * `плоская` — все файлы в одном каталоге. Худший случай для чтения.
+/// * `раздел-NNN` — сотня папок по сотне файлов. Обычная форма хранилища.
+fn make_tree_fixture(dir: &std::path::Path) -> std::io::Result<()> {
+    let flat = dir.join("плоская");
+    std::fs::create_dir_all(&flat)?;
+    for i in 0..TREE_FILES {
+        std::fs::write(flat.join(format!("заметка-{i:05}.md")), "# заметка\n")?;
+    }
+
+    for folder in 0..100 {
+        let nested = dir.join(format!("раздел-{folder:03}"));
+        std::fs::create_dir_all(&nested)?;
+        for i in 0..(TREE_FILES / 100) {
+            std::fs::write(nested.join(format!("файл-{i:03}.md")), "# заметка\n")?;
+        }
+    }
+
+    // То, что должно быть отсеяно правилами: стенд обязан мерить и эту работу.
+    let junk = dir.join("node_modules/пакет");
+    std::fs::create_dir_all(&junk)?;
+    for i in 0..200 {
+        std::fs::write(junk.join(format!("модуль-{i}.js"), ), "// мусор\n")?;
+    }
+
+    Ok(())
+}
+
+/// Полный обход дерева с учётом правил игнорирования.
+///
+/// Дереву он не нужен — оно читает по папке. Нужен индексу (задача 11),
+/// и замерить его цену стоит заранее: именно она определяет, укладывается ли
+/// индексация в обещанные тридцать секунд.
+fn walk_all(root: &std::path::Path) -> usize {
+    let mut count = 0usize;
+    let mut stack = vec![root.to_path_buf()];
+
+    let rules = crate::project::ignore::build(root, &crate::project::IgnoreSettings::default());
+
+    while let Some(dir) = stack.pop() {
+        let Ok(entries) = crate::tree::read_children(&dir, &rules) else {
+            continue;
+        };
+        for entry in entries {
+            if entry.is_dir && !entry.is_link {
+                stack.push(entry.path);
+            } else {
+                count += 1;
+            }
+        }
+    }
+    count
+}
+
+/// Прогнать замер дерева и вернуть готовый отчёт.
+#[tauri::command]
+pub fn bench_run_tree() -> Result<String, String> {
+    use crate::project::{IgnoreSettings, ignore};
+
+    let dir = std::env::temp_dir().join(format!("zeronote-bench-tree-{}", std::process::id()));
+    // Стенд собирается заново каждый прогон: остатки прошлого дали бы другое
+    // число файлов, а значит несравнимые замеры.
+    let _ = std::fs::remove_dir_all(&dir);
+
+    let build_start = Instant::now();
+    make_tree_fixture(&dir).map_err(|e| e.to_string())?;
+    let build_ms = build_start.elapsed().as_secs_f64() * 1000.0;
+
+    let rules = ignore::build(&dir, &IgnoreSettings::default());
+
+    let mut report = String::from("| Что | Записей | Время (медиана) |\n|---|---|---|\n");
+
+    for (label, path) in [
+        ("Корень проекта", dir.clone()),
+        ("Плоская папка", dir.join("плоская")),
+    ] {
+        // Прогрев: первое чтение оплачивает попадание каталога в кэш.
+        let _ = crate::tree::read_children(&path, &rules);
+
+        let mut samples = Vec::with_capacity(OPEN_RUNS);
+        let mut count = 0usize;
+        for _ in 0..OPEN_RUNS {
+            let start = Instant::now();
+            let entries = crate::tree::read_children(&path, &rules).map_err(|e| e.to_string())?;
+            samples.push(start.elapsed().as_secs_f64() * 1000.0);
+            count = entries.len();
+        }
+        samples.sort_by(|a, b| a.partial_cmp(b).expect("время не бывает NaN"));
+        report.push_str(&format!(
+            "| {label} | {count} | {:.1} мс |\n",
+            samples[samples.len() / 2]
+        ));
+    }
+
+    // Полный обход — один раз: он дорогой, и медиана из семи прогонов мерила бы
+    // кэш файловой системы, а не работу.
+    let walk_start = Instant::now();
+    let walked = walk_all(&dir);
+    let walk_ms = walk_start.elapsed().as_secs_f64() * 1000.0;
+    report.push_str(&format!("| Полный обход | {walked} | {walk_ms:.0} мс |\n"));
+
+    report.push_str(&format!(
+        "\nСтенд: {} файлов ({TREE_FILES} в одной папке и столько же по сотне\n\
+         папок), собран за {build_ms:.0} мс.\n\
+         Дерево читает по одной папке, поэтому его цена — вторая строка,\n\
+         а не последняя. Полный обход понадобится индексу (задача 11).\n",
+        TREE_FILES * 2
+    ));
 
     let _ = std::fs::remove_dir_all(&dir);
     Ok(report)

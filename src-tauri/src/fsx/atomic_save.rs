@@ -117,6 +117,16 @@ pub fn save(target: &Path, bytes: &[u8]) -> Result<(), SaveError> {
 
 /// Имя временного файла: рядом с целевым, с точкой в начале и меткой,
 /// по которой видно, чей это файл, если он всё-таки останется после сбоя.
+/// Похоже ли имя на наш временный файл.
+///
+/// Нужно дереву файлов: временный файл живёт миллисекунды, но событие
+/// о его появлении успевает дойти, и мигать им в списке незачем. Проверка
+/// живёт здесь, рядом с тем, кто эти имена создаёт, — иначе два места
+/// разъедутся при первой же правке формата имени.
+pub fn is_temp_name(name: &str) -> bool {
+    name.starts_with('.') && name.contains(".zeronote-") && name.ends_with(".tmp")
+}
+
 fn temp_path(target: &Path) -> PathBuf {
     let name = target
         .file_name()
@@ -215,6 +225,19 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("zeronote-save-{tag}-{nanos}"));
         fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    /// Опознаватель временных файлов обязан узнавать то, что создаёт
+    /// `temp_path`, — и не принимать за временный чужой файл.
+    #[test]
+    fn temp_names_are_recognised() {
+        let temp = temp_path(Path::new(r"C:\заметки\список дел.md"));
+        let name = temp.file_name().unwrap().to_string_lossy();
+
+        assert!(is_temp_name(&name), "не узнал собственное имя: {name}");
+        assert!(!is_temp_name("список дел.md"));
+        assert!(!is_temp_name(".gitignore"));
+        assert!(!is_temp_name("сборка.tmp"));
     }
 
     /// Запись в `.obsidian` запрещена на любой глубине и в любом регистре.

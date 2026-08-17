@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { getCurrentWindow } from '@tauri-apps/api/window';
-  import type { UnlistenFn } from '@tauri-apps/api/event';
+  import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
   import TitleBar from './TitleBar.svelte';
   import TabStrip from './TabStrip.svelte';
@@ -14,6 +14,8 @@
   import { tabs, restore } from '../state/tabs.svelte';
   import { flushNow } from '../state/persist.svelte';
   import { roots, refresh as refreshRoots, rootProblems } from '../state/roots.svelte';
+  import { refreshDirs } from '../state/tree.svelte';
+  import { TREE_CHANGED } from '../ipc/tree';
   import { openDropped, closeAllTabs } from '../actions/files';
   import { checkExternalChanges } from '../actions/external';
   import { startupPaths } from '../ipc/files';
@@ -23,6 +25,7 @@
   let unlistenDrop: UnlistenFn | null = null;
   let unlistenClose: UnlistenFn | null = null;
   let unlistenFocus: UnlistenFn | null = null;
+  let unlistenTree: UnlistenFn | null = null;
   let dropActive = $state(false);
 
   /** О чём не удалось восстановить — показывается той же полосой, что и прочее. */
@@ -76,6 +79,12 @@
       void refreshRoots();
     });
 
+    // Слежение за корнями: ядро присылает список папок, содержимое которых
+    // могло измениться, а перечитываем мы только раскрытые.
+    unlistenTree = await listen<string[]>(TREE_CHANGED, (event) => {
+      void refreshDirs(event.payload);
+    });
+
     unlistenDrop = await getCurrentWindow().onDragDropEvent((event) => {
       if (event.payload.type === 'over') {
         dropActive = true;
@@ -93,6 +102,7 @@
     unlistenDrop?.();
     unlistenClose?.();
     unlistenFocus?.();
+    unlistenTree?.();
   });
 </script>
 

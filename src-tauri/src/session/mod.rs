@@ -124,6 +124,10 @@ pub struct WorkspaceSnapshot {
     /// Была ли открыта боковая панель.
     #[serde(default)]
     pub sidebar: bool,
+    /// Ширина панели в пикселях. Ноль — её не подгоняли, действует значение
+    /// из темы. Так умолчание остаётся в одном месте — в токенах.
+    #[serde(default)]
+    pub sidebar_width: u32,
     /// Открытые корни. Поле появилось вместе с задачей 9 и имеет умолчание:
     /// файл сессии от версии 0.1.0 обязан читаться (Р-051).
     #[serde(default)]
@@ -253,6 +257,7 @@ mod tests {
             next_untitled: 2,
             next_root_id: 2,
             sidebar: true,
+            sidebar_width: 280,
             roots: vec![RootSnapshot {
                 id: 1,
                 path: PathBuf::from(r"C:\заметки"),

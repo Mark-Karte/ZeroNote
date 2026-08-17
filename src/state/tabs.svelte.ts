@@ -192,7 +192,7 @@ export async function restore(): Promise<string[]> {
     tabs.items.push({ meta, editor, scrollTop });
   }
 
-  restoreFromSession(session.roots, session.sidebar);
+  await restoreFromSession(session.roots, session.sidebar, session.sidebarWidth);
 
   tabs.activeId = session.active ?? tabs.items.at(-1)?.meta.id ?? null;
   return session.notices;

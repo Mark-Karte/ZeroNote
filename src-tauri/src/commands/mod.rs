@@ -9,3 +9,4 @@ pub mod files;
 pub mod keymap;
 pub mod roots;
 pub mod session;
+pub mod tree;

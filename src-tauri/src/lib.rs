@@ -15,9 +15,11 @@ pub mod settings;
 pub mod state;
 pub mod text;
 pub mod theme;
+pub mod tree;
 pub mod watch;
 
 use state::AppState;
+use tauri::Manager;
 
 /// Подготовка папки с данными.
 ///
@@ -74,6 +76,7 @@ fn prepare_state() -> AppState {
         startup_notices: notices,
         buffers: std::sync::Mutex::new(model::buffer::Buffers::new()),
         roots: std::sync::Mutex::new(model::root::Roots::new()),
+        watchers: std::sync::Mutex::new(tree::watch::Watchers::default()),
     }
 }
 
@@ -92,6 +95,16 @@ pub fn run() {
             // `app.handle()` даёт ручку к приложению, которую можно передать
             // в другой поток. Клонируем её, потому что сам `app` остаётся здесь.
             watch::spawn(app.handle().clone(), watched_dir);
+
+            // Поток-сборщик событий файловой системы. Наблюдатели за корнями
+            // ставятся позже — при восстановлении сессии и при добавлении
+            // папки; здесь только заводится приёмник их событий.
+            let state: tauri::State<'_, AppState> = app.state();
+            state
+                .watchers
+                .lock()
+                .expect("наблюдатели повреждены")
+                .start(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -120,6 +133,7 @@ pub fn run() {
             commands::roots::remove_root,
             commands::roots::refresh_roots,
             commands::roots::create_project_file,
+            commands::tree::read_children,
             commands::session::save_session,
             commands::session::flush_drafts,
             commands::session::drop_draft,
@@ -131,6 +145,7 @@ pub fn run() {
             bench::bench_gen_bytes,
             bench::bench_sink_text,
             bench::bench_run_open,
+            bench::bench_run_tree,
             bench::bench_write_report,
             bench::bench_exit,
         ])

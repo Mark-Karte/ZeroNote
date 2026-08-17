@@ -26,6 +26,8 @@ export type IconName =
   | 'action.add-folder'
   | 'action.remove'
   | 'action.project-file'
+  | 'tree.chevron'
+  | 'tree.folder-open'
   | 'file.markdown'
   | 'file.text'
   | 'file.code';
@@ -55,6 +57,14 @@ const ICONS: Record<IconName, string> = {
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>',
   'action.project-file':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"><path d="M9 1.6H4a1.4 1.4 0 0 0-1.4 1.4v10a1.4 1.4 0 0 0 1.4 1.4h8a1.4 1.4 0 0 0 1.4-1.4V6z"/><path d="M9 1.6V6h4.4"/><path d="M8 8.4v3.6M6.2 10.2h3.6" stroke-linecap="round"/></svg>',
+
+  // Уголок раскрытия. Одна форма на оба состояния: раскрытая папка получает
+  // тот же значок повёрнутым, иначе два похожих значка пришлось бы держать
+  // согласованными вручную.
+  'tree.chevron':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 4l4 4-4 4"/></svg>',
+  'tree.folder-open':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"><path d="M2 11.5V4.5A1.5 1.5 0 0 1 3.5 3h2.3c.4 0 .78.16 1.06.44L8 4.5h4.5A1.5 1.5 0 0 1 14 6v.5"/><path d="M2 11.5 3.7 7.6a1 1 0 0 1 .92-.6h9.4a.7.7 0 0 1 .64.98l-1.7 3.9a1 1 0 0 1-.92.62H3.5A1.5 1.5 0 0 1 2 11.5z"/></svg>',
 
   'file.markdown':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"><path d="M9 1.6H4a1.4 1.4 0 0 0-1.4 1.4v10a1.4 1.4 0 0 0 1.4 1.4h8a1.4 1.4 0 0 0 1.4-1.4V6z"/><path d="M9 1.6V6h4.4"/><path d="M5.2 11.6V8.4l1.5 1.8 1.5-1.8v3.2" stroke-linecap="round"/></svg>',

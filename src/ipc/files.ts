@@ -128,6 +128,8 @@ export interface RestoredSession {
   active: number | null;
   roots: import('./roots').Root[];
   sidebar: boolean;
+  /** Ноль — ширина не подгонялась, действует значение из темы. */
+  sidebarWidth: number;
   notices: string[];
 }
 
@@ -135,7 +137,9 @@ export const saveSession = (
   views: ViewState[],
   active: number | null,
   sidebar: boolean,
-): Promise<void> => invoke('save_session', { views, active, sidebar });
+  sidebarWidth: number,
+): Promise<void> =>
+  invoke('save_session', { views, active, sidebar, sidebarWidth });
 
 export const flushDrafts = (entries: { id: number; text: string }[]): Promise<void> =>
   invoke('flush_drafts', { entries });
