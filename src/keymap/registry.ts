@@ -14,6 +14,8 @@ import {
   toggleSidebarPanel,
   quickOpen,
   searchInProject,
+  followLink,
+  showBacklinks,
 } from '../actions/project';
 import { openSearch, findNext, findPrevious } from '../state/search.svelte';
 import { nextTab, previousTab } from '../state/tabs.svelte';
@@ -67,6 +69,8 @@ export const COMMANDS: Record<CommandId, () => void | Promise<unknown>> = {
   'project.add-root': addRootDialog,
   'project.quick-open': quickOpen,
   'project.search': searchInProject,
+  'project.follow-link': followLink,
+  'project.backlinks': showBacklinks,
 };
 
 export function commandIds(): CommandId[] {

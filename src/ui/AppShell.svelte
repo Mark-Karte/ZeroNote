@@ -21,6 +21,7 @@
   import { TREE_CHANGED } from '../ipc/tree';
   import { applyProgress, refreshProgress } from '../state/index.svelte';
   import { INDEX_PROGRESS, type IndexProgress } from '../ipc/index';
+  import { forgetResolved } from '../editor/wikilinks';
   import { openDropped, closeAllTabs } from '../actions/files';
   import { checkExternalChanges } from '../actions/external';
   import { startupPaths } from '../ipc/files';
@@ -32,6 +33,7 @@
   let unlistenFocus: UnlistenFn | null = null;
   let unlistenTree: UnlistenFn | null = null;
   let unlistenIndex: UnlistenFn | null = null;
+  let removeFollow: (() => void) | null = null;
   let dropActive = $state(false);
 
   /** О чём не удалось восстановить — показывается той же полосой, что и прочее. */
@@ -94,9 +96,33 @@
     // Ход индексации: состояние приходит событиями, а не опросом.
     unlistenIndex = await listen<IndexProgress>(INDEX_PROGRESS, (event) => {
       applyProgress(event.payload);
+      // Индексация закончилась — висячая ссылка могла стать рабочей,
+      // и наоборот. Запомненные ответы про ссылки больше не действительны.
+      if (!event.payload.running) forgetResolved();
     });
     // Одно состояние на старте: индексация могла начаться до подписки.
     void refreshProgress();
+
+    // Нажатый Ctrl подчёркивает ссылки под указателем: только тогда щелчок
+    // и правда уведёт в другой файл. Признаком на корне, а не классом
+    // на элементах, — модификатор глобален, и знать о нём должен CSS.
+    const followOn = (event: KeyboardEvent) => {
+      if (event.ctrlKey) document.documentElement.dataset.follow = '';
+    };
+    const followOff = (event: KeyboardEvent) => {
+      if (!event.ctrlKey) delete document.documentElement.dataset.follow;
+    };
+    // Потеря фокуса окном не присылает keyup, и признак остался бы висеть.
+    const followReset = () => delete document.documentElement.dataset.follow;
+
+    window.addEventListener('keydown', followOn);
+    window.addEventListener('keyup', followOff);
+    window.addEventListener('blur', followReset);
+    removeFollow = () => {
+      window.removeEventListener('keydown', followOn);
+      window.removeEventListener('keyup', followOff);
+      window.removeEventListener('blur', followReset);
+    };
 
     unlistenDrop = await getCurrentWindow().onDragDropEvent((event) => {
       if (event.payload.type === 'over') {
@@ -117,6 +143,7 @@
     unlistenFocus?.();
     unlistenTree?.();
     unlistenIndex?.();
+    removeFollow?.();
   });
 </script>
 

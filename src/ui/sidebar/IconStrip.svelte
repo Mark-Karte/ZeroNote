@@ -17,6 +17,7 @@
   const PANELS: { id: PanelId; icon: IconName; title: string }[] = [
     { id: 'tree', icon: 'panel.tree', title: 'Папки (Ctrl+B)' },
     { id: 'search', icon: 'panel.search', title: 'Поиск в проекте (Ctrl+Shift+F)' },
+    { id: 'links', icon: 'panel.links', title: 'Обратные ссылки' },
   ];
 
   function pick(id: PanelId): void {

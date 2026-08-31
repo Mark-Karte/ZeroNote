@@ -79,6 +79,18 @@ export function quickOpen(): void {
   openPalette();
 }
 
+/** Перейти по ссылке под курсором. */
+export async function followLink(): Promise<void> {
+  const { followAtCursor } = await import('../state/links.svelte');
+  await followAtCursor();
+}
+
+/** Показать, кто ссылается на открытую заметку. */
+export function showBacklinks(): void {
+  showPanel('links');
+  noteStructureChange();
+}
+
 /** Поиск по проекту: открыть панель и забрать фокус в поле. */
 export function searchInProject(): void {
   showPanel('search');

@@ -10,7 +10,11 @@ use std::path::Path;
 use rusqlite::Connection;
 
 /// Версия схемы. Меняется — база сносится и строится заново.
-pub const SCHEMA_VERSION: u32 = 1;
+///
+/// Версия 2 добавила связи между заметками: ссылки, теги и псевдонимы.
+/// Обновление означает одну фоновую переиндексацию — ровно то, ради чего
+/// принималось решение Р-060.
+pub const SCHEMA_VERSION: u32 = 2;
 
 /// Имя файла базы. Лежит в папке данных приложения, а не в папке проекта
 /// (решение Р-058): мы не сорим в чужих папках.
@@ -109,7 +113,18 @@ fn create(connection: &Connection) -> Result<(), rusqlite::Error> {
             id         INTEGER PRIMARY KEY,
             root_id    INTEGER NOT NULL,
             path       TEXT NOT NULL UNIQUE,
+            -- Тот же путь, приведённый к нижнему регистру, с обратными косыми.
+            -- Отдельной колонкой, а не выражением в запросе: встроенная
+            -- SQLite-функция lower() приводит только латиницу, и путь
+            -- с кириллицей ею не находится.
+            path_key   TEXT NOT NULL DEFAULT '',
             name       TEXT NOT NULL,
+            -- Путь внутри корня и имя без расширения, приведённые к нижнему
+            -- регистру. По ним разрешаются `[[ссылки]]`: Windows не различает
+            -- регистр путей, и заставлять пользователя попадать в него было бы
+            -- недобротой.
+            rel_key    TEXT NOT NULL DEFAULT '',
+            name_key   TEXT NOT NULL DEFAULT '',
             -- Время и размер на момент индексации: по ним видно, что файл
             -- изменился, и не нужно перечитывать его содержимое.
             mtime_ms   INTEGER,
@@ -118,6 +133,45 @@ fn create(connection: &Connection) -> Result<(), rusqlite::Error> {
         );
 
         CREATE INDEX files_by_root ON files(root_id);
+        CREATE INDEX files_by_path_key ON files(path_key);
+        CREATE INDEX files_by_name_key ON files(name_key);
+        CREATE INDEX files_by_rel_key ON files(rel_key);
+
+        -- Связи между заметками. Цель хранится как написана и приведённой
+        -- к общему виду: первое нужно показать человеку, второе — найти файл.
+        --
+        -- Ссылка не разрешается при записи намеренно. Заметка, на которую
+        -- ссылались, могла ещё не появиться, а появившись — сделать висячую
+        -- ссылку рабочей. Разрешение при запросе всегда отвечает по нынешнему
+        -- состоянию проекта, а не по тому, каким оно было в момент индексации.
+        CREATE TABLE links (
+            source_id  INTEGER NOT NULL,
+            target_key TEXT NOT NULL,
+            target_raw TEXT NOT NULL,
+            heading    TEXT,
+            alias      TEXT,
+            embed      INTEGER NOT NULL DEFAULT 0
+        );
+
+        CREATE INDEX links_by_target ON links(target_key);
+        CREATE INDEX links_by_source ON links(source_id);
+
+        CREATE TABLE tags (
+            file_id INTEGER NOT NULL,
+            tag     TEXT NOT NULL
+        );
+
+        CREATE INDEX tags_by_tag ON tags(tag);
+        CREATE INDEX tags_by_file ON tags(file_id);
+
+        -- Псевдонимы из frontmatter: по ним тоже разрешаются ссылки.
+        CREATE TABLE aliases (
+            file_id   INTEGER NOT NULL,
+            alias_key TEXT NOT NULL
+        );
+
+        CREATE INDEX aliases_by_key ON aliases(alias_key);
+        CREATE INDEX aliases_by_file ON aliases(file_id);
 
         -- Содержимое хранится: без него FTS5 не умеет отрывки с подсветкой,
         -- а список совпадений без отрывка бесполезен.

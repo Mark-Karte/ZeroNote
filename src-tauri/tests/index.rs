@@ -30,7 +30,7 @@ fn temp_dir(tag: &str) -> PathBuf {
 fn scan(db: &Connection, root: &Path, rules: &ignore::IgnoreRules) -> usize {
     let files = jobs::collect_files(root, rules, &|| false).expect("обход не отменяли");
     for path in &files {
-        writer::index_file(db, 1, path, MAX).expect("индексация не должна падать");
+        writer::index_file(db, 1, root, path, MAX).expect("индексация не должна падать");
     }
     files.len()
 }
@@ -80,7 +80,7 @@ fn second_pass_changes_nothing() {
     let files = jobs::collect_files(&dir, &rules, &|| false).unwrap();
     let mut unchanged = 0;
     for path in &files {
-        if writer::index_file(&db, 1, path, MAX).unwrap() == writer::Indexed::Unchanged {
+        if writer::index_file(&db, 1, &dir, path, MAX).unwrap() == writer::Indexed::Unchanged {
             unchanged += 1;
         }
     }
@@ -164,10 +164,10 @@ fn search_spans_all_roots() {
     let rules_b = ignore::build(&second, &IgnoreSettings::default());
 
     for path in jobs::collect_files(&first, &rules_a, &|| false).unwrap() {
-        writer::index_file(&db, 1, &path, MAX).unwrap();
+        writer::index_file(&db, 1, &first, &path, MAX).unwrap();
     }
     for path in jobs::collect_files(&second, &rules_b, &|| false).unwrap() {
-        writer::index_file(&db, 2, &path, MAX).unwrap();
+        writer::index_file(&db, 2, &second, &path, MAX).unwrap();
     }
 
     assert_eq!(query::search(&db, "абрикос", None, 20).unwrap().len(), 2);

@@ -63,6 +63,9 @@ enum Task {
     /// Перечитать конкретные папки — пришли события файловой системы.
     RescanDirs {
         root_id: RootId,
+        /// Путь корня: по нему считается путь внутри проекта, а по нему
+        /// разрешаются `[[ссылки]]`.
+        root_path: PathBuf,
         dirs: Vec<PathBuf>,
         rules: Arc<IgnoreRules>,
         max_size: u64,
@@ -140,6 +143,7 @@ impl Index {
     pub fn rescan_dirs(
         &self,
         root_id: RootId,
+        root_path: PathBuf,
         dirs: Vec<PathBuf>,
         rules: Arc<IgnoreRules>,
         max_size: u64,
@@ -149,6 +153,7 @@ impl Index {
         }
         self.submit(Task::RescanDirs {
             root_id,
+            root_path,
             dirs,
             rules,
             max_size,
@@ -181,6 +186,38 @@ impl Index {
         };
         let connection = connection.lock().expect("соединение с индексом повреждено");
         query::search(&connection, input, root_id, limit).map_err(|e| e.to_string())
+    }
+
+    /// Куда ведёт `[[ссылка]]` из этого файла. `None` — ссылка висячая.
+    pub fn resolve_link(
+        &self,
+        target: &str,
+        from: &str,
+        root_id: RootId,
+    ) -> Option<super::graph::Resolved> {
+        let connection = self.connection.as_ref()?;
+        let connection = connection.lock().expect("соединение с индексом повреждено");
+        super::graph::resolve(&connection, target, from, root_id)
+            .ok()
+            .flatten()
+    }
+
+    /// Кто ссылается на этот файл.
+    pub fn backlinks(&self, path: &str) -> Vec<super::graph::Backlink> {
+        let Some(connection) = &self.connection else {
+            return Vec::new();
+        };
+        let connection = connection.lock().expect("соединение с индексом повреждено");
+        super::graph::backlinks(&connection, path).unwrap_or_default()
+    }
+
+    /// Файлы, помеченные тегом.
+    pub fn files_with_tag(&self, tag: &str, limit: u32) -> Vec<super::graph::Tagged> {
+        let Some(connection) = &self.connection else {
+            return Vec::new();
+        };
+        let connection = connection.lock().expect("соединение с индексом повреждено");
+        super::graph::files_with_tag(&connection, tag, limit).unwrap_or_default()
     }
 
     /// Все файлы индекса: номер корня, путь, имя. Нужно быстрому открытию.
@@ -246,6 +283,7 @@ pub fn collect_files(
 fn write_batch(
     connection: &Mutex<Connection>,
     root_id: RootId,
+    root_path: &Path,
     paths: &[PathBuf],
     max_size: u64,
     generation: &AtomicU64,
@@ -267,7 +305,7 @@ fn write_batch(
         }
         // Ошибка на отдельном файле — не повод бросать всю индексацию:
         // файл могли удалить прямо сейчас или закрыть к нему доступ.
-        let _ = writer::index_file(&db, root_id, path, max_size);
+        let _ = writer::index_file(&db, root_id, &root_path, path, max_size);
     }
 
     let _ = transaction.commit();
@@ -355,6 +393,7 @@ fn work(
                     if !write_batch(
                         &connection,
                         root_id,
+                        &path,
                         chunk,
                         max_size,
                         &generation,
@@ -387,6 +426,7 @@ fn work(
 
             Task::RescanDirs {
                 root_id,
+                root_path,
                 dirs,
                 rules,
                 max_size,
@@ -418,7 +458,15 @@ fn work(
                         .map(|e| e.path)
                         .collect();
 
-                    write_batch(&connection, root_id, &files, max_size, &generation, mine);
+                    write_batch(
+                        &connection,
+                        root_id,
+                        &root_path,
+                        &files,
+                        max_size,
+                        &generation,
+                        mine,
+                    );
                     forget_missing_in_dir(&connection, root_id, &dir, &files);
                 }
 

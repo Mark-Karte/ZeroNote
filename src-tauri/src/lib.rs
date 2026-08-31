@@ -9,6 +9,7 @@ pub mod commands;
 pub mod fsx;
 pub mod index;
 pub mod keymap;
+pub mod markdown;
 pub mod model;
 pub mod project;
 pub mod session;
@@ -155,6 +156,10 @@ pub fn run() {
             commands::index::reindex_root,
             commands::index::search_project,
             commands::index::find_files,
+            commands::index::resolve_link,
+            commands::index::resolve_links,
+            commands::index::backlinks,
+            commands::index::files_with_tag,
             commands::session::save_session,
             commands::session::flush_drafts,
             commands::session::drop_draft,

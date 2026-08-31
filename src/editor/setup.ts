@@ -12,6 +12,7 @@ import {
 import { history, historyKeymap, defaultKeymap } from '@codemirror/commands';
 import { search, highlightSelectionMatches } from '@codemirror/search';
 import { syntaxColors } from '../theme/syntax';
+import { wikilinks, type Target } from './wikilinks';
 import type { Buffer } from '../ipc/files';
 
 /**
@@ -37,10 +38,15 @@ export const languageCompartment = new Compartment();
 export function extensionsFor(
   meta: Buffer,
   onChange: (view: EditorView) => void,
+  onFollow: (target: Target) => void,
+  sourcePath: () => string | null,
 ): Extension[] {
   const readOnly = meta.readOnly;
 
   return [
+    // Ссылки и теги: подсветка, пометка висячих и переход по Ctrl+щелчку.
+    wikilinks(onFollow, sourcePath),
+
     // Пусто до тех пор, пока не приедет язык. Большие файлы остаются
     // без подсветки навсегда — это записанная политика больших файлов.
     languageCompartment.of([]),

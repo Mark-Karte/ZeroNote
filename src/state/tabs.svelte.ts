@@ -130,7 +130,16 @@ function makeState(meta: Buffer, text: string, cursor = 0): EditorState {
     // Курсор за пределами документа уронил бы создание состояния: снимок мог
     // относиться к более длинному тексту, чем оказался на диске.
     selection: { anchor: Math.min(cursor, text.length) },
-    extensions: extensionsFor(meta, (view) => onEditorUpdate(meta.id, view)),
+    extensions: extensionsFor(
+      meta,
+      (view) => onEditorUpdate(meta.id, view),
+      // Переход по ссылке живёт в `state/links`: редактор не должен знать
+      // про вкладки и панели. Импорт по требованию — иначе получится круг.
+      (target) => void import('./links.svelte').then((m) => m.follow(target)),
+      // Путь берётся каждый раз заново: «сохранить как» его меняет, а вместе
+      // с ним меняется и то, куда ведут ссылки из этого файла.
+      () => tabById(meta.id)?.meta.path ?? null,
+    ),
   });
 }
 

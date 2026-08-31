@@ -82,3 +82,36 @@
 .cm-editor .cm-scroller::-webkit-scrollbar-track {
   background-color: transparent;
 }
+
+
+/*
+ * Ссылки между заметками и теги.
+ *
+ * Подчёркивание появляется только при нажатом Ctrl — ровно тогда, когда
+ * щелчок и правда уведёт в другой файл. Подчёркивать постоянно значило бы
+ * обещать переход по обычному щелчку, которого не будет (Р-070).
+ */
+.cm-editor .zn-wikilink {
+  color: var(--zn-color-syntax-link);
+}
+
+.cm-editor .zn-tag {
+  color: var(--zn-color-syntax-heading);
+}
+
+:root[data-follow] .cm-editor .zn-wikilink:hover,
+:root[data-follow] .cm-editor .zn-tag:hover {
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/*
+ * Висячая ссылка — та, за которой нет заметки. В живом хранилище это обычное
+ * дело, а не ошибка: так помечают то, что собираются написать. Поэтому не
+ * красный цвет ошибки, а приглушённый с пунктиром — «сюда пока некуда идти».
+ */
+.cm-editor .zn-wikilink-dangling {
+  color: var(--zn-color-fg-subtle);
+  text-decoration: underline dotted;
+  text-underline-offset: var(--zn-space-1);
+}

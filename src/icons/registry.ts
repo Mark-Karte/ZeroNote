@@ -30,6 +30,7 @@ export type IconName =
   | 'tree.folder-open'
   | 'panel.tree'
   | 'panel.search'
+  | 'panel.links'
   | 'file.markdown'
   | 'file.text'
   | 'file.code';
@@ -65,6 +66,9 @@ const ICONS: Record<IconName, string> = {
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5h4l1 1.2h6"/><path d="M2.5 3.5v9h11v-7.8"/><path d="M5.5 7.2h5M5.5 9.8h3"/></svg>',
   'panel.search':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="7" cy="7" r="4.2"/><path d="M10.2 10.2l3.3 3.3"/></svg>',
+  // Два звена цепи: обратные ссылки — это про связь между заметками.
+  'panel.links':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"><path d="M6.6 9.4a2.6 2.6 0 0 0 3.9.3l2-2a2.6 2.6 0 0 0-3.7-3.7l-1.1 1.1"/><path d="M9.4 6.6a2.6 2.6 0 0 0-3.9-.3l-2 2a2.6 2.6 0 0 0 3.7 3.7l1.1-1.1"/></svg>',
 
   // Уголок раскрытия. Одна форма на оба состояния: раскрытая папка получает
   // тот же значок повёрнутым, иначе два похожих значка пришлось бы держать

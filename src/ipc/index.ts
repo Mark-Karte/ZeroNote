@@ -49,6 +49,48 @@ export interface FileHit {
 export const findFiles = (query: string, limit?: number): Promise<FileHit[]> =>
   invoke('find_files', { query, limit: limit ?? null });
 
+/** Куда ведёт `[[ссылка]]`. */
+export interface Resolved {
+  path: string;
+  name: string;
+}
+
+/** Кто и как сослался на файл. */
+export interface Backlink {
+  rootId: number;
+  path: string;
+  name: string;
+  /** Как ссылка записана в тексте — вместе с разделом и подписью. */
+  text: string;
+  embed: boolean;
+}
+
+/** Файл, помеченный тегом. */
+export interface Tagged {
+  rootId: number;
+  path: string;
+  name: string;
+}
+
+/** Куда ведёт ссылка из этого файла. `null` — ссылка висячая. */
+export const resolveLink = (target: string, from: string): Promise<Resolved | null> =>
+  invoke('resolve_link', { target, from });
+
+/**
+ * Какие из этих ссылок ведут в существующие заметки.
+ *
+ * Пачкой: редактор спрашивает про все ссылки видимой части сразу.
+ */
+export const resolveLinks = (targets: string[], from: string): Promise<boolean[]> =>
+  invoke('resolve_links', { targets, from });
+
+export const backlinks = (path: string): Promise<Backlink[]> =>
+  invoke('backlinks', { path });
+
+/** Файлы с этим тегом; вложенные теги считаются. */
+export const filesWithTag = (tag: string, limit?: number): Promise<Tagged[]> =>
+  invoke('files_with_tag', { tag, limit: limit ?? null });
+
 /** Событие ядра: ход индексации изменился. */
 export const INDEX_PROGRESS = 'index-progress';
 

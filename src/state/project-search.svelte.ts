@@ -58,6 +58,14 @@ async function run(): Promise<void> {
     return;
   }
 
+  // Запрос, начинающийся с решётки, — это поиск по тегу. Так же ведёт себя
+  // Obsidian, и набрать `#тег` в поле поиска — самое очевидное, что можно
+  // сделать, увидев тег в тексте.
+  if (query.trimStart().startsWith('#')) {
+    await searchByTag(query.trim().slice(1));
+    return;
+  }
+
   projectSearch.running = true;
   try {
     const hits = await ipc.searchProject(query);
@@ -76,6 +84,38 @@ export function schedule(): void {
   timer = setTimeout(() => {
     void run();
   }, DELAY_MS);
+}
+
+/**
+ * Показать файлы с этим тегом.
+ *
+ * Тег — не текст: FTS5 срезает решётку при разборе на слова, и поиск по
+ * содержимому нашёл бы все упоминания слова, а не только помеченные им
+ * заметки. Поэтому отдельный запрос к таблице тегов.
+ */
+export async function searchByTag(tag: string): Promise<void> {
+  if (timer !== null) {
+    clearTimeout(timer);
+    timer = null;
+  }
+
+  const mine = ++latest;
+  projectSearch.running = true;
+  try {
+    const files = await ipc.filesWithTag(tag);
+    if (mine !== latest) return;
+
+    // Отрывок у тега свой: показывать нечего, кроме самого тега.
+    projectSearch.hits = files.map((file) => ({
+      rootId: file.rootId,
+      path: file.path,
+      name: file.name,
+      snippet: `#${tag}`,
+    }));
+    projectSearch.searched = true;
+  } finally {
+    if (mine === latest) projectSearch.running = false;
+  }
 }
 
 /** Искать немедленно — нажали Enter. */

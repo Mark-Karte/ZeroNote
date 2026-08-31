@@ -1,0 +1,272 @@
+//! Связи между заметками на настоящем хранилище.
+//!
+//! Модульные тесты в `src/markdown/` разбирают текст, `src/index/graph.rs` —
+//! выбор ближайшего кандидата. Здесь то, что видно только целиком: ссылка,
+//! проехавшая через разбор, индекс и разрешение, приводит в тот файл,
+//! в который должна.
+
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use rusqlite::Connection;
+use zeronote_lib::index::{graph, jobs, schema, writer};
+use zeronote_lib::project::{IgnoreSettings, ignore};
+
+const MAX: u64 = 2 * 1024 * 1024;
+
+fn temp_dir(tag: &str) -> PathBuf {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    let dir = std::env::temp_dir().join(format!("zeronote-graph-{tag}-{nanos}"));
+    fs::create_dir_all(&dir).expect("не удалось создать временную папку");
+    dir
+}
+
+/// Собрать хранилище из пар «относительный путь → содержимое» и проиндексировать.
+fn vault(dir: &Path, files: &[(&str, &str)]) -> Connection {
+    for (rel, text) in files {
+        let path = dir.join(rel);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        fs::write(&path, text).unwrap();
+    }
+
+    let rules = ignore::build(dir, &IgnoreSettings::default());
+    let db = schema::open(&schema::index_path(dir)).unwrap();
+
+    for path in jobs::collect_files(dir, &rules, &|| false).unwrap() {
+        // Файл базы лежит в той же папке — индексировать его незачем.
+        if path.extension().and_then(|e| e.to_str()) == Some("db") {
+            continue;
+        }
+        writer::index_file(&db, 1, dir, &path, MAX).unwrap();
+    }
+    db
+}
+
+/// Простейший случай, ради которого всё и делается.
+#[test]
+fn link_leads_to_the_note() {
+    let dir = temp_dir("simple");
+    let db = vault(
+        &dir,
+        &[
+            ("Дневник.md", "Сегодня писал про [[Планы]].\n"),
+            ("Планы.md", "# Планы\n"),
+        ],
+    );
+
+    let from = dir.join("Дневник.md").display().to_string();
+    let resolved = graph::resolve(&db, "Планы", &from, 1).unwrap();
+
+    assert!(resolved.is_some(), "ссылка должна разрешиться");
+    assert_eq!(resolved.unwrap().name, "Планы.md");
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// Обратная сторона той же связи: заметка знает, кто на неё сослался.
+#[test]
+fn backlink_points_at_the_source() {
+    let dir = temp_dir("back");
+    let db = vault(
+        &dir,
+        &[
+            ("Дневник.md", "Смотри [[Планы#Задачи|список]].\n"),
+            ("Планы.md", "# Планы\n"),
+            ("Постороннее.md", "Тут ссылок нет.\n"),
+        ],
+    );
+
+    let target = dir.join("Планы.md").display().to_string();
+    let found = graph::backlinks(&db, &target).unwrap();
+
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].name, "Дневник.md");
+    assert_eq!(found[0].text, "Планы#Задачи|список");
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// Две заметки с одним именем — побеждает ближайшая к ссылающемуся файлу,
+/// и обратная ссылка попадает только к ней.
+#[test]
+fn nearest_note_wins_and_the_other_gets_nothing() {
+    let dir = temp_dir("nearest");
+    let db = vault(
+        &dir,
+        &[
+            ("работа/Планы.md", "# Рабочие\n"),
+            ("личное/Планы.md", "# Личные\n"),
+            ("работа/Дневник.md", "Сегодня про [[Планы]].\n"),
+        ],
+    );
+
+    let from = dir.join("работа/Дневник.md").display().to_string();
+    let resolved = graph::resolve(&db, "Планы", &from, 1).unwrap().unwrap();
+    assert!(
+        resolved.path.contains("работа"),
+        "выбрана не та заметка: {}",
+        resolved.path
+    );
+
+    let work = dir.join("работа/Планы.md").display().to_string();
+    let personal = dir.join("личное/Планы.md").display().to_string();
+
+    assert_eq!(graph::backlinks(&db, &work).unwrap().len(), 1);
+    assert!(
+        graph::backlinks(&db, &personal).unwrap().is_empty(),
+        "обратная ссылка попала не в ту заметку"
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// Ссылка с путём ведёт именно по пути, а не по имени.
+#[test]
+fn path_link_ignores_the_nearer_namesake() {
+    let dir = temp_dir("bypath");
+    let db = vault(
+        &dir,
+        &[
+            ("работа/Планы.md", "# Рабочие\n"),
+            ("личное/Планы.md", "# Личные\n"),
+            ("работа/Дневник.md", "Смотри [[личное/Планы]].\n"),
+        ],
+    );
+
+    let from = dir.join("работа/Дневник.md").display().to_string();
+    let resolved = graph::resolve(&db, "личное/Планы", &from, 1).unwrap().unwrap();
+
+    assert!(resolved.path.contains("личное"), "{}", resolved.path);
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// Псевдоним из frontmatter — тоже способ сослаться.
+#[test]
+fn alias_resolves_the_link() {
+    let dir = temp_dir("alias");
+    let db = vault(
+        &dir,
+        &[
+            (
+                "Годовой отчёт 2026.md",
+                "---\naliases: [Отчёт, Итоги года]\n---\n\n# Отчёт\n",
+            ),
+            ("Дневник.md", "Написал [[Итоги года]].\n"),
+        ],
+    );
+
+    let from = dir.join("Дневник.md").display().to_string();
+    let resolved = graph::resolve(&db, "Итоги года", &from, 1).unwrap();
+
+    assert_eq!(resolved.map(|r| r.name), Some("Годовой отчёт 2026.md".to_owned()));
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// Висячая ссылка — обычное дело в живом хранилище, а не ошибка.
+#[test]
+fn dangling_link_resolves_to_nothing() {
+    let dir = temp_dir("dangling");
+    let db = vault(&dir, &[("Дневник.md", "Ссылка на [[Ненаписанное]].\n")]);
+
+    let from = dir.join("Дневник.md").display().to_string();
+
+    assert!(graph::resolve(&db, "Ненаписанное", &from, 1).unwrap().is_none());
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// Ссылка, появившаяся раньше заметки, начинает работать, как только заметка
+/// появилась. Ради этого ссылки и не разрешаются при записи в индекс.
+#[test]
+fn link_starts_working_when_the_note_appears() {
+    let dir = temp_dir("later");
+    let db = vault(&dir, &[("Дневник.md", "Ссылка на [[Будущее]].\n")]);
+
+    let from = dir.join("Дневник.md").display().to_string();
+    assert!(graph::resolve(&db, "Будущее", &from, 1).unwrap().is_none());
+
+    let created = dir.join("Будущее.md");
+    fs::write(&created, "# Будущее\n").unwrap();
+    writer::index_file(&db, 1, &dir, &created, MAX).unwrap();
+
+    assert!(
+        graph::resolve(&db, "Будущее", &from, 1).unwrap().is_some(),
+        "ссылка не заработала после появления заметки"
+    );
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// Теги ищутся вместе с вложенными — так же считает Obsidian.
+#[test]
+fn tag_search_includes_nested() {
+    let dir = temp_dir("tags");
+    let db = vault(
+        &dir,
+        &[
+            ("Первая.md", "Текст с #работа тут.\n"),
+            ("Вторая.md", "Текст с #работа/срочное тут.\n"),
+            ("Третья.md", "---\ntags: [личное]\n---\nтекст\n"),
+        ],
+    );
+
+    let work = graph::files_with_tag(&db, "работа", 50).unwrap();
+    assert_eq!(work.len(), 2, "{work:?}");
+
+    let personal = graph::files_with_tag(&db, "#личное", 50).unwrap();
+    assert_eq!(personal.len(), 1);
+    assert_eq!(personal[0].name, "Третья.md");
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// Переиндексация не должна удваивать связи: иначе одна ссылка со временем
+/// превращается в десяток обратных.
+#[test]
+fn reindexing_does_not_duplicate_links() {
+    let dir = temp_dir("dup");
+    let db = vault(
+        &dir,
+        &[
+            ("Дневник.md", "Ссылка на [[Планы]].\n"),
+            ("Планы.md", "# Планы\n"),
+        ],
+    );
+
+    let source = dir.join("Дневник.md");
+    for i in 0..3 {
+        // Содержимое меняется, иначе индекс справедливо решит, что перечитывать
+        // нечего, и проверка ничего не проверит.
+        fs::write(&source, format!("Ссылка на [[Планы]]. Правка {i}\n")).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        writer::index_file(&db, 1, &dir, &source, MAX).unwrap();
+    }
+
+    let target = dir.join("Планы.md").display().to_string();
+    assert_eq!(graph::backlinks(&db, &target).unwrap().len(), 1);
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// Ссылки в блоке кода связями не считаются (Р-069). Проверяется на пути
+/// целиком: разбор мог быть верным, а до индекса могло доехать другое.
+#[test]
+fn links_in_code_blocks_are_not_connections() {
+    let dir = temp_dir("code");
+    let db = vault(
+        &dir,
+        &[
+            (
+                "Заметка.md",
+                "```rust\nlet x = arr[[0]];\n// [[Планы]] в комментарии кода\n```\n",
+            ),
+            ("Планы.md", "# Планы\n"),
+        ],
+    );
+
+    let target = dir.join("Планы.md").display().to_string();
+
+    assert!(
+        graph::backlinks(&db, &target).unwrap().is_empty(),
+        "ссылка из блока кода попала в связи"
+    );
+    let _ = fs::remove_dir_all(&dir);
+}

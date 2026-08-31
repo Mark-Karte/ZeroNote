@@ -180,7 +180,8 @@ fn reindex(app: &AppHandle, dirs: &BTreeSet<PathBuf>) {
 
     // Под блокировкой реестра — только раскладка по корням; на диск отсюда
     // не ходим.
-    let mut jobs: HashMap<RootId, (Vec<PathBuf>, Arc<IgnoreRules>, u64)> = HashMap::new();
+    type Job = (PathBuf, Vec<PathBuf>, Arc<IgnoreRules>, u64);
+    let mut jobs: HashMap<RootId, Job> = HashMap::new();
     {
         let roots = state.roots.lock().expect("реестр корней повреждён");
         for dir in dirs {
@@ -190,19 +191,20 @@ fn reindex(app: &AppHandle, dirs: &BTreeSet<PathBuf>) {
             jobs.entry(root.id)
                 .or_insert_with(|| {
                     (
+                        root.path.clone(),
                         Vec::new(),
                         root.rules.clone(),
                         root.project.index.max_file_size,
                     )
                 })
-                .0
+                .1
                 .push(dir.clone());
         }
     }
 
     let index = state.index.lock().expect("индекс повреждён");
-    for (root_id, (dirs, rules, max_size)) in jobs {
-        index.rescan_dirs(root_id, dirs, rules, max_size);
+    for (root_id, (root_path, dirs, rules, max_size)) in jobs {
+        index.rescan_dirs(root_id, root_path, dirs, rules, max_size);
     }
 }
 

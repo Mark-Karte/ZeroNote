@@ -134,7 +134,7 @@ mod tests {
         for (name, text) in files {
             let path = dir.join(name);
             std::fs::write(&path, text).unwrap();
-            writer::index_file(&db, 1, &path, 2 * 1024 * 1024).unwrap();
+            writer::index_file(&db, 1, dir, &path, 2 * 1024 * 1024).unwrap();
         }
         db
     }
@@ -223,7 +223,7 @@ mod tests {
         for (root, name) in [(1u64, "первый.md"), (2, "второй.md")] {
             let path = dir.join(name);
             std::fs::write(&path, "общее слово метель").unwrap();
-            writer::index_file(&db, root, &path, 2 * 1024 * 1024).unwrap();
+            writer::index_file(&db, root, &dir, &path, 2 * 1024 * 1024).unwrap();
         }
 
         assert_eq!(search(&db, "метель", None, 20).unwrap().len(), 2);

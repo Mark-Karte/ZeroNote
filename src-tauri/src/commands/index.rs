@@ -3,6 +3,7 @@
 //! Логики здесь нет: очередь и отмену ведёт `index/jobs.rs`, запрос —
 //! `index/query.rs`.
 
+use crate::index::graph::{Backlink, Resolved, Tagged};
 use crate::index::jobs::Progress;
 use crate::index::names::FileHit;
 use crate::index::query::Hit;
@@ -58,6 +59,78 @@ pub fn cancel_index(state: tauri::State<'_, AppState>) {
 #[tauri::command]
 pub fn reindex_root(state: tauri::State<'_, AppState>, root_id: RootId) {
     schedule_scan(&state, root_id);
+}
+
+/// Куда ведёт `[[ссылка]]`. `null` — ссылка висячая.
+///
+/// Корень определяется по файлу, из которого ссылаются: ссылка не покидает
+/// пределов своего проекта.
+#[tauri::command]
+pub fn resolve_link(
+    state: tauri::State<'_, AppState>,
+    target: String,
+    from: String,
+) -> Option<Resolved> {
+    let root_id = {
+        let roots = state.roots.lock().expect("реестр корней повреждён");
+        roots.for_path(std::path::Path::new(&from)).map(|r| r.id)?
+    };
+
+    state
+        .index
+        .lock()
+        .expect("индекс повреждён")
+        .resolve_link(&target, &from, root_id)
+}
+
+/// Какие из этих ссылок ведут в существующие заметки.
+///
+/// Пачкой, а не по одной: редактор спрашивает про все ссылки видимой части
+/// сразу, и полсотни отдельных вызовов ради полусотни строк — это полсотни
+/// пересечений границы IPC на каждую прокрутку.
+#[tauri::command]
+pub fn resolve_links(
+    state: tauri::State<'_, AppState>,
+    targets: Vec<String>,
+    from: String,
+) -> Vec<bool> {
+    let root_id = {
+        let roots = state.roots.lock().expect("реестр корней повреждён");
+        roots.for_path(std::path::Path::new(&from)).map(|r| r.id)
+    };
+
+    // Файл вне корней: разрешать ссылки не по чему, и висячими они тоже
+    // не считаются — мы просто не знаем.
+    let Some(root_id) = root_id else {
+        return vec![true; targets.len()];
+    };
+
+    let index = state.index.lock().expect("индекс повреждён");
+    targets
+        .iter()
+        .map(|target| index.resolve_link(target, &from, root_id).is_some())
+        .collect()
+}
+
+/// Кто ссылается на этот файл.
+#[tauri::command]
+pub fn backlinks(state: tauri::State<'_, AppState>, path: String) -> Vec<Backlink> {
+    state.index.lock().expect("индекс повреждён").backlinks(&path)
+}
+
+/// Файлы, помеченные тегом. Вложенные теги считаются: `#работа` находит
+/// и `#работа/срочное`.
+#[tauri::command]
+pub fn files_with_tag(
+    state: tauri::State<'_, AppState>,
+    tag: String,
+    limit: Option<u32>,
+) -> Vec<Tagged> {
+    state
+        .index
+        .lock()
+        .expect("индекс повреждён")
+        .files_with_tag(&tag, limit.unwrap_or(200))
 }
 
 /// Быстрое открытие: нечёткий поиск по именам файлов.

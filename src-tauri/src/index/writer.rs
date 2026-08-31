@@ -4,6 +4,7 @@ use std::path::Path;
 
 use rusqlite::{Connection, OptionalExtension};
 
+use crate::markdown;
 use crate::model::root::RootId;
 use crate::text::document;
 
@@ -69,9 +70,52 @@ fn now_ms() -> i64 {
 ///
 /// `max_size` — предел из настроек проекта. Файл крупнее в индекс не попадает:
 /// поиск по журналу на сто мегабайт не нужен никому, а память и время он съест.
+/// Markdown ли это — по расширению.
+///
+/// Связи разбираются только у markdown: `[[ссылки]]` в исходнике на C++ —
+/// это индексы массива, а не ссылки на заметки.
+fn is_markdown(path: &Path) -> bool {
+    matches!(
+        path.extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_lowercase())
+            .as_deref(),
+        Some("md" | "markdown" | "mdx")
+    )
+}
+
+/// Путь, приведённый к виду для сравнения.
+///
+/// Windows не различает регистр и принимает обе косые черты, а путь приходит
+/// откуда угодно: из дерева, из редактора, из буфера обмена. Приведение
+/// считается здесь, в Rust, а не выражением в запросе: встроенная функция
+/// SQLite `lower()` умеет только латиницу, и путь с кириллицей ею не найдётся.
+pub fn path_key(path: &Path) -> String {
+    path.to_string_lossy().replace('/', "\\").to_lowercase()
+}
+
+/// Путь внутри корня и имя без расширения, приведённые к общему виду.
+fn keys(root: &Path, path: &Path) -> (String, String) {
+    let full = path.to_string_lossy();
+    let prefix = root.to_string_lossy();
+
+    let relative = full
+        .get(prefix.len()..)
+        .map(|tail| tail.trim_start_matches(['\\', '/']))
+        .unwrap_or(&full);
+
+    let name = path
+        .file_stem()
+        .map(|n| n.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+
+    (markdown::links::link_key(relative), name)
+}
+
 pub fn index_file(
     connection: &Connection,
     root_id: RootId,
+    root_path: &Path,
     path: &Path,
     max_size: u64,
 ) -> Result<Indexed, IndexError> {
@@ -124,13 +168,19 @@ pub fn index_file(
     // а два вхождения одного файла давали бы его дважды в выдаче.
     forget_file(connection, path)?;
 
+    let (rel_key, name_key) = keys(root_path, path);
+
     connection.execute(
-        "INSERT INTO files (root_id, path, name, mtime_ms, size, indexed_ms)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        "INSERT INTO files
+            (root_id, path, path_key, name, rel_key, name_key, mtime_ms, size, indexed_ms)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         rusqlite::params![
             root_id as i64,
             text_path.as_ref(),
+            path_key(path),
             name,
+            rel_key,
+            name_key,
             mtime,
             size as i64,
             now_ms()
@@ -143,7 +193,55 @@ pub fn index_file(
         rusqlite::params![id, document.text],
     )?;
 
+    if is_markdown(path) {
+        store_links(connection, id, &document.text)?;
+    }
+
     Ok(Indexed::Stored)
+}
+
+/// Записать связи заметки: ссылки, теги, псевдонимы.
+fn store_links(
+    connection: &Connection,
+    file_id: i64,
+    text: &str,
+) -> Result<(), IndexError> {
+    let parsed = markdown::parse(text);
+
+    for link in &parsed.links {
+        connection.execute(
+            "INSERT INTO links (source_id, target_key, target_raw, heading, alias, embed)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            rusqlite::params![
+                file_id,
+                markdown::links::link_key(&link.target),
+                link.target,
+                link.heading,
+                link.alias,
+                link.embed as i64,
+            ],
+        )?;
+    }
+
+    for tag in &parsed.tags {
+        connection.execute(
+            "INSERT INTO tags (file_id, tag) VALUES (?1, ?2)",
+            rusqlite::params![file_id, tag],
+        )?;
+    }
+
+    for alias in &parsed.aliases {
+        let key = markdown::links::link_key(alias);
+        if key.is_empty() {
+            continue;
+        }
+        connection.execute(
+            "INSERT INTO aliases (file_id, alias_key) VALUES (?1, ?2)",
+            rusqlite::params![file_id, key],
+        )?;
+    }
+
+    Ok(())
 }
 
 /// Убрать файл из индекса: удалён, переименован, стал двоичным или слишком
@@ -161,6 +259,9 @@ pub fn forget_file(connection: &Connection, path: &Path) -> Result<(), IndexErro
 
     if let Some(id) = id {
         connection.execute("DELETE FROM content WHERE rowid = ?1", [id])?;
+        connection.execute("DELETE FROM links WHERE source_id = ?1", [id])?;
+        connection.execute("DELETE FROM tags WHERE file_id = ?1", [id])?;
+        connection.execute("DELETE FROM aliases WHERE file_id = ?1", [id])?;
         connection.execute("DELETE FROM files WHERE id = ?1", [id])?;
     }
     Ok(())
@@ -168,10 +269,20 @@ pub fn forget_file(connection: &Connection, path: &Path) -> Result<(), IndexErro
 
 /// Убрать из индекса весь корень: его убрали из рабочего пространства.
 pub fn forget_root(connection: &Connection, root_id: RootId) -> Result<(), IndexError> {
-    connection.execute(
-        "DELETE FROM content WHERE rowid IN (SELECT id FROM files WHERE root_id = ?1)",
-        [root_id as i64],
-    )?;
+    const OF_ROOT: &str = "SELECT id FROM files WHERE root_id = ?1";
+
+    for table in ["content", "links", "tags", "aliases"] {
+        let column = match table {
+            "content" => "rowid",
+            "links" => "source_id",
+            _ => "file_id",
+        };
+        connection.execute(
+            &format!("DELETE FROM {table} WHERE {column} IN ({OF_ROOT})"),
+            [root_id as i64],
+        )?;
+    }
+
     connection.execute("DELETE FROM files WHERE root_id = ?1", [root_id as i64])?;
     Ok(())
 }
@@ -253,7 +364,7 @@ mod tests {
         std::fs::write(&path, "съешь ещё этих мягких французских булок").unwrap();
         let db = connection(&dir);
 
-        assert_eq!(index_file(&db, 1, &path, BIG).unwrap(), Indexed::Stored);
+        assert_eq!(index_file(&db, 1, &dir, &path, BIG).unwrap(), Indexed::Stored);
         assert_eq!(count(&db, 1).unwrap(), 1);
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -267,8 +378,8 @@ mod tests {
         std::fs::write(&path, "текст").unwrap();
         let db = connection(&dir);
 
-        assert_eq!(index_file(&db, 1, &path, BIG).unwrap(), Indexed::Stored);
-        assert_eq!(index_file(&db, 1, &path, BIG).unwrap(), Indexed::Unchanged);
+        assert_eq!(index_file(&db, 1, &dir, &path, BIG).unwrap(), Indexed::Stored);
+        assert_eq!(index_file(&db, 1, &dir, &path, BIG).unwrap(), Indexed::Unchanged);
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -279,14 +390,14 @@ mod tests {
         let path = dir.join("заметка.md");
         std::fs::write(&path, "первоначальное содержимое").unwrap();
         let db = connection(&dir);
-        index_file(&db, 1, &path, BIG).unwrap();
+        index_file(&db, 1, &dir, &path, BIG).unwrap();
 
         // Ждём, чтобы отметка времени заведомо изменилась: файловые системы
         // Windows хранят её с грубым шагом.
         std::thread::sleep(std::time::Duration::from_millis(30));
         std::fs::write(&path, "совершенно другое наполнение").unwrap();
 
-        assert_eq!(index_file(&db, 1, &path, BIG).unwrap(), Indexed::Stored);
+        assert_eq!(index_file(&db, 1, &dir, &path, BIG).unwrap(), Indexed::Stored);
         assert_eq!(count(&db, 1).unwrap(), 1, "файл не должен удвоиться");
 
         let stale: i64 = db
@@ -307,7 +418,7 @@ mod tests {
         std::fs::write(&path, [0x89, b'P', b'N', b'G', 0x00, 0x1A, 0x0A]).unwrap();
         let db = connection(&dir);
 
-        assert_eq!(index_file(&db, 1, &path, BIG).unwrap(), Indexed::Skipped);
+        assert_eq!(index_file(&db, 1, &dir, &path, BIG).unwrap(), Indexed::Skipped);
         assert_eq!(count(&db, 1).unwrap(), 0);
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -319,7 +430,7 @@ mod tests {
         std::fs::write(&path, "строка\n".repeat(1000)).unwrap();
         let db = connection(&dir);
 
-        assert_eq!(index_file(&db, 1, &path, 100).unwrap(), Indexed::Skipped);
+        assert_eq!(index_file(&db, 1, &dir, &path, 100).unwrap(), Indexed::Skipped);
         assert_eq!(count(&db, 1).unwrap(), 0);
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -332,13 +443,13 @@ mod tests {
         let path = dir.join("растущий.md");
         std::fs::write(&path, "коротко").unwrap();
         let db = connection(&dir);
-        index_file(&db, 1, &path, 1000).unwrap();
+        index_file(&db, 1, &dir, &path, 1000).unwrap();
         assert_eq!(count(&db, 1).unwrap(), 1);
 
         std::thread::sleep(std::time::Duration::from_millis(30));
         std::fs::write(&path, "длинно ".repeat(1000)).unwrap();
 
-        assert_eq!(index_file(&db, 1, &path, 1000).unwrap(), Indexed::Skipped);
+        assert_eq!(index_file(&db, 1, &dir, &path, 1000).unwrap(), Indexed::Skipped);
         assert_eq!(count(&db, 1).unwrap(), 0);
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -355,7 +466,7 @@ mod tests {
         std::fs::write(&path, bytes).unwrap();
         let db = connection(&dir);
 
-        index_file(&db, 1, &path, BIG).unwrap();
+        index_file(&db, 1, &dir, &path, BIG).unwrap();
 
         let found: i64 = db
             .query_row(
@@ -376,7 +487,7 @@ mod tests {
         for (i, root) in [(1, 1u64), (2, 1), (3, 2)] {
             let path = dir.join(format!("файл-{i}.md"));
             std::fs::write(&path, "содержимое").unwrap();
-            index_file(&db, root, &path, BIG).unwrap();
+            index_file(&db, root, &dir, &path, BIG).unwrap();
         }
 
         forget_root(&db, 1).unwrap();
@@ -399,8 +510,8 @@ mod tests {
         let second = dir.join("два.md");
         std::fs::write(&first, "текст").unwrap();
         std::fs::write(&second, "текст").unwrap();
-        index_file(&db, 1, &first, BIG).unwrap();
-        index_file(&db, 2, &second, BIG).unwrap();
+        index_file(&db, 1, &dir, &first, BIG).unwrap();
+        index_file(&db, 2, &dir, &second, BIG).unwrap();
 
         let paths = known_paths(&db, 1).unwrap();
 
