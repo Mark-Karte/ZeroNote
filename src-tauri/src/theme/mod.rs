@@ -495,15 +495,16 @@ mod tests {
     /// освещении. Пороги взяты из WCAG: 7:1 для основного текста, 4,5:1 —
     /// для второстепенного и для того, что несёт смысл цветом.
     ///
-    /// Проверяются оба фона, рабочая область и панель: в светлых темах панель
-    /// темнее рабочей области, в тёмных — светлее, и слабое место у них разное.
+    /// Проверяются оба фона, на которых бывает текст: панель и рабочая область.
+    /// Подложка окна (`color-bg-canvas`) сюда не входит — она видна только
+    /// в зазорах между панелями, и текста на ней не бывает.
     #[test]
     fn builtin_themes_are_readable() {
         for (id, source) in BUILTIN {
             let theme = parse(source).expect("тема должна разбираться");
             let t = resolve(&theme, Density::Normal).expect("тема должна собраться");
 
-            for bg in ["color-bg-canvas", "color-bg-surface"] {
+            for bg in ["color-bg-surface", "color-bg-raised"] {
                 let back = &t[bg];
 
                 let main = contrast(&t["color-fg-default"], back);

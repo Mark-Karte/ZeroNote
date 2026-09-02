@@ -1,6 +1,6 @@
 <script lang="ts">
   import Icon from '../Icon.svelte';
-  import { iconForFile } from '../../icons/files';
+  import { iconForFile, kindOf } from '../../icons/files';
   import { rows, toggle, tree, type Row } from '../../state/tree.svelte';
   import { appearance } from '../../theme/store.svelte';
   import { openDropped } from '../../actions/files';
@@ -103,7 +103,7 @@
               <Icon name="tree.chevron" />
             </span>
 
-            <span class="glyph">
+            <span class="glyph" data-kind={row.isDir ? 'folder' : kindOf(row.name)}>
               {#if row.isDir}
                 <Icon name={row.expanded ? 'tree.folder-open' : 'status.folder'} />
               {:else}
@@ -238,10 +238,29 @@
     visibility: hidden;
   }
 
+  /* Цвет значка по виду файла — те же роли, что у вкладок. Папка своего
+     цвета не получает: её и так видно по форме и по уголку раскрытия,
+     а раскрашенная папка спорила бы с файлами внутри неё. */
   .glyph {
     display: inline-flex;
     flex: none;
     color: var(--zn-color-fg-muted);
+  }
+
+  .glyph[data-kind='note'] {
+    color: var(--zn-color-file-note);
+  }
+
+  .glyph[data-kind='code'] {
+    color: var(--zn-color-file-code);
+  }
+
+  .glyph[data-kind='data'] {
+    color: var(--zn-color-file-data);
+  }
+
+  .glyph[data-kind='other'] {
+    color: var(--zn-color-file-other);
   }
 
   .name {

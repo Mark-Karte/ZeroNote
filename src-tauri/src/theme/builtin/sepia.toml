@@ -8,8 +8,8 @@ name = "Сепия"
 appearance = "light"
 
 [palette]
-bg-0 = "#fbf7ee"
-bg-1 = "#f3ede1"
+bg-0 = "#e6ded0"
+bg-1 = "#f6f1e7"
 bg-2 = "#fdfaf3"
 bg-3 = "#ece5d7"
 bg-4 = "#ded5c3"

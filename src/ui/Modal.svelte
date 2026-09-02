@@ -114,11 +114,11 @@
     inset: 0;
     padding: 0;
     border: none;
-    background-color: var(--zn-color-bg-canvas);
-    /* Затемнение фона. Прозрачность — единственная величина оформления,
-       которую незачем выносить в токен: она не про палитру, а про то,
-       что под слоем что-то есть. */
-    opacity: 0.75;
+    /* Подложка задана цветом с прозрачностью, а не непрозрачным цветом
+       и `opacity`: последнее гасило бы и сам диалог, если бы он оказался
+       внутри, а заодно требовало бы подбирать прозрачность под каждую тему.
+       Теперь это роль, и «Контраст» делает её плотнее прочих. */
+    background-color: var(--zn-color-bg-overlay);
     cursor: default;
   }
 
@@ -129,8 +129,8 @@
     padding: var(--zn-space-5);
     background-color: var(--zn-color-bg-raised);
     border: var(--zn-border-width) solid var(--zn-color-border-default);
-    border-radius: var(--zn-radius-lg);
-    box-shadow: var(--zn-shadow-overlay);
+    border-radius: var(--zn-radius-window);
+    box-shadow: var(--zn-shadow-dialog);
   }
 
   .title {

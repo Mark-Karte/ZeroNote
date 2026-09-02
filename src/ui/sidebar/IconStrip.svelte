@@ -30,7 +30,7 @@
   }
 </script>
 
-<nav class="strip" aria-label="Панели">
+<nav class="strip panel" aria-label="Панели">
   {#each PANELS as panel (panel.id)}
     <button
       class="tab"
@@ -51,33 +51,39 @@
     display: flex;
     flex-direction: column;
     flex: none;
+    align-items: center;
+    gap: var(--zn-space-2);
     width: var(--zn-control-strip-width);
+    padding-block: var(--zn-space-3);
     background-color: var(--zn-color-bg-surface);
-    border-right: var(--zn-border-width) solid var(--zn-color-border-subtle);
   }
 
+  /* Выбранная панель отмечена заливкой самой кнопки, а не полоской у края:
+     у полосы теперь скруглённые углы, и полоска на них не ложится. */
   .tab {
     display: flex;
+    flex: none;
     align-items: center;
     justify-content: center;
-    height: var(--zn-control-strip-width);
+    width: var(--zn-control-strip-button-size);
+    height: var(--zn-control-strip-button-size);
     padding: 0;
     border: none;
-    /* Полоска слева отмечает выбранную панель. Она есть всегда, но
-       у невыбранных прозрачная: иначе значки дёргались бы на пиксель. */
-    border-left: var(--zn-border-width-thick) solid transparent;
+    border-radius: var(--zn-radius-xl);
     background: transparent;
     color: var(--zn-color-fg-subtle);
     cursor: pointer;
+    transition: background-color var(--zn-motion-duration-fast) var(--zn-motion-easing);
   }
 
   .tab:hover {
+    background-color: var(--zn-color-bg-hover);
     color: var(--zn-color-fg-default);
   }
 
   .tab.active {
-    border-left-color: var(--zn-color-accent);
-    color: var(--zn-color-fg-default);
+    background-color: var(--zn-color-bg-selected);
+    color: var(--zn-color-accent);
   }
 
   .tab:focus-visible {

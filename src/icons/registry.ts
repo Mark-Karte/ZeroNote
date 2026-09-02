@@ -12,6 +12,7 @@
  */
 
 export type IconName =
+  | 'app.mark'
   | 'status.folder'
   | 'status.folder-alert'
   | 'status.theme-light'
@@ -37,6 +38,11 @@ export type IconName =
   | 'file.code';
 
 const ICONS: Record<IconName, string> = {
+  // Знак приложения в шапке. Только буква: подложку и её цвет рисует шапка,
+  // иначе значку понадобился бы второй цвет, а иконки у нас одноцветные.
+  'app.mark':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4.6 4.4h6.8L4.6 11.6h6.8"/></svg>',
+
   // Кнопки окна. Формы взяты из системного набора Windows 11, чтобы
   // собственный заголовок не выглядел чужеродно.
   'window.minimize':

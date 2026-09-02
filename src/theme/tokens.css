@@ -16,7 +16,7 @@
 :root {
   /* --- Цвет: семантические роли. Палитра сюда не попадает: компонент не
      должен знать, какой именно серый ему достался. --- */
-  --zn-color-bg-canvas: #ffffff;
+  --zn-color-bg-canvas: #e8eaef;
   --zn-color-bg-surface: #f7f8fa;
   --zn-color-bg-raised: #ffffff;
   --zn-color-bg-hover: #eceef4;
@@ -108,6 +108,7 @@
   --zn-control-dialog-min-width: 420px;
   --zn-control-dialog-max-width: 560px;
   --zn-control-popup-min-width: 260px;
+  --zn-control-search-width: 300px;
   --zn-control-sidebar-width: 240px;
   --zn-control-sidebar-min-width: 160px;
   --zn-control-sidebar-max-width: 640px;

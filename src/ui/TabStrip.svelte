@@ -1,6 +1,6 @@
 <script lang="ts">
   import Icon from './Icon.svelte';
-  import type { IconName } from '../icons/registry';
+  import { kindOf, iconForKind } from '../icons/files';
   import { tabs, setActive, moveLocal, commitOrder } from '../state/tabs.svelte';
   // Закрытие идёт через действие, а не напрямую через состояние: только там
   // спрашивают про несохранённые правки.
@@ -26,15 +26,6 @@
    * сдвигает мышь на пиксель-другой, и этого хватало, чтобы сработал перенос.
    */
   const DRAG_THRESHOLD = 5;
-
-  function iconFor(title: string): IconName {
-    const lower = title.toLowerCase();
-    if (lower.endsWith('.md') || lower.endsWith('.markdown')) return 'file.markdown';
-    if (/\.(rs|ts|js|json|toml|css|html|svelte|py|c|h|cpp|sh|ps1)$/.test(lower)) {
-      return 'file.code';
-    }
-    return 'file.text';
-  }
 
   /** Снять положения вкладок с разметки для расчёта в `tab-drag.ts`. */
   function measure(): TabBox[] {
@@ -124,7 +115,9 @@
       onpointercancel={onPointerUp}
       onlostpointercapture={finishDrag}
     >
-      <Icon name={iconFor(tab.meta.title)} />
+      <span class="kind" data-kind={kindOf(tab.meta.title)}>
+        <Icon name={iconForKind(kindOf(tab.meta.title))} />
+      </span>
       <span class="name">{tab.meta.title}</span>
       <button
         class="close"
@@ -145,14 +138,18 @@
     display: flex;
     flex: none;
     align-items: stretch;
+    gap: var(--zn-space-1);
     height: var(--zn-control-tab-height);
+    padding-inline: var(--zn-space-3);
     background-color: var(--zn-color-bg-surface);
-    border-bottom: var(--zn-border-width) solid var(--zn-color-border-default);
+    border-bottom: var(--zn-border-width) solid var(--zn-color-border-subtle);
     overflow-x: auto;
     overflow-y: hidden;
     scrollbar-width: none;
   }
 
+  /* Вкладка — карточка со скруглённым верхом, как в референсе: нижние углы
+     прямые, потому что вкладка стоит на рабочей области, а не висит в воздухе. */
   .tab {
     display: flex;
     flex: 0 1 var(--zn-control-tab-max-width);
@@ -160,9 +157,11 @@
     align-items: center;
     gap: var(--zn-space-2);
     padding-inline: var(--zn-space-3);
-    border-right: var(--zn-border-width) solid var(--zn-color-border-subtle);
-    background-color: var(--zn-color-bg-surface);
-    color: var(--zn-color-fg-muted);
+    border: var(--zn-border-width) solid transparent;
+    border-block-end: none;
+    border-start-start-radius: var(--zn-radius-lg);
+    border-start-end-radius: var(--zn-radius-lg);
+    color: var(--zn-color-fg-subtle);
     cursor: default;
     user-select: none;
     transition: background-color var(--zn-motion-duration-fast) var(--zn-motion-easing);
@@ -170,18 +169,41 @@
 
   .tab:hover {
     background-color: var(--zn-color-bg-hover);
+    color: var(--zn-color-fg-muted);
   }
 
   .tab.active {
-    background-color: var(--zn-color-bg-canvas);
+    background-color: var(--zn-color-bg-raised);
+    border-color: var(--zn-color-border-subtle);
     color: var(--zn-color-fg-default);
-    /* Полоска сверху отмечает активную вкладку, не сдвигая содержимое:
-       граница задана всегда, у неактивных она прозрачная. */
-    box-shadow: inset 0 var(--zn-border-width-thick) 0 0 var(--zn-color-accent);
   }
 
   .tab.dragging {
     opacity: 0.6;
+  }
+
+  /* Цвет значка по виду файла. Роли задаёт тема, а какое расширение к какой
+     относится — icons/files.ts. Признаком в разметке, а не классом: значений
+     ровно столько, сколько ролей, и список виден целиком. */
+  .kind {
+    display: inline-flex;
+    flex: none;
+  }
+
+  .kind[data-kind='note'] {
+    color: var(--zn-color-file-note);
+  }
+
+  .kind[data-kind='code'] {
+    color: var(--zn-color-file-code);
+  }
+
+  .kind[data-kind='data'] {
+    color: var(--zn-color-file-data);
+  }
+
+  .kind[data-kind='other'] {
+    color: var(--zn-color-file-other);
   }
 
   .name {

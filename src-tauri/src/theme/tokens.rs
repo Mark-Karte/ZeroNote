@@ -92,6 +92,7 @@ pub const METRICS_NORMAL: &[(&str, &str)] = &[
     ("control-dialog-min-width", "420px"),
     ("control-dialog-max-width", "560px"),
     ("control-popup-min-width", "260px"),
+    ("control-search-width", "300px"),
     ("control-sidebar-width", "240px"),
     ("control-sidebar-min-width", "160px"),
     ("control-sidebar-max-width", "640px"),
@@ -132,6 +133,7 @@ pub const METRICS_COMPACT: &[(&str, &str)] = &[
     ("control-dialog-min-width", "360px"),
     ("control-dialog-max-width", "500px"),
     ("control-popup-min-width", "220px"),
+    ("control-search-width", "240px"),
     ("control-sidebar-width", "200px"),
     ("control-sidebar-min-width", "140px"),
     ("control-sidebar-max-width", "560px"),
@@ -146,6 +148,10 @@ pub const METRICS_COMPACT: &[(&str, &str)] = &[
 /// Один и тот же список для светлой и тёмной темы: разница целиком в палитре.
 /// Поэтому пользовательская тема — это, как правило, только раздел `[palette]`.
 pub const SEMANTIC_COLORS: &[(&str, &str)] = &[
+    // Три слоя, а не «фон и фон посветлее». Порядок от дальнего к ближнему:
+    // подложка окна видна только в зазорах между панелями, панели стоят на ней,
+    // рабочая область лежит на панели. Так устроен референс, и так каждая
+    // граница получается тоном, а не рамкой.
     ("color-bg-canvas", "{palette.bg-0}"),
     ("color-bg-surface", "{palette.bg-1}"),
     ("color-bg-raised", "{palette.bg-2}"),

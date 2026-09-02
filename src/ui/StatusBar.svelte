@@ -304,12 +304,17 @@
     white-space: nowrap;
   }
 
+  /* Технические значения — моноширинным, как в референсе: UTF-8, CRLF и имя
+     языка читаются как значения, а не как фраза. Русские пояснения слева
+     остаются шрифтом интерфейса — моноширинная кириллица в них расползается
+     и начинает спорить с текстом в редакторе. */
   .action {
     padding-inline: var(--zn-space-2);
     border: none;
+    border-radius: var(--zn-radius-sm);
     background-color: transparent;
     color: inherit;
-    font-family: inherit;
+    font-family: var(--zn-font-family-editor);
     font-size: inherit;
     cursor: default;
   }

@@ -154,7 +154,7 @@
     background-color: var(--zn-color-bg-raised);
     border: var(--zn-border-width) solid var(--zn-color-border-default);
     border-radius: var(--zn-radius-lg);
-    box-shadow: var(--zn-shadow-overlay);
+    box-shadow: var(--zn-shadow-dialog);
   }
 
   .field {

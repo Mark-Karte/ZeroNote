@@ -107,7 +107,7 @@
 </script>
 
 <aside
-  class="sidebar"
+  class="sidebar panel"
   bind:this={panel}
   style:width={roots.sidebarWidth > 0 ? `${roots.sidebarWidth}px` : null}
 >
@@ -229,21 +229,31 @@
     font-size: var(--zn-font-size-ui-small);
   }
 
-  /* Рукоятка шире видимой линии: попасть в границу толщиной в пиксель
-     мышью нельзя, а расширять саму линию — значит рисовать полосу. */
+  /* Рукоятка шире зазора: попасть мышью в два пикселя нельзя, а расширять
+     сам зазор — значит рисовать полосу между панелями.
+
+     Отрицательные поля с обеих сторон возвращают на место лишнюю ширину:
+     рукоятка ложится ровно поверх зазора и заезжает на соседей, не двигая
+     их. Без этого панели разъехались бы на ширину рукоятки. */
   .handle {
     flex: none;
     width: var(--zn-space-3);
-    margin-right: calc(-1 * var(--zn-space-3) + var(--zn-border-width));
-    border-left: var(--zn-border-width) solid var(--zn-color-border-subtle);
+    margin-inline: calc((var(--zn-space-1) - var(--zn-space-3)) / 2);
     cursor: col-resize;
     z-index: var(--zn-z-panel);
   }
 
+  /* Подсветка узкой полоской по центру рукоятки — там, где зазор. */
   .handle:hover,
   .handle.dragging,
   .handle:focus-visible {
-    border-left-color: var(--zn-color-accent);
+    background-image: linear-gradient(
+      to right,
+      transparent calc(50% - var(--zn-border-width)),
+      var(--zn-color-accent) calc(50% - var(--zn-border-width)),
+      var(--zn-color-accent) calc(50% + var(--zn-border-width)),
+      transparent calc(50% + var(--zn-border-width))
+    );
   }
 
   .handle:focus-visible {

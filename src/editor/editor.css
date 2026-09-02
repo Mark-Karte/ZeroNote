@@ -9,7 +9,7 @@
 
 .cm-editor {
   height: 100%;
-  background-color: var(--zn-color-bg-canvas);
+  background-color: var(--zn-color-bg-raised);
   color: var(--zn-color-fg-default);
   font-family: var(--zn-font-family-editor);
   font-size: var(--zn-font-size-editor);
@@ -32,7 +32,7 @@
 }
 
 .cm-editor .cm-gutters {
-  background-color: var(--zn-color-bg-canvas);
+  background-color: var(--zn-color-bg-raised);
   color: var(--zn-color-fg-subtle);
   border-right: var(--zn-border-width) solid var(--zn-color-border-subtle);
 }
