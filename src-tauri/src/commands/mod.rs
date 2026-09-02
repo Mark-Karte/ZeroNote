@@ -10,4 +10,5 @@ pub mod index;
 pub mod keymap;
 pub mod roots;
 pub mod session;
+pub mod settings;
 pub mod tree;

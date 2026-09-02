@@ -13,6 +13,8 @@
   import Sidebar from './sidebar/Sidebar.svelte';
   import IconStrip from './sidebar/IconStrip.svelte';
   import Palette from './palette/Palette.svelte';
+  import SettingsScreen from './settings/SettingsScreen.svelte';
+  import { settings } from '../state/settings.svelte';
   import { searchFocusRequest } from '../state/project-search.svelte';
   import { tabs, restore } from '../state/tabs.svelte';
   import { flushNow } from '../state/persist.svelte';
@@ -158,19 +160,23 @@
   {/if}
 
   <div class="body">
-    <!-- Полоса значков показывается тем, кто работает с папками: либо панель
-         открыта, либо корень уже добавлен. Тому, кто правит одиночные файлы,
-         постоянная полоса сбоку не нужна — этим ZeroNote и отличается от
-         редактора, который умеет только проекты. -->
-    {#if roots.sidebar || roots.items.length > 0}
-      <IconStrip />
-    {/if}
+    <!-- Полоса значков теперь показывается всегда. До задачи 20 она появлялась
+         вместе с первой папкой (Р-044): полоса с одним значком занимала место
+         и ничего не объясняла. Теперь в ней всегда есть кнопка параметров,
+         а меню у нас нет — без полосы до настроек нельзя было бы добраться
+         иначе как сочетанием клавиш, о котором ещё надо знать. -->
+    <IconStrip />
     {#if roots.sidebar}
       <Sidebar searchFocus={searchFocusRequest.value} />
     {/if}
 
     <div class="main panel">
-      {#if tabs.items.length > 0}
+      {#if settings.open}
+        <!-- Параметры занимают рабочую область, а не заводят вкладку (Р-074):
+             вкладка равна буферу, и на этом держатся сессия, черновики
+             и вопрос при закрытии. -->
+        <SettingsScreen />
+      {:else if tabs.items.length > 0}
         <SearchPanel />
         <EditorHost />
       {:else}

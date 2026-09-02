@@ -15,6 +15,7 @@ import {
   quickOpen,
   commandPalette,
   tagPalette,
+  showSettings,
   searchInProject,
   followLink,
   showBacklinks,
@@ -67,6 +68,7 @@ export const COMMANDS: Record<CommandId, () => void | Promise<unknown>> = {
   'view.next-tab': nextTab,
   'view.previous-tab': previousTab,
   'view.sidebar': toggleSidebarPanel,
+  'view.settings': showSettings,
 
   'project.add-root': addRootDialog,
   'project.quick-open': quickOpen,

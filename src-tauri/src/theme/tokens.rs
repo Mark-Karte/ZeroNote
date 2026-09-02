@@ -38,6 +38,9 @@ pub const BASE: &[(&str, &str)] = &[
     ("font-weight-strong", "600"),
     // Разрядка для набранных прописными подписей: без неё они читаются хуже.
     ("font-letter-spacing-caps", "0.09em"),
+    // Крупные заголовки набираются плотнее: на большом кегле обычная разрядка
+    // выглядит рыхлой.
+    ("font-letter-spacing-tight", "-0.02em"),
     // Скругления. От мелких пометок до рамки окна.
     ("radius-sm", "4px"),
     ("radius-md", "6px"),
@@ -77,6 +80,7 @@ pub const METRICS_NORMAL: &[(&str, &str)] = &[
     ("space-6", "24px"),
     ("font-size-ui", "13px"),
     ("font-size-ui-small", "11px"),
+    ("font-size-title", "22px"),
     ("font-line-height-ui", "1.4"),
     ("control-statusbar-height", "28px"),
     ("control-titlebar-height", "46px"),
@@ -93,6 +97,9 @@ pub const METRICS_NORMAL: &[(&str, &str)] = &[
     ("control-dialog-max-width", "560px"),
     ("control-popup-min-width", "260px"),
     ("control-search-width", "300px"),
+    // Ширина текстовой полосы на экранах вроде параметров: строка длиннее
+    // читается хуже, сколько бы места ни было.
+    ("control-page-width", "660px"),
     ("control-sidebar-width", "240px"),
     ("control-sidebar-min-width", "160px"),
     ("control-sidebar-max-width", "640px"),
@@ -119,6 +126,7 @@ pub const METRICS_COMPACT: &[(&str, &str)] = &[
     ("space-6", "18px"),
     ("font-size-ui", "12px"),
     ("font-size-ui-small", "10px"),
+    ("font-size-title", "20px"),
     ("font-line-height-ui", "1.3"),
     ("control-statusbar-height", "24px"),
     ("control-titlebar-height", "38px"),
@@ -134,6 +142,7 @@ pub const METRICS_COMPACT: &[(&str, &str)] = &[
     ("control-dialog-max-width", "500px"),
     ("control-popup-min-width", "220px"),
     ("control-search-width", "240px"),
+    ("control-page-width", "560px"),
     ("control-sidebar-width", "200px"),
     ("control-sidebar-min-width", "140px"),
     ("control-sidebar-max-width", "560px"),

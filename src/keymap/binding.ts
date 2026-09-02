@@ -29,6 +29,9 @@ const NAMED: Record<string, string> = {
   ArrowRight: 'right',
   ArrowUp: 'up',
   ArrowDown: 'down',
+  // Знаки препинания как клавиши: пока нужна одна, для Ctrl+«,» —
+  // сочетания окна параметров, привычного по другим редакторам.
+  Comma: 'comma',
 };
 
 /** Только то, что нужно для расчёта: так функцию можно проверить тестом. */
@@ -57,6 +60,7 @@ export function bindingOf(event: KeyLike): string | null {
 
 /** Как называется клавиша на подписи. Остальное пишется с большой буквы. */
 const SHOWN: Record<string, string> = {
+  comma: ',',
   escape: 'Esc',
   pageup: 'PgUp',
   pagedown: 'PgDn',

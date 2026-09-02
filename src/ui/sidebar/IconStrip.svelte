@@ -3,6 +3,7 @@
   import type { IconName } from '../../icons/registry';
   import { roots, showPanel, type PanelId } from '../../state/roots.svelte';
   import { noteStructureChange } from '../../state/persist.svelte';
+  import { settings, toggle as toggleSettings } from '../../state/settings.svelte';
 
   /**
    * Полоса значков слева (Р-044).
@@ -44,6 +45,20 @@
       <Icon name={panel.icon} />
     </button>
   {/each}
+
+  <!-- Параметры внизу полосы, как в референсе: это не панель проекта,
+       и в общем ряду им не место. -->
+  <button
+    class="tab bottom"
+    class:active={settings.open}
+    type="button"
+    onclick={toggleSettings}
+    title="Параметры (Ctrl+,)"
+    aria-label="Параметры"
+    aria-pressed={settings.open}
+  >
+    <Icon name="panel.settings" />
+  </button>
 </nav>
 
 <style>
@@ -84,6 +99,10 @@
   .tab.active {
     background-color: var(--zn-color-bg-selected);
     color: var(--zn-color-accent);
+  }
+
+  .bottom {
+    margin-top: auto;
   }
 
   .tab:focus-visible {

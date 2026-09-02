@@ -1,6 +1,6 @@
 ﻿# Отправить нажатия в окно ZeroNote.
 #
-# Два урока, оплаченных отладкой:
+# Три урока, оплаченных отладкой:
 #
 # 1. Передний план из фонового процесса Windows блокирует. Забираем его через
 #    AttachThreadInput и ПРОВЕРЯЕМ результат — без проверки нажатия уходят
@@ -8,6 +8,15 @@
 # 2. Переднего плана мало. WebView2 держит содержимое в дочернем окне, и пока
 #    щелчка внутрь не было, фокус клавиатуры остаётся на рамке: нажатия
 #    приходят в приложение и не доходят до вебвью. Поэтому сначала щелчок.
+# 3. А иногда щелчок всё портит: он закрывает палитру, модальный диалог
+#    и раскрытый список выбора, и нажатия уходят уже не туда. Для таких
+#    случаев -NoClick: окно и так на переднем плане, фокус и так внутри.
+param(
+    [switch]$NoClick,
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [string[]]$Keys
+)
+
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type @"
 using System;
@@ -44,17 +53,19 @@ Start-Sleep -Milliseconds 400
 if ([K]::GetForegroundWindow() -ne $hwnd) { throw "окно не вышло на передний план" }
 
 # Щелчок в рабочую область — правее боковой панели, ниже заголовка.
-$r = New-Object K+RECT
-[void][K]::GetWindowRect($hwnd, [ref]$r)
-$x = [int](($r.Left + $r.Right) / 2 + 150)
-$y = [int](($r.Top + $r.Bottom) / 2)
-[void][K]::SetCursorPos($x, $y)
-Start-Sleep -Milliseconds 150
-[K]::mouse_event(0x0002, 0, 0, 0, [IntPtr]::Zero)
-[K]::mouse_event(0x0004, 0, 0, 0, [IntPtr]::Zero)
-Start-Sleep -Milliseconds 300
+if (-not $NoClick) {
+    $r = New-Object K+RECT
+    [void][K]::GetWindowRect($hwnd, [ref]$r)
+    $x = [int](($r.Left + $r.Right) / 2 + 150)
+    $y = [int](($r.Top + $r.Bottom) / 2)
+    [void][K]::SetCursorPos($x, $y)
+    Start-Sleep -Milliseconds 150
+    [K]::mouse_event(0x0002, 0, 0, 0, [IntPtr]::Zero)
+    [K]::mouse_event(0x0004, 0, 0, 0, [IntPtr]::Zero)
+    Start-Sleep -Milliseconds 300
+}
 
-foreach ($keys in $args) {
+foreach ($keys in $Keys) {
     [System.Windows.Forms.SendKeys]::SendWait($keys)
     Start-Sleep -Milliseconds 400
 }

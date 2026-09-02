@@ -70,6 +70,7 @@
   --zn-font-family-editor: 'JetBrains Mono', 'Cascadia Mono', Consolas, 'Courier New', monospace;
   --zn-font-size-ui: 13px;
   --zn-font-size-ui-small: 11px;
+  --zn-font-size-title: 22px;
   --zn-font-size-editor: 14px;
   --zn-font-line-height-ui: 1.4;
   --zn-font-line-height-editor: 1.5;
@@ -77,6 +78,7 @@
   --zn-font-weight-medium: 500;
   --zn-font-weight-strong: 600;
   --zn-font-letter-spacing-caps: 0.09em;
+  --zn-font-letter-spacing-tight: -0.02em;
 
   /* --- Метрика. Меняется вместе с плотностью интерфейса. --- */
   --zn-space-1: 2px;
@@ -109,6 +111,7 @@
   --zn-control-dialog-max-width: 560px;
   --zn-control-popup-min-width: 260px;
   --zn-control-search-width: 300px;
+  --zn-control-page-width: 660px;
   --zn-control-sidebar-width: 240px;
   --zn-control-sidebar-min-width: 160px;
   --zn-control-sidebar-max-width: 640px;

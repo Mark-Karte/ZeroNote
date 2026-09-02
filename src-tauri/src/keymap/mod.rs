@@ -40,6 +40,7 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("view.next-tab", "Следующая вкладка"),
     ("view.previous-tab", "Предыдущая вкладка"),
     ("view.sidebar", "Показать боковую панель"),
+    ("view.settings", "Параметры"),
     ("project.add-root", "Открыть папку"),
     ("project.quick-open", "Быстрое открытие по имени"),
     ("project.commands", "Палитра команд"),
@@ -86,6 +87,7 @@ pub const DEFAULTS: &[(&str, &str)] = &[
     // тот же смысл, что и у нас.
     ("ctrl+p", "project.quick-open"),
     ("ctrl+shift+p", "project.commands"),
+    ("ctrl+comma", "view.settings"),
     ("ctrl+shift+f", "project.search"),
     // F12 — «перейти к определению» в привычке любого, кто пользовался
     // средой разработки. Ссылка между заметками — то же самое движение.
@@ -99,7 +101,7 @@ pub const DEFAULTS: &[(&str, &str)] = &[
 /// из одного знака.
 const NAMED_KEYS: &[&str] = &[
     "enter", "tab", "escape", "space", "backspace", "delete", "insert", "home", "end", "pageup",
-    "pagedown", "left", "right", "up", "down", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8",
+    "pagedown", "left", "right", "up", "down", "comma", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8",
     "f9", "f10", "f11", "f12",
 ];
 

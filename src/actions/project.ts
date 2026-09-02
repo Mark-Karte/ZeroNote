@@ -14,6 +14,7 @@ import { createEmpty } from '../state/tabs.svelte';
 import { noteStructureChange } from '../state/persist.svelte';
 import { askChoice } from '../state/modal.svelte';
 import { open as openPalette } from '../state/palette.svelte';
+import { toggle as toggleSettings } from '../state/settings.svelte';
 import { focusSearch } from '../state/project-search.svelte';
 
 /**
@@ -95,6 +96,11 @@ export function commandPalette(): void {
 
 export function tagPalette(): void {
   openPalette('tags');
+}
+
+/** Параметры: экран поверх рабочей области, а не вкладка (Р-074). */
+export function showSettings(): void {
+  toggleSettings();
 }
 
 /**

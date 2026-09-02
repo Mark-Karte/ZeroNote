@@ -1,0 +1,353 @@
+<script lang="ts">
+  import Icon from '../Icon.svelte';
+  import { settings, put } from '../../state/settings.svelte';
+  import { appearance } from '../../theme/store.svelte';
+  import { openDropped } from '../../actions/files';
+
+  /**
+   * Экран параметров.
+   *
+   * Показывает НАШИ ключи из `settings.toml`, а не список из дизайн-референса:
+   * там перечислены автосохранение и превью markdown, которых у нас нет.
+   * Настройка, которой не существует, в окне параметров — это обещание,
+   * которое некому выполнить.
+   *
+   * Изменение применяется сразу и пишется в файл. Кнопок «применить»
+   * и «отменить» нет: файл и есть состояние (Р-077).
+   */
+
+  const file = $derived(settings.state);
+  const values = $derived(file?.settings);
+  const broken = $derived(file?.broken ?? null);
+
+  /** Темы, доступные для выбора. Приходят из того же места, что и оформление. */
+  const themes = $derived(appearance.current?.themes ?? []);
+  const light = $derived(themes.filter((t) => t.appearance === 'light'));
+  const dark = $derived(themes.filter((t) => t.appearance === 'dark'));
+
+  const followsSystem = $derived(values?.appearance.theme === 'system');
+
+  /** Пустая строка в поле шрифта означает «как в теме», то есть убрать ключ. */
+  function fontFamily(text: string): void {
+    const trimmed = text.trim();
+    void put(['font', 'ui', 'family'], trimmed === '' ? null : trimmed);
+  }
+
+  function fontSize(text: string): void {
+    const trimmed = text.trim();
+    if (trimmed === '') {
+      void put(['font', 'ui', 'size'], null);
+      return;
+    }
+    const size = Number.parseInt(trimmed, 10);
+    // Число вне разумного диапазона в файл не пойдёт: интерфейс с шрифтом
+    // в два пикселя починить через этот же интерфейс уже не выйдет.
+    if (Number.isFinite(size) && size >= 8 && size <= 32) {
+      void put(['font', 'ui', 'size'], size);
+    }
+  }
+
+  async function openFile(): Promise<void> {
+    if (file) await openDropped([file.path]);
+  }
+</script>
+
+<div class="screen">
+  <div class="page">
+    <header class="head">
+      <h1 class="title">Параметры</h1>
+      <p class="subtitle">Оформление · Шрифт · Файл настроек</p>
+    </header>
+
+    {#if broken}
+      <p class="broken">
+        <Icon name="status.warning" />
+        {broken}
+      </p>
+    {:else if settings.problem}
+      <p class="broken">
+        <Icon name="status.warning" />
+        {settings.problem}
+      </p>
+    {/if}
+
+    {#if values}
+      <div class="rows" class:frozen={broken !== null}>
+        <div class="row">
+          <div class="what">
+            <span class="name">Тема оформления</span>
+            <span class="note">
+              «Как в Windows» переключает пару тем вслед за системной настройкой.
+            </span>
+          </div>
+          <select
+            class="control"
+            disabled={broken !== null}
+            value={values.appearance.theme}
+            onchange={(e) => put(['appearance', 'theme'], e.currentTarget.value)}
+          >
+            <option value="system">Как в Windows</option>
+            {#each themes as theme (theme.id)}
+              <option value={theme.id}>{theme.name}</option>
+            {/each}
+          </select>
+        </div>
+
+        {#if followsSystem}
+          <div class="row">
+            <div class="what">
+              <span class="name">Светлая тема</span>
+              <span class="note">Когда Windows в светлом оформлении.</span>
+            </div>
+            <select
+              class="control"
+              disabled={broken !== null}
+              value={values.appearance.light_theme}
+              onchange={(e) => put(['appearance', 'light_theme'], e.currentTarget.value)}
+            >
+              {#each light as theme (theme.id)}
+                <option value={theme.id}>{theme.name}</option>
+              {/each}
+            </select>
+          </div>
+
+          <div class="row">
+            <div class="what">
+              <span class="name">Тёмная тема</span>
+              <span class="note">Когда Windows в тёмном оформлении.</span>
+            </div>
+            <select
+              class="control"
+              disabled={broken !== null}
+              value={values.appearance.dark_theme}
+              onchange={(e) => put(['appearance', 'dark_theme'], e.currentTarget.value)}
+            >
+              {#each dark as theme (theme.id)}
+                <option value={theme.id}>{theme.name}</option>
+              {/each}
+            </select>
+          </div>
+        {/if}
+
+        <div class="row">
+          <div class="what">
+            <span class="name">Плотность интерфейса</span>
+            <span class="note">
+              Компактная уменьшает высоты строк, отступы и размер шрифта.
+            </span>
+          </div>
+          <select
+            class="control"
+            disabled={broken !== null}
+            value={values.appearance.density}
+            onchange={(e) => put(['appearance', 'density'], e.currentTarget.value)}
+          >
+            <option value="normal">Обычная</option>
+            <option value="compact">Компактная</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <div class="what">
+            <span class="name">Шрифт интерфейса</span>
+            <span class="note">Пусто — из темы. Шрифт редактора задаёт тема.</span>
+          </div>
+          <input
+            class="control text"
+            type="text"
+            disabled={broken !== null}
+            value={values.font.ui.family ?? ''}
+            placeholder="как в теме"
+            spellcheck="false"
+            onchange={(e) => fontFamily(e.currentTarget.value)}
+          />
+        </div>
+
+        <div class="row">
+          <div class="what">
+            <span class="name">Размер шрифта интерфейса</span>
+            <span class="note">От 8 до 32 пикселей. Пусто — из темы.</span>
+          </div>
+          <input
+            class="control number"
+            type="number"
+            min="8"
+            max="32"
+            disabled={broken !== null}
+            value={values.font.ui.size ?? ''}
+            placeholder="как в теме"
+            onchange={(e) => fontSize(e.currentTarget.value)}
+          />
+        </div>
+      </div>
+
+      <!-- Файл — основной интерфейс настройки, а это окно — надстройка над ним.
+           Поэтому путь показан, а файл открывается здесь же: мы редактор,
+           и звать для этого чужую программу было бы странно. -->
+      <div class="card">
+        <span class="card-icon"><Icon name="action.project-file" /></span>
+        <div class="what">
+          <span class="name">settings.toml</span>
+          <span class="note path">{file?.path}</span>
+        </div>
+        <button class="button" type="button" onclick={openFile}>Открыть</button>
+      </div>
+
+      <p class="footer">
+        Всё, что есть в окне, есть и в файле. Файл можно править руками
+        и класть в git — изменения подхватываются на лету.
+      </p>
+    {/if}
+  </div>
+</div>
+
+<style>
+  .screen {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .page {
+    max-width: var(--zn-control-page-width);
+    padding: var(--zn-space-6) var(--zn-space-6) var(--zn-space-6);
+  }
+
+  .head {
+    margin-bottom: var(--zn-space-6);
+  }
+
+  .title {
+    margin: 0;
+    color: var(--zn-color-fg-default);
+    font-size: var(--zn-font-size-title);
+    font-weight: var(--zn-font-weight-strong);
+    letter-spacing: var(--zn-font-letter-spacing-tight);
+  }
+
+  .subtitle {
+    margin: var(--zn-space-2) 0 0 0;
+    color: var(--zn-color-fg-subtle);
+  }
+
+  .broken {
+    display: flex;
+    align-items: center;
+    gap: var(--zn-space-2);
+    margin: 0 0 var(--zn-space-5) 0;
+    padding: var(--zn-space-3) var(--zn-space-4);
+    border: var(--zn-border-width) solid var(--zn-color-warning);
+    border-radius: var(--zn-radius-lg);
+    color: var(--zn-color-warning);
+  }
+
+  .rows {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: var(--zn-space-5);
+    padding-block: var(--zn-space-4);
+    border-bottom: var(--zn-border-width) solid var(--zn-color-border-subtle);
+  }
+
+  .what {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    gap: var(--zn-space-1);
+  }
+
+  .name {
+    color: var(--zn-color-fg-default);
+  }
+
+  .note {
+    color: var(--zn-color-fg-subtle);
+    font-size: var(--zn-font-size-ui-small);
+  }
+
+  .path {
+    font-family: var(--zn-font-family-editor);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .control {
+    flex: none;
+    height: var(--zn-control-field-height);
+    min-width: var(--zn-control-popup-min-width);
+    padding-inline: var(--zn-space-3);
+    border: var(--zn-border-width) solid var(--zn-color-border-default);
+    border-radius: var(--zn-radius-md);
+    background-color: var(--zn-color-bg-canvas);
+    color: var(--zn-color-fg-default);
+    font-family: inherit;
+    font-size: var(--zn-font-size-ui);
+  }
+
+  .control:focus-visible {
+    outline: none;
+    border-color: var(--zn-color-border-focus);
+  }
+
+  .control:disabled {
+    color: var(--zn-color-fg-subtle);
+  }
+
+  .number {
+    min-width: var(--zn-control-tab-min-width);
+  }
+
+  .card {
+    display: flex;
+    align-items: center;
+    gap: var(--zn-space-4);
+    margin-top: var(--zn-space-6);
+    padding: var(--zn-space-4);
+    border: var(--zn-border-width) solid var(--zn-color-border-subtle);
+    border-radius: var(--zn-radius-lg);
+    background-color: var(--zn-color-bg-surface);
+  }
+
+  .card-icon {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: var(--zn-control-strip-button-size);
+    height: var(--zn-control-strip-button-size);
+    border-radius: var(--zn-radius-xl);
+    background-color: var(--zn-color-bg-selected);
+    color: var(--zn-color-accent);
+  }
+
+  .button {
+    flex: none;
+    height: var(--zn-control-field-height);
+    padding-inline: var(--zn-space-4);
+    border: var(--zn-border-width) solid var(--zn-color-accent);
+    border-radius: var(--zn-radius-lg);
+    background-color: var(--zn-color-accent);
+    color: var(--zn-color-fg-on-accent);
+    font-family: inherit;
+    font-size: var(--zn-font-size-ui);
+    cursor: default;
+  }
+
+  .button:hover {
+    background-color: var(--zn-color-accent-hover);
+    border-color: var(--zn-color-accent-hover);
+  }
+
+  .footer {
+    margin: var(--zn-space-5) 0 0 0;
+    color: var(--zn-color-fg-subtle);
+    font-size: var(--zn-font-size-ui-small);
+  }
+</style>

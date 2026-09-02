@@ -127,6 +127,8 @@ pub fn run() {
             commands::appearance::appearance_state,
             commands::appearance::builtin_theme_source,
             commands::keymap::keymap_state,
+            commands::settings::settings_state,
+            commands::settings::update_setting,
             commands::files::startup_paths,
             commands::files::list_buffers,
             commands::files::new_buffer,
