@@ -1,0 +1,45 @@
+# «Хвоя» — тёмно-зелёная тема. Самая тёплая из тёмных: фоны с зеленью,
+# акцент зелёный, из-за чего ссылки и активные строки не спорят с синим кодом.
+#
+# Устройство палитры и назначение ключей описаны в dark.toml.
+
+schema = 1
+id = "pine"
+name = "Хвоя"
+appearance = "dark"
+
+[palette]
+bg-0 = "#0b1210"
+bg-1 = "#111a17"
+bg-2 = "#16211d"
+bg-3 = "#1f2d27"
+bg-4 = "#293a32"
+
+fg-0 = "#e3ece7"
+fg-1 = "#a2b3ab"
+fg-2 = "#6a7d75"
+fg-on-accent = "#0b1210"
+
+accent = "#4fb286"
+accent-hover = "#66c79b"
+accent-soft = "rgba(79, 178, 134, 0.16)"
+accent-selection = "rgba(79, 178, 134, 0.30)"
+
+border = "#2f4239"
+border-subtle = "#1e2b26"
+
+danger = "#e0715f"
+warning = "#e0b072"
+success = "#7fd1a1"
+
+syn-keyword = "#9bd07a"
+syn-string = "#7fd1a1"
+syn-comment = "#586b62"
+syn-number = "#e8c98a"
+syn-type = "#e0b072"
+syn-function = "#6fc5c0"
+
+shadow-weak = "rgba(0, 0, 0, 0.32)"
+shadow-strong = "rgba(0, 0, 0, 0.60)"
+
+overlay = "rgba(4, 9, 8, 0.58)"

@@ -91,7 +91,7 @@
   .title {
     color: var(--zn-color-fg-muted);
     font-size: var(--zn-font-size-ui-small);
-    font-weight: var(--zn-font-weight-medium);
+    font-weight: var(--zn-font-weight-strong);
     text-transform: uppercase;
     letter-spacing: var(--zn-font-letter-spacing-caps);
   }

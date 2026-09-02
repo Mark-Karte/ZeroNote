@@ -1,0 +1,48 @@
+# «Контраст» — чёрный фон и максимально разведённые цвета.
+#
+# Тема не про красоту, а про читаемость: при ярком свете, на плохом экране
+# и при слабом зрении. Поэтому подложки акцентом здесь плотнее, чем в других
+# тёмных темах, а серые полутона почти не используются.
+#
+# Устройство палитры и назначение ключей описаны в dark.toml.
+
+schema = 1
+id = "contrast"
+name = "Контраст"
+appearance = "dark"
+
+[palette]
+bg-0 = "#000000"
+bg-1 = "#0a0a0a"
+bg-2 = "#111111"
+bg-3 = "#1e1e1e"
+bg-4 = "#2b2b2b"
+
+fg-0 = "#ffffff"
+fg-1 = "#d0d0d0"
+fg-2 = "#8a8a8a"
+fg-on-accent = "#000000"
+
+accent = "#9db4ff"
+accent-hover = "#b8c8ff"
+accent-soft = "rgba(157, 180, 255, 0.20)"
+accent-selection = "rgba(157, 180, 255, 0.36)"
+
+border = "#4d4d4d"
+border-subtle = "#2e2e2e"
+
+danger = "#ff6b6b"
+warning = "#ffc46b"
+success = "#8cf0b4"
+
+syn-keyword = "#d6a2ff"
+syn-string = "#8cf0b4"
+syn-comment = "#7a7a7a"
+syn-number = "#ffd98c"
+syn-type = "#ffc46b"
+syn-function = "#8cc8ff"
+
+shadow-weak = "rgba(0, 0, 0, 0.60)"
+shadow-strong = "rgba(0, 0, 0, 0.85)"
+
+overlay = "rgba(0, 0, 0, 0.72)"

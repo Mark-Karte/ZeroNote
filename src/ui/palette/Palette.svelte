@@ -210,7 +210,7 @@
   mark {
     background: transparent;
     color: var(--zn-color-accent);
-    font-weight: var(--zn-font-weight-medium);
+    font-weight: var(--zn-font-weight-strong);
   }
 
   .place {

@@ -17,33 +17,46 @@
 
 /// Токены, не зависящие ни от темы, ни от плотности.
 pub const BASE: &[(&str, &str)] = &[
-    // Шрифты. Пустая семья интерфейса означает «системный»; подстановка
-    // системного стека — забота CSS, здесь мы не знаем ОС пользователя.
+    // Шрифты. Вшитые семьи стоят первыми, системные — запасными на случай,
+    // если файл шрифта почему-то не загрузился (Р-075, Р-081).
     (
         "font-family-ui",
-        "'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif",
+        "'IBM Plex Sans', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif",
     ),
     (
         "font-family-editor",
-        "'Cascadia Mono', Consolas, 'Courier New', monospace",
+        "'JetBrains Mono', 'Cascadia Mono', Consolas, 'Courier New', monospace",
     ),
     ("font-size-editor", "14px"),
     ("font-line-height-editor", "1.5"),
     ("font-weight-normal", "400"),
-    ("font-weight-medium", "600"),
+    // Три начертания вместо двух: 500 для тихого выделения (имя корня,
+    // активная вкладка), 600 для заголовков и надзаголовков. Пока шрифт был
+    // системным, разница между ними была почти незаметна, и `medium` означал
+    // 600. Со вшитым Plex различие видно, и имя должно означать вес.
+    ("font-weight-medium", "500"),
+    ("font-weight-strong", "600"),
     // Разрядка для набранных прописными подписей: без неё они читаются хуже.
-    ("font-letter-spacing-caps", "0.06em"),
-    // Скругления.
-    ("radius-sm", "3px"),
-    ("radius-md", "5px"),
+    ("font-letter-spacing-caps", "0.09em"),
+    // Скругления. От мелких пометок до рамки окна.
+    ("radius-sm", "4px"),
+    ("radius-md", "6px"),
     ("radius-lg", "8px"),
+    ("radius-xl", "10px"),
+    ("radius-window", "14px"),
     // Границы.
     ("border-width", "1px"),
     ("border-width-thick", "2px"),
-    // Тени. Значения по умолчанию нейтральные; встроенные темы их переопределяют,
-    // потому что тёмной теме нужна заметно более плотная тень.
-    ("shadow-raised", "0 1px 2px rgba(0, 0, 0, 0.16)"),
-    ("shadow-overlay", "0 8px 24px rgba(0, 0, 0, 0.24)"),
+    // Тени. Геометрия общая, цвет — из палитры темы: тёмной теме нужна заметно
+    // более плотная тень, и раньше каждая тема переписывала строку целиком.
+    // Теперь тема задаёт два цвета, а четыре тени получаются сами.
+    ("shadow-raised", "0 1px 2px {palette.shadow-weak}"),
+    ("shadow-overlay", "0 18px 44px -16px {palette.shadow-strong}"),
+    ("shadow-dialog", "0 32px 80px -20px {palette.shadow-strong}"),
+    (
+        "shadow-window",
+        "0 24px 60px -20px {palette.shadow-strong}, 0 2px 6px {palette.shadow-weak}",
+    ),
     // Движение. «Базовые переходы» — всё, что разрешено первым кругом.
     ("motion-duration-fast", "90ms"),
     ("motion-duration-normal", "160ms"),
@@ -65,14 +78,16 @@ pub const METRICS_NORMAL: &[(&str, &str)] = &[
     ("font-size-ui", "13px"),
     ("font-size-ui-small", "11px"),
     ("font-line-height-ui", "1.4"),
-    ("control-statusbar-height", "24px"),
-    ("control-titlebar-height", "34px"),
-    ("control-tab-height", "32px"),
+    ("control-statusbar-height", "28px"),
+    ("control-titlebar-height", "46px"),
+    ("control-tab-height", "38px"),
     ("control-tab-min-width", "110px"),
     ("control-tab-max-width", "220px"),
     ("control-window-button-width", "46px"),
     ("control-toolbar-height", "36px"),
-    ("control-row-height", "24px"),
+    ("control-row-height", "26px"),
+    // Высота полей ввода и кнопок. Отдельно от строки списка: поле выше её.
+    ("control-field-height", "28px"),
     ("control-icon-size", "16px"),
     ("control-dialog-min-width", "420px"),
     ("control-dialog-max-width", "560px"),
@@ -80,11 +95,12 @@ pub const METRICS_NORMAL: &[(&str, &str)] = &[
     ("control-sidebar-width", "240px"),
     ("control-sidebar-min-width", "160px"),
     ("control-sidebar-max-width", "640px"),
-    ("control-tree-indent", "14px"),
+    ("control-tree-indent", "16px"),
     // Отдельно от `control-row-height`: строка дерева плотнее прочих списков,
     // и подгонка одного не должна двигать другое.
     ("control-tree-row-height", "22px"),
-    ("control-strip-width", "40px"),
+    ("control-strip-width", "50px"),
+    ("control-strip-button-size", "38px"),
 ];
 
 /// Метрики компактной плотности.
@@ -103,14 +119,15 @@ pub const METRICS_COMPACT: &[(&str, &str)] = &[
     ("font-size-ui", "12px"),
     ("font-size-ui-small", "10px"),
     ("font-line-height-ui", "1.3"),
-    ("control-statusbar-height", "20px"),
-    ("control-titlebar-height", "30px"),
-    ("control-tab-height", "26px"),
+    ("control-statusbar-height", "24px"),
+    ("control-titlebar-height", "38px"),
+    ("control-tab-height", "32px"),
     ("control-tab-min-width", "90px"),
     ("control-tab-max-width", "180px"),
     ("control-window-button-width", "40px"),
     ("control-toolbar-height", "30px"),
-    ("control-row-height", "20px"),
+    ("control-row-height", "22px"),
+    ("control-field-height", "24px"),
     ("control-icon-size", "14px"),
     ("control-dialog-min-width", "360px"),
     ("control-dialog-max-width", "500px"),
@@ -118,9 +135,10 @@ pub const METRICS_COMPACT: &[(&str, &str)] = &[
     ("control-sidebar-width", "200px"),
     ("control-sidebar-min-width", "140px"),
     ("control-sidebar-max-width", "560px"),
-    ("control-tree-indent", "12px"),
+    ("control-tree-indent", "13px"),
     ("control-tree-row-height", "19px"),
-    ("control-strip-width", "34px"),
+    ("control-strip-width", "42px"),
+    ("control-strip-button-size", "32px"),
 ];
 
 /// Семантические роли, выраженные через палитру.
@@ -133,7 +151,14 @@ pub const SEMANTIC_COLORS: &[(&str, &str)] = &[
     ("color-bg-raised", "{palette.bg-2}"),
     ("color-bg-hover", "{palette.bg-3}"),
     ("color-bg-active", "{palette.bg-4}"),
+    // Две разные подложки акцентом, и путать их нельзя. `selected` — тихая,
+    // ею залита активная строка списка и подсвеченное совпадение поиска.
+    // `selection` — заметно плотнее: ею выделен текст в редакторе, и он должен
+    // быть виден поверх подсвеченной строки, а не сливаться с ней.
     ("color-bg-selected", "{palette.accent-soft}"),
+    ("color-bg-selection", "{palette.accent-selection}"),
+    // Подложка под модальным окном и палитрой.
+    ("color-bg-overlay", "{palette.overlay}"),
     ("color-fg-default", "{palette.fg-0}"),
     ("color-fg-muted", "{palette.fg-1}"),
     ("color-fg-subtle", "{palette.fg-2}"),
@@ -161,15 +186,26 @@ pub const SEMANTIC_COLORS: &[(&str, &str)] = &[
     ("color-syntax-number", "{palette.syn-number}"),
     ("color-syntax-type", "{palette.syn-type}"),
     ("color-syntax-function", "{palette.syn-function}"),
-    ("color-syntax-operator", "{palette.syn-operator}"),
+    ("color-syntax-operator", "{palette.fg-1}"),
     ("color-syntax-variable", "{palette.fg-0}"),
-    ("color-syntax-punctuation", "{palette.fg-1}"),
-    ("color-syntax-heading", "{palette.syn-heading}"),
+    ("color-syntax-punctuation", "{palette.fg-2}"),
+    // Заголовок markdown отличается весом, а не цветом (Р-082). Тема, которой
+    // это не нравится, задаёт `[color] syntax-heading` — для того слой ролей
+    // и нужен.
+    ("color-syntax-heading", "{palette.fg-0}"),
     ("color-syntax-link", "{palette.accent}"),
     ("color-syntax-emphasis", "{palette.fg-0}"),
     ("color-syntax-strong", "{palette.fg-0}"),
     ("color-syntax-quote", "{palette.fg-1}"),
     ("color-syntax-invalid", "{palette.danger}"),
+    // Цвет метки файла по виду содержимого. Ролей четыре, а не двадцать:
+    // иначе автор темы обязан подобрать цвет каждому расширению, а добавление
+    // языка означало бы правку всех тем. Какое расширение к какой роли
+    // относится, решает реестр значков во фронтенде.
+    ("color-file-note", "{palette.accent}"),
+    ("color-file-code", "{palette.syn-function}"),
+    ("color-file-data", "{palette.syn-number}"),
+    ("color-file-other", "{palette.fg-2}"),
 ];
 
 /// Полный список имён токенов. Используется для проверки пользовательских тем

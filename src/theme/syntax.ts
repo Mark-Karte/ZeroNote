@@ -32,19 +32,21 @@ export const zeronoteHighlight = HighlightStyle.define([
   { tag: [tags.punctuation, tags.bracket, tags.separator], color: c('punctuation') },
   { tag: tags.invalid, color: c('invalid') },
 
-  // Markdown и разметка. Здесь важен не только цвет: заголовок без веса
-  // и курсив без наклона не читаются как заголовок и курсив.
+  // Markdown и разметка. Здесь работает не цвет, а начертание: заголовок
+  // отличается весом, курсив — наклоном. У заголовка это единственное
+  // отличие — во встроенных темах его цвет совпадает с цветом обычного
+  // текста (Р-082), и без веса он ничем бы не выделялся.
   {
     tag: tags.heading,
     color: c('heading'),
-    fontWeight: 'var(--zn-font-weight-medium)',
+    fontWeight: 'var(--zn-font-weight-strong)',
   },
   { tag: [tags.link, tags.url], color: c('link') },
   { tag: tags.emphasis, color: c('emphasis'), fontStyle: 'italic' },
   {
     tag: tags.strong,
     color: c('strong'),
-    fontWeight: 'var(--zn-font-weight-medium)',
+    fontWeight: 'var(--zn-font-weight-strong)',
   },
   { tag: [tags.quote, tags.meta], color: c('quote') },
   // Зачёркнутое в markdown: цвет не меняем, меняем начертание.

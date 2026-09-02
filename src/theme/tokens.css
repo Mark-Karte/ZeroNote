@@ -9,63 +9,74 @@
  * на :root. Окно показывается уже после применения, поэтому вспышки не бывает.
  *
  * Набор имён здесь и в tokens.rs обязан совпадать ровно — расхождение валит
- * тест. Значения расходиться могут: они всё равно перезаписываются.
+ * тест. Значения расходиться могут: они всё равно перезаписываются. Здесь
+ * они взяты из встроенной светлой темы «Бумага».
  */
 
 :root {
   /* --- Цвет: семантические роли. Палитра сюда не попадает: компонент не
      должен знать, какой именно серый ему достался. --- */
   --zn-color-bg-canvas: #ffffff;
-  --zn-color-bg-surface: #f5f6f8;
+  --zn-color-bg-surface: #f7f8fa;
   --zn-color-bg-raised: #ffffff;
-  --zn-color-bg-hover: #eaecf0;
-  --zn-color-bg-active: #dde1e7;
-  --zn-color-bg-selected: #dbe6fe;
+  --zn-color-bg-hover: #eceef4;
+  --zn-color-bg-active: #dfe3ea;
+  --zn-color-bg-selected: rgba(76, 95, 224, 0.12);
+  --zn-color-bg-selection: rgba(76, 95, 224, 0.22);
+  --zn-color-bg-overlay: rgba(24, 30, 42, 0.35);
 
-  --zn-color-fg-default: #1a1e26;
-  --zn-color-fg-muted: #5b6472;
-  --zn-color-fg-subtle: #8b93a1;
+  --zn-color-fg-default: #1b1f27;
+  --zn-color-fg-muted: #535b6a;
+  --zn-color-fg-subtle: #8b93a3;
   --zn-color-fg-on-accent: #ffffff;
 
-  --zn-color-accent: #2563eb;
-  --zn-color-accent-hover: #1d4ed8;
+  --zn-color-accent: #4c5fe0;
+  --zn-color-accent-hover: #3a4ccc;
 
-  --zn-color-border-default: #d5dae1;
-  --zn-color-border-subtle: #e7eaee;
-  --zn-color-border-focus: #2563eb;
+  --zn-color-border-default: #c7ccd6;
+  --zn-color-border-subtle: #e1e4ea;
+  --zn-color-border-focus: #4c5fe0;
 
-  --zn-color-danger: #c62828;
-  --zn-color-warning: #b45309;
-  --zn-color-success: #15803d;
+  --zn-color-danger: #c0392b;
+  --zn-color-warning: #a15c00;
+  --zn-color-success: #1b7f52;
 
   /* --- Подсветка синтаксиса. Такие же токены, как всё остальное (Р-047). --- */
-  --zn-color-syntax-keyword: #6f42c1;
-  --zn-color-syntax-string: #2a7a3f;
-  --zn-color-syntax-comment: #7a828e;
-  --zn-color-syntax-number: #a15c00;
-  --zn-color-syntax-type: #0f7d8c;
-  --zn-color-syntax-function: #1a5fb4;
-  --zn-color-syntax-operator: #4b5563;
-  --zn-color-syntax-variable: #1a1e26;
-  --zn-color-syntax-punctuation: #5b6472;
-  --zn-color-syntax-heading: #1a5fb4;
-  --zn-color-syntax-link: #2563eb;
-  --zn-color-syntax-emphasis: #1a1e26;
-  --zn-color-syntax-strong: #1a1e26;
-  --zn-color-syntax-quote: #5b6472;
-  --zn-color-syntax-invalid: #c62828;
+  --zn-color-syntax-keyword: #7a45d6;
+  --zn-color-syntax-string: #1b7f52;
+  --zn-color-syntax-comment: #98a0ad;
+  --zn-color-syntax-number: #8a6d1f;
+  --zn-color-syntax-type: #a65a12;
+  --zn-color-syntax-function: #2563c7;
+  --zn-color-syntax-operator: #535b6a;
+  --zn-color-syntax-variable: #1b1f27;
+  --zn-color-syntax-punctuation: #8b93a3;
+  --zn-color-syntax-heading: #1b1f27;
+  --zn-color-syntax-link: #4c5fe0;
+  --zn-color-syntax-emphasis: #1b1f27;
+  --zn-color-syntax-strong: #1b1f27;
+  --zn-color-syntax-quote: #535b6a;
+  --zn-color-syntax-invalid: #c0392b;
+
+  /* --- Цвет метки файла по виду содержимого. Расширение → роль решает
+     реестр значков, а не тема. --- */
+  --zn-color-file-note: #4c5fe0;
+  --zn-color-file-code: #2563c7;
+  --zn-color-file-data: #8a6d1f;
+  --zn-color-file-other: #8b93a3;
 
   /* --- Типографика --- */
-  --zn-font-family-ui: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
-  --zn-font-family-editor: 'Cascadia Mono', Consolas, 'Courier New', monospace;
+  --zn-font-family-ui: 'IBM Plex Sans', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --zn-font-family-editor: 'JetBrains Mono', 'Cascadia Mono', Consolas, 'Courier New', monospace;
   --zn-font-size-ui: 13px;
   --zn-font-size-ui-small: 11px;
   --zn-font-size-editor: 14px;
   --zn-font-line-height-ui: 1.4;
   --zn-font-line-height-editor: 1.5;
   --zn-font-weight-normal: 400;
-  --zn-font-weight-medium: 600;
-  --zn-font-letter-spacing-caps: 0.06em;
+  --zn-font-weight-medium: 500;
+  --zn-font-weight-strong: 600;
+  --zn-font-letter-spacing-caps: 0.09em;
 
   /* --- Метрика. Меняется вместе с плотностью интерфейса. --- */
   --zn-space-1: 2px;
@@ -75,21 +86,24 @@
   --zn-space-5: 16px;
   --zn-space-6: 24px;
 
-  --zn-radius-sm: 3px;
-  --zn-radius-md: 5px;
+  --zn-radius-sm: 4px;
+  --zn-radius-md: 6px;
   --zn-radius-lg: 8px;
+  --zn-radius-xl: 10px;
+  --zn-radius-window: 14px;
 
   --zn-border-width: 1px;
   --zn-border-width-thick: 2px;
 
-  --zn-control-statusbar-height: 24px;
-  --zn-control-titlebar-height: 34px;
-  --zn-control-tab-height: 32px;
+  --zn-control-statusbar-height: 28px;
+  --zn-control-titlebar-height: 46px;
+  --zn-control-tab-height: 38px;
   --zn-control-tab-min-width: 110px;
   --zn-control-tab-max-width: 220px;
   --zn-control-window-button-width: 46px;
   --zn-control-toolbar-height: 36px;
-  --zn-control-row-height: 24px;
+  --zn-control-row-height: 26px;
+  --zn-control-field-height: 28px;
   --zn-control-icon-size: 16px;
   --zn-control-dialog-min-width: 420px;
   --zn-control-dialog-max-width: 560px;
@@ -97,13 +111,16 @@
   --zn-control-sidebar-width: 240px;
   --zn-control-sidebar-min-width: 160px;
   --zn-control-sidebar-max-width: 640px;
-  --zn-control-tree-indent: 14px;
+  --zn-control-tree-indent: 16px;
   --zn-control-tree-row-height: 22px;
-  --zn-control-strip-width: 40px;
+  --zn-control-strip-width: 50px;
+  --zn-control-strip-button-size: 38px;
 
   /* --- Глубина --- */
   --zn-shadow-raised: 0 1px 2px rgba(16, 24, 40, 0.1);
-  --zn-shadow-overlay: 0 8px 24px rgba(16, 24, 40, 0.16);
+  --zn-shadow-overlay: 0 18px 44px -16px rgba(16, 24, 40, 0.22);
+  --zn-shadow-dialog: 0 32px 80px -20px rgba(16, 24, 40, 0.22);
+  --zn-shadow-window: 0 24px 60px -20px rgba(16, 24, 40, 0.22), 0 2px 6px rgba(16, 24, 40, 0.1);
 
   --zn-z-panel: 10;
   --zn-z-overlay: 100;

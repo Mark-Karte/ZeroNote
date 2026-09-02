@@ -52,15 +52,19 @@
 }
 
 /* Собственная отрисовка выделения CodeMirror и системная — обе должны
-   слушаться токенов, иначе в одной из тем текст пропадает на фоне. */
+   слушаться токенов, иначе в одной из тем текст пропадает на фоне.
+
+   Роль отдельная от `bg-selected`: та же подложка, но плотнее. Выделение
+   лежит поверх подсветки текущей строки, и на одинаковых цветах его границы
+   не видно — а выделение надо видеть точно. */
 .cm-editor .cm-selectionBackground,
 .cm-editor .cm-content ::selection,
 .cm-editor .cm-line::selection {
-  background-color: var(--zn-color-bg-selected);
+  background-color: var(--zn-color-bg-selection);
 }
 
 .cm-editor.cm-focused .cm-selectionBackground {
-  background-color: var(--zn-color-bg-selected);
+  background-color: var(--zn-color-bg-selection);
 }
 
 /* Полоса прокрутки редактора: системная в тёмной теме выглядит чужеродно. */

@@ -1,0 +1,48 @@
+# «Нордик» — холодная серо-голубая тема с приглушёнными цветами кода.
+# Самые светлые фоны среди тёмных тем: годится при дневном свете, когда
+# «Графит» кажется провалом в окне.
+#
+# Устройство палитры и назначение ключей описаны в dark.toml.
+
+schema = 1
+id = "nordic"
+name = "Нордик"
+appearance = "dark"
+
+[palette]
+bg-0 = "#20242c"
+bg-1 = "#2a303a"
+bg-2 = "#313846"
+bg-3 = "#3b4453"
+bg-4 = "#47515f"
+
+fg-0 = "#e5ebf2"
+fg-1 = "#a9b4c4"
+fg-2 = "#76839a"
+fg-on-accent = "#20242c"
+
+accent = "#88c0d0"
+accent-hover = "#9fd0dd"
+accent-soft = "rgba(136, 192, 208, 0.16)"
+accent-selection = "rgba(136, 192, 208, 0.30)"
+
+border = "#4c5768"
+border-subtle = "#3a4250"
+
+# Родной для этой палитры красный (#bf616a) даёт на фоне панели 3,2:1 —
+# ниже порога читаемости, а этим цветом печатаются ошибки. Осветлён до 5,1:1.
+danger = "#dd8a90"
+warning = "#ebcb8b"
+success = "#a3be8c"
+
+syn-keyword = "#b48ead"
+syn-string = "#a3be8c"
+syn-comment = "#67748c"
+syn-number = "#d08770"
+syn-type = "#ebcb8b"
+syn-function = "#88c0d0"
+
+shadow-weak = "rgba(0, 0, 0, 0.28)"
+shadow-strong = "rgba(0, 0, 0, 0.55)"
+
+overlay = "rgba(14, 17, 22, 0.55)"

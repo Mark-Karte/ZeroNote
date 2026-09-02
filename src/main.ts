@@ -13,6 +13,9 @@ import {
 import { benchReport } from './bench/report-state.svelte';
 import { startAppearance } from './theme/store.svelte';
 
+// Шрифты объявляются первыми: к моменту первой отрисовки браузер уже знает,
+// откуда их брать, и кадра системным шрифтом не бывает.
+import './theme/fonts.css';
 import './theme/tokens.css';
 import './theme/base.css';
 

@@ -14,8 +14,18 @@ import { describe, expect, it } from 'vitest';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
-/** Единственный файл, где литеральные значения разрешены. */
+/** Слой токенов: единственное место, где литеральные цвета и размеры уместны. */
 const TOKEN_LAYER = join('src', 'theme', 'tokens.css');
+
+/**
+ * Объявление вшитых шрифтов. Тоже с литералами, но другого рода: вес и
+ * диапазон символов там — свойства файла шрифта, а не выбор оформления.
+ * Чтобы послабление не превратилось в лазейку, ниже отдельно проверяется,
+ * что в файле нет ничего, кроме @font-face.
+ */
+const FONT_LAYER = join('src', 'theme', 'fonts.css');
+
+const EXEMPT = [TOKEN_LAYER, FONT_LAYER];
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
@@ -119,7 +129,7 @@ function inspect(file: string): Violation[] {
 
 describe('слой токенов', () => {
   const files = walk(join(root, 'src')).filter(
-    (file) => relative(root, file) !== TOKEN_LAYER,
+    (file) => !EXEMPT.includes(relative(root, file)),
   );
 
   it('находит файлы для проверки', () => {
@@ -135,6 +145,44 @@ describe('слой токенов', () => {
       .join('\n');
 
     expect(violations, `Найдены зашитые значения оформления:\n${report}`).toEqual([]);
+  });
+});
+
+describe('объявление шрифтов', () => {
+  /**
+   * fonts.css выведен из-под проверки на литералы. Значит, в нём можно было бы
+   * незаметно спрятать оформление — например, задать цвет фона. Поэтому
+   * проверяем состав: кроме блоков @font-face в файле не должно быть ничего.
+   */
+  it('в fonts.css нет ничего, кроме @font-face', () => {
+    const css = stripComments(readFileSync(join(root, FONT_LAYER), 'utf8'));
+    const rest = css.replace(/@font-face\s*\{[^}]*\}/g, '').trim();
+
+    expect(rest, `за пределами @font-face осталось: ${rest}`).toBe('');
+  });
+
+  /** Пустой файл прошёл бы проверку выше, ничего не проверив. */
+  it('объявлены оба семейства в обоих начертаниях', () => {
+    const css = readFileSync(join(root, FONT_LAYER), 'utf8');
+    const blocks = css.match(/@font-face\s*\{[^}]*\}/g) ?? [];
+
+    expect(blocks.length).toBe(4);
+    for (const family of ['IBM Plex Sans', 'JetBrains Mono']) {
+      const own = blocks.filter((b) => b.includes(family));
+      expect(own.length, `${family}: ожидались латиница и кириллица`).toBe(2);
+    }
+  });
+
+  /** Файл шрифта, потерянный при правке, — это молча уехавшая метрика. */
+  it('каждый объявленный файл существует', () => {
+    const css = readFileSync(join(root, FONT_LAYER), 'utf8');
+    const urls = [...css.matchAll(/url\('\.\/([^']+)'\)/g)].map((m) => m[1]!);
+
+    expect(urls.length).toBe(4);
+    for (const url of urls) {
+      const file = join(root, 'src', 'theme', url);
+      expect(statSync(file).size, `${url} пуст`).toBeGreaterThan(0);
+    }
   });
 });
 

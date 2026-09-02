@@ -226,3 +226,9 @@ Mark Karte и Claude (Anthropic). Проект пишется в паре: ар�
 ## Лицензия
 
 MIT — см. [LICENSE](LICENSE). Правообладатель — Mark Karte.
+
+Вместе с приложением распространяются два шрифта под SIL Open Font License 1.1:
+**IBM Plex Sans** (© 2017 IBM Corp.) и **JetBrains Mono**
+(© 2020 The JetBrains Mono Project Authors). Файлы и тексты лицензий —
+в [src/theme/fonts/](src/theme/fonts/). На остальной код и документацию
+это не влияет: OFL распространяется на сами шрифты.

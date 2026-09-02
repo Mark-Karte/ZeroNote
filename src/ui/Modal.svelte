@@ -137,7 +137,7 @@
     margin: 0 0 var(--zn-space-3) 0;
     color: var(--zn-color-fg-default);
     font-size: var(--zn-font-size-ui);
-    font-weight: var(--zn-font-weight-medium);
+    font-weight: var(--zn-font-weight-strong);
   }
 
   .text {
