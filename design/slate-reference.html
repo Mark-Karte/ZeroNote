@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #0d0f14; }
+  * { box-sizing: border-box; }
+  a { color: #7B8CFF; text-decoration: none; }
+  a:hover { color: #9AA6FF; }
+  ::selection { background: rgba(123,140,255,.28); }
+  @keyframes slateBlink { 0%, 45% { opacity: 1 } 50%, 95% { opacity: 0 } 100% { opacity: 1 } }
+  @keyframes slateRise { from { opacity: 0; transform: translateY(-6px) scale(.99) } to { opacity: 1; transform: none } }
+  @keyframes slateFade { from { opacity: 0 } to { opacity: 1 } }
+</style>
+</helmet>
+<div ref="{{ rootRef }}" onClick="{{ closeThemeMenu }}" style="position: fixed; inset: 0; display: flex; padding: 20px; background: var(--bg0, #0d0f14); font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 13px; color: var(--tx0, #e6e8ef); -webkit-font-smoothing: antialiased;">
+  <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; border-radius: 14px; overflow: hidden; background: var(--bg1, #15181f); border: 1px solid var(--bd, #262b36); box-shadow: 0 24px 60px -20px rgba(0,0,0,.55), 0 2px 6px rgba(0,0,0,.25);">
+
+    <div style="display: flex; align-items: center; gap: 14px; height: 46px; padding: 0 14px; position: relative; background: var(--bg1, #15181f); border-bottom: 1px solid var(--bd, #262b36); flex: none;">
+      <div style="display: flex; align-items: center; gap: 9px;">
+        <div style="width: 20px; height: 20px; border-radius: 6px; background: var(--ac, #7B8CFF); display: flex; align-items: center; justify-content: center;">
+          <div style="width: 7px; height: 7px; border-radius: 2px; background: rgba(255,255,255,.92);"></div>
+        </div>
+        <div style="font-weight: 600; letter-spacing: -.01em;">Slate</div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 7px; font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: var(--tx2, #6b7387);">
+        <span>vault</span><span>/</span><span>graph</span><span>/</span><span style="color: var(--tx1, #a6adbe);">{{ crumb }}</span>
+      </div>
+      <div style="flex: 1;"></div>
+      <div onClick="{{ openPalette }}" style="display: flex; align-items: center; gap: 10px; height: 28px; padding: 0 10px 0 12px; border-radius: 8px; background: var(--bg2, #1a1e26); border: 1px solid var(--bd, #262b36); color: var(--tx2, #6b7387); cursor: pointer; width: 300px; position: absolute; left: 50%; transform: translateX(-50%);" style-hover="border-color: var(--ac, #7B8CFF); color: var(--tx1, #a6adbe);">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="5" cy="5" r="3.6" stroke="currentColor" stroke-width="1.3"></circle><line x1="7.8" y1="7.8" x2="11" y2="11" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"></line></svg>
+        <span style="flex: 1;">Найти файл или команду</span>
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 10.5px; padding: 2px 5px; border-radius: 4px; background: var(--bg3, #222735); color: var(--tx2, #6b7387);">Ctrl K</span>
+      </div>
+      <div style="position: relative;">
+        <div onClick="{{ openThemeMenu }}" title="Тема оформления" style="display: flex; align-items: center; gap: 7px; height: 28px; padding: 0 9px; border-radius: 8px; background: var(--bg2, #1a1e26); border: 1px solid var(--bd, #262b36); cursor: pointer; color: var(--tx1, #a6adbe); font-size: 12px;" style-hover="color: var(--ac, #7B8CFF); border-color: var(--ac, #7B8CFF);">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="4.4" stroke="currentColor" stroke-width="1.3"></circle><path d="M7 2.6 A4.4 4.4 0 0 1 7 11.4 Z" fill="currentColor"></path></svg>
+          <span>{{ themeLabel }}</span>
+        </div>
+        <sc-if value="{{ themeMenuOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="position: absolute; top: 34px; right: 0; z-index: 20; padding: 6px; border-radius: 11px; background: var(--bg1, #15181f); border: 1px solid var(--bd2, #39404f); box-shadow: 0 18px 44px -16px rgba(0,0,0,.6); animation: slateRise .12s ease-out; display: flex; flex-direction: column; gap: 1px; min-width: 158px;" onClick="{{ stop }}">
+            <sc-for list="{{ themeList }}" as="t" hint-placeholder-count="7">
+              <div onClick="{{ t.pick }}" style="{{ t.style }}">
+                <div style="{{ t.swatchStyle }}"></div>
+                <span>{{ t.label }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+      <div style="display: flex; gap: 7px; margin-left: 4px;">
+        <div style="width: 11px; height: 11px; border-radius: 50%; background: var(--bg3, #222735);"></div>
+        <div style="width: 11px; height: 11px; border-radius: 50%; background: var(--bg3, #222735);"></div>
+        <div style="width: 11px; height: 11px; border-radius: 50%; background: var(--bg3, #222735);"></div>
+      </div>
+    </div>
+
+    <div style="display: flex; align-items: stretch; gap: 2px; height: 38px; padding: 0 8px; background: var(--bg1, #15181f); border-bottom: 1px solid var(--bd, #262b36); flex: none; overflow: hidden;">
+      <sc-for list="{{ tabs }}" as="tab" hint-placeholder-count="3">
+        <div onClick="{{ tab.open }}" style="{{ tab.style }}">
+          <div style="{{ tab.iconStyle }}"></div>
+          <span>{{ tab.name }}</span>
+          <div onClick="{{ tab.close }}" style="width: 15px; height: 15px; border-radius: 4px; display: flex; align-items: center; justify-content: center; opacity: .55; font-size: 13px; line-height: 1;" style-hover="opacity: 1; background: var(--bg3, #222735);">×</div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="display: flex; flex: 1; min-height: 0; gap: 2px; padding: 2px;">
+
+      <div style="width: 50px; flex: none; display: flex; flex-direction: column; align-items: center; padding: 8px 0; gap: 4px; border-radius: 8px; border: 1px solid var(--bd, #262b36); background: var(--bg1, #15181f);">
+        <div onClick="{{ showFiles }}" title="Проводник" style="{{ railFiles }}">
+          <svg width="20" height="20" viewBox="0 0 18 18" fill="none"><path d="M2 4.2h5l1.3 1.6H16v8.2H2z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"></path></svg>
+        </div>
+        <div onClick="{{ showSearch }}" title="Поиск" style="{{ railSearch }}">
+          <svg width="20" height="20" viewBox="0 0 18 18" fill="none"><circle cx="7.6" cy="7.6" r="4.8" stroke="currentColor" stroke-width="1.4"></circle><line x1="11.2" y1="11.2" x2="15.4" y2="15.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></line></svg>
+        </div>
+        <div onClick="{{ openGraph }}" title="Граф заметок" style="{{ railGraph }}">
+          <svg width="20" height="20" viewBox="0 0 18 18" fill="none"><line x1="5" y1="5.6" x2="12.6" y2="4.4" stroke="currentColor" stroke-width="1.3"></line><line x1="5" y1="5.6" x2="9" y2="13" stroke="currentColor" stroke-width="1.3"></line><line x1="12.6" y1="4.4" x2="9" y2="13" stroke="currentColor" stroke-width="1.3"></line><circle cx="4.6" cy="5.6" r="2.2" fill="currentColor"></circle><circle cx="13" cy="4.4" r="1.7" fill="currentColor"></circle><circle cx="9" cy="13.2" r="1.7" fill="currentColor"></circle></svg>
+        </div>
+        <div style="flex: 1;"></div>
+        <div onClick="{{ openSettings }}" title="Настройки" style="{{ railSettings }}">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4z" stroke="currentColor" stroke-width="1.7"></path><path d="M19.1 14.5a1.5 1.5 0 0 0 .3 1.65l.06.06a1.8 1.8 0 1 1-2.55 2.55l-.06-.06a1.5 1.5 0 0 0-1.65-.3 1.5 1.5 0 0 0-.91 1.37V20a1.8 1.8 0 0 1-3.6 0v-.1a1.5 1.5 0 0 0-.98-1.37 1.5 1.5 0 0 0-1.65.3l-.06.06a1.8 1.8 0 1 1-2.55-2.55l.06-.06a1.5 1.5 0 0 0 .3-1.65 1.5 1.5 0 0 0-1.37-.91H4a1.8 1.8 0 0 1 0-3.6h.1a1.5 1.5 0 0 0 1.37-.98 1.5 1.5 0 0 0-.3-1.65l-.06-.06a1.8 1.8 0 1 1 2.55-2.55l.06.06a1.5 1.5 0 0 0 1.65.3H9.5a1.5 1.5 0 0 0 .91-1.37V4a1.8 1.8 0 0 1 3.6 0v.1a1.5 1.5 0 0 0 .91 1.37 1.5 1.5 0 0 0 1.65-.3l.06-.06a1.8 1.8 0 1 1 2.55 2.55l-.06.06a1.5 1.5 0 0 0-.3 1.65v.09a1.5 1.5 0 0 0 1.37.91H20a1.8 1.8 0 0 1 0 3.6h-.1a1.5 1.5 0 0 0-1.37.91z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+        </div>
+      </div>
+
+      <sc-if value="{{ railIsFiles }}" hint-placeholder-val="{{ true }}">
+        <div style="width: 240px; flex: none; display: flex; flex-direction: column; border-radius: 8px; border: 1px solid var(--bd, #262b36); background: var(--bg1, #15181f); overflow: hidden;">
+          <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 8px; font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--tx2, #6b7387); font-weight: 600;">
+            <span>Хранилище</span>
+            <span style="font-family: 'JetBrains Mono', monospace; letter-spacing: 0;">142</span>
+          </div>
+          <div style="flex: 1; overflow: auto; padding: 0 8px 10px;">
+            <sc-for list="{{ tree }}" as="row" hint-placeholder-count="9">
+              <div onClick="{{ row.open }}" style="{{ row.style }}">
+                <div style="{{ row.dotStyle }}"></div>
+                <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ row.name }}</span>
+                <span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--tx2, #6b7387);">{{ row.meta }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="padding: 10px 14px; border-top: 1px solid var(--bd, #262b36); display: flex; align-items: center; gap: 8px; color: var(--tx2, #6b7387); font-size: 11.5px;">
+            <div style="width: 6px; height: 6px; border-radius: 50%; background: var(--ac, #7B8CFF);"></div>
+            <span>Синхронизировано 2 мин назад</span>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ railIsSearch }}" hint-placeholder-val="{{ false }}">
+        <div style="width: 300px; flex: none; display: flex; flex-direction: column; border-radius: 8px; border: 1px solid var(--bd, #262b36); background: var(--bg1, #15181f); overflow: hidden;">
+          <div style="padding: 12px 12px 10px; display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; border-radius: 8px; background: var(--bg2, #1a1e26); border: 1px solid var(--ac, #7B8CFF); font-family: 'JetBrains Mono', monospace; font-size: 12px;">
+              <span style="color: var(--tx0, #e6e8ef);">parseLinks</span>
+              <span style="width: 1.5px; height: 14px; background: var(--ac, #7B8CFF); animation: slateBlink 1.1s steps(1) infinite;"></span>
+            </div>
+            <div style="display: flex; gap: 6px;">
+              <div style="padding: 3px 8px; border-radius: 6px; background: var(--acs, rgba(123,140,255,.14)); color: var(--ac, #7B8CFF); font-family: 'JetBrains Mono', monospace; font-size: 10.5px;">Aa</div>
+              <div style="padding: 3px 8px; border-radius: 6px; background: var(--bg2, #1a1e26); color: var(--tx2, #6b7387); font-family: 'JetBrains Mono', monospace; font-size: 10.5px;">.*</div>
+              <div style="padding: 3px 8px; border-radius: 6px; background: var(--bg2, #1a1e26); color: var(--tx2, #6b7387); font-family: 'JetBrains Mono', monospace; font-size: 10.5px;">ab|</div>
+              <div style="flex: 1;"></div>
+              <div style="font-size: 11px; color: var(--tx2, #6b7387); align-self: center;">17 в 6 файлах</div>
+            </div>
+          </div>
+          <div style="flex: 1; overflow: auto; padding: 0 8px 10px;">
+            <sc-for list="{{ results }}" as="g" hint-placeholder-count="4">
+              <div style="margin-bottom: 8px;">
+                <div style="display: flex; align-items: center; gap: 7px; padding: 5px 8px; color: var(--tx1, #a6adbe); font-size: 12px;">
+                  <div style="width: 5px; height: 5px; border-radius: 1px; background: var(--tx2, #6b7387);"></div>
+                  <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ g.file }}</span>
+                  <span style="font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--tx2, #6b7387);">{{ g.count }}</span>
+                </div>
+                <sc-for list="{{ g.lines }}" as="ln" hint-placeholder-count="2">
+                  <div onClick="{{ ln.open }}" style="display: flex; gap: 10px; padding: 4px 8px 4px 22px; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: var(--tx1, #a6adbe); cursor: pointer;" style-hover="background: var(--bg3, #222735);">
+                    <span style="color: var(--tx2, #6b7387); min-width: 22px; text-align: right;">{{ ln.n }}</span>
+                    <span style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ ln.before }}<span style="background: var(--acs, rgba(123,140,255,.2)); color: var(--ac, #7B8CFF); border-radius: 3px; padding: 0 1px;">parseLinks</span>{{ ln.after }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <div style="flex: 1; min-width: 0; display: flex;">
+
+        <sc-if value="{{ isCode }}" hint-placeholder-val="{{ true }}">
+          <div style="flex: 1; min-width: 0; display: flex; flex-direction: column;">
+            <div style="flex: 1; display: flex; overflow: hidden; position: relative; gap: 2px;">
+              <div style="flex: 1; min-width: 0; overflow: auto; border-radius: 8px; border: 1px solid var(--bd, #262b36); background: var(--bg2, #1a1e26); padding: 14px 0 30px;">
+                <div style="font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 22px; min-width: max-content;">
+                  <div style="display: flex;"><span style="width: 54px; flex: none; text-align: right; padding-right: 18px; color: var(--tx2, #6b7387); opacity: .6; white-space: pre;">1</span><span style="white-space: pre;"><span style="color: var(--kw, #B48EFF);">import</span> { Vault } <span style="color: var(--kw, #B48EFF);">from</span> <span style="color: var(--str, #7FD1A1);">"../core/vault"</span>;</span></div>
+                  <div style="display: flex;"><span style="width: 54px; flex: none; text-align: right; padding-right: 18px; color: var(--tx2, #6b7387); opacity: .6; white-space: pre;">2</span><span style="white-space: pre;"><span style="color: var(--kw, #B48EFF);">import type</span> { NoteId, Link } <span style="color: var(--kw, #B48EFF);">from</span> <span style="color: var(--str, #7FD1A1);">"./types"</span>;</span></div>
+                  <div style="display: flex;"><span style="width: 54px; flex: none; text-align: right; padding-right: 18px; color: var(--tx2, #6b7387); opacity: .6; white-space: pre;">3</span><span style="white-space: pre;"></span></div>
+                  <div style="display: flex; background: var(--acs, rgba(123,140,255,.14));"><span style="width: 54px; flex: none; text-align: right; padding-right: 18px; color: var(--ac, #7B8CFF); white-space: pre;">4</span><span style="white-space: pre;"><span style="color: var(--kw, #B48EFF);">const</span> <span style="background: var(--sel, rgba(123,140,255,.28)); border-right: 2px solid var(--ac, #7B8CFF);">CACHE</span> = <span style="color: var(--kw, #B48EFF);">new</span> <span style="color: var(--fn, #79B8FF);">Map</span>&lt;NoteId, Link[]&gt;();</span></div>
+                  <div style="display: flex;"><span style="width: 54px; flex: none; text-align: right; padding-right: 18px; color: var(--tx2, #6b7387); opacity: .6; white-space: pre;">5</span><span style="white-space: pre;"></span></div>
+                  <div style="display: flex;"><span style="width: 54px; flex: none; text-align: right; padding-right: 18px; color: var(--tx2, #6b7387); opacity: .6; white-space: pre;">6</span><span style="color: var(--com, #5f6878);">/** Собирает граф связей из [[wiki-ссылок]]. */</span></div>
+                  <div style="display: flex;"><span style="width: 54px; flex: none; text-align: right; padding-right: 18px; color: var(--tx2, #6b7387); opacity: .6; white-space: pre;">7</span><span style="white-space: pre;"><span style="color: var(--kw, #B48EFF);">export function</span> <span style="color: var(--fn, #79B8FF);">buildGraph</span>(vault: <span style="color: var(--ty, #E8A05C);">Vault</span>) {</span></div>
+                  <div style="display: flex;"><span style="width: 54px; flex: none; text-align: right; padding-right: 18px; color: var(--tx2, #6b7387); opacity: .6; white-space: pre;">8</span><span style="white-space: pre;">  <span style="color: var(--kw, #B48EFF);">const</span> nodes = vault.notes.<span style="color: var(--fn, #79B8FF);">map</span>(toNode);</span></div>
+                  <div style="display: flex;"><span style="width: 54px; flex: none; text-align: right; padding-right: 18px; color: var(--tx2, #6b7387); opacity: .6; white-space: pre;">9</span><span style="white-space: pre;">  <span style="color: var(--kw, #B48EFF);">const</span> edges: <span style="color: var(--ty, #E8A05C);">Link</span>[] = [];</span></div>
+                  <div style="display: flex;"><span style="width: 54px; flex: none; text-align: right; padding-right: 18px; color: var(--tx2, #6b7387); opacity: .6; white-space: pre;">10</span><span style="white-space: pre;"></span></div>
+                  <div style="display: flex;"><span style="width: 54px; flex: none; text-align: right; padding-right: 18px; color: var(--tx2, #6b7387); opacity: .6; white-space: pre;">11</span><span style="white-space: pre;">  <span style="color: var(--kw, #B48EFF);">for</span> (<span style="color: var(--kw, #B48EFF);">const</span> note <span style="color: var(--kw, #B48EFF);">of</span> vault.notes) {</span></div>
+                  <div style="display: flex;"><span style="width: 54px; flex: none; text-align: right; padding-right: 18px; color: var(--tx2, #6b7387); opacity: .6; white-space: pre;">12</span><span style="white-space: pre;">    <span style="color: var(--kw, #B48EFF);">const</span> links = <span style="background: var(--sel, rgba(123,140,255,.28)); border-right: 2px solid var(--ac, #7B8CFF);">CACHE</span>.<span style="color: var(--fn, #79B8FF);">get</span>(note.id) ?? <span style="color: var(--fn, #79B8FF);">parseLinks</span>(note.body);</span></div>
+                  <div style="display: flex;"><span style="width: 54px; flex: none; text-align: right; padding-right: 18px; color: var(--tx2, #6b7387); opacity: .6; white-space: pre;">13</span><span style="white-space: pre;">    <span style="background: var(--sel, rgba(123,140,255,.28)); border-right: 2px solid var(--ac, #7B8CFF);">CACHE</span>.<span style="color: var(--fn, #79B8FF);">set</span>(note.id, links);</span></div>
+                  <div style="display: flex;"><span style="width: 54px; flex: none; text-align: right; padding-right: 18px; color: var(--tx2, #6b7387); opacity: .6; white-space: pre;">14</span><span style="white-space: pre;"></span></div>
+                  <div style="display: flex;"><span style="width: 54px; flex: none; text-align: right; padding-right: 18px; color: var(--tx2, #6b7387); opacity: .6; white-space: pre;">15</span><span style="white-space: pre;">    <span style="color: var(--kw, #B48EFF);">for</span> (<span style="color: var(--kw, #B48EFF);">const</span> link <span style="color: var(--kw, #B48EFF);">of</span> links) {</span></div>
+                  <div style="display: flex;"><span style="width: 54px; flex: none; text-align: right; padding-right: 18px; color: var(--tx2, #6b7387); opacity: .6; white-space: pre;">16</span><span style="white-space: pre;">      <span style="color: var(--kw, #B48EFF);">if</span> (!vault.<span style="color: var(--fn, #79B8FF);">has</span>(link.target)) <span style="color: var(--kw, #B48EFF);">continue</span>;</span></div>
+                  <div style="display: flex;"><span style="width: 54px; flex: none; text-align: right; padding-right: 18px; color: var(--tx2, #6b7387); opacity: .6; white-space: pre;">17</span><span style="white-space: pre;">      edges.<span style="color: var(--fn, #79B8FF);">push</span>({ from: note.id, to: link.target });</span></div>
+                  <div style="display: flex;"><span style="width: 54px; flex: none; text-align: right; padding-right: 18px; color: var(--tx2, #6b7387); opacity: .6; white-space: pre;">18</span><span style="white-space: pre;">    }</span></div>
+                  <div style="display: flex;"><span style="width: 54px; flex: none; text-align: right; padding-right: 18px; color: var(--tx2, #6b7387); opacity: .6; white-space: pre;">19</span><span style="white-space: pre;">  }</span></div>
+                  <div style="display: flex;"><span style="width: 54px; flex: none; text-align: right; padding-right: 18px; color: var(--tx2, #6b7387); opacity: .6; white-space: pre;">20</span><span style="white-space: pre;"></span></div>
+                  <div style="display: flex;"><span style="width: 54px; flex: none; text-align: right; padding-right: 18px; color: var(--tx2, #6b7387); opacity: .6; white-space: pre;">21</span><span style="white-space: pre;">  <span style="color: var(--kw, #B48EFF);">return</span> { nodes, edges };</span></div>
+                  <div style="display: flex;"><span style="width: 54px; flex: none; text-align: right; padding-right: 18px; color: var(--tx2, #6b7387); opacity: .6; white-space: pre;">22</span><span style="white-space: pre;">}</span></div>
+                </div>
+              </div>
+              <sc-if value="{{ minimap }}" hint-placeholder-val="{{ true }}">
+                <div style="width: 74px; flex: none; padding: 14px 10px; display: flex; flex-direction: column; gap: 3px; border-radius: 8px; border: 1px solid var(--bd, #262b36); background: var(--bg1, #15181f);">
+                  <sc-for list="{{ minimapRows }}" as="m" hint-placeholder-count="20">
+                    <div style="{{ m.style }}"></div>
+                  </sc-for>
+                </div>
+              </sc-if>
+            </div>
+            <div style="flex: none; height: 34px; margin-top: 2px; display: flex; align-items: center; gap: 16px; padding: 0 16px; border-radius: 8px; border: 1px solid var(--bd, #262b36); background: var(--bg1, #15181f); color: var(--tx2, #6b7387); font-size: 11.5px;">
+              <span style="color: var(--ac, #7B8CFF);">3 курсора</span>
+              <span>Ctrl D — добавить следующее совпадение</span>
+              <span style="flex: 1;"></span>
+              <span>Обновлено 12:04</span>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isNote }}" hint-placeholder-val="{{ false }}">
+          <div style="flex: 1; min-width: 0; display: flex; gap: 2px;">
+            <div style="flex: 1; min-width: 0; overflow: auto; border-radius: 8px; border: 1px solid var(--bd, #262b36); background: var(--bg2, #1a1e26); padding: 22px 26px 34px; font-family: 'JetBrains Mono', monospace; font-size: 13.5px; line-height: 25px; color: var(--tx1, #a6adbe);">
+              <div style="color: var(--tx2, #6b7387);">---</div>
+              <div><span style="color: var(--ty, #E8A05C);">tags:</span> roadmap, core</div>
+              <div><span style="color: var(--ty, #E8A05C);">updated:</span> 2026-08-28</div>
+              <div style="color: var(--tx2, #6b7387);">---</div>
+              <div style="height: 25px;"></div>
+              <div style="color: var(--tx0, #e6e8ef); font-weight: 700;"># План на квартал</div>
+              <div style="height: 25px;"></div>
+              <div>Ядро парсера ссылок готово, см. <span style="color: var(--ac, #7B8CFF);">[[Парсер ссылок]]</span>.</div>
+              <div>Осталось развести кэш и индекс — детали в <span style="color: var(--ac, #7B8CFF);">[[Индекс хранилища]]</span>.</div>
+              <div style="height: 25px;"></div>
+              <div style="color: var(--tx0, #e6e8ef); font-weight: 700;">## Ближайшие шаги</div>
+              <div style="height: 25px;"></div>
+              <div><span style="color: var(--ac, #7B8CFF);">- [x]</span> Инкрементальный обход хранилища</div>
+              <div><span style="color: var(--ac, #7B8CFF);">- [ ]</span> Подсветка обратных ссылок в редакторе</div>
+              <div><span style="color: var(--ac, #7B8CFF);">- [ ]</span> Профиль графа на 10k заметок</div>
+              <div style="height: 25px;"></div>
+              <div style="color: var(--tx2, #6b7387);">&gt; Кэш инвалидируется по mtime, а не по хешу тела.</div>
+              <div style="height: 25px;"></div>
+              <div>Реализация: <span style="color: var(--str, #7FD1A1);">`graph/index.ts`</span></div>
+            </div>
+            <sc-if value="{{ preview }}" hint-placeholder-val="{{ true }}">
+              <div style="width: 46%; max-width: 560px; flex: none; border-radius: 8px; border: 1px solid var(--bd, #262b36); background: var(--bg1, #15181f); overflow: auto; padding: 24px 28px 36px;">
+                <div style="display: flex; align-items: center; gap: 8px; font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--tx2, #6b7387); font-weight: 600; margin-bottom: 20px;">
+                  <span>Превью</span>
+                  <div style="flex: 1; height: 1px; background: var(--bd, #262b36);"></div>
+                </div>
+                <div style="font-size: 26px; font-weight: 600; letter-spacing: -.02em; color: var(--tx0, #e6e8ef); margin-bottom: 6px;">План на квартал</div>
+                <div style="display: flex; gap: 6px; margin-bottom: 22px;">
+                  <span style="padding: 2px 8px; border-radius: 999px; background: var(--acs, rgba(123,140,255,.14)); color: var(--ac, #7B8CFF); font-size: 11px;">roadmap</span>
+                  <span style="padding: 2px 8px; border-radius: 999px; background: var(--bg2, #1a1e26); color: var(--tx1, #a6adbe); font-size: 11px;">core</span>
+                </div>
+                <p style="margin: 0 0 12px; line-height: 1.65; color: var(--tx1, #a6adbe); text-wrap: pretty;">Ядро парсера ссылок готово, см. <a href="#" style="color: var(--ac, #7B8CFF); border-bottom: 1px solid rgba(123,140,255,.35);">Парсер ссылок</a>.</p>
+                <p style="margin: 0 0 24px; line-height: 1.65; color: var(--tx1, #a6adbe); text-wrap: pretty;">Осталось развести кэш и индекс — детали в <a href="#" style="color: var(--ac, #7B8CFF); border-bottom: 1px solid rgba(123,140,255,.35);">Индекс хранилища</a>.</p>
+                <div style="font-size: 17px; font-weight: 600; color: var(--tx0, #e6e8ef); margin: 0 0 12px;">Ближайшие шаги</div>
+                <div style="display: flex; flex-direction: column; gap: 9px; margin-bottom: 24px;">
+                  <div style="display: flex; gap: 10px; align-items: center;"><div style="width: 15px; height: 15px; border-radius: 5px; background: var(--ac, #7B8CFF); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 10px;">✓</div><span style="color: var(--tx2, #6b7387); text-decoration: line-through;">Инкрементальный обход хранилища</span></div>
+                  <div style="display: flex; gap: 10px; align-items: center;"><div style="width: 15px; height: 15px; border-radius: 5px; border: 1.5px solid var(--bd2, #39404f);"></div><span style="color: var(--tx1, #a6adbe);">Подсветка обратных ссылок в редакторе</span></div>
+                  <div style="display: flex; gap: 10px; align-items: center;"><div style="width: 15px; height: 15px; border-radius: 5px; border: 1.5px solid var(--bd2, #39404f);"></div><span style="color: var(--tx1, #a6adbe);">Профиль графа на 10k заметок</span></div>
+                </div>
+                <div style="padding: 12px 16px; border-radius: 10px; background: var(--bg2, #1a1e26); border: 1px solid var(--bd, #262b36); color: var(--tx1, #a6adbe); line-height: 1.6; margin-bottom: 26px;">Кэш инвалидируется по mtime, а не по хешу тела.</div>
+                <div style="font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--tx2, #6b7387); font-weight: 600; margin-bottom: 10px;">Обратные ссылки · 4</div>
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                  <sc-for list="{{ backlinks }}" as="b" hint-placeholder-count="4">
+                    <div onClick="{{ b.open }}" style="display: flex; align-items: center; gap: 9px; padding: 7px 10px; border-radius: 8px; cursor: pointer; color: var(--tx1, #a6adbe);" style-hover="background: var(--bg3, #222735); color: var(--tx0, #e6e8ef);">
+                      <div style="width: 5px; height: 5px; border-radius: 50%; background: var(--ac, #7B8CFF);"></div>
+                      <span style="flex: 1;">{{ b.name }}</span>
+                      <span style="font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--tx2, #6b7387);">{{ b.n }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isGraph }}" hint-placeholder-val="{{ false }}">
+          <div style="flex: 1; min-width: 0; position: relative; display: flex; flex-direction: column; border-radius: 8px; border: 1px solid var(--bd, #262b36); overflow: hidden; background: var(--bg2, #1a1e26);">
+            <div style="position: absolute; top: 16px; left: 18px; z-index: 2; display: flex; gap: 8px;">
+              <div style="padding: 6px 12px; border-radius: 8px; background: var(--bg1, #15181f); border: 1px solid var(--bd, #262b36); color: var(--tx1, #a6adbe); font-size: 11.5px;">142 заметки · 318 связей</div>
+              <div style="padding: 6px 12px; border-radius: 8px; background: var(--acs, rgba(123,140,255,.14)); color: var(--ac, #7B8CFF); font-size: 11.5px;">Фильтр: #core</div>
+            </div>
+            <div style="flex: 1; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+              <svg viewBox="0 0 640 420" style="width: 100%; height: 100%; max-height: 100%;">
+                <g stroke="var(--bd2, #39404f)" stroke-width="1">
+                  <line x1="320" y1="210" x2="180" y2="120"></line>
+                  <line x1="320" y1="210" x2="470" y2="128"></line>
+                  <line x1="320" y1="210" x2="250" y2="330"></line>
+                  <line x1="320" y1="210" x2="452" y2="312"></line>
+                  <line x1="180" y1="120" x2="98" y2="228"></line>
+                  <line x1="180" y1="120" x2="268" y2="58"></line>
+                  <line x1="470" y1="128" x2="556" y2="212"></line>
+                  <line x1="470" y1="128" x2="392" y2="62"></line>
+                  <line x1="250" y1="330" x2="140" y2="356"></line>
+                  <line x1="452" y1="312" x2="556" y2="212"></line>
+                  <line x1="452" y1="312" x2="360" y2="382"></line>
+                  <line x1="98" y1="228" x2="140" y2="356"></line>
+                </g>
+                <g fill="var(--tx2, #6b7387)">
+                  <circle cx="268" cy="58" r="5"></circle>
+                  <circle cx="392" cy="62" r="5"></circle>
+                  <circle cx="98" cy="228" r="6"></circle>
+                  <circle cx="140" cy="356" r="5"></circle>
+                  <circle cx="360" cy="382" r="5"></circle>
+                  <circle cx="556" cy="212" r="7"></circle>
+                </g>
+                <g fill="var(--ac, #7B8CFF)">
+                  <circle cx="180" cy="120" r="9"></circle>
+                  <circle cx="470" cy="128" r="8"></circle>
+                  <circle cx="250" cy="330" r="8"></circle>
+                  <circle cx="452" cy="312" r="7"></circle>
+                </g>
+                <circle cx="320" cy="210" r="22" fill="var(--acs, rgba(123,140,255,.14))"></circle>
+                <circle cx="320" cy="210" r="13" fill="var(--ac, #7B8CFF)"></circle>
+                <g font-family="IBM Plex Sans, sans-serif" font-size="11" fill="var(--tx1, #a6adbe)">
+                  <text x="320" y="248" text-anchor="middle" fill="var(--tx0, #e6e8ef)" font-size="12.5" font-weight="600">План на квартал</text>
+                  <text x="180" y="102" text-anchor="middle">Парсер ссылок</text>
+                  <text x="470" y="110" text-anchor="middle">Индекс хранилища</text>
+                  <text x="250" y="356" text-anchor="middle">Кэш</text>
+                  <text x="452" y="338" text-anchor="middle">Профилирование</text>
+                  <text x="556" y="236" text-anchor="middle" fill="var(--tx2, #6b7387)">Бенчмарки</text>
+                  <text x="98" y="252" text-anchor="middle" fill="var(--tx2, #6b7387)">Токенайзер</text>
+                </g>
+              </svg>
+            </div>
+            <div style="position: absolute; right: 18px; bottom: 18px; display: flex; flex-direction: column; gap: 12px; width: 210px; padding: 14px 16px; border-radius: 8px; background: var(--bg1, #15181f); border: 1px solid var(--bd, #262b36); box-shadow: 0 12px 30px -14px rgba(0,0,0,.5);">
+              <div style="font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--tx2, #6b7387); font-weight: 600;">Отображение</div>
+              <div style="display: flex; flex-direction: column; gap: 10px;">
+                <sc-for list="{{ graphSliders }}" as="s" hint-placeholder-count="3">
+                  <div style="display: flex; flex-direction: column; gap: 6px;">
+                    <div style="display: flex; justify-content: space-between; color: var(--tx1, #a6adbe); font-size: 11.5px;"><span>{{ s.name }}</span><span style="font-family: 'JetBrains Mono', monospace; color: var(--tx2, #6b7387);">{{ s.val }}</span></div>
+                    <div style="height: 3px; border-radius: 2px; background: var(--bg3, #222735);"><div style="{{ s.fill }}"></div></div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isSettings }}" hint-placeholder-val="{{ false }}">
+          <div style="flex: 1; min-width: 0; overflow: auto; border-radius: 8px; border: 1px solid var(--bd, #262b36); background: var(--bg2, #1a1e26); padding: 34px 40px 60px;">
+            <div style="max-width: 660px;">
+              <div style="font-size: 22px; font-weight: 600; letter-spacing: -.02em; margin-bottom: 4px;">Настройки</div>
+              <div style="color: var(--tx2, #6b7387); margin-bottom: 28px;">Редактор · Хранилище · Внешний вид</div>
+              <sc-for list="{{ settings }}" as="s" hint-placeholder-count="6">
+                <div style="display: flex; align-items: center; gap: 20px; padding: 15px 0; border-bottom: 1px solid var(--bd, #262b36);">
+                  <div style="flex: 1;">
+                    <div style="color: var(--tx0, #e6e8ef); margin-bottom: 3px;">{{ s.name }}</div>
+                    <div style="color: var(--tx2, #6b7387); font-size: 12px;">{{ s.hint }}</div>
+                  </div>
+                  <div onClick="{{ s.toggle }}" style="{{ s.trackStyle }}"><div style="{{ s.knobStyle }}"></div></div>
+                </div>
+              </sc-for>
+              <div style="margin-top: 30px; padding: 16px 18px; border-radius: 8px; background: var(--bg1, #15181f); border: 1px solid var(--bd, #262b36); display: flex; align-items: center; gap: 14px;">
+                <div style="width: 32px; height: 32px; border-radius: 9px; background: var(--acs, rgba(123,140,255,.14)); display: flex; align-items: center; justify-content: center; color: var(--ac, #7B8CFF); font-family: 'JetBrains Mono', monospace;">{ }</div>
+                <div style="flex: 1;">
+                  <div style="color: var(--tx0, #e6e8ef);">Открыть settings.json</div>
+                  <div style="color: var(--tx2, #6b7387); font-size: 12px;">Полный список параметров и клавиш</div>
+                </div>
+                <div onClick="{{ openCode }}" style="padding: 7px 14px; border-radius: 8px; background: var(--ac, #7B8CFF); color: #fff; cursor: pointer; font-weight: 500;">Открыть</div>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isWelcome }}" hint-placeholder-val="{{ false }}">
+          <div style="flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; border-radius: 8px; border: 1px solid var(--bd, #262b36); background: var(--bg2, #1a1e26); padding: 40px;">
+            <div style="width: 100%; max-width: 720px; display: grid; grid-template-columns: 1fr 1fr; gap: 34px;">
+              <div>
+                <div style="width: 34px; height: 34px; border-radius: 10px; background: var(--ac, #7B8CFF); display: flex; align-items: center; justify-content: center; margin-bottom: 18px;"><div style="width: 11px; height: 11px; border-radius: 3px; background: rgba(255,255,255,.92);"></div></div>
+                <div style="font-size: 27px; font-weight: 600; letter-spacing: -.025em; margin-bottom: 8px;">Slate</div>
+                <div style="color: var(--tx1, #a6adbe); line-height: 1.6; margin-bottom: 26px; text-wrap: pretty;">Быстрый редактор файлов и связанных заметок в одном окне.</div>
+                <div style="display: flex; flex-direction: column; gap: 9px;">
+                  <sc-for list="{{ shortcuts }}" as="k" hint-placeholder-count="4">
+                    <div style="display: flex; align-items: center; gap: 12px; color: var(--tx1, #a6adbe);">
+                      <span style="font-family: 'JetBrains Mono', monospace; font-size: 10.5px; padding: 3px 7px; border-radius: 5px; background: var(--bg1, #15181f); border: 1px solid var(--bd, #262b36); color: var(--tx2, #6b7387); min-width: 74px; text-align: center;">{{ k.key }}</span>
+                      <span>{{ k.label }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+              <div>
+                <div style="font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--tx2, #6b7387); font-weight: 600; margin-bottom: 12px;">Недавнее</div>
+                <div style="display: flex; flex-direction: column; gap: 2px;">
+                  <sc-for list="{{ recents }}" as="r" hint-placeholder-count="5">
+                    <div onClick="{{ r.open }}" style="display: flex; align-items: center; gap: 11px; padding: 9px 11px; border-radius: 9px; cursor: pointer;" style-hover="background: var(--bg1, #15181f);">
+                      <div style="{{ r.dotStyle }}"></div>
+                      <div style="flex: 1; min-width: 0;">
+                        <div style="color: var(--tx0, #e6e8ef); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ r.name }}</div>
+                        <div style="color: var(--tx2, #6b7387); font-size: 11.5px; font-family: 'JetBrains Mono', monospace;">{{ r.path }}</div>
+                      </div>
+                      <div style="color: var(--tx2, #6b7387); font-size: 11px;">{{ r.when }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+      </div>
+    </div>
+
+    <div style="flex: none; height: 28px; display: flex; align-items: center; gap: 18px; padding: 0 14px; background: var(--bg1, #15181f); border-top: 1px solid var(--bd, #262b36); color: var(--tx2, #6b7387); font-size: 11.5px; font-family: 'JetBrains Mono', monospace;">
+      <span style="color: var(--ac, #7B8CFF);">⎇ main</span>
+      <span>UTF-8</span>
+      <span>LF</span>
+      <span>Пробелы: 2</span>
+      <span style="flex: 1;"></span>
+      <span>{{ statusPos }}</span>
+      <span>{{ statusLang }}</span>
+      <span onClick="{{ toggleTheme }}" style="cursor: pointer;" style-hover="color: var(--ac, #7B8CFF);">{{ themeLabel }}</span>
+    </div>
+  </div>
+
+  <sc-if value="{{ paletteOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closePalette }}" style="position: absolute; inset: 0; background: rgba(6,8,12,.5); display: flex; justify-content: center; padding-top: 108px; animation: slateFade .12s ease-out;">
+      <div onClick="{{ stop }}" style="width: 580px; max-width: calc(100% - 60px); align-self: flex-start; border-radius: 14px; overflow: hidden; background: var(--bg1, #15181f); border: 1px solid var(--bd2, #39404f); box-shadow: 0 32px 80px -20px rgba(0,0,0,.7); animation: slateRise .14s ease-out;">
+        <div style="display: flex; align-items: center; gap: 11px; padding: 15px 18px; border-bottom: 1px solid var(--bd, #262b36);">
+          <span style="color: var(--ac, #7B8CFF); font-family: 'JetBrains Mono', monospace;">&gt;</span>
+          <span style="flex: 1; font-size: 15px; color: var(--tx0, #e6e8ef);">{{ paletteQuery }}</span>
+          <span style="width: 1.5px; height: 17px; background: var(--ac, #7B8CFF); animation: slateBlink 1.1s steps(1) infinite;"></span>
+          <span style="font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--tx2, #6b7387);">esc</span>
+        </div>
+        <div style="max-height: 340px; overflow: auto; padding: 6px;">
+          <sc-for list="{{ commands }}" as="c" hint-placeholder-count="6">
+            <div onClick="{{ c.run }}" style="{{ c.style }}">
+              <div style="{{ c.iconStyle }}">{{ c.icon }}</div>
+              <div style="flex: 1; min-width: 0;">
+                <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ c.name }}</div>
+                <div style="color: var(--tx2, #6b7387); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ c.hint }}</div>
+              </div>
+              <div style="font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--tx2, #6b7387);">{{ c.key }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#7B8CFF&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;#7B8CFF&quot;,&quot;#4FB286&quot;,&quot;#E8873A&quot;,&quot;#C74B78&quot;]},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;dark&quot;,&quot;options&quot;:[&quot;dark&quot;,&quot;light&quot;,&quot;midnight&quot;,&quot;nord&quot;,&quot;forest&quot;,&quot;sepia&quot;,&quot;contrast&quot;],&quot;tsType&quot;:&quot;string&quot;},&quot;density&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;normal&quot;,&quot;options&quot;:[&quot;compact&quot;,&quot;normal&quot;,&quot;spacious&quot;],&quot;tsType&quot;:&quot;string&quot;},&quot;minimap&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;preview&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic {
+  state = { theme: null, view: 'code', rail: 'files', tabs: ['code', 'note', 'graph'], palette: false, pi: 0, themeMenu: false, settings: [true, true, false, true, true] };
+
+  rootRef = React.createRef();
+
+  meta = {
+    code: { name: 'graph/index.ts', color: '#4FB2E8', crumb: 'index.ts', lang: 'TypeScript', pos: 'Стр 13, Кол 8 · 3 выд.' },
+    note: { name: 'План на квартал.md', color: '#7B8CFF', crumb: 'roadmap.md', lang: 'Markdown', pos: 'Стр 9, Кол 42' },
+    graph: { name: 'Граф хранилища', color: '#4FB286', crumb: 'граф', lang: 'Граф', pos: '142 узла' },
+    settings: { name: 'Настройки', color: '#E8873A', crumb: 'настройки', lang: '—', pos: '—' },
+    welcome: { name: 'Начало', color: '#8b93a3', crumb: '—', lang: '—', pos: '—' }
+  };
+
+  themes = {
+    dark: { label: 'Графит', mode: 'dark', bg0: '#0d0f14', bg1: '#15181f', bg2: '#1a1e26', bg3: '#232836', bd: '#262b36', bd2: '#39404f', tx0: '#e6e8ef', tx1: '#a6adbe', tx2: '#6b7387', kw: '#B48EFF', str: '#7FD1A1', com: '#5f6878', fn: '#79B8FF', ty: '#E8A05C' },
+    light: { label: 'Бумага', mode: 'light', bg0: '#e8eaef', bg1: '#f7f8fa', bg2: '#ffffff', bg3: '#eceef4', bd: '#e1e4ea', bd2: '#c7ccd6', tx0: '#1b1f27', tx1: '#535b6a', tx2: '#8b93a3', kw: '#7A45D6', str: '#1B7F52', com: '#98a0ad', fn: '#2563C7', ty: '#A65A12' },
+    midnight: { label: 'Полночь', mode: 'dark', bg0: '#080b16', bg1: '#0e1424', bg2: '#121a2e', bg3: '#1b2540', bd: '#1c2540', bd2: '#2e3c60', tx0: '#e2e8f7', tx1: '#9aa6c4', tx2: '#5f6c8c', kw: '#A78BFA', str: '#6FD3B4', com: '#4f5a78', fn: '#6FA8FF', ty: '#F0A85E' },
+    nord: { label: 'Нордик', mode: 'dark', bg0: '#20242c', bg1: '#2a303a', bg2: '#313846', bg3: '#3b4453', bd: '#3a4250', bd2: '#4c5768', tx0: '#e5ebf2', tx1: '#a9b4c4', tx2: '#76839a', kw: '#B48EAD', str: '#A3BE8C', com: '#67748c', fn: '#88C0D0', ty: '#EBCB8B' },
+    forest: { label: 'Хвоя', mode: 'dark', bg0: '#0b1210', bg1: '#111a17', bg2: '#16211d', bg3: '#1f2d27', bd: '#1e2b26', bd2: '#2f4239', tx0: '#e3ece7', tx1: '#a2b3ab', tx2: '#6a7d75', kw: '#9BD07A', str: '#7FD1A1', com: '#586b62', fn: '#6FC5C0', ty: '#E0B072' },
+    sepia: { label: 'Сепия', mode: 'light', bg0: '#e6ded0', bg1: '#f6f1e7', bg2: '#fdfaf3', bg3: '#ece5d7', bd: '#e0d8c8', bd2: '#c6bba6', tx0: '#2a2419', tx1: '#5d5443', tx2: '#8f8571', kw: '#8A4B9C', str: '#3F7A3F', com: '#a19781', fn: '#2E6BA8', ty: '#9A5B18' },
+    contrast: { label: 'Контраст', mode: 'dark', bg0: '#000000', bg1: '#0a0a0a', bg2: '#111111', bg3: '#1e1e1e', bd: '#2e2e2e', bd2: '#4d4d4d', tx0: '#ffffff', tx1: '#d0d0d0', tx2: '#8a8a8a', kw: '#D6A2FF', str: '#8CF0B4', com: '#7a7a7a', fn: '#8CC8FF', ty: '#FFC46B' }
+  };
+
+  get theme() { return this.state.theme ?? (this.props.theme || 'dark'); }
+  get accent() { return this.props.accent || '#7B8CFF'; }
+
+  componentDidMount() { this.applyVars(); window.addEventListener('keydown', this.onKey); }
+  componentDidUpdate() { this.applyVars(); }
+  componentWillUnmount() { window.removeEventListener('keydown', this.onKey); }
+
+  onKey = (e) => {
+    const k = (e.key || '').toLowerCase();
+    if ((e.ctrlKey || e.metaKey) && (k === 'k' || k === 'p')) { e.preventDefault(); this.setState({ palette: true, pi: 0 }); }
+    else if (k === 'escape') this.setState({ palette: false, themeMenu: false });
+    else if (this.state.palette && (k === 'arrowdown' || k === 'arrowup')) {
+      e.preventDefault();
+      const n = this.cmds().length;
+      this.setState(s => ({ pi: (s.pi + (k === 'arrowdown' ? 1 : n - 1)) % n }));
+    } else if (this.state.palette && k === 'enter') { this.cmds()[this.state.pi].go(); }
+  };
+
+  applyVars() {
+    const el = this.rootRef.current; if (!el) return;
+    const t = this.themes[this.theme] || this.themes.dark;
+    Object.keys(t).forEach(k => { if (k !== 'label' && k !== 'mode') el.style.setProperty('--' + k, t[k]); });
+    const a = this.accent;
+    el.style.setProperty('--ac', a);
+    el.style.setProperty('--acs', this.tint(a, t.mode === 'dark' ? 0.16 : 0.12));
+    el.style.setProperty('--sel', this.tint(a, t.mode === 'dark' ? 0.3 : 0.22));
+    el.style.colorScheme = t.mode;
+    document.body.style.background = t.bg0;
+  }
+
+  tint(hex, a) {
+    const h = hex.replace('#', '');
+    const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
+    return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+  }
+
+  pad() { const d = this.props.density || 'normal'; return d === 'compact' ? 4 : d === 'spacious' ? 9 : 6; }
+
+  open = (id) => this.setState(s => ({ view: id, palette: false, tabs: s.tabs.includes(id) ? s.tabs : [...s.tabs, id] }));
+
+  close = (id, e) => {
+    if (e) e.stopPropagation();
+    this.setState(s => {
+      const tabs = s.tabs.filter(t => t !== id);
+      return { tabs, view: s.view === id ? (tabs[tabs.length - 1] || 'welcome') : s.view };
+    });
+  };
+
+  cmds() {
+    const raw = [
+      { name: 'Перейти к файлу…', hint: 'graph/index.ts', key: 'Ctrl P', icon: '→', go: () => this.open('code') },
+      { name: 'Открыть граф хранилища', hint: 'Показать связи заметок', key: 'Ctrl G', icon: '◈', go: () => this.open('graph') },
+      { name: 'Поиск по всем файлам', hint: 'Регулярные выражения', key: 'Ctrl ⇧ F', icon: '⌕', go: () => this.setState({ rail: 'search', palette: false }) },
+      { name: 'Новая заметка из шаблона', hint: 'daily / meeting / spec', key: 'Ctrl N', icon: '+', go: () => this.open('note') },
+      { name: 'Следующая тема', hint: 'Сейчас: ' + (this.themes[this.theme] || this.themes.dark).label, key: 'Ctrl ⇧ T', icon: '◐', go: () => { this.toggleTheme(); this.setState({ palette: false }); } },
+      { name: 'Настройки редактора', hint: 'Шрифт, отступы, автосохранение', key: 'Ctrl ,', icon: '⚙', go: () => this.open('settings') },
+      { name: 'Закрыть все вкладки', hint: 'Вернуться на стартовый экран', key: 'Ctrl ⇧ W', icon: '×', go: () => this.setState({ tabs: [], view: 'welcome', palette: false }) }
+    ];
+    return raw;
+  }
+
+  toggleTheme = () => {
+    const keys = Object.keys(this.themes);
+    const i = keys.indexOf(this.theme);
+    this.setState({ theme: keys[(i + 1) % keys.length] });
+  };
+
+  setTheme = (id) => this.setState({ theme: id, palette: false, themeMenu: false });
+
+  renderVals() {
+    const v = this.state.view, m = this.meta[v] || this.meta.welcome, p = this.pad();
+    const tabs = this.state.tabs.map(id => {
+      const md = this.meta[id], on = id === v;
+      return {
+        name: md.name, open: () => this.setState({ view: id }), close: (e) => this.close(id, e),
+        style: 'display:flex;align-items:center;gap:8px;padding:0 10px 0 12px;height:100%;margin-top:1px;border-radius:9px 9px 0 0;cursor:pointer;white-space:nowrap;font-size:12.5px;'
+          + (on
+            ? 'background:var(--bg2);color:var(--tx0);border:1px solid var(--bd);border-bottom-color:var(--bg2);'
+            : 'color:var(--tx2);border:1px solid transparent;'),
+        iconStyle: 'width:6px;height:6px;border-radius:50%;background:' + (on ? md.color : 'var(--bd2)') + ';'
+      };
+    });
+
+    const files = [
+      { id: 'note', name: 'roadmap', dir: true, meta: '4' },
+      { id: 'note', name: 'План на квартал.md', d: 1, meta: 'md' },
+      { id: 'note', name: 'Парсер ссылок.md', d: 1, meta: 'md' },
+      { id: 'note', name: 'Индекс хранилища.md', d: 1, meta: 'md' },
+      { id: 'code', name: 'graph', dir: true, meta: '3' },
+      { id: 'code', name: 'index.ts', d: 1, meta: 'ts' },
+      { id: 'code', name: 'layout.ts', d: 1, meta: 'ts' },
+      { id: 'code', name: 'types.d.ts', d: 1, meta: 'ts' },
+      { id: 'code', name: 'core', dir: true, meta: '6' },
+      { id: 'code', name: 'vault.ts', d: 1, meta: 'ts' },
+      { id: 'code', name: 'parse.ts', d: 1, meta: 'ts' },
+      { id: 'settings', name: 'settings.json', meta: 'json' },
+      { id: 'code', name: 'README.md', meta: 'md' }
+    ];
+    const activeName = v === 'code' ? 'index.ts' : v === 'note' ? 'План на квартал.md' : v === 'settings' ? 'settings.json' : '';
+    const tree = files.map(f => {
+      const on = f.name === activeName;
+      return {
+        name: f.name, meta: f.meta, open: () => this.open(f.id),
+        style: 'display:flex;align-items:center;gap:9px;padding:' + p + 'px 9px;padding-left:' + (9 + (f.d ? 16 : 0)) + 'px;border-radius:7px;cursor:pointer;font-size:12.5px;'
+          + (on ? 'background:var(--acs);color:var(--tx0);' : f.dir ? 'color:var(--tx1);font-weight:500;' : 'color:var(--tx1);'),
+        dotStyle: f.dir
+          ? 'width:6px;height:6px;border-radius:1.5px;border:1.5px solid var(--tx2);'
+          : 'width:5px;height:5px;border-radius:50%;background:' + (on ? 'var(--ac)' : 'var(--bd2)') + ';'
+      };
+    });
+
+    const results = [
+      { file: 'graph/index.ts', count: '4', lines: [{ n: 12, before: 'const links = CACHE.get(note.id) ?? ', after: '(note.body);' }, { n: 44, before: 'export { ', after: ' };' }] },
+      { file: 'core/parse.ts', count: '7', lines: [{ n: 9, before: 'export function ', after: '(body: string) {' }, { n: 31, before: '  return ', after: '(raw).filter(Boolean);' }] },
+      { file: 'graph/index.test.ts', count: '5', lines: [{ n: 7, before: 'describe("', after: '", () => {' }] },
+      { file: 'README.md', count: '1', lines: [{ n: 62, before: 'API: `', after: '(body)` возвращает Link[]' }] }
+    ].map(g => ({ ...g, lines: g.lines.map(l => ({ ...l, open: () => this.open('code') })) }));
+
+    const widths = [72, 44, 0, 88, 0, 64, 92, 76, 60, 0, 84, 96, 80, 0, 74, 88, 92, 40, 32, 0, 68, 28];
+    const minimapRows = widths.map((w, i) => ({
+      style: 'height:3px;border-radius:2px;width:' + (w ? w : 0) + '%;background:' + (i === 3 || i === 11 || i === 12 ? 'var(--ac)' : 'var(--bd2)') + ';opacity:' + (w ? (i === 3 || i === 11 || i === 12 ? 0.85 : 0.5) : 0) + ';'
+    }));
+
+    const settingsDefs = [
+      { name: 'Автосохранение', hint: 'Через 400 мс после паузы' },
+      { name: 'Мультикурсор по Ctrl+D', hint: 'Добавлять следующее совпадение' },
+      { name: 'Мягкий перенос строк', hint: 'В .md переносить всегда' },
+      { name: 'Превью Markdown рядом', hint: 'Разделённый вид по умолчанию' },
+      { name: 'Индексировать [[ссылки]]', hint: 'Обновлять граф в фоне' }
+    ];
+    const settings = settingsDefs.map((s, i) => {
+      const on = this.state.settings[i];
+      return {
+        name: s.name, hint: s.hint,
+        toggle: () => this.setState(st => { const a = st.settings.slice(); a[i] = !a[i]; return { settings: a }; }),
+        trackStyle: 'width:38px;height:22px;border-radius:999px;padding:3px;cursor:pointer;display:flex;transition:background .15s;background:' + (on ? 'var(--ac)' : 'var(--bg3)') + ';justify-content:' + (on ? 'flex-end' : 'flex-start') + ';',
+        knobStyle: 'width:16px;height:16px;border-radius:50%;background:' + (on ? '#fff' : 'var(--tx2)') + ';'
+      };
+    });
+
+    const commands = this.cmds().map((c, i) => ({
+      name: c.name, hint: c.hint, key: c.key, icon: c.icon, run: c.go,
+      style: 'display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:9px;cursor:pointer;color:var(--tx0);'
+        + (i === this.state.pi ? 'background:var(--acs);' : ''),
+      iconStyle: 'width:26px;height:26px;flex:none;border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:JetBrains Mono,monospace;font-size:12px;background:var(--bg2);color:' + (i === this.state.pi ? 'var(--ac)' : 'var(--tx2)') + ';'
+    }));
+
+    return {
+      rootRef: this.rootRef,
+      crumb: m.crumb, statusLang: m.lang, statusPos: m.pos,
+      themeLabel: (this.themes[this.theme] || this.themes.dark).label,
+      toggleTheme: this.toggleTheme,
+      themeList: Object.keys(this.themes).map(id => {
+        const t = this.themes[id], on = id === this.theme;
+        return {
+          id, label: t.label, pick: () => this.setTheme(id),
+          style: 'display:flex;align-items:center;gap:9px;padding:6px 9px 6px 7px;border-radius:8px;cursor:pointer;font-size:12.5px;white-space:nowrap;'
+            + (on ? 'background:var(--acs);color:var(--ac);' : 'color:var(--tx1);'),
+          swatchStyle: 'width:16px;height:16px;flex:none;border-radius:5px;border:1px solid ' + t.bd2 + ';background:linear-gradient(135deg,' + t.bg1 + ' 0 50%,' + t.bg3 + ' 50% 100%);'
+        };
+      }),
+      themeMenuOpen: this.state.themeMenu,
+      openThemeMenu: (e) => { e.stopPropagation(); this.setState(st => ({ themeMenu: !st.themeMenu })); },
+      closeThemeMenu: () => this.setState({ themeMenu: false }),
+      tabs, tree, results, minimapRows, settings, commands,
+      minimap: this.props.minimap !== false,
+      preview: this.props.preview !== false,
+      isCode: v === 'code', isNote: v === 'note', isGraph: v === 'graph', isSettings: v === 'settings', isWelcome: v === 'welcome',
+      railIsFiles: this.state.rail === 'files', railIsSearch: this.state.rail === 'search',
+      showFiles: () => this.setState({ rail: 'files' }),
+      showSearch: () => this.setState({ rail: 'search' }),
+      openGraph: () => this.open('graph'),
+      openSettings: () => this.open('settings'),
+      openCode: () => this.open('code'),
+      openPalette: () => this.setState({ palette: true, pi: 0 }),
+      closePalette: () => this.setState({ palette: false }),
+      stop: (e) => e.stopPropagation(),
+      paletteOpen: this.state.palette,
+      paletteQuery: 'граф',
+      railFiles: this.railStyle('files'), railSearch: this.railStyle('search'),
+      railGraph: this.railStyle(v === 'graph' ? 'graph' : ''), railSettings: this.railStyle(v === 'settings' ? 'settings' : ''),
+      backlinks: [
+        { name: 'Парсер ссылок', n: '3' }, { name: 'Индекс хранилища', n: '2' },
+        { name: 'Кэш', n: '1' }, { name: 'Встреча 18.08', n: '1' }
+      ].map(b => ({ ...b, open: () => this.open('note') })),
+      graphSliders: [
+        { name: 'Сила связей', val: '0.62', fill: 'height:3px;width:62%;border-radius:2px;background:var(--ac);' },
+        { name: 'Отталкивание', val: '0.41', fill: 'height:3px;width:41%;border-radius:2px;background:var(--ac);' },
+        { name: 'Порог подписей', val: '0.80', fill: 'height:3px;width:80%;border-radius:2px;background:var(--ac);' }
+      ],
+      shortcuts: [
+        { key: 'Ctrl K', label: 'Палитра команд' },
+        { key: 'Ctrl P', label: 'Перейти к файлу' },
+        { key: 'Ctrl ⇧ F', label: 'Поиск по хранилищу' },
+        { key: 'Ctrl G', label: 'Граф заметок' }
+      ],
+      recents: [
+        { name: 'index.ts', path: 'graph/index.ts', when: '2 мин', id: 'code', c: '#4FB2E8' },
+        { name: 'План на квартал.md', path: 'roadmap/', when: '18 мин', id: 'note', c: '#7B8CFF' },
+        { name: 'vault.ts', path: 'core/vault.ts', when: 'вчера', id: 'code', c: '#4FB2E8' },
+        { name: 'Парсер ссылок.md', path: 'roadmap/', when: 'вчера', id: 'note', c: '#7B8CFF' },
+        { name: 'settings.json', path: '.slate/', when: '3 дня', id: 'settings', c: '#E8873A' }
+      ].map(r => ({ ...r, open: () => this.open(r.id), dotStyle: 'width:7px;height:7px;border-radius:50%;flex:none;background:' + r.c + ';' })),
+      statusTheme: this.theme
+    };
+  }
+
+  railStyle(kind) {
+    const on = kind && (this.state.rail === kind || this.state.view === kind);
+    return 'width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;'
+      + (on ? 'background:var(--acs);color:var(--ac);' : 'color:var(--tx2);');
+  }
+}
+</script>
+</body>
+</html>
