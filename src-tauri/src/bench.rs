@@ -64,6 +64,7 @@ pub fn parse_args(args: &[String]) -> BenchConfig {
         Some("tree") => Some("tree".to_owned()),
         Some("index") => Some("index".to_owned()),
         Some("highlight") => Some("highlight".to_owned()),
+        Some("live") => Some("live".to_owned()),
         _ => None,
     };
 
@@ -435,6 +436,64 @@ pub fn bench_run_index() -> Result<String, String> {
     drop(db);
     let _ = std::fs::remove_dir_all(&dir);
     Ok(report)
+}
+
+// --- Инвариант 6: ввод не ждёт фоновую работу ---
+
+/// Номер корня для стенда. Заведомо не совпадает с настоящими: те выдаются
+/// подряд с единицы, а хранилищ у человека не тысячи.
+const BENCH_ROOT_ID: crate::model::root::RootId = 900_001;
+
+/// Собрать стенд и поставить его в очередь индексации по-настоящему.
+///
+/// Именно по-настоящему: тот же рабочий поток, та же база, та же очередь,
+/// что у обычной работы. Отдельный «как бы фоновый» счёт мерил бы не то,
+/// ради чего инвариант 6 писался.
+#[tauri::command]
+pub fn bench_start_index(
+    state: tauri::State<'_, crate::state::AppState>,
+) -> Result<String, String> {
+    use crate::project::{IgnoreSettings, IndexSettings, ignore};
+
+    if config().mode.is_none() {
+        return Err("измерительный стенд не включён".to_owned());
+    }
+
+    let dir = std::env::temp_dir().join(format!("zeronote-bench-live-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    make_tree_fixture(&dir).map_err(|e| e.to_string())?;
+
+    let rules = std::sync::Arc::new(ignore::build(&dir, &IgnoreSettings::default()));
+    let max_size = IndexSettings::default().max_file_size;
+
+    state.index.lock().expect("индекс повреждён").scan_root(
+        BENCH_ROOT_ID,
+        dir.clone(),
+        rules,
+        max_size,
+    );
+
+    Ok(dir.display().to_string())
+}
+
+/// Убрать за стендом: отменить индексацию, вычистить записи, удалить папку.
+#[tauri::command]
+pub fn bench_stop_index(
+    state: tauri::State<'_, crate::state::AppState>,
+    path: String,
+) -> Result<(), String> {
+    if config().mode.is_none() {
+        return Err("измерительный стенд не включён".to_owned());
+    }
+
+    {
+        let index = state.index.lock().expect("индекс повреждён");
+        index.cancel();
+        index.forget_root(BENCH_ROOT_ID);
+    }
+
+    let _ = std::fs::remove_dir_all(std::path::PathBuf::from(path));
+    Ok(())
 }
 
 #[tauri::command]

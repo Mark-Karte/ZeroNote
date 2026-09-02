@@ -50,7 +50,8 @@ async function main(): Promise<void> {
     config.mode === 'open' ||
     config.mode === 'tree' ||
     config.mode === 'index' ||
-    config.mode === 'highlight'
+    config.mode === 'highlight' ||
+    config.mode === 'live'
   ) {
     let report: string;
     if (config.mode === 'open') {
@@ -59,6 +60,11 @@ async function main(): Promise<void> {
       report = await benchRunTree();
     } else if (config.mode === 'index') {
       report = await benchRunIndex();
+    } else if (config.mode === 'live') {
+      // Инвариант 6: ввод под настоящей фоновой индексацией.
+      report = await import('./bench/live-suite').then(async (suite) =>
+        suite.formatMarkdown(await suite.runLiveSuite()),
+      );
     } else if (config.mode === 'highlight') {
       // Замер целиком во фронтенде: подсветка живёт здесь (Р-042),
       // и границы IPC в этом пути нет.

@@ -5,7 +5,7 @@ import { invoke } from '@tauri-apps/api/core';
  * В обычном запуске `mode` равен null и приложение ведёт себя как приложение.
  */
 export interface BenchConfig {
-  mode: 'startup' | 'ipc' | 'open' | 'tree' | 'index' | 'highlight' | null;
+  mode: 'startup' | 'ipc' | 'open' | 'tree' | 'index' | 'highlight' | 'live' | null;
   outPath: string | null;
 }
 
@@ -64,6 +64,19 @@ export function benchRunTree(): Promise<string> {
 /** Замер индексации: обход, первая индексация, повторный проход, поиск. */
 export function benchRunIndex(): Promise<string> {
   return invoke<string>('bench_run_index');
+}
+
+/**
+ * Собрать стенд и поставить его в очередь индексации по-настоящему.
+ * Возвращает путь стенда — его надо будет убрать.
+ */
+export function benchStartIndex(): Promise<string> {
+  return invoke<string>('bench_start_index');
+}
+
+/** Отменить индексацию стенда и убрать за ней. */
+export function benchStopIndex(path: string): Promise<void> {
+  return invoke<void>('bench_stop_index', { path });
 }
 
 export function benchWriteReport(path: string, content: string): Promise<void> {

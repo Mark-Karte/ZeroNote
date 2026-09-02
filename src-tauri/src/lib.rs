@@ -175,6 +175,8 @@ pub fn run() {
             bench::bench_run_open,
             bench::bench_run_tree,
             bench::bench_run_index,
+            bench::bench_start_index,
+            bench::bench_stop_index,
             bench::bench_write_report,
             bench::bench_exit,
         ])

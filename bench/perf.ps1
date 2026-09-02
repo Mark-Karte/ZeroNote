@@ -11,7 +11,7 @@
 # Замеры на отладочной сборке бессмысленны и скриптом не поддерживаются.
 
 param(
-    [ValidateSet('all', 'startup', 'ipc', 'open', 'tree', 'index', 'highlight')]
+    [ValidateSet('all', 'startup', 'ipc', 'open', 'tree', 'index', 'highlight', 'live')]
     [string]$Only = 'all',
 
     [int]$Runs = 9
@@ -137,6 +137,10 @@ if ($Only -eq 'all' -or $Only -eq 'index') {
 if ($Only -eq 'all' -or $Only -eq 'highlight') {
     Measure-InApp -Mode 'highlight' -Title 'Подсветка синтаксиса: открытие и ввод' -FileName 'highlight.md'
     Write-Host 'Цель: ввод символа при открытом файле 10 МБ без заметной задержки' -ForegroundColor DarkGray
+}
+if ($Only -eq 'all' -or $Only -eq 'live') {
+    Measure-InApp -Mode 'live' -Title 'Инвариант 6: ввод во время индексации' -FileName 'live.md'
+    Write-Host 'Цель: задержка ввода под нагрузкой не отличается от задержки в покое' -ForegroundColor DarkGray
 }
 if ($Only -eq 'all' -or $Only -eq 'ipc') {
     Measure-InApp -Mode 'ipc' -Title 'Граница Rust <-> фронтенд' -FileName 'ipc.md'
