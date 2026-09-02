@@ -1,5 +1,6 @@
 import { open as openDialog, message } from '@tauri-apps/plugin-dialog';
 
+import * as ipcRoots from '../ipc/roots';
 import {
   roots,
   add,
@@ -7,7 +8,9 @@ import {
   createProjectFile,
   toggleSidebar,
   showPanel,
+  put,
 } from '../state/roots.svelte';
+import { createEmpty } from '../state/tabs.svelte';
 import { noteStructureChange } from '../state/persist.svelte';
 import { askChoice } from '../state/modal.svelte';
 import { open as openPalette } from '../state/palette.svelte';
@@ -77,6 +80,91 @@ export async function createProject(id: number): Promise<void> {
 /** Быстрое открытие по имени. */
 export function quickOpen(): void {
   openPalette();
+}
+
+/**
+ * Перенести настройки Obsidian в наш файл проекта.
+ *
+ * Односторонне и один раз (Р-022, пункт 2). Обратно ничего не
+ * синхронизируется, результат правится руками.
+ */
+export async function importFromObsidian(id: number): Promise<void> {
+  const root = roots.items.find((r) => r.id === id);
+  if (!root) return;
+
+  let preview: ipcRoots.ObsidianPreview;
+  try {
+    preview = await ipcRoots.obsidianPreview(id);
+  } catch (error) {
+    await report(error);
+    return;
+  }
+
+  // Файл проекта уже есть. Дописать в него нельзя, не потеряв комментарии
+  // пользователя (Р-072), — поэтому показываем готовые строки в новой
+  // вкладке, а вставит он их сам.
+  if (preview.projectFileExists) {
+    await showRulesToPaste(root.name, preview);
+    return;
+  }
+
+  const lines = [
+    preview.rules.length > 0
+      ? `Правил исключения найдено: ${preview.rules.length}.`
+      : 'Настроек, которые ZeroNote умеет переносить, в хранилище нет.',
+    preview.skipped.length > 0
+      ? `Не переносится (регулярные выражения): ${preview.skipped.join(', ')}.`
+      : '',
+    `В папке «${root.name}» будет создан zeronote.toml. В .obsidian ничего не записывается.`,
+  ].filter((line) => line !== '');
+
+  const answer = await askChoice('Перенести настройки Obsidian', lines.join('\n'), [
+    { id: 'cancel', label: 'Отмена', cancel: true },
+    { id: 'import', label: 'Перенести', primary: true },
+  ]);
+  if (answer !== 'import') return;
+
+  try {
+    put(await ipcRoots.obsidianImport(id));
+  } catch (error) {
+    await report(error);
+  }
+}
+
+/** Показать готовые строки для вставки руками — файл проекта уже есть. */
+async function showRulesToPaste(
+  name: string,
+  preview: ipcRoots.ObsidianPreview,
+): Promise<void> {
+  if (preview.rules.length === 0 && preview.skipped.length === 0) {
+    await message(
+      `В хранилище «${name}» нет настроек, которые ZeroNote умеет переносить.`,
+      { title: 'ZeroNote' },
+    );
+    return;
+  }
+
+  const text = [
+    `# Настройки из .obsidian хранилища «${name}».`,
+    '# Файл проекта уже существует, поэтому строки не вписаны автоматически:',
+    '# дописать в TOML вторую таблицу [ignore] нельзя, а переписать ваш файл',
+    '# целиком значило бы потерять комментарии. Перенесите руками.',
+    '',
+    '[ignore]',
+    'rules = [',
+    ...preview.rules.map((rule) => `    '${rule}',`),
+    ']',
+    ...(preview.skipped.length > 0
+      ? [
+          '',
+          '# Эти фильтры Obsidian — регулярные выражения, и в правилах',
+          '# игнорирования их не выразить. Перепишите вручную, если нужны:',
+          ...preview.skipped.map((filter) => `#   ${filter}`),
+        ]
+      : []),
+  ].join('\n');
+
+  await createEmpty(text);
 }
 
 /** Перейти по ссылке под курсором. */

@@ -291,9 +291,18 @@ export async function restore(): Promise<string[]> {
   return session.notices;
 }
 
-export async function createEmpty(): Promise<void> {
+export async function createEmpty(text = ''): Promise<void> {
   const meta = await ipc.newBuffer();
-  put(meta, '');
+  put(meta, text);
+
+  // Непустая вкладка изменена с рождения: содержимое есть только в памяти,
+  // и потерять его при закрытии нельзя (инвариант 4).
+  if (text !== '') {
+    restoredDirty.add(meta.id);
+    tabById(meta.id)!.meta = { ...meta, modified: true };
+    void ipc.setModified(meta.id, true);
+    noteEdit();
+  }
 }
 
 export async function openPath(path: string): Promise<void> {

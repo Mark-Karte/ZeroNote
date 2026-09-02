@@ -23,6 +23,8 @@ pub struct RootView {
     pub path: String,
     pub name: String,
     pub has_project_file: bool,
+    /// В папке есть `.obsidian` — можно предложить перенос настроек.
+    pub has_obsidian_config: bool,
     pub available: bool,
     pub problems: Vec<String>,
 }
@@ -34,6 +36,7 @@ impl RootView {
             path: root.path.display().to_string(),
             name: root.name.clone(),
             has_project_file: root.has_project_file,
+            has_obsidian_config: root.has_obsidian_config,
             available: root.available,
             problems: root.problems.clone(),
         }
@@ -129,6 +132,78 @@ pub fn refresh_roots(state: tauri::State<'_, AppState>) -> Vec<RootView> {
     }
 
     views
+}
+
+/// Что переходник Obsidian готов перенести из этого корня.
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ObsidianPreview {
+    /// В папке есть `.obsidian`.
+    pub detected: bool,
+    /// Правила игнорирования, готовые к переносу.
+    pub rules: Vec<String>,
+    /// Фильтры, которые перенести нельзя, — как записаны в Obsidian.
+    pub skipped: Vec<String>,
+    /// Файл проекта уже есть: тогда переносим не мы, а пользователь руками
+    /// (Р-072).
+    pub project_file_exists: bool,
+}
+
+/// Посмотреть, что можно перенести из хранилища Obsidian.
+///
+/// Только чтение — инвариант 2. Никакая ветка этой команды в `.obsidian`
+/// не пишет.
+#[tauri::command]
+pub fn obsidian_preview(
+    state: tauri::State<'_, AppState>,
+    id: RootId,
+) -> Fallible<ObsidianPreview> {
+    let roots = state.roots.lock().expect("реестр корней повреждён");
+    let root = roots.get(id).ok_or("корень не найден")?;
+
+    let import = project::obsidian::read_import(&root.path);
+
+    Ok(ObsidianPreview {
+        detected: root.has_obsidian_config,
+        rules: import.rules,
+        skipped: import.skipped,
+        project_file_exists: root.has_project_file,
+    })
+}
+
+/// Перенести настройки Obsidian в наш файл проекта.
+///
+/// Создаёт `zeronote.toml` с перенесёнными правилами. Существующий файл
+/// не трогает вовсе (Р-072): дописать в TOML вторую таблицу `[ignore]`
+/// нельзя, а переписать файл целиком значит потерять комментарии
+/// пользователя.
+#[tauri::command]
+pub fn obsidian_import(
+    state: tauri::State<'_, AppState>,
+    id: RootId,
+) -> Fallible<RootView> {
+    let (root_path, path) = {
+        let roots = state.roots.lock().expect("реестр корней повреждён");
+        let root = roots.get(id).ok_or("корень не найден")?;
+        (root.path.clone(), project::project_path(&root.path))
+    };
+
+    if path.exists() {
+        return Err(format!(
+            "{} уже существует — правила нужно перенести руками",
+            path.display()
+        ));
+    }
+
+    let import = project::obsidian::read_import(&root_path);
+    let text = project::template_with_rules(&import.rules, ".obsidian/app.json");
+
+    atomic_save::save(&path, text.as_bytes()).map_err(|e| e.to_string())?;
+
+    let mut roots = state.roots.lock().expect("реестр корней повреждён");
+    let root = roots.get_mut(id).ok_or("корень не найден")?;
+    root.reload();
+    Ok(RootView::of(root))
 }
 
 /// Создать `zeronote.toml` в корне — по явной команде пользователя.

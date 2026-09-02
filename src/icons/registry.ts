@@ -26,6 +26,7 @@ export type IconName =
   | 'action.add-folder'
   | 'action.remove'
   | 'action.project-file'
+  | 'action.obsidian'
   | 'tree.chevron'
   | 'tree.folder-open'
   | 'panel.tree'
@@ -60,6 +61,12 @@ const ICONS: Record<IconName, string> = {
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>',
   'action.project-file':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"><path d="M9 1.6H4a1.4 1.4 0 0 0-1.4 1.4v10a1.4 1.4 0 0 0 1.4 1.4h8a1.4 1.4 0 0 0 1.4-1.4V6z"/><path d="M9 1.6V6h4.4"/><path d="M8 8.4v3.6M6.2 10.2h3.6" stroke-linecap="round"/></svg>',
+
+  // Перенос настроек хранилища: стрелка внутрь, «взять к себе».
+  // Логотип Obsidian не берём: чужой знак в своём интерфейсе намекает
+  // на родство, которого нет (Р-022).
+  'action.obsidian':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v7"/><path d="M5.2 6.4 8 9.2l2.8-2.8"/><path d="M3 11.2v1.3a1.2 1.2 0 0 0 1.2 1.2h7.6a1.2 1.2 0 0 0 1.2-1.2v-1.3"/></svg>',
 
   // Полоса значков боковой панели (Р-044).
   'panel.tree':

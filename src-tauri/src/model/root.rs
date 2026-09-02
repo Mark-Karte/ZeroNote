@@ -78,6 +78,12 @@ pub struct Root {
     pub name: String,
     /// В папке есть `zeronote.toml`.
     pub has_project_file: bool,
+    /// В папке есть `.obsidian`.
+    ///
+    /// Это факт о папке, а не «режим Obsidian»: режима нет и не будет
+    /// (Р-022). Нужен ровно для одного — предложить один раз перенести
+    /// настройки в наш файл проекта.
+    pub has_obsidian_config: bool,
     /// Папка сейчас читается. `false` — например, отключён сетевой диск;
     /// корень при этом остаётся в списке (Р-052).
     pub available: bool,
@@ -141,6 +147,7 @@ impl Root {
             id,
             name,
             has_project_file: loaded.present,
+            has_obsidian_config: project::obsidian::detect(&path),
             available,
             problems,
             project: loaded.project,

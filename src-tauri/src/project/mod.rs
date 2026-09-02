@@ -13,6 +13,7 @@ use std::path::{Path, PathBuf};
 use crate::text::encoding::Encoding;
 
 pub mod ignore;
+pub mod obsidian;
 
 /// Имя файла проекта. В одном месте, чтобы не разъехалось по коду.
 pub const PROJECT_FILE: &str = "zeronote.toml";
@@ -245,6 +246,36 @@ max_file_size = 2097152
 #   default_encoding = "windows1251"
 "#;
 
+/// Образец файла проекта с уже вписанными правилами игнорирования.
+///
+/// Нужен переходнику Obsidian: он создаёт файл проекта сразу с перенесёнными
+/// фильтрами. Подстановка в готовый образец, а не сборка через serde: serde
+/// не переживает комментарии, а в этом файле они и есть половина пользы.
+pub fn template_with_rules(rules: &[String], source: &str) -> String {
+    if rules.is_empty() {
+        return DEFAULT_TEMPLATE.to_owned();
+    }
+
+    let lines: Vec<String> = rules
+        .iter()
+        // Строка в одинарных кавычках берётся TOML дословно: обратная косая
+        // в правиле вроде `/Папка \[важное\]` не должна стать escape-знаком.
+        // Сама одинарная кавычка внутри такой строки невозможна, поэтому
+        // в имени файла с апострофом она убирается — иначе получился бы
+        // неразбираемый файл.
+        .map(|rule| format!("    '{}',", rule.replace('\'', "")))
+        .collect();
+
+    let filled = format!(
+        "# Правила перенесены из {source} при добавлении папки.\n\
+         # Правьте свободно: обратно ничего не синхронизируется.\n\
+         rules = [\n{}\n]",
+        lines.join("\n")
+    );
+
+    DEFAULT_TEMPLATE.replace("rules = []", &filled)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -356,6 +387,32 @@ mod tests {
         assert!(!loaded.present);
         assert!(loaded.problem.is_none());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Образец с перенесёнными правилами обязан разбираться, а правила —
+    /// доезжать. Иначе переходник создаст файл, который сам же и не прочитает.
+    #[test]
+    fn template_with_rules_parses() {
+        let rules = vec![
+            "/Архив".to_owned(),
+            r"/Папка \[важное\]".to_owned(),
+            "/Работа/Черновики".to_owned(),
+        ];
+
+        let text = template_with_rules(&rules, ".obsidian/app.json");
+        let parsed = parse(&text).expect("образец с правилами должен разбираться");
+
+        assert_eq!(parsed.ignore.rules, rules);
+        assert!(
+            text.contains(".obsidian/app.json"),
+            "в файле должно быть сказано, откуда взялись правила"
+        );
+    }
+
+    /// Переносить нечего — образец остаётся обычным.
+    #[test]
+    fn template_without_rules_is_the_plain_one() {
+        assert_eq!(template_with_rules(&[], "что угодно"), DEFAULT_TEMPLATE);
     }
 
     /// Испорченный файл проекта не должен мешать открыть папку: работаем

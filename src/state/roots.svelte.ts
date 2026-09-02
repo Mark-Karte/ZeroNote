@@ -34,7 +34,7 @@ export function rootProblems(): string[] {
 }
 
 /** Заменить корень в списке тем, что вернуло ядро. */
-function put(fresh: Root): void {
+export function put(fresh: Root): void {
   const index = roots.items.findIndex((r) => r.id === fresh.id);
   if (index < 0) {
     roots.items.push(fresh);

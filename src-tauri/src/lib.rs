@@ -149,6 +149,8 @@ pub fn run() {
             commands::roots::remove_root,
             commands::roots::refresh_roots,
             commands::roots::create_project_file,
+            commands::roots::obsidian_preview,
+            commands::roots::obsidian_import,
             commands::tree::read_children,
             commands::index::index_progress,
             commands::index::index_count,

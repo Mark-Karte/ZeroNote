@@ -4,7 +4,7 @@
   import { rows, toggle, tree, type Row } from '../../state/tree.svelte';
   import { appearance } from '../../theme/store.svelte';
   import { openDropped } from '../../actions/files';
-  import { removeRoot, createProject } from '../../actions/project';
+  import { removeRoot, createProject, importFromObsidian } from '../../actions/project';
   import { roots } from '../../state/roots.svelte';
 
   /**
@@ -123,6 +123,17 @@
           </button>
 
           {#if root}
+            {#if root.hasObsidianConfig}
+              <button
+                class="action"
+                type="button"
+                onclick={() => importFromObsidian(root.id)}
+                title="Хранилище Obsidian: перенести настройки в zeronote.toml"
+                aria-label="Перенести настройки Obsidian"
+              >
+                <Icon name="action.obsidian" />
+              </button>
+            {/if}
             {#if !root.hasProjectFile}
               <button
                 class="action"
