@@ -267,6 +267,13 @@ export const previousTab = (): void => step(-1);
 export async function restore(): Promise<string[]> {
   const session = await ipc.restoreSession();
 
+  // Восстановление рассчитано на пустой список и за запуск случается один раз.
+  // Очистка нужна не приложению, а отладке: при горячей замене модулей
+  // компонент монтируется заново, вкладки удваивались бы, и Svelte падал бы
+  // на повторяющемся ключе — с сообщением, из которого настоящую причину
+  // не видно вовсе.
+  tabs.items.length = 0;
+
   for (const item of session.buffers) {
     const { text, cursor, scrollTop, language, ...meta } = item;
     const editor = makeState(meta, text, cursor);

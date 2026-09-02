@@ -20,6 +20,38 @@ export interface KeymapState {
 let bindings: Record<string, string> = {};
 
 /**
+ * Названия команд, пришедшие из ядра. Канонический список там (Р-015 в той же
+ * логике, что и токены): здесь только его отражение для показа.
+ */
+let titles: { id: string; title: string }[] = [];
+
+/**
+ * Команды с человеческими названиями и сочетаниями — для палитры.
+ *
+ * Сочетание ищется обратным проходом по раскладке: канонической связью
+ * является «сочетание → команда», потому что одну команду можно повесить
+ * на несколько сочетаний. В список берём первое по алфавиту — чтобы подпись
+ * не прыгала от запуска к запуску.
+ */
+export function commandList(): { id: string; title: string; binding: string | null }[] {
+  const byCommand = new Map<string, string>();
+  for (const binding of Object.keys(bindings).sort()) {
+    const id = bindings[binding]!;
+    if (!byCommand.has(id)) byCommand.set(id, binding);
+  }
+
+  return titles
+    // Команда без обработчика в палитре не нужна: нажать её было бы нельзя,
+    // а объяснить почему — негде.
+    .filter((command) => COMMANDS[command.id])
+    .map((command) => ({
+      id: command.id,
+      title: command.title,
+      binding: byCommand.get(command.id) ?? null,
+    }));
+}
+
+/**
  * Сочетания, которые вебвью считает своими и которые в редакторе означают
  * совсем другое. Их надо отнять, даже если своего действия пока нет: F5
  * перезагружает страницу и стирает несохранённые буферы, Ctrl+P открывает
@@ -42,6 +74,7 @@ const WEBVIEW_DEFAULTS = new Set([
 export async function loadKeymap(): Promise<string[]> {
   const state = await invoke<KeymapState>('keymap_state');
   bindings = state.bindings;
+  titles = state.commands;
 
   const problems = [...state.problems];
 

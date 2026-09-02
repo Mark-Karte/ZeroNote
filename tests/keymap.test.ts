@@ -108,3 +108,29 @@ describe('реестр команд', () => {
     expect(missingInRust, 'есть в реестре обработчиков, но не в keymap.rs').toEqual([]);
   });
 });
+
+describe('подпись сочетания', () => {
+  it('читается человеком и совпадает по составу с сочетанием', async () => {
+    const { labelOf } = await import('../src/keymap/binding');
+
+    expect(labelOf('ctrl+shift+p')).toBe('Ctrl Shift P');
+    expect(labelOf('f5')).toBe('F5');
+    expect(labelOf('ctrl+alt+s')).toBe('Ctrl Alt S');
+  });
+
+  it('клавиши со стрелками и служебные названы по-человечески', () => {
+    // Подпись «Escape» в плашке не помещается, а «Down» читается хуже стрелки.
+    return import('../src/keymap/binding').then(({ labelOf }) => {
+      expect(labelOf('escape')).toBe('Esc');
+      expect(labelOf('ctrl+down')).toBe('Ctrl ↓');
+      expect(labelOf('ctrl+pageup')).toBe('Ctrl PgUp');
+    });
+  });
+
+  it('порядок частей не меняется', async () => {
+    // Подпись обязана совпадать с тем, что написано в keymap.toml: иначе
+    // по ней нельзя будет найти строку в файле.
+    const { labelOf } = await import('../src/keymap/binding');
+    expect(labelOf('alt+ctrl+x')).toBe('Alt Ctrl X');
+  });
+});

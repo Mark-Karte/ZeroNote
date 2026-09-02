@@ -220,6 +220,15 @@ impl Index {
         super::graph::files_with_tag(&connection, tag, limit).unwrap_or_default()
     }
 
+    /// Теги проекта, подходящие под запрос. Нужно палитре в режиме `#`.
+    pub fn find_tags(&self, query: &str, limit: u32) -> Vec<super::graph::TagHit> {
+        let Some(connection) = &self.connection else {
+            return Vec::new();
+        };
+        let connection = connection.lock().expect("соединение с индексом повреждено");
+        super::graph::find_tags(&connection, query, limit).unwrap_or_default()
+    }
+
     /// Все файлы индекса: номер корня, путь, имя. Нужно быстрому открытию.
     pub fn files(&self) -> Vec<(RootId, String, String)> {
         let Some(connection) = &self.connection else {

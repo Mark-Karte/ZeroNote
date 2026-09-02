@@ -270,3 +270,60 @@ fn links_in_code_blocks_are_not_connections() {
     );
     let _ = fs::remove_dir_all(&dir);
 }
+
+/// Список тегов для палитры: самые частые сверху, начало имени вперёд.
+#[test]
+fn tags_are_listed_by_frequency_then_by_prefix() {
+    let dir = temp_dir("tags-list");
+    let db = vault(
+        &dir,
+        &[
+            ("а.md", "#работа #дом\n"),
+            ("б.md", "#работа\n"),
+            ("в.md", "#работа/срочное\n"),
+            ("г.md", "#по-работе\n"),
+        ],
+    );
+
+    // Пустой запрос — все теги, частые сверху.
+    let all = graph::find_tags(&db, "", 50).unwrap();
+    assert_eq!(all[0].tag, "работа");
+    assert_eq!(all[0].count, 2);
+    assert_eq!(all.len(), 4);
+
+    // Запрос: сначала те, что начинаются с него, потом просто содержащие.
+    let found = graph::find_tags(&db, "работ", 50).unwrap();
+    let names: Vec<&str> = found.iter().map(|t| t.tag.as_str()).collect();
+    assert_eq!(names, vec!["работа", "работа/срочное", "по-работе"]);
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// Решётка в запросе не мешает: пользователь набирает её первой.
+#[test]
+fn leading_hash_in_query_is_ignored() {
+    let dir = temp_dir("tags-hash");
+    let db = vault(&dir, &[("а.md", "#заметки\n")]);
+
+    assert_eq!(graph::find_tags(&db, "#замет", 50).unwrap().len(), 1);
+    assert_eq!(graph::find_tags(&db, "замет", 50).unwrap().len(), 1);
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// Подчёркивание в запросе — это подчёркивание, а не «любой символ».
+///
+/// В `LIKE` символы `_` и `%` служебные. Не экранируй мы их, запрос `план_б`
+/// нашёл бы и `планаб`: ровно та же ошибка, что со скобкой в запросе к FTS5,
+/// только тихая — она не роняет запрос, а молча возвращает лишнее.
+#[test]
+fn like_wildcards_in_query_are_literal() {
+    let dir = temp_dir("tags-like");
+    let db = vault(&dir, &[("а.md", "#план_б\n"), ("б.md", "#планаб\n")]);
+
+    let found = graph::find_tags(&db, "план_б", 50).unwrap();
+    let names: Vec<&str> = found.iter().map(|t| t.tag.as_str()).collect();
+    assert_eq!(names, vec!["план_б"]);
+
+    let _ = fs::remove_dir_all(&dir);
+}

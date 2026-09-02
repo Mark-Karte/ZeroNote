@@ -87,6 +87,16 @@ export const resolveLinks = (targets: string[], from: string): Promise<boolean[]
 export const backlinks = (path: string): Promise<Backlink[]> =>
   invoke('backlinks', { path });
 
+/** Тег и сколько файлов им помечено. */
+export interface TagHit {
+  tag: string;
+  count: number;
+}
+
+/** Теги проекта под запрос. Пустой запрос — самые частые. */
+export const findTags = (query: string, limit?: number): Promise<TagHit[]> =>
+  invoke('find_tags', { query, limit: limit ?? null });
+
 /** Файлы с этим тегом; вложенные теги считаются. */
 export const filesWithTag = (tag: string, limit?: number): Promise<Tagged[]> =>
   invoke('files_with_tag', { tag, limit: limit ?? null });

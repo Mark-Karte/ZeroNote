@@ -42,6 +42,8 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("view.sidebar", "Показать боковую панель"),
     ("project.add-root", "Открыть папку"),
     ("project.quick-open", "Быстрое открытие по имени"),
+    ("project.commands", "Палитра команд"),
+    ("project.tags", "Палитра тегов"),
     ("project.search", "Найти в проекте"),
     ("project.follow-link", "Перейти по ссылке под курсором"),
     ("project.backlinks", "Обратные ссылки"),
@@ -83,6 +85,7 @@ pub const DEFAULTS: &[(&str, &str)] = &[
     // не будет. Ctrl+Shift+F там же — «найти в файлах», то есть ровно
     // тот же смысл, что и у нас.
     ("ctrl+p", "project.quick-open"),
+    ("ctrl+shift+p", "project.commands"),
     ("ctrl+shift+f", "project.search"),
     // F12 — «перейти к определению» в привычке любого, кто пользовался
     // средой разработки. Ссылка между заметками — то же самое движение.

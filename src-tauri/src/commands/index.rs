@@ -3,7 +3,7 @@
 //! Логики здесь нет: очередь и отмену ведёт `index/jobs.rs`, запрос —
 //! `index/query.rs`.
 
-use crate::index::graph::{Backlink, Resolved, Tagged};
+use crate::index::graph::{Backlink, Resolved, TagHit, Tagged};
 use crate::index::jobs::Progress;
 use crate::index::names::FileHit;
 use crate::index::query::Hit;
@@ -131,6 +131,23 @@ pub fn files_with_tag(
         .lock()
         .expect("индекс повреждён")
         .files_with_tag(&tag, limit.unwrap_or(200))
+}
+
+/// Теги проекта для палитры в режиме `#`.
+///
+/// Пустой запрос выдаёт самые частые теги, а не пустоту: палитра должна
+/// показывать, что в проекте вообще есть.
+#[tauri::command]
+pub fn find_tags(
+    state: tauri::State<'_, AppState>,
+    query: String,
+    limit: Option<u32>,
+) -> Vec<TagHit> {
+    state
+        .index
+        .lock()
+        .expect("индекс повреждён")
+        .find_tags(&query, limit.unwrap_or(50))
 }
 
 /// Быстрое открытие: нечёткий поиск по именам файлов.

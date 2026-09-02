@@ -30,6 +30,8 @@ export type IconName =
   | 'action.obsidian'
   | 'tree.chevron'
   | 'tree.folder-open'
+  | 'palette.command'
+  | 'palette.tag'
   | 'panel.tree'
   | 'panel.search'
   | 'panel.links'
@@ -73,6 +75,12 @@ const ICONS: Record<IconName, string> = {
   // на родство, которого нет (Р-022).
   'action.obsidian':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v7"/><path d="M5.2 6.4 8 9.2l2.8-2.8"/><path d="M3 11.2v1.3a1.2 1.2 0 0 0 1.2 1.2h7.6a1.2 1.2 0 0 0 1.2-1.2v-1.3"/></svg>',
+
+  // Строки палитры: команда — уголок приглашения, тег — решётка.
+  'palette.command':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4.5 7.2 8 4 11.5"/><path d="M8.6 11.6h3.6"/></svg>',
+  'palette.tag':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M6.1 2.6 4.8 13.4M11.2 2.6 9.9 13.4"/><path d="M2.9 5.9h10.6M2.5 10.1h10.6"/></svg>',
 
   // Полоса значков боковой панели (Р-044).
   'panel.tree':

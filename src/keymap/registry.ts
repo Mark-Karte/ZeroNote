@@ -13,6 +13,8 @@ import {
   addRootDialog,
   toggleSidebarPanel,
   quickOpen,
+  commandPalette,
+  tagPalette,
   searchInProject,
   followLink,
   showBacklinks,
@@ -68,6 +70,8 @@ export const COMMANDS: Record<CommandId, () => void | Promise<unknown>> = {
 
   'project.add-root': addRootDialog,
   'project.quick-open': quickOpen,
+  'project.commands': commandPalette,
+  'project.tags': tagPalette,
   'project.search': searchInProject,
   'project.follow-link': followLink,
   'project.backlinks': showBacklinks,

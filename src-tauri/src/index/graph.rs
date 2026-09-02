@@ -346,6 +346,75 @@ pub fn files_with_tag(
     Ok(out)
 }
 
+/// Тег и сколько файлов им помечено.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct TagHit {
+    pub tag: String,
+    pub count: u32,
+}
+
+/// Экранирование строки пользователя для `LIKE`.
+///
+/// Та же беда, что с запросом к FTS5, только тише: `_` в `LIKE` означает
+/// «любой символ», а `%` — «любая строка». Тег `план_б`, набранный как есть,
+/// нашёл бы и `планаб`, и `план-б`. Экранируем сами и объявляем escape-символ
+/// в запросе — иначе он тоже был бы обычным символом.
+fn escape_like(query: &str) -> String {
+    let mut out = String::with_capacity(query.len());
+    for ch in query.chars() {
+        if ch == '\\' || ch == '%' || ch == '_' {
+            out.push('\\');
+        }
+        out.push(ch);
+    }
+    out
+}
+
+/// Теги, подходящие под запрос, вместе с числом помеченных файлов.
+///
+/// Пустой запрос — все теги, самые частые сверху: так палитра сразу
+/// показывает, что вообще есть в проекте, а не пустоту до первой буквы.
+///
+/// Совпадение по вхождению, но начало имени идёт вперёд: набрав «раб», хочется
+/// увидеть сначала `#работа`, а уже потом `#срочно/на-работу`. Регистр учитывать
+/// не нужно — теги лежат в индексе уже приведёнными к нижнему регистру, причём
+/// средствами Rust: `lower()` в SQLite не знает кириллицы.
+pub fn find_tags(
+    connection: &Connection,
+    query: &str,
+    limit: u32,
+) -> Result<Vec<TagHit>, rusqlite::Error> {
+    let query = crate::markdown::links::normalize_tag(query);
+    let escaped = escape_like(&query);
+    let anywhere = format!("%{escaped}%");
+    let at_start = format!("{escaped}%");
+
+    let mut statement = connection.prepare(
+        "SELECT t.tag, COUNT(DISTINCT t.file_id) AS n
+         FROM tags t
+         WHERE ?1 = '' OR t.tag LIKE ?2 ESCAPE '\\'
+         GROUP BY t.tag
+         ORDER BY (t.tag LIKE ?3 ESCAPE '\\') DESC, n DESC, t.tag
+         LIMIT ?4",
+    )?;
+
+    let rows = statement.query_map(
+        rusqlite::params![query, anywhere, at_start, limit as i64],
+        |row| {
+            Ok(TagHit {
+                tag: row.get(0)?,
+                count: row.get::<_, i64>(1)? as u32,
+            })
+        },
+    )?;
+
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

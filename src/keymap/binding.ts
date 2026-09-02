@@ -55,6 +55,32 @@ export function bindingOf(event: KeyLike): string | null {
   return binding + key;
 }
 
+/** Как называется клавиша на подписи. Остальное пишется с большой буквы. */
+const SHOWN: Record<string, string> = {
+  escape: 'Esc',
+  pageup: 'PgUp',
+  pagedown: 'PgDn',
+  left: '←',
+  right: '→',
+  up: '↑',
+  down: '↓',
+};
+
+/**
+ * Подпись сочетания для интерфейса: `ctrl+shift+p` → `Ctrl Shift P`.
+ *
+ * Плюсы убраны намеренно: в палитре подпись стоит плашкой, и разделители
+ * внутри неё превращаются в шум. Порядок частей не меняется — он задан
+ * при разборе, и подпись обязана совпадать с тем, что написано в
+ * `keymap.toml`, иначе по ней нельзя будет найти строку в файле.
+ */
+export function labelOf(binding: string): string {
+  return binding
+    .split('+')
+    .map((part) => SHOWN[part] ?? part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
 function fromCode(code: string): string | null {
   const letter = /^Key([A-Z])$/.exec(code);
   if (letter) return letter[1]!.toLowerCase();

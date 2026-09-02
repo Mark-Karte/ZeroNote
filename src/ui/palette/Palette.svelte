@@ -1,17 +1,21 @@
 <script lang="ts">
   import Icon from '../Icon.svelte';
-  import { iconForFile } from '../../icons/files';
-  import { palette, refresh, close, move, accept } from '../../state/palette.svelte';
+  import { iconForFile, kindOf } from '../../icons/files';
+  import { palette, refresh, close, move, accept, mode } from '../../state/palette.svelte';
   import { roots } from '../../state/roots.svelte';
+  import { matchRange, placeholderFor } from './query';
+  import { labelOf } from '../../keymap/binding';
 
   /**
-   * Быстрое открытие по имени (Р-045).
+   * Палитра: одно поле, три режима по префиксу (Р-076).
    *
    * Список не виртуализуется намеренно: показывается полсотни строк, и
    * распорка с окном тут стоила бы больше, чем экономила.
    */
 
   let field: HTMLInputElement | undefined = $state();
+
+  const current = $derived(mode());
 
   $effect(() => {
     if (palette.open) field?.focus();
@@ -35,6 +39,24 @@
     return out;
   }
 
+  /** То же для команд и тегов: там совпадение — один непрерывный кусок. */
+  function split(text: string, term: string): { text: string; hit: boolean }[] {
+    const range = matchRange(text, term);
+    if (!range) return [{ text, hit: false }];
+
+    const [at, length] = range;
+    return [
+      { text: text.slice(0, at), hit: false },
+      { text: text.slice(at, at + length), hit: true },
+      { text: text.slice(at + length), hit: false },
+    ].filter((piece) => piece.text !== '');
+  }
+
+  /** Запрос без префикса режима — по нему подсвечиваются совпадения. */
+  const term = $derived(
+    current === 'files' ? palette.query : palette.query.replace(/^\s*[>#]\s*/, ''),
+  );
+
   /** Путь без имени файла и без пути корня: показываем, где файл лежит. */
   function place(path: string, rootId: number): string {
     const root = roots.items.find((r) => r.id === rootId);
@@ -50,6 +72,18 @@
     }
     return inside;
   }
+
+  const EMPTY: Record<string, string> = {
+    files: 'Ничего не найдено',
+    commands: 'Нет такой команды',
+    tags: 'Нет такого тега',
+  };
+
+  const NOTHING_YET: Record<string, string> = {
+    files: 'В индексе пока нет файлов',
+    commands: 'Команд нет',
+    tags: 'В проекте нет тегов',
+  };
 
   function onKeyDown(event: KeyboardEvent): void {
     if (event.key === 'Escape') {
@@ -86,25 +120,31 @@
     }}
   >
     <div class="palette">
-      <input
-        class="field"
-        type="text"
-        bind:this={field}
-        bind:value={palette.query}
-        oninput={() => void refresh()}
-        onkeydown={onKeyDown}
-        placeholder="Имя файла"
-        aria-label="Быстрое открытие по имени"
-        spellcheck="false"
-      />
+      <div class="head">
+        <!-- Подпись режима, а не тот же знак ещё раз: знак пользователь
+             и так видит в поле — он его только что набрал. -->
+        {#if current !== 'files'}
+          <span class="mode">{current === 'commands' ? 'Команды' : 'Теги'}</span>
+        {/if}
+        <input
+          class="field"
+          type="text"
+          bind:this={field}
+          bind:value={palette.query}
+          oninput={() => void refresh()}
+          onkeydown={onKeyDown}
+          placeholder={placeholderFor(current)}
+          aria-label="Палитра: файл, команда или тег"
+          spellcheck="false"
+        />
+        <kbd class="hint">esc</kbd>
+      </div>
 
       {#if palette.items.length === 0}
-        <p class="empty">
-          {palette.query === '' ? 'В индексе пока нет файлов' : 'Ничего не найдено'}
-        </p>
+        <p class="empty">{term === '' ? NOTHING_YET[current] : EMPTY[current]}</p>
       {:else}
         <ul class="list">
-          {#each palette.items as item, i (item.path)}
+          {#each palette.items as item, i (item.kind === 'file' ? item.hit.path : item.kind === 'command' ? item.id : item.tag)}
             <li>
               <button
                 class="row"
@@ -115,15 +155,39 @@
                   void accept();
                 }}
                 onmousemove={() => (palette.selected = i)}
-                title={item.path}
+                title={item.kind === 'file' ? item.hit.path : undefined}
               >
-                <Icon name={iconForFile(item.name)} />
-                <span class="name">
-                  {#each pieces(item.name, item.matched) as piece}
-                    {#if piece.hit}<mark>{piece.text}</mark>{:else}{piece.text}{/if}
-                  {/each}
-                </span>
-                <span class="place">{place(item.path, item.rootId)}</span>
+                {#if item.kind === 'file'}
+                  <span class="glyph" data-kind={kindOf(item.hit.name)}>
+                    <Icon name={iconForFile(item.hit.name)} />
+                  </span>
+                  <span class="name">
+                    {#each pieces(item.hit.name, item.hit.matched) as piece}
+                      {#if piece.hit}<mark>{piece.text}</mark>{:else}{piece.text}{/if}
+                    {/each}
+                  </span>
+                  <span class="aside">{place(item.hit.path, item.hit.rootId)}</span>
+                {:else if item.kind === 'command'}
+                  <span class="glyph"><Icon name="palette.command" /></span>
+                  <span class="name wide">
+                    {#each split(item.title, term) as piece}
+                      {#if piece.hit}<mark>{piece.text}</mark>{:else}{piece.text}{/if}
+                    {/each}
+                  </span>
+                  {#if item.binding}
+                    <kbd class="key">{labelOf(item.binding)}</kbd>
+                  {/if}
+                {:else}
+                  <span class="glyph"><Icon name="palette.tag" /></span>
+                  <span class="name wide">
+                    {#each split(item.tag, term) as piece}
+                      {#if piece.hit}<mark>{piece.text}</mark>{:else}{piece.text}{/if}
+                    {/each}
+                  </span>
+                  <span class="aside count">
+                    {item.count}
+                  </span>
+                {/if}
               </button>
             </li>
           {/each}
@@ -141,6 +205,7 @@
     justify-content: center;
     align-items: flex-start;
     padding-top: var(--zn-space-6);
+    background-color: var(--zn-color-bg-overlay);
     z-index: var(--zn-z-dialog);
   }
 
@@ -153,15 +218,33 @@
     overflow: hidden;
     background-color: var(--zn-color-bg-raised);
     border: var(--zn-border-width) solid var(--zn-color-border-default);
-    border-radius: var(--zn-radius-lg);
+    border-radius: var(--zn-radius-window);
     box-shadow: var(--zn-shadow-dialog);
   }
 
-  .field {
+  .head {
+    display: flex;
     flex: none;
-    padding: var(--zn-space-3) var(--zn-space-4);
-    border: none;
+    align-items: center;
+    gap: var(--zn-space-2);
+    padding-inline: var(--zn-space-4);
     border-bottom: var(--zn-border-width) solid var(--zn-color-border-subtle);
+  }
+
+  .mode {
+    flex: none;
+    padding-inline: var(--zn-space-2);
+    border-radius: var(--zn-radius-sm);
+    background-color: var(--zn-color-bg-selected);
+    color: var(--zn-color-accent);
+    font-size: var(--zn-font-size-ui-small);
+  }
+
+  .field {
+    flex: 1;
+    min-width: 0;
+    padding-block: var(--zn-space-3);
+    border: none;
     background: transparent;
     color: var(--zn-color-fg-default);
     font-family: inherit;
@@ -170,6 +253,17 @@
 
   .field:focus {
     outline: none;
+  }
+
+  .hint,
+  .key {
+    flex: none;
+    padding-inline: var(--zn-space-2);
+    border: var(--zn-border-width) solid var(--zn-color-border-subtle);
+    border-radius: var(--zn-radius-sm);
+    color: var(--zn-color-fg-subtle);
+    font-family: var(--zn-font-family-editor);
+    font-size: var(--zn-font-size-ui-small);
   }
 
   .list {
@@ -199,6 +293,28 @@
     background-color: var(--zn-color-bg-selected);
   }
 
+  .glyph {
+    display: inline-flex;
+    flex: none;
+    color: var(--zn-color-fg-muted);
+  }
+
+  .glyph[data-kind='note'] {
+    color: var(--zn-color-file-note);
+  }
+
+  .glyph[data-kind='code'] {
+    color: var(--zn-color-file-code);
+  }
+
+  .glyph[data-kind='data'] {
+    color: var(--zn-color-file-data);
+  }
+
+  .glyph[data-kind='other'] {
+    color: var(--zn-color-file-other);
+  }
+
   .name {
     flex: none;
     max-width: 50%;
@@ -207,19 +323,30 @@
     text-overflow: ellipsis;
   }
 
+  /* У команды и тега нет пути справа, поэтому имени достаётся вся строка. */
+  .name.wide {
+    flex: 1;
+    max-width: none;
+  }
+
   mark {
     background: transparent;
     color: var(--zn-color-accent);
     font-weight: var(--zn-font-weight-strong);
   }
 
-  .place {
+  .aside {
     flex: 1;
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
     color: var(--zn-color-fg-subtle);
     font-size: var(--zn-font-size-ui-small);
+  }
+
+  .count {
+    flex: none;
+    font-family: var(--zn-font-family-editor);
   }
 
   .empty {

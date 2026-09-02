@@ -162,6 +162,7 @@ pub fn run() {
             commands::index::resolve_links,
             commands::index::backlinks,
             commands::index::files_with_tag,
+            commands::index::find_tags,
             commands::session::save_session,
             commands::session::flush_drafts,
             commands::session::drop_draft,
