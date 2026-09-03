@@ -163,6 +163,7 @@ pub fn run() {
             commands::index::find_files,
             commands::index::resolve_link,
             commands::index::resolve_links,
+            commands::index::create_note,
             commands::index::backlinks,
             commands::index::files_with_tag,
             commands::index::find_tags,

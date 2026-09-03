@@ -84,6 +84,14 @@ export const resolveLink = (target: string, from: string): Promise<Resolved | nu
 export const resolveLinks = (targets: string[], from: string): Promise<boolean[]> =>
   invoke('resolve_links', { targets, from });
 
+/**
+ * Создать заметку по висячей ссылке. Возвращает путь к созданному файлу.
+ *
+ * Существующий файл не перезаписывается: ядро откажет, а не затрёт.
+ */
+export const createNote = (target: string, from: string): Promise<string> =>
+  invoke('create_note', { target, from });
+
 export const backlinks = (path: string): Promise<Backlink[]> =>
   invoke('backlinks', { path });
 

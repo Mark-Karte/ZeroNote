@@ -11,6 +11,7 @@
 
 pub mod front;
 pub mod links;
+pub mod new_note;
 
 pub use front::Front;
 pub use links::{Link, Parsed};

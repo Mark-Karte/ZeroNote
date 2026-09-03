@@ -43,7 +43,9 @@ const TAG = /(^|[^\p{L}\p{N}_/#-])#([\p{L}_][\p{L}\p{N}_/-]*)/gu;
 const linkMark = Decoration.mark({ class: 'zn-wikilink' });
 const danglingMark = Decoration.mark({
   class: 'zn-wikilink zn-wikilink-dangling',
-  attributes: { title: 'Заметки с таким именем нет' },
+  attributes: {
+    title: 'Заметки с таким именем нет. Ctrl+щелчок создаст её рядом с этой.',
+  },
 });
 const tagMark = Decoration.mark({ class: 'zn-tag' });
 

@@ -112,6 +112,63 @@ pub fn resolve_links(
         .collect()
 }
 
+/// Создать заметку по висячей ссылке и вернуть путь к ней (Р-098).
+///
+/// Запись в папку пользователя без переспроса — исключение из Р-049,
+/// и оно оговорено: `Ctrl`+щелчок по висячей ссылке и есть явная команда,
+/// причём недвусмысленная. Действие обратимо: файл пустой и виден в дереве.
+///
+/// Существующий файл не перезаписывается никогда. Проверка «нет такого файла»
+/// и создание идут не атомарно, но гонка здесь безобидна: единственный, кто
+/// может создать файл в этот же миг, — сам пользователь в другой программе,
+/// и тогда мы просто откажемся, а не затрём его работу.
+#[tauri::command]
+pub fn create_note(
+    state: tauri::State<'_, AppState>,
+    target: String,
+    from: String,
+) -> Fallible<String> {
+    let from_path = std::path::PathBuf::from(&from);
+
+    // Корень нужен, потому что путь в цели ссылки считается от него. Заодно
+    // это отсекает файлы вне проектов: класть заметку рядом с чужим файлом,
+    // о котором мы ничего не знаем, — не то, о чём просили.
+    let root_path = {
+        let roots = state.roots.lock().expect("реестр корней повреждён");
+        roots
+            .for_path(&from_path)
+            .map(|root| root.path.clone())
+            .ok_or("файл не входит ни в один проект")?
+    };
+
+    let path = crate::markdown::new_note::note_path(&target, &from_path, &root_path)
+        .map_err(|e| e.to_string())?;
+
+    if crate::fsx::atomic_save::is_inside_obsidian(&path) {
+        return Err("в .obsidian ничего не пишется (инвариант 2)".to_owned());
+    }
+
+    if path.exists() {
+        return Err(format!("{} уже существует", path.display()));
+    }
+
+    // Папки из пути ссылки может не быть: `[[архив/Старое]]` называет её
+    // сам, и создать её — часть той же команды.
+    if let Some(parent) = path.parent()
+        && !parent.exists()
+    {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("не удалось создать папку {}: {e}", parent.display()))?;
+    }
+
+    // Через атомарную запись, как и всё остальное. Заметка пустая: заполнять
+    // её за пользователя нечем, а любой шаблон был бы правкой чужого файла
+    // ещё до того, как он его открыл.
+    crate::fsx::atomic_save::save(&path, &[]).map_err(|e| e.to_string())?;
+
+    Ok(path.to_string_lossy().into_owned())
+}
+
 /// Кто ссылается на этот файл.
 #[tauri::command]
 pub fn backlinks(state: tauri::State<'_, AppState>, path: String) -> Vec<Backlink> {

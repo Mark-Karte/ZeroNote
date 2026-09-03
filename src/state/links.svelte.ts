@@ -1,3 +1,5 @@
+import { message } from '@tauri-apps/plugin-dialog';
+
 import * as ipc from '../ipc/index';
 import type { Backlink } from '../ipc/index';
 import type { Target } from '../editor/wikilinks';
@@ -54,8 +56,10 @@ export async function refreshBacklinks(): Promise<void> {
 /**
  * Перейти по тому, что под курсором.
  *
- * Ссылка ведёт в заметку; висячая не ведёт никуда и молчит — предлагать
- * создать файл мы не будем, это запись в папку пользователя (Р-049).
+ * Ссылка ведёт в заметку. Висячая — создаёт её и открывает (Р-098): жест тот
+ * же, и это единственное толкование, при котором он не бесполезен. Р-049 это
+ * не нарушает — `Ctrl`+щелчок по висячей ссылке и есть явная команда.
+ *
  * Тег открывает поиск по этому тегу, как в Obsidian.
  */
 export async function follow(target: Target): Promise<void> {
@@ -68,12 +72,43 @@ export async function follow(target: Target): Promise<void> {
 
   const tab = activeTab();
   const from = tab?.meta.path;
+  // Буфер без файла на диске: непонятно, где создавать и от чего считать путь.
   if (!from) return;
 
   const resolved = await ipc.resolveLink(target.value, from);
-  if (!resolved) return;
+  if (resolved) {
+    await openPath(resolved.path);
+    return;
+  }
 
-  await openPath(resolved.path);
+  await createByLink(target.value, from);
+}
+
+/**
+ * Создать заметку по висячей ссылке и открыть её.
+ *
+ * Переспроса нет: диалог на каждое создание превратил бы привычный жест
+ * в процедуру, а действие обратимо — файл пустой и виден в дереве.
+ */
+async function createByLink(target: string, from: string): Promise<void> {
+  let path: string;
+  try {
+    path = await ipc.createNote(target, from);
+  } catch (error) {
+    // Отказ бывает содержательным: запретный знак в имени, выход за пределы
+    // проекта, файл появился только что. Молчать здесь нельзя — человек
+    // нажал и ждёт новую заметку.
+    await message(String(error), { title: 'ZeroNote', kind: 'error' });
+    return;
+  }
+
+  // Ссылка перестала быть висячей — запомненные ответы про неё врут.
+  // Индекс узнает о файле сам, от слежения за диском, но это произойдёт
+  // позже, а подчеркнуть ссылку правильно надо сейчас.
+  const { forgetResolved } = await import('../editor/wikilinks');
+  forgetResolved();
+
+  await openPath(path);
 }
 
 /** Перейти по ссылке под курсором — команда с клавиатуры. */
