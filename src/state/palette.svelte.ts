@@ -30,11 +30,21 @@ export const palette = $state<{
   query: string;
   items: Item[];
   selected: number;
+  /**
+   * Счётчик открытий.
+   *
+   * Нужен полю ввода: при открытии оно забирает фокус и выделяет запрос,
+   * и признака «открыта» для этого мало — повторное открытие уже открытой
+   * палитры (сменили режим) его не меняет. Тот же приём, что у поля поиска
+   * по проекту.
+   */
+  opens: number;
 }>({
   open: false,
   query: '',
   items: [],
   selected: 0,
+  opens: 0,
 });
 
 /** Режим, выведенный из строки. Читается интерфейсом для подписи поля. */
@@ -88,6 +98,7 @@ export async function refresh(): Promise<void> {
 export function open(kind: PaletteMode = 'files'): void {
   palette.open = true;
   palette.query = withMode(palette.query, kind);
+  palette.opens += 1;
   void refresh();
 }
 

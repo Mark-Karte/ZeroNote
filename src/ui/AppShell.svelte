@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
+  import { onMount, onDestroy, untrack } from 'svelte';
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
@@ -15,9 +15,9 @@
   import Palette from './palette/Palette.svelte';
   import SettingsScreen from './settings/SettingsScreen.svelte';
   import WelcomeScreen from './welcome/WelcomeScreen.svelte';
-  import { settings } from '../state/settings.svelte';
+  import { settings, startSettings, wrapEnabled } from '../state/settings.svelte';
   import { searchFocusRequest } from '../state/project-search.svelte';
-  import { tabs, restore } from '../state/tabs.svelte';
+  import { tabs, restore, applyWrap } from '../state/tabs.svelte';
   import { flushNow } from '../state/persist.svelte';
   import { roots, refresh as refreshRoots, rootProblems } from '../state/roots.svelte';
   import { refreshDirs } from '../state/tree.svelte';
@@ -42,7 +42,21 @@
   /** О чём не удалось восстановить — показывается той же полосой, что и прочее. */
   const restoreNotices = $state<string[]>([]);
 
+  // Перенос строк — общая настройка, а состояния вкладок создаются каждое
+  // со своим набором расширений. Эффект здесь, а не в `state/settings`:
+  // тот не должен знать про вкладки, иначе получится круг импортов.
+  //
+  // `untrack` обязателен: применение проходит по всем вкладкам и подменяет
+  // им состояние редактора, то есть пишет ровно в то, что читает. Без него
+  // эффект вызывает сам себя — и окно остаётся с недорисованным содержимым.
+  $effect(() => {
+    const wrap = wrapEnabled();
+    untrack(() => applyWrap(wrap));
+  });
+
   onMount(async () => {
+    void startSettings();
+
     for (const problem of await loadKeymap()) {
       restoreNotices.push(problem);
     }

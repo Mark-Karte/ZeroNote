@@ -1,3 +1,5 @@
+import { listen } from '@tauri-apps/api/event';
+
 import * as ipc from '../ipc/settings';
 import type { SettingsState } from '../ipc/settings';
 
@@ -23,6 +25,34 @@ export const settings = $state<{
 
 export async function load(): Promise<void> {
   settings.state = await ipc.settingsState();
+}
+
+/**
+ * Загрузить настройки при запуске и следить за файлом.
+ *
+ * Событие то же, что у оформления: ядро следит за `settings.toml` и присылает
+ * `appearance-changed` на любую его правку. Отдельного события заводить незачем —
+ * файл один, и разделять «поменялась тема» и «поменялся перенос строк» значило
+ * бы решать за пользователя, что именно он там правил.
+ */
+export async function startSettings(): Promise<void> {
+  await load();
+  await listen('appearance-changed', () => {
+    void load();
+  });
+}
+
+/**
+ * Переносить ли длинные строки. Отдельной функцией, потому что читают её
+ * из редактора, а там `settings.state` может быть ещё не загружен.
+ */
+export function wrapEnabled(): boolean {
+  return settings.state?.settings.editor.wrap ?? false;
+}
+
+/** Переключить перенос строк. Значение уезжает в файл — оно настройка. */
+export async function toggleWrap(): Promise<void> {
+  await put(['editor', 'wrap'], !wrapEnabled());
 }
 
 export function open(): void {

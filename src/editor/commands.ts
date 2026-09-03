@@ -1,6 +1,7 @@
 import type { EditorView } from '@codemirror/view';
 import { EditorSelection, type ChangeSpec } from '@codemirror/state';
 import { undo, redo, selectAll } from '@codemirror/commands';
+import { selectNextOccurrence } from '@codemirror/search';
 
 /**
  * Операции с текстом.
@@ -13,6 +14,18 @@ import { undo, redo, selectAll } from '@codemirror/commands';
  * Все они работают со **всеми** выделениями сразу — множественные курсоры
  * включены, и операция, применяющаяся только к первому, выглядела бы поломкой.
  */
+
+/**
+ * Ctrl+D — добавить курсор на следующее такое же слово.
+ *
+ * Взято у CodeMirror целиком: поведение здесь тонкое — первое нажатие выделяет
+ * слово под курсором, следующие добавляют вхождения, поиск идёт по кругу
+ * и учитывает границы слова. Своя реализация была бы «почти такой же»,
+ * а это раздражает сильнее, чем «совсем иначе».
+ */
+export function addCursorNext(view: EditorView): boolean {
+  return selectNextOccurrence(view);
+}
 
 /** Строки, затронутые выделениями, без повторов и по порядку. */
 function touchedLines(view: EditorView): { from: number; to: number }[] {
@@ -34,7 +47,7 @@ function touchedLines(view: EditorView): { from: number; to: number }[] {
   return ranges;
 }
 
-/** Ctrl+D — продублировать строку под текущей. */
+/** Ctrl+Shift+D — продублировать строку под текущей. */
 export function duplicateLine(view: EditorView): boolean {
   const doc = view.state.doc;
   const changes: ChangeSpec[] = touchedLines(view).map(({ from, to }) => ({

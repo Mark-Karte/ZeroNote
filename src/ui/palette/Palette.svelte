@@ -1,9 +1,10 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import Icon from '../Icon.svelte';
   import { iconForFile, kindOf } from '../../icons/files';
   import { palette, refresh, close, move, accept, mode } from '../../state/palette.svelte';
   import { roots } from '../../state/roots.svelte';
-  import { matchRange, placeholderFor } from './query';
+  import { matchRange, placeholderFor, parse } from './query';
   import { labelOf } from '../../keymap/binding';
 
   /**
@@ -17,15 +18,29 @@
 
   const current = $derived(mode());
 
+  /**
+   * Забрать фокус и выделить запрос — но только в момент открытия.
+   *
+   * Зависимость единственная: счётчик открытий. Читать здесь `palette.query`
+   * нельзя ни в коем случае — эффект перезапускался бы на каждую букву
+   * и выделял её же, так что следующая буква её заменяла бы. Набрать больше
+   * одного символа стало бы невозможно.
+   *
+   * Выделяется набранное, но НЕ знак режима. Память о прошлом запросе нужна,
+   * когда промахнулся мимо строки и открываешь снова; выделение нужно, чтобы
+   * набор заменял прошлое, а не дописывался к нему. А знак режима в выделение
+   * попадать не должен: первая же буква стёрла бы `>` и уронила палитру
+   * обратно в поиск файлов.
+   */
   $effect(() => {
-    if (!palette.open) return;
-    field?.focus();
-    // Выделяем набранное. Палитра помнит прошлый запрос — это нужно, когда
-    // промахнулся мимо строки и открываешь снова. Но без выделения набор
-    // дописывался бы к старому запросу: «иде» плюс «main» давало «идеmain»
-    // и пустой список. Теперь первая же буква заменяет прошлое, а Enter
-    // без набора повторяет его.
-    field?.select();
+    if (palette.opens === 0 || !palette.open) return;
+
+    untrack(() => {
+      field?.focus();
+      const raw = palette.query;
+      const start = raw.length - parse(raw).term.length;
+      field?.setSelectionRange(start, raw.length);
+    });
   });
 
   /** Имя, разрезанное на совпавшие и обычные куски — для подсветки. */

@@ -1,8 +1,8 @@
 import { EditorState, type Text } from '@codemirror/state';
-import type { EditorView } from '@codemirror/view';
 import * as ipc from '../ipc/files';
 import type { Buffer, BufferWithText, ViewState } from '../ipc/files';
-import { extensionsFor, languageCompartment } from '../editor/setup';
+import { EditorView } from '@codemirror/view';
+import { extensionsFor, languageCompartment, wrapCompartment } from '../editor/setup';
 import { editorView } from '../editor/current';
 import {
   languageById,
@@ -12,6 +12,7 @@ import {
 // Взаимный импорт с persist: там только функции, и зовутся они в рантайме,
 // поэтому порядок загрузки модулей роли не играет.
 import { forgetDraft, noteEdit, noteStructureChange } from './persist.svelte';
+import { wrapEnabled } from './settings.svelte';
 import { restoreFromSession } from './roots.svelte';
 
 /**
@@ -139,8 +140,26 @@ function makeState(meta: Buffer, text: string, cursor = 0): EditorState {
       // Путь берётся каждый раз заново: «сохранить как» его меняет, а вместе
       // с ним меняется и то, куда ведут ссылки из этого файла.
       () => tabById(meta.id)?.meta.path ?? null,
+      wrapEnabled(),
     ),
   });
+}
+
+/**
+ * Применить перенос строк ко всем вкладкам.
+ *
+ * Через отсек и обычную транзакцию, а не пересозданием состояния: пересоздание
+ * стёрло бы историю отмены во всех открытых файлах разом. Проходим по всем
+ * вкладкам, а не только по активной, — иначе переключение вкладки возвращало бы
+ * прежний перенос.
+ */
+export function applyWrap(wrap: boolean): void {
+  const extension = wrap ? EditorView.lineWrapping : [];
+  for (const tab of tabs.items) {
+    tab.editor = tab.editor.update({
+      effects: wrapCompartment.reconfigure(extension),
+    }).state;
+  }
 }
 
 function put(
@@ -272,7 +291,7 @@ export async function restore(): Promise<string[]> {
   // компонент монтируется заново, вкладки удваивались бы, и Svelte падал бы
   // на повторяющемся ключе — с сообщением, из которого настоящую причину
   // не видно вовсе.
-  tabs.items.length = 0;
+  tabs.items = [];
 
   for (const item of session.buffers) {
     const { text, cursor, scrollTop, language, ...meta } = item;

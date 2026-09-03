@@ -6,13 +6,25 @@
   import { activeTab, languageOf, setLanguage } from '../state/tabs.svelte';
   import { LANGUAGES, languageForFile } from '../editor/langs';
   import { indexing, cancel as cancelIndexing } from '../state/index.svelte';
+  import { wrapEnabled, toggleWrap } from '../state/settings.svelte';
+  import { plural } from './plural';
   import type { EncodingId, LineEnding } from '../ipc/files';
   import { convertTo, reinterpretAs, setBom, setLineEnding } from '../actions/encoding';
 
   // TODO(задача 7): позиция курсора, номер строки, размер выделения.
   // TODO(окно параметров): состав строки состояния должен настраиваться.
+
   const look = $derived(appearance.current);
   const tab = $derived(activeTab());
+
+  /**
+   * Сколько курсоров в активной вкладке.
+   *
+   * Читается прямо из состояния редактора: оно и так обновляется на каждое
+   * изменение выделения, второго источника заводить незачем. Показывается
+   * только когда курсоров больше одного — иначе это шум в каждом кадре.
+   */
+  const cursors = $derived(tab?.editor.selection.ranges.length ?? 1);
 
   const EOL_LABEL: Record<LineEnding, string> = {
     lf: 'LF',
@@ -187,7 +199,24 @@
 
   <span class="spacer"></span>
 
+  {#if cursors > 1}
+    <span class="item accent" title="Escape — вернуться к одному курсору">
+      {cursors} {plural(cursors, 'курсор', 'курсора', 'курсоров')}
+    </span>
+  {/if}
+
   {#if tab}
+    <button
+      class="item action"
+      type="button"
+      title={wrapEnabled()
+        ? 'Длинные строки переносятся по ширине окна — нажмите, чтобы выключить'
+        : 'Длинные строки не переносятся — нажмите, чтобы включить'}
+      onclick={() => void toggleWrap()}
+    >
+      {wrapEnabled() ? 'перенос' : 'без переноса'}
+    </button>
+
     {#if tab.meta.readOnly}
       <span class="item warn" title="Правка запрещена">
         {tab.meta.large ? 'большой файл, только чтение' : 'только чтение'}
@@ -330,6 +359,11 @@
 
   .warn {
     color: var(--zn-color-warning);
+  }
+
+  /* Мультикурсор — состояние необычное и временное, его видно акцентом. */
+  .accent {
+    color: var(--zn-color-accent);
   }
 
   /* Кодировка, угаданная эвристикой, показывается тише уверенной:

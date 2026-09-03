@@ -88,7 +88,8 @@ mod tests {
 
         let state = build(&dir);
 
-        assert_eq!(state.bindings["ctrl+d"], "edit.duplicate-line");
+        assert_eq!(state.bindings["ctrl+d"], "edit.add-cursor-next");
+        assert_eq!(state.bindings["ctrl+shift+d"], "edit.duplicate-line");
         assert!(state.problems.is_empty());
         assert!(!state.commands.is_empty());
         let _ = std::fs::remove_dir_all(&dir);
@@ -119,7 +120,8 @@ mod tests {
 
         let state = build(&dir);
 
-        assert_eq!(state.bindings["ctrl+d"], "edit.duplicate-line");
+        // Опечатка отвергнута, действует умолчание.
+        assert_eq!(state.bindings["ctrl+d"], "edit.add-cursor-next");
         assert!(
             state.problems.iter().any(|p| p.contains("duplicate-lines")),
             "{:?}",

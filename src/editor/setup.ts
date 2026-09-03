@@ -30,6 +30,15 @@ import type { Buffer } from '../ipc/files';
 export const languageCompartment = new Compartment();
 
 /**
+ * Отсек переноса длинных строк.
+ *
+ * Тоже отсек, а не значение в наборе расширений: перенос переключается на лету,
+ * а пересоздавать состояние ради этого значило бы терять историю отмены.
+ * Отсек один на приложение — перенос общий, а не свойство вкладки.
+ */
+export const wrapCompartment = new Compartment();
+
+/**
  * Набор расширений редактора для конкретного буфера.
  *
  * Раскладка Notepad++ живёт в оконном диспетчере (`keymap/`), а не здесь:
@@ -40,6 +49,7 @@ export function extensionsFor(
   onChange: (view: EditorView) => void,
   onFollow: (target: Target) => void,
   sourcePath: () => string | null,
+  wrap: boolean,
 ): Extension[] {
   const readOnly = meta.readOnly;
 
@@ -59,9 +69,19 @@ export function extensionsFor(
     drawSelection(),
     dropCursor(),
     rectangularSelection(),
-    // Перенос строк выключен: так ведёт себя Notepad++, и для кода это
-    // правильное умолчание. Переключатель — задача полировки.
+
+    // Перенос по умолчанию выключен — так ведёт себя Notepad++, и для кода это
+    // верное умолчание. Значение приходит из настроек, переключается на лету.
+    wrapCompartment.of(wrap ? EditorView.lineWrapping : []),
+
+    // Мультикурсор. Разрешения мало: без него `selectNextOccurrence` молча
+    // схлопывал бы выделения в одно.
     EditorState.allowMultipleSelections.of(true),
+    // Alt+щелчок добавляет курсор. У CodeMirror это и есть умолчание, но
+    // записано явно: рядом стоит `rectangularSelection`, который тоже слушает
+    // Alt, и молчаливое совпадение здесь читается как случайность.
+    EditorView.clickAddsSelectionRange.of((event) => event.altKey),
+
     keymap.of([...defaultKeymap, ...historyKeymap]),
 
     // Поиск подключается ради состояния запроса и подсветки совпадений.

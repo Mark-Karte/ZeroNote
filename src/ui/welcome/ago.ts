@@ -9,18 +9,10 @@
  * давность, а не минуты. Точное — в подсказке, там оно и уместно.
  */
 
+import { plural } from '../plural';
+
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
-
-/** Слово «минута», «час» или «день» в нужной форме. */
-function plural(count: number, one: string, few: string, many: string): string {
-  const mod100 = count % 100;
-  if (mod100 >= 11 && mod100 <= 14) return many;
-  const mod10 = count % 10;
-  if (mod10 === 1) return one;
-  if (mod10 >= 2 && mod10 <= 4) return few;
-  return many;
-}
 
 /**
  * Подпись давности. `now` передаётся явно — так функция проверяема,

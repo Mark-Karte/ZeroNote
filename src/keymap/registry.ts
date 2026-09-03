@@ -21,6 +21,7 @@ import {
   showBacklinks,
 } from '../actions/project';
 import { openSearch, findNext, findPrevious } from '../state/search.svelte';
+import { toggleWrap } from '../state/settings.svelte';
 import { nextTab, previousTab } from '../state/tabs.svelte';
 
 /**
@@ -53,6 +54,8 @@ export const COMMANDS: Record<CommandId, () => void | Promise<unknown>> = {
   'edit.redo': inEditor(edit.redo),
   'edit.select-all': inEditor(edit.selectAll),
   'edit.duplicate-line': inEditor(edit.duplicateLine),
+  'edit.add-cursor-next': inEditor(edit.addCursorNext),
+  'edit.toggle-wrap': toggleWrap,
   'edit.delete-line': inEditor(edit.deleteLine),
   'edit.move-line-up': inEditor(edit.moveLineUp),
   'edit.move-line-down': inEditor(edit.moveLineDown),

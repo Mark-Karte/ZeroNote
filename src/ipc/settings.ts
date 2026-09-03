@@ -22,6 +22,9 @@ export interface Settings {
       size: number | null;
     };
   };
+  editor: {
+    wrap: boolean;
+  };
 }
 
 export interface SettingsState {

@@ -149,6 +149,24 @@
 
         <div class="row">
           <div class="what">
+            <span class="name">Перенос длинных строк</span>
+            <span class="note">
+              Переключается и в строке состояния — там же, где кодировка.
+            </span>
+          </div>
+          <select
+            class="control"
+            disabled={broken !== null}
+            value={values.editor.wrap ? 'yes' : 'no'}
+            onchange={(e) => put(['editor', 'wrap'], e.currentTarget.value === 'yes')}
+          >
+            <option value="no">Не переносить</option>
+            <option value="yes">Переносить по ширине окна</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <div class="what">
             <span class="name">Шрифт интерфейса</span>
             <span class="note">Пусто — из темы. Шрифт редактора задаёт тема.</span>
           </div>

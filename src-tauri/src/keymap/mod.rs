@@ -27,6 +27,8 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("edit.redo", "Повторить"),
     ("edit.select-all", "Выделить всё"),
     ("edit.duplicate-line", "Продублировать строку"),
+    ("edit.add-cursor-next", "Курсор на следующее совпадение"),
+    ("edit.toggle-wrap", "Перенос длинных строк"),
     ("edit.delete-line", "Удалить строку"),
     ("edit.move-line-up", "Переместить строку вверх"),
     ("edit.move-line-down", "Переместить строку вниз"),
@@ -65,7 +67,11 @@ pub const DEFAULTS: &[(&str, &str)] = &[
     ("ctrl+z", "edit.undo"),
     ("ctrl+y", "edit.redo"),
     ("ctrl+a", "edit.select-all"),
-    ("ctrl+d", "edit.duplicate-line"),
+    // Ctrl+D отдан мультикурсору, как в VS Code (Р-091): дублирование строки
+    // переехало на соседнее сочетание. Это единственное расхождение
+    // с раскладкой Notepad++, и оно сделано по решению владельца.
+    ("ctrl+d", "edit.add-cursor-next"),
+    ("ctrl+shift+d", "edit.duplicate-line"),
     ("ctrl+l", "edit.delete-line"),
     ("ctrl+shift+up", "edit.move-line-up"),
     ("ctrl+shift+down", "edit.move-line-down"),

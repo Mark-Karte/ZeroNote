@@ -48,13 +48,17 @@ $x = $r.Left + [int]$args[0]
 $y = $r.Top + [int]$args[1]
 
 # Третий аргумент — держать ли Ctrl во время щелчка.
+# Модификатор третьим аргументом: ctrl — переход по ссылке, alt — второй курсор.
 $ctrl = ($args.Count -gt 2) -and ($args[2] -eq 'ctrl')
+$alt = ($args.Count -gt 2) -and ($args[2] -eq 'alt')
 
 [void][C]::SetCursorPos($x, $y)
 Start-Sleep -Milliseconds 150
 if ($ctrl) { [C]::keybd_event(0x11, 0, 0, [IntPtr]::Zero) }
+if ($alt) { [C]::keybd_event(0x12, 0, 0, [IntPtr]::Zero) }
 [C]::mouse_event(0x0002, 0, 0, 0, [IntPtr]::Zero)
 [C]::mouse_event(0x0004, 0, 0, 0, [IntPtr]::Zero)
 if ($ctrl) { [C]::keybd_event(0x11, 0, 2, [IntPtr]::Zero) }
+if ($alt) { [C]::keybd_event(0x12, 0, 2, [IntPtr]::Zero) }
 Start-Sleep -Milliseconds 600
 Write-Output "щёлкнуто в ($x, $y)"

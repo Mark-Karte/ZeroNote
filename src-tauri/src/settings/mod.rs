@@ -27,6 +27,8 @@ pub struct Settings {
     pub appearance: AppearanceSettings,
     #[serde(default)]
     pub font: FontSettings,
+    #[serde(default)]
+    pub editor: EditorSettings,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -38,6 +40,16 @@ pub struct AppearanceSettings {
     pub light_theme: String,
     pub dark_theme: String,
     pub density: Density,
+}
+
+/// Поведение редактора. Не оформление: перенос строк меняет то, как текст
+/// разложен, а не как он выглядит, и в теме ему места нет.
+#[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct EditorSettings {
+    /// Переносить длинные строки по ширине окна. По умолчанию нет — так
+    /// ведёт себя Notepad++, и для кода это верное умолчание.
+    pub wrap: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -66,6 +78,7 @@ impl Default for Settings {
             schema: SETTINGS_SCHEMA,
             appearance: AppearanceSettings::default(),
             font: FontSettings::default(),
+            editor: EditorSettings::default(),
         }
     }
 }
@@ -170,6 +183,10 @@ density = "normal"
 # Шрифт интерфейса. Если ключа нет — берётся из темы (по умолчанию системный).
 # family = "Segoe UI"
 # size = 13
+
+[editor]
+# Переносить длинные строки по ширине окна.
+wrap = false
 "#;
 
 /// Создать файл настроек, если его ещё нет.
