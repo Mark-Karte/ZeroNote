@@ -84,6 +84,7 @@
      акцент, и оба меняются вместе с темой. */
   .mark {
     display: inline-flex;
+    --zn-control-icon-size: var(--zn-control-icon-size-mark);
     color: var(--zn-color-fg-default);
   }
 

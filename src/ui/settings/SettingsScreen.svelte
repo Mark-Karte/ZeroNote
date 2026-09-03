@@ -333,11 +333,14 @@
     background-color: var(--zn-color-bg-surface);
   }
 
+  /* Такая же плитка, как кнопка боковой полосы, — и значок в ней той же роли:
+     в квадрате этого размера строчный значок теряется. */
   .card-icon {
     display: inline-flex;
     flex: none;
     align-items: center;
     justify-content: center;
+    --zn-control-icon-size: var(--zn-control-icon-size-tile);
     width: var(--zn-control-strip-button-size);
     height: var(--zn-control-strip-button-size);
     border-radius: var(--zn-radius-xl);

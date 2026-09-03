@@ -142,17 +142,11 @@
     }
   }
 
-  /* На стартовом экране знак — главный элемент, а не подпись к строке,
-     поэтому вдвое крупнее обычного значка. Размер задан здесь, потому что
-     он у значка пока один на всё приложение; ролью он станет в задаче 26. */
+  /* На стартовом экране знак — главный элемент, а не подпись к строке. */
   .mark {
     display: inline-flex;
+    --zn-control-icon-size: var(--zn-control-icon-size-mark-large);
     color: var(--zn-color-fg-default);
-  }
-
-  .mark :global(.icon) {
-    width: calc(var(--zn-control-icon-size) * 2);
-    height: calc(var(--zn-control-icon-size) * 2);
   }
 
   .name {

@@ -106,7 +106,13 @@
   --zn-control-toolbar-height: 36px;
   --zn-control-row-height: 26px;
   --zn-control-field-height: 28px;
+  /* Размер значка — роль (Р-096). Умолчание — строка списка; контекст
+     с другой ролью переопределяет --zn-control-icon-size у себя. */
   --zn-control-icon-size: 16px;
+  --zn-control-icon-size-window: 10px;
+  --zn-control-icon-size-tile: 20px;
+  --zn-control-icon-size-mark: 20px;
+  --zn-control-icon-size-mark-large: 32px;
   --zn-control-dialog-min-width: 420px;
   --zn-control-dialog-max-width: 560px;
   --zn-control-popup-min-width: 260px;

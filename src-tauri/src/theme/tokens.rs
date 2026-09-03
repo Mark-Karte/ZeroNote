@@ -92,7 +92,22 @@ pub const METRICS_NORMAL: &[(&str, &str)] = &[
     ("control-row-height", "26px"),
     // Высота полей ввода и кнопок. Отдельно от строки списка: поле выше её.
     ("control-field-height", "28px"),
+    // Размер значка — роль, а не одно число (Р-096). Значок берёт размер
+    // из контекста так же, как берёт цвет: `control-icon-size` — умолчание,
+    // то есть строка списка, а контекст с другой ролью переопределяет его
+    // у себя одной строкой.
     ("control-icon-size", "16px"),
+    // Глиф кнопки окна рисуется в поле 10×10, как в Windows. Крупнее он
+    // выглядит чужеродно рядом с системными окнами — с этого и началась
+    // задача 26.
+    ("control-icon-size-window", "10px"),
+    // Значок в квадратной плитке `control-strip-button-size`: боковая полоса
+    // и карточка в параметрах. Роль названа по форме, а не по месту, потому
+    // что аудит задачи 26 нашёл два таких места, а не одно.
+    ("control-icon-size-tile", "20px"),
+    // Знак приложения в шапке и он же крупно на стартовом экране.
+    ("control-icon-size-mark", "20px"),
+    ("control-icon-size-mark-large", "32px"),
     ("control-dialog-min-width", "420px"),
     ("control-dialog-max-width", "560px"),
     ("control-popup-min-width", "260px"),
@@ -138,6 +153,10 @@ pub const METRICS_COMPACT: &[(&str, &str)] = &[
     ("control-row-height", "22px"),
     ("control-field-height", "24px"),
     ("control-icon-size", "14px"),
+    ("control-icon-size-window", "9px"),
+    ("control-icon-size-tile", "17px"),
+    ("control-icon-size-mark", "18px"),
+    ("control-icon-size-mark-large", "28px"),
     ("control-dialog-min-width", "360px"),
     ("control-dialog-max-width", "500px"),
     ("control-popup-min-width", "220px"),

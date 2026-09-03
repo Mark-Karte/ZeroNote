@@ -80,6 +80,9 @@
     flex: none;
     align-items: center;
     justify-content: center;
+    /* Крупнее строки списка: это единственная навигация в окне, и в плитке
+       такого размера строчный значок теряется. */
+    --zn-control-icon-size: var(--zn-control-icon-size-tile);
     width: var(--zn-control-strip-button-size);
     height: var(--zn-control-strip-button-size);
     padding: 0;

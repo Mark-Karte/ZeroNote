@@ -186,6 +186,60 @@ describe('объявление шрифтов', () => {
   });
 });
 
+describe('ссылки на токены', () => {
+  /**
+   * Опечатка в имени токена не ломает ничего заметного: `var(--zn-опечатка)`
+   * молча даёт пустое значение, свойство отбрасывается, и элемент едет
+   * на умолчании браузера. Проверка на литералы этого не ловит — там всё
+   * честно взято из переменной, просто из несуществующей.
+   *
+   * Заодно проверяются и объявления: компонент вправе переопределить токен
+   * у себя (так значок берёт размер из контекста, Р-100), но не вправе
+   * завести под видом токена собственную переменную.
+   */
+  const declared = new Set(
+    [...readFileSync(join(root, TOKEN_LAYER), 'utf8').matchAll(/--zn-([a-z0-9-]+)\s*:/g)].map(
+      (m) => m[1]!,
+    ),
+  );
+
+  const files = walk(join(root, 'src')).filter(
+    (file) => relative(root, file) !== TOKEN_LAYER,
+  );
+
+  it('каждая переменная --zn- объявлена в слое токенов', () => {
+    const unknown: string[] = [];
+    let seen = 0;
+
+    for (const file of files) {
+      const css = stripComments(styleSource(file));
+      const used = [
+        ...[...css.matchAll(/var\(\s*--zn-([a-z0-9-]+)/g)].map((m) => m[1]!),
+        ...[...css.matchAll(/(?:^|[;{\s])--zn-([a-z0-9-]+)\s*:/g)].map((m) => m[1]!),
+      ];
+
+      seen += used.length;
+      for (const name of used) {
+        if (!declared.has(name)) {
+          unknown.push(`${relative(root, file).split(sep).join('/')}: --zn-${name}`);
+        }
+      }
+    }
+
+    expect(declared.size).toBeGreaterThan(0);
+    // Страховка от того, что обход или выражение сломаются и тест начнёт
+    // «проходить», не просмотрев ни строчки.
+    expect(seen, 'ссылок на токены не найдено вовсе').toBeGreaterThan(200);
+    expect([...new Set(unknown)].sort(), 'таких токенов нет').toEqual([]);
+  });
+
+  /** Проверка, которая ничего не проверяет, выглядит так же, как прошедшая. */
+  it('ловит несуществующий токен', () => {
+    expect(declared.has('control-icon-size')).toBe(true);
+    expect(declared.has('control-icon-size-которого-нет')).toBe(false);
+  });
+});
+
 describe('набор токенов', () => {
   /**
    * Список токенов задаётся в Rust, а объявляется в CSS. Если они разойдутся,

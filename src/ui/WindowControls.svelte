@@ -57,10 +57,13 @@
     align-self: stretch;
   }
 
+  /* Глиф здесь мельче, чем везде: он рисуется в поле 10×10, как в Windows,
+     и должен совпадать с кнопками системных окон, а не с нашими списками. */
   .button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    --zn-control-icon-size: var(--zn-control-icon-size-window);
     width: var(--zn-control-window-button-width);
     padding: 0;
     border: none;
