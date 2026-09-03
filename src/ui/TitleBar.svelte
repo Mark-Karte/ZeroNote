@@ -79,20 +79,12 @@
     pointer-events: none;
   }
 
-  /* Подложка знака — единственное место, где акцент работает заливкой
-     на всю высоту элемента. Поэтому цвет буквы берётся из своей роли,
-     а не из общего текста. */
+  /* Знак ложится прямо на шапку: подложка нужна плитке в панели задач,
+     а здесь фон наш (Р-097). Кольцо берёт цвет текста, штрих внутри —
+     акцент, и оба меняются вместе с темой. */
   .mark {
     display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    /* Подложка на пару пикселей больше самого значка: без запаса скругление
-       съедает углы буквы, и знак читается кружком, а не квадратом. */
-    width: calc(var(--zn-control-icon-size) + var(--zn-space-2));
-    height: calc(var(--zn-control-icon-size) + var(--zn-space-2));
-    border-radius: var(--zn-radius-md);
-    background-color: var(--zn-color-accent);
-    color: var(--zn-color-fg-on-accent);
+    color: var(--zn-color-fg-default);
   }
 
   .name {

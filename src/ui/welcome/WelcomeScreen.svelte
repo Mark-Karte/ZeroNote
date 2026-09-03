@@ -142,15 +142,17 @@
     }
   }
 
+  /* На стартовом экране знак — главный элемент, а не подпись к строке,
+     поэтому вдвое крупнее обычного значка. Размер задан здесь, потому что
+     он у значка пока один на всё приложение; ролью он станет в задаче 26. */
   .mark {
     display: inline-flex;
-    align-items: center;
-    justify-content: center;
+    color: var(--zn-color-fg-default);
+  }
+
+  .mark :global(.icon) {
     width: calc(var(--zn-control-icon-size) * 2);
     height: calc(var(--zn-control-icon-size) * 2);
-    border-radius: var(--zn-radius-xl);
-    background-color: var(--zn-color-accent);
-    color: var(--zn-color-fg-on-accent);
   }
 
   .name {

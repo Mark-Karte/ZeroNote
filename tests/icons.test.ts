@@ -24,15 +24,31 @@ describe('реестр иконок', () => {
     }
   });
 
-  it('иконки наследуют цвет и переживают смену темы', () => {
+  /**
+   * Знак приложения — единственная двухцветная иконка (Р-099). Ему разрешён
+   * акцент, потому что штрих в знаке акцентный по рисунку, а не по прихоти
+   * места, где знак выводится. Всем остальным цвет задаёт контекст: иконка,
+   * назначившая себе роль, перестаёт быть заменяемой.
+   */
+  const withAccent = new Set<IconName>(['app.mark']);
+
+  it('иконки берут цвет из контекста и переживают смену темы', () => {
     for (const name of names) {
+      const allowed = withAccent.has(name)
+        ? /^(none|currentColor|var\(--zn-color-accent\))$/
+        : /^(none|currentColor)$/;
+
       const markup = icon(name);
-      expect(markup, `${name}: цвет должен быть currentColor`).not.toMatch(
-        /#[0-9a-f]{3,8}\b/i,
-      );
-      expect(markup, `${name}: цвет должен быть currentColor`).not.toMatch(
-        /\b(rgba?|hsla?)\s*\(/i,
-      );
+      const colours = [...markup.matchAll(/\b(?:fill|stroke|stop-color)="([^"]*)"/g)];
+      let seen = 0;
+
+      for (const match of colours) {
+        const colour = match[1] ?? '';
+        seen += 1;
+        expect(allowed.test(colour), `${name}: цвет «${colour}» не от темы`).toBe(true);
+      }
+
+      expect(seen, `${name}: цвет не задан вовсе — иконка будет чёрной`).toBeGreaterThan(0);
     }
   });
 

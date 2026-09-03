@@ -7,6 +7,8 @@
 ```powershell
 powershell -File bench\ui\shot.ps1  C:\путь\снимок.png
 powershell -File bench\ui\keys.ps1  "^p" "имя файла" "{ENTER}"
+powershell -File bench\ui\keys.ps1  -At 314,83 "{ENTER}"
+powershell -File bench\ui\keys.ps1  -NoClick "{ESC}"
 powershell -File bench\ui\click.ps1 314 83
 powershell -File bench\ui\click.ps1 592 262 ctrl
 powershell -File bench\ui\hover.ps1 200 83
@@ -38,6 +40,11 @@ powershell -File bench\ui\hover.ps1 200 83
 
 **`SendKeys` считает служебными `+ ^ % ~ ( ) { } [ ]`.** Их надо оборачивать
 в фигурные скобки, иначе регулярное выражение доедет искалеченным.
+
+**`-At` задаётся только по имени.** Пока у нажатий не было объявлено позиции,
+`-At` забирал нулевую: вызов `keys.ps1 "^w"` принимал нажатие за координаты,
+ругался на разбор числа — и всё равно печатал «отправлено». Тот же вид,
+что у прошедшей проверки.
 
 ## Главное правило
 
