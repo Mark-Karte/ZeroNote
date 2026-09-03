@@ -1,6 +1,6 @@
 [package]
 name = "zeronote"
-version = "0.2.0"
+version = "0.3.0"
 description = "ZeroNote — редактор текста и заметок"
 authors = ["Mark Karte", "Claude (Anthropic)"]
 license = "MIT"
