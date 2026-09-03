@@ -13,6 +13,7 @@ import {
   highlightActiveLineGutter,
   drawSelection,
   dropCursor,
+  lineNumberMarkers,
   rectangularSelection,
 } from '@codemirror/view';
 import {
@@ -30,6 +31,7 @@ import { search, highlightSelectionMatches } from '@codemirror/search';
 // `tests/brackets.test.ts` (решение Р-112).
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import { syntaxColors } from '../theme/syntax';
+import { bookmarkField, bookmarkMarkers, bookmarks } from './bookmarks';
 import { brackets } from './brackets';
 import { columnAt, indentUnitOf, type Indent } from './indent';
 import { folding } from './folding';
@@ -152,26 +154,46 @@ export function autoCloseExtension(enabled: boolean): Extension {
 }
 
 /**
+ * Что нужно знать набору расширений про эту вкладку.
+ *
+ * Объектом, а не вереницей аргументов: их стало восемь, и половина — `boolean`.
+ * Перепутать местами два флага в таком вызове можно молча, а найти потом —
+ * только по странному поведению редактора.
+ */
+export interface EditorOptions {
+  onChange: (view: EditorView) => void;
+  /**
+   * Закладки изменились.
+   *
+   * Отдельно от `onChange`, потому что переключение закладки не меняет
+   * ни текст, ни выделение: обычный обработчик его просто не увидит,
+   * состояние вкладки останется прежним, и в сессию уедут вчерашние
+   * закладки. Дважды проверено — первая версия так и работала.
+   */
+  onBookmarks: (view: EditorView) => void;
+  onFollow: (target: Target) => void;
+  /** Путь берётся каждый раз заново: «сохранить как» его меняет. */
+  sourcePath: () => string | null;
+  wrap: boolean;
+  autoClose: boolean;
+  indent: Indent;
+  invisibles: boolean;
+  /** Номера строк с закладками — из сессии. Для нового буфера пусто. */
+  bookmarks: number[];
+}
+
+/**
  * Набор расширений редактора для конкретного буфера.
  *
- * Раскладка Notepad++ живёт в оконном диспетчере (`keymap/`), а не здесь:
- * она общая для всего приложения, а не только для области текста.
+ * Раскладка живёт в оконном диспетчере (`keymap/`), а не здесь: она общая
+ * для всего приложения, а не только для области текста.
  */
-export function extensionsFor(
-  meta: Buffer,
-  onChange: (view: EditorView) => void,
-  onFollow: (target: Target) => void,
-  sourcePath: () => string | null,
-  wrap: boolean,
-  autoClose: boolean,
-  indent: Indent,
-  showInvisibles: boolean,
-): Extension[] {
+export function extensionsFor(meta: Buffer, options: EditorOptions): Extension[] {
   const readOnly = meta.readOnly;
 
   return [
     // Ссылки и теги: подсветка, пометка висячих и переход по Ctrl+щелчку.
-    wikilinks(onFollow, sourcePath),
+    wikilinks(options.onFollow, options.sourcePath),
 
     // Пусто до тех пор, пока не приедет язык. Большие файлы остаются
     // без подсветки навсегда — это записанная политика больших файлов.
@@ -179,6 +201,9 @@ export function extensionsFor(
     syntaxColors,
 
     lineNumbers(),
+    // Закладки помечают ячейку с номером строки — своего поля им не надо.
+    bookmarks(options.bookmarks),
+    lineNumberMarkers.compute([bookmarkField], (state) => bookmarkMarkers(state)),
     // Поле свёртки — справа от номеров строк, как в Notepad++ и VS Code.
     // Порядок здесь и есть порядок полей на экране.
     folding(),
@@ -191,8 +216,8 @@ export function extensionsFor(
 
     // Перенос по умолчанию выключен — так ведёт себя Notepad++, и для кода это
     // верное умолчание. Значение приходит из настроек, переключается на лету.
-    wrapCompartment.of(wrap ? EditorView.lineWrapping : []),
-    invisiblesCompartment.of(invisiblesExtension(showInvisibles)),
+    wrapCompartment.of(options.wrap ? EditorView.lineWrapping : []),
+    invisiblesCompartment.of(invisiblesExtension(options.invisibles)),
 
     // Подсветка парной скобки. Пару ищет разбор языка: скобка внутри строки
     // или комментария парой не считается. Где дерева нет — простым просмотром
@@ -201,9 +226,9 @@ export function extensionsFor(
     brackets(),
 
     // Отступ — свойство вкладки: он определяется по содержимому файла.
-    indentCompartment.of(indentExtension(indent)),
+    indentCompartment.of(indentExtension(options.indent)),
     indentKeymap,
-    autoCloseCompartment.of(autoCloseExtension(autoClose)),
+    autoCloseCompartment.of(autoCloseExtension(options.autoClose)),
 
     // Мультикурсор. Разрешения мало: без него `selectNextOccurrence` молча
     // схлопывал бы выделения в одно.
@@ -231,7 +256,9 @@ export function extensionsFor(
 
     EditorView.updateListener.of((update) => {
       if (update.docChanged || update.selectionSet) {
-        onChange(update.view);
+        options.onChange(update.view);
+      } else if (update.startState.field(bookmarkField) !== update.state.field(bookmarkField)) {
+        options.onBookmarks(update.view);
       }
     }),
   ];

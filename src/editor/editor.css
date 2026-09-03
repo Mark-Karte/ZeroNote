@@ -321,3 +321,11 @@
 .cm-editor .zn-code-copy.zn-code-copy-failed {
   color: var(--zn-color-danger);
 }
+
+/* Закладка на строке: акцентом и жирным по номеру строки. Своего поля
+   закладкам не заводим — третье поле у номеров строк отняло бы место
+   у текста ради того, что и так видно. */
+.cm-editor .cm-lineNumbers .zn-bookmark {
+  color: var(--zn-color-accent);
+  font-weight: var(--zn-font-weight-strong);
+}

@@ -4,6 +4,12 @@ import * as edit from '../editor/commands';
 import { foldBlock, unfoldBlock } from '../editor/folding';
 import { goToBracket } from '../editor/brackets';
 import {
+  clearBookmarks,
+  goToNextBookmark,
+  goToPreviousBookmark,
+  toggleBookmark,
+} from '../editor/bookmarks';
+import {
   newFile,
   openFiles,
   saveActive,
@@ -90,6 +96,11 @@ export const COMMANDS: Record<CommandId, () => void | Promise<unknown>> = {
   'search.replace': () => openSearch('replace'),
   'search.find-next': findNext,
   'search.find-previous': findPrevious,
+
+  'view.bookmark': inEditor(toggleBookmark),
+  'view.bookmark-next': inEditor(goToNextBookmark),
+  'view.bookmark-previous': inEditor(goToPreviousBookmark),
+  'view.bookmarks-clear': inEditor(clearBookmarks),
 
   'view.invisibles': toggleInvisibles,
   'view.fold': inEditor(foldBlock),

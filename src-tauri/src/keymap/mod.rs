@@ -47,6 +47,10 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("search.replace", "Заменить"),
     ("search.find-next", "Найти далее"),
     ("search.find-previous", "Найти ранее"),
+    ("view.bookmark", "Поставить или снять закладку"),
+    ("view.bookmark-next", "Следующая закладка"),
+    ("view.bookmark-previous", "Предыдущая закладка"),
+    ("view.bookmarks-clear", "Снять все закладки"),
     ("view.invisibles", "Показывать невидимые символы"),
     ("view.fold", "Свернуть блок"),
     ("view.unfold", "Развернуть блок"),
@@ -113,6 +117,11 @@ pub const DEFAULTS: &[(&str, &str)] = &[
     // что папки как проекта в Notepad++ нет вовсе. Двигать его теперь дороже,
     // чем найти скобкам соседнее свободное.
     ("ctrl+alt+b", "view.go-to-bracket"),
+    // Закладки — сочетания Notepad++. В VS Code закладок нет вовсе, брать
+    // оттуда нечего, и Р-114 здесь молчит.
+    ("ctrl+f2", "view.bookmark"),
+    ("f2", "view.bookmark-next"),
+    ("shift+f2", "view.bookmark-previous"),
     ("ctrl+g", "view.go-to-line"),
     ("ctrl+tab", "view.next-tab"),
     ("ctrl+shift+tab", "view.previous-tab"),

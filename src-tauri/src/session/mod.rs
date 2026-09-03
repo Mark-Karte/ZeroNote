@@ -80,6 +80,12 @@ pub struct BufferSnapshot {
     /// между запусками.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub language: Option<String>,
+    /// Номера строк с закладками, с единицы.
+    ///
+    /// Номера, а не смещения: файл могли поправить в другой программе, пока
+    /// приложение было закрыто, и номер переживает такую правку лучше.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub bookmarks: Vec<u32>,
 }
 
 fn yes() -> bool {
@@ -296,6 +302,7 @@ mod tests {
                     cursor: 42,
                     scroll_top: 120.5,
                     language: Some("markdown".to_owned()),
+                    bookmarks: vec![3, 17],
                 },
                 BufferSnapshot {
                     id: 2,
@@ -315,6 +322,7 @@ mod tests {
                     cursor: 0,
                     scroll_top: 0.0,
                     language: None,
+                    bookmarks: Vec::new(),
                 },
             ],
         }

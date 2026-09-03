@@ -118,12 +118,15 @@ export interface ViewState {
   scrollTop: number;
   /** Язык подсветки, выбранный вручную. `null` — определять по имени файла. */
   language: string | null;
+  /** Номера строк с закладками, с единицы. */
+  bookmarks: number[];
 }
 
 export interface RestoredBuffer extends BufferWithText {
   cursor: number;
   scrollTop: number;
   language: string | null;
+  bookmarks: number[];
 }
 
 export interface RestoredSession {

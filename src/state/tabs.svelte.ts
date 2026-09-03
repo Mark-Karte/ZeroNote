@@ -14,6 +14,7 @@ import {
   wrapCompartment,
 } from '../editor/setup';
 import { resolveIndent, type Indent } from '../editor/indent';
+import { bookmarkLines } from '../editor/bookmarks';
 import { editorView } from '../editor/current';
 import {
   languageById,
@@ -121,6 +122,9 @@ export function viewStateOf(tab: Tab): ViewState {
     cursor: tab.editor.selection.main.head,
     scrollTop: tab.scrollTop,
     language: tab.language,
+    // Номера строк, а не позиции: файл могли поправить в другой программе,
+    // пока приложение было закрыто, и номер переживает такую правку лучше.
+    bookmarks: bookmarkLines(tab.editor),
   };
 }
 
@@ -148,26 +152,48 @@ function onEditorUpdate(id: number, view: EditorView): void {
   noteEdit();
 }
 
-function makeState(meta: Buffer, text: string, cursor = 0, indent?: Indent): EditorState {
+/**
+ * Закладки переключили.
+ *
+ * Ни текст, ни выделение при этом не менялись, поэтому обычный обработчик
+ * правки сюда не заходит. Черновик писать незачем — содержимое то же;
+ * а вот снимок сессии обновить надо, иначе закладки не переживут перезапуск.
+ */
+function onBookmarksChanged(id: number, view: EditorView): void {
+  const tab = tabById(id);
+  if (!tab) return;
+
+  tab.editor = view.state;
+  noteStructureChange();
+}
+
+function makeState(
+  meta: Buffer,
+  text: string,
+  cursor = 0,
+  indent?: Indent,
+  bookmarks: number[] = [],
+): EditorState {
   return EditorState.create({
     doc: text,
     // Курсор за пределами документа уронил бы создание состояния: снимок мог
     // относиться к более длинному тексту, чем оказался на диске.
     selection: { anchor: Math.min(cursor, text.length) },
-    extensions: extensionsFor(
-      meta,
-      (view) => onEditorUpdate(meta.id, view),
+    extensions: extensionsFor(meta, {
+      onChange: (view) => onEditorUpdate(meta.id, view),
+      onBookmarks: (view) => onBookmarksChanged(meta.id, view),
       // Переход по ссылке живёт в `state/links`: редактор не должен знать
       // про вкладки и панели. Импорт по требованию — иначе получится круг.
-      (target) => void import('./links.svelte').then((m) => m.follow(target)),
+      onFollow: (target) => void import('./links.svelte').then((m) => m.follow(target)),
       // Путь берётся каждый раз заново: «сохранить как» его меняет, а вместе
       // с ним меняется и то, куда ведут ссылки из этого файла.
-      () => tabById(meta.id)?.meta.path ?? null,
-      wrapEnabled(),
-      autoCloseEnabled(),
-      indent ?? resolveIndent(text, indentSettings()),
-      invisiblesEnabled(),
-    ),
+      sourcePath: () => tabById(meta.id)?.meta.path ?? null,
+      wrap: wrapEnabled(),
+      autoClose: autoCloseEnabled(),
+      indent: indent ?? resolveIndent(text, indentSettings()),
+      invisibles: invisiblesEnabled(),
+      bookmarks,
+    }),
   });
 }
 
@@ -406,9 +432,9 @@ async function restoreInner(): Promise<string[]> {
   tabs.items = [];
 
   for (const item of session.buffers) {
-    const { text, cursor, scrollTop, language, ...meta } = item;
+    const { text, cursor, scrollTop, language, bookmarks, ...meta } = item;
     const indent = resolveIndent(text, indentSettings());
-    const editor = makeState(meta, text, cursor, indent);
+    const editor = makeState(meta, text, cursor, indent, bookmarks ?? []);
 
     if (meta.modified) {
       restoredDirty.add(meta.id);

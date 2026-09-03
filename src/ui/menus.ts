@@ -88,6 +88,8 @@ export interface EditorMenuContext {
   canUnfold: boolean;
   /** Показываются ли невидимые символы: пункт с галочкой, а не действие. */
   invisibles: boolean;
+  /** Есть ли закладка на строке курсора: от этого зависит подпись пункта. */
+  bookmarked: boolean;
 }
 
 export function editorMenu(ctx: EditorMenuContext, commands: Command[]): PopupItem[] {
@@ -103,6 +105,13 @@ export function editorMenu(ctx: EditorMenuContext, commands: Command[]): PopupIt
 
     fromCommand(commands, 'search.find', { divider: true }),
     fromCommand(commands, 'search.replace', { disabled: ctx.readOnly }),
+
+    // Подпись у закладки своя: команда одна, а называть её «поставить»,
+    // когда она снимает, — врать в меню, где всё видно заранее.
+    fromCommand(commands, 'view.bookmark', {
+      divider: true,
+      label: ctx.bookmarked ? 'Снять закладку' : 'Поставить закладку',
+    }),
 
     fromCommand(commands, 'view.invisibles', {
       divider: true,

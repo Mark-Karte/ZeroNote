@@ -28,6 +28,9 @@ pub struct ViewState {
     /// Выбранный вручную язык подсветки. Ядро его не толкует.
     #[serde(default)]
     pub language: Option<String>,
+    /// Номера строк с закладками. Ядро в них тоже не вникает.
+    #[serde(default)]
+    pub bookmarks: Vec<u32>,
 }
 
 fn snapshot_of(buffer: &Buffer, view: Option<&ViewState>) -> BufferSnapshot {
@@ -51,6 +54,7 @@ fn snapshot_of(buffer: &Buffer, view: Option<&ViewState>) -> BufferSnapshot {
         cursor: view.map(|v| v.cursor).unwrap_or(0),
         scroll_top: view.map(|v| v.scroll_top).unwrap_or(0.0),
         language: view.and_then(|v| v.language.clone()),
+        bookmarks: view.map(|v| v.bookmarks.clone()).unwrap_or_default(),
     }
 }
 
@@ -155,6 +159,7 @@ pub struct RestoredBuffer {
     pub cursor: usize,
     pub scroll_top: f64,
     pub language: Option<String>,
+    pub bookmarks: Vec<u32>,
 }
 
 /// Восстановить сессию при запуске.
@@ -280,6 +285,7 @@ pub fn restore_session(state: tauri::State<'_, AppState>) -> RestoredSession {
             cursor: item.cursor,
             scroll_top: item.scroll_top,
             language: item.language.clone(),
+            bookmarks: item.bookmarks.clone(),
         });
         buffers.push(buffer);
     }

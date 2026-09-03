@@ -37,6 +37,7 @@ const COMMANDS: Command[] = [
   { id: 'view.fold-all', title: 'Свернуть всё', binding: 'alt+0' },
   { id: 'view.unfold-all', title: 'Развернуть всё', binding: 'alt+shift+0' },
   { id: 'view.invisibles', title: 'Показывать невидимые символы', binding: null },
+  { id: 'view.bookmark', title: 'Поставить или снять закладку', binding: 'ctrl+f2' },
 ];
 
 const ids = (items: PopupItem[]): string[] => items.map((item) => item.id);
@@ -55,6 +56,7 @@ const EDITOR = {
   canFold: true,
   canUnfold: true,
   invisibles: false,
+  bookmarked: false,
 };
 
 describe('пункты по командам реестра', () => {
