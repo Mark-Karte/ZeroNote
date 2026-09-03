@@ -500,3 +500,15 @@ pub fn list_encodings() -> Vec<EncodingOption> {
         })
         .collect()
 }
+
+/// Показать путь в проводнике: папку — открыть, файл — выделить в его папке.
+#[tauri::command]
+pub fn reveal_path(path: String) -> Fallible<()> {
+    crate::fsx::reveal::reveal(std::path::Path::new(&path)).map_err(|error| error.to_string())
+}
+
+/// Текст из буфера обмена — для пункта «Вставить» (Р-109).
+#[tauri::command]
+pub fn clipboard_text() -> Fallible<String> {
+    crate::clipboard::text()
+}

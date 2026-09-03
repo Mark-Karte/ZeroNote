@@ -21,7 +21,14 @@ public class C {
 }
 "@
 
-$proc = Get-Process zeronote -ErrorAction Stop | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+# Окон ZeroNote может быть два: установленное и собранное для отладки.
+# Первое попавшееся брать нельзя — нажатия ушли бы в чужое окно, и понять
+# это можно было бы только по снимку. Номер процесса задаётся переменной
+# окружения ZERONOTE_PID; без неё двусмысленность считается ошибкой.
+$found = @(Get-Process zeronote -ErrorAction Stop | Where-Object { $_.MainWindowHandle -ne 0 })
+if ($env:ZERONOTE_PID) { $found = @($found | Where-Object { $_.Id -eq [int]$env:ZERONOTE_PID }) }
+if ($found.Count -gt 1) { throw "окон ZeroNote несколько: $(($found | ForEach-Object { $_.Id }) -join ', '). Задайте ZERONOTE_PID" }
+$proc = $found | Select-Object -First 1
 if (-not $proc) { throw "окно ZeroNote не найдено" }
 $hwnd = $proc.MainWindowHandle
 
@@ -38,26 +45,44 @@ if ([C]::GetForegroundWindow() -ne $hwnd) { throw "окно не вышло на
 # Прибиваем окно к началу экрана. Между вызовами оно переезжает, и координаты,
 # посчитанные от прошлого положения, попадают мимо. Проверка «щёлкнуть и снять
 # экран» это ловит, но чинить каждый раз руками — не дело.
-# 0x0001 SWP_NOSIZE | 0x0004 SWP_NOZORDER | 0x0010 SWP_NOACTIVATE
-[void][C]::SetWindowPos($hwnd, [IntPtr]::Zero, 0, 0, 0, 0, 0x0015)
-Start-Sleep -Milliseconds 200
-
+#
+# Двигаем только если оно и правда не на месте, и после перемещения ждём
+# дольше обычного: WebView2 держит содержимое в дочернем окне и узнаёт о новом
+# положении не мгновенно. Щелчок, посланный слишком рано, приходит в вебвью
+# с координатами от прежнего места — и всё, что открывается по щелчку,
+# появляется ровно на столько же в стороне. Проверено: окно стояло в (52,150),
+# меню вышло на 52 левее и на 150 выше точки.
 $r = New-Object C+RECT
+[void][C]::GetWindowRect($hwnd, [ref]$r)
+if ($r.Left -ne 0 -or $r.Top -ne 0) {
+  # 0x0001 SWP_NOSIZE | 0x0004 SWP_NOZORDER | 0x0010 SWP_NOACTIVATE
+  [void][C]::SetWindowPos($hwnd, [IntPtr]::Zero, 0, 0, 0, 0, 0x0015)
+  Start-Sleep -Milliseconds 700
+} else {
+  Start-Sleep -Milliseconds 200
+}
+
+# Положение перечитывается: выше его могли изменить.
 [void][C]::GetWindowRect($hwnd, [ref]$r)
 $x = $r.Left + [int]$args[0]
 $y = $r.Top + [int]$args[1]
 
-# Третий аргумент — держать ли Ctrl во время щелчка.
-# Модификатор третьим аргументом: ctrl — переход по ссылке, alt — второй курсор.
+# Третий аргумент — чем щёлкнуть и с чем.
+# ctrl — переход по ссылке, alt — второй курсор, right — контекстное меню.
 $ctrl = ($args.Count -gt 2) -and ($args[2] -eq 'ctrl')
 $alt = ($args.Count -gt 2) -and ($args[2] -eq 'alt')
+$right = ($args.Count -gt 2) -and ($args[2] -eq 'right')
+
+# 0x0002/0x0004 — левая кнопка вниз и вверх, 0x0008/0x0010 — правая.
+$down = if ($right) { 0x0008 } else { 0x0002 }
+$up = if ($right) { 0x0010 } else { 0x0004 }
 
 [void][C]::SetCursorPos($x, $y)
 Start-Sleep -Milliseconds 150
 if ($ctrl) { [C]::keybd_event(0x11, 0, 0, [IntPtr]::Zero) }
 if ($alt) { [C]::keybd_event(0x12, 0, 0, [IntPtr]::Zero) }
-[C]::mouse_event(0x0002, 0, 0, 0, [IntPtr]::Zero)
-[C]::mouse_event(0x0004, 0, 0, 0, [IntPtr]::Zero)
+[C]::mouse_event($down, 0, 0, 0, [IntPtr]::Zero)
+[C]::mouse_event($up, 0, 0, 0, [IntPtr]::Zero)
 if ($ctrl) { [C]::keybd_event(0x11, 0, 2, [IntPtr]::Zero) }
 if ($alt) { [C]::keybd_event(0x12, 0, 2, [IntPtr]::Zero) }
 Start-Sleep -Milliseconds 600

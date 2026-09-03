@@ -7,7 +7,9 @@ import {
   saveActiveAs,
   saveAll,
   closeActiveTab,
+  closeAllTabs,
 } from '../actions/files';
+import { copySelection, cutSelection, pasteIntoEditor } from '../actions/clipboard';
 import { goToLineDialog } from '../actions/navigate';
 import {
   addRootDialog,
@@ -42,6 +44,16 @@ function inEditor(run: (view: import('@codemirror/view').EditorView) => boolean)
   };
 }
 
+/** То же для команд, которые ждут ответа снаружи, — буфера обмена. */
+function inEditorAsync(
+  run: (view: import('@codemirror/view').EditorView) => Promise<void>,
+) {
+  return async (): Promise<void> => {
+    const view = editorView();
+    if (view) await run(view);
+  };
+}
+
 export const COMMANDS: Record<CommandId, () => void | Promise<unknown>> = {
   'file.new': newFile,
   'file.open': openFiles,
@@ -49,9 +61,18 @@ export const COMMANDS: Record<CommandId, () => void | Promise<unknown>> = {
   'file.save-as': saveActiveAs,
   'file.save-all': saveAll,
   'file.close-tab': closeActiveTab,
+  'file.close-all': closeAllTabs,
 
   'edit.undo': inEditor(edit.undo),
   'edit.redo': inEditor(edit.redo),
+
+  // Буфер обмена. Сочетания `Ctrl+X`, `Ctrl+C` и `Ctrl+V` до этих
+  // обработчиков не доходят — их выполняет сам вебвью (Р-108). Сюда
+  // попадают пункт меню, палитра и переназначенное сочетание.
+  'edit.cut': inEditorAsync(cutSelection),
+  'edit.copy': inEditorAsync(copySelection),
+  'edit.paste': inEditorAsync(pasteIntoEditor),
+
   'edit.select-all': inEditor(edit.selectAll),
   'edit.duplicate-line': inEditor(edit.duplicateLine),
   'edit.add-cursor-next': inEditor(edit.addCursorNext),
@@ -84,4 +105,17 @@ export const COMMANDS: Record<CommandId, () => void | Promise<unknown>> = {
 
 export function commandIds(): CommandId[] {
   return Object.keys(COMMANDS);
+}
+
+/**
+ * Выполнить команду по имени.
+ *
+ * Для тех, кто зовёт команду не с клавиатуры: пункты контекстного меню
+ * ссылаются на неё именем и не повторяют её тело (Р-107). Неизвестное имя
+ * молча ничего не делает — это ошибка в наборе пунктов, и её ловит тест
+ * `tests/menus.test.ts`, а не пользователь посреди работы.
+ */
+export function runCommand(id: CommandId): void {
+  const run = COMMANDS[id];
+  if (run) void run();
 }

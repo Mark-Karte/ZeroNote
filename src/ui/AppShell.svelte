@@ -13,6 +13,7 @@
   import Sidebar from './sidebar/Sidebar.svelte';
   import IconStrip from './sidebar/IconStrip.svelte';
   import Palette from './palette/Palette.svelte';
+  import Popup from './Popup.svelte';
   import SettingsScreen from './settings/SettingsScreen.svelte';
   import WelcomeScreen from './welcome/WelcomeScreen.svelte';
   import { settings, startSettings, wrapEnabled } from '../state/settings.svelte';
@@ -28,9 +29,21 @@
   import { openDropped, closeAllTabs } from '../actions/files';
   import { checkExternalChanges } from '../actions/external';
   import { startupPaths } from '../ipc/files';
-  import { installGlobalKeymap, loadKeymap } from '../keymap/global.svelte';
+  import { installGlobalKeymap, loadKeymap, commandList } from '../keymap/global.svelte';
+  import { contextMenu, hideMenu, showMenu } from '../state/menu.svelte';
+  import { fieldMenu } from './menus';
+  import {
+    copyField,
+    cutField,
+    fieldSelection,
+    isField,
+    pasteField,
+    selectAllField,
+    type Field,
+  } from '../actions/clipboard';
 
   let removeKeymap: (() => void) | null = null;
+  let removeMenu: (() => void) | null = null;
   let unlistenDrop: UnlistenFn | null = null;
   let unlistenClose: UnlistenFn | null = null;
   let unlistenFocus: UnlistenFn | null = null;
@@ -141,6 +154,40 @@
       window.removeEventListener('blur', followReset);
     };
 
+    // Меню вебвью — «Назад», «Обновить», «Посмотреть код» — в редакторе
+    // не означает ничего и закрывает собой то, что означало бы. Снимается
+    // во всём окне и всегда, одной строкой на этапе перехвата: своё меню
+    // показывают те места, которым есть что предложить, и до них событие
+    // доходит уже без чужого меню.
+    const suppress = (event: MouseEvent): void => event.preventDefault();
+
+    // Поля ввода — панель поиска, палитра, диалог. Событие сюда доходит
+    // только если ближе к цели меню не нашлось: те обработчики останавливают
+    // распространение. Без этого правый щелчок в поле поиска не делал бы
+    // ничего — а его там жмут чаще всего, чтобы вставить.
+    const fieldOn = (event: MouseEvent): void => {
+      const target = event.target;
+      if (!isField(target)) {
+        hideMenu();
+        return;
+      }
+      showMenu(
+        event,
+        fieldMenu(
+          { hasSelection: fieldSelection(target) !== '', readOnly: target.readOnly },
+          commandList(),
+        ),
+        (id) => void pickInField(target, id),
+      );
+    };
+
+    window.addEventListener('contextmenu', suppress, { capture: true });
+    window.addEventListener('contextmenu', fieldOn);
+    removeMenu = () => {
+      window.removeEventListener('contextmenu', suppress, { capture: true });
+      window.removeEventListener('contextmenu', fieldOn);
+    };
+
     unlistenDrop = await getCurrentWindow().onDragDropEvent((event) => {
       if (event.payload.type === 'over') {
         dropActive = true;
@@ -153,8 +200,31 @@
     });
   });
 
+  /**
+   * Пункты меню поля ввода делают то же, что одноимённые команды, но с полем,
+   * а не с областью текста: `edit.copy` в реестре копирует из редактора.
+   * Имена взяты те же, чтобы подпись и сочетание приходили из раскладки (Р-107).
+   */
+  async function pickInField(field: Field, id: string): Promise<void> {
+    switch (id) {
+      case 'edit.cut':
+        await cutField(field);
+        return;
+      case 'edit.copy':
+        await copyField(field);
+        return;
+      case 'edit.paste':
+        await pasteField(field);
+        return;
+      case 'edit.select-all':
+        selectAllField(field);
+        return;
+    }
+  }
+
   onDestroy(() => {
     removeKeymap?.();
+    removeMenu?.();
     unlistenDrop?.();
     unlistenClose?.();
     unlistenFocus?.();
@@ -203,6 +273,24 @@
   <StatusBar />
   <Modal />
   <Palette />
+
+  <!-- Контекстное меню одно на окно и рисуется здесь, а не там, где вызвано:
+       внутри прокручиваемой панели оно уезжало бы вместе с содержимым,
+       а внутри блока с обрезкой пропадало бы под его краем. -->
+  {#if contextMenu.open}
+    <Popup
+      items={contextMenu.open.items}
+      at={contextMenu.open.at}
+      onpick={(id) => {
+        // Закрываем до выполнения: действие может открыть диалог,
+        // и меню осталось бы висеть поверх него.
+        const chosen = contextMenu.open;
+        hideMenu();
+        chosen?.pick(id);
+      }}
+      onclose={hideMenu}
+    />
+  {/if}
 </div>
 
 <style>

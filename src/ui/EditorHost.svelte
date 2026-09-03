@@ -2,8 +2,13 @@
   import { onMount, onDestroy, untrack } from 'svelte';
   import { EditorView } from '@codemirror/view';
   import { EditorState } from '@codemirror/state';
-  import { tabs, tabById } from '../state/tabs.svelte';
+  import { undoDepth, redoDepth } from '@codemirror/commands';
+  import { tabs, tabById, activeTab, languageOf } from '../state/tabs.svelte';
   import { setEditorView } from '../editor/current';
+  import { showMenu } from '../state/menu.svelte';
+  import { editorMenu } from './menus';
+  import { commandList } from '../keymap/global.svelte';
+  import { runCommand } from '../keymap/registry';
   import '../editor/editor.css';
 
   let host: HTMLDivElement;
@@ -54,6 +59,56 @@
     // Командам правки нужен доступ к редактору из обычного кода.
     setEditorView(view);
   });
+
+  /**
+   * Контекстное меню области текста.
+   *
+   * Обработчик на обёртке, а не на содержимом CodeMirror: разметка внутри
+   * пересоздаётся при каждой перерисовке, а эта обёртка живёт всё время
+   * работы окна.
+   */
+  function onContextMenu(event: MouseEvent): void {
+    if (!view) return;
+
+    moveCaretToClick(view, event);
+
+    const state = view.state;
+    const tab = activeTab();
+    showMenu(
+      event,
+      editorMenu(
+        {
+          canUndo: undoDepth(state) > 0,
+          canRedo: redoDepth(state) > 0,
+          readOnly: state.readOnly,
+          markdown: tab ? languageOf(tab)?.id === 'markdown' : false,
+        },
+        commandList(),
+      ),
+      runCommand,
+    );
+  }
+
+  /**
+   * Щелчок мимо выделения переносит курсор туда, где щёлкнули.
+   *
+   * Так ведёт себя всё в Windows: меню относится к месту вызова. Без этого
+   * «перейти по ссылке под курсором» ушло бы по той ссылке, где курсор
+   * остался с прошлого раза, — а пользователь показывал указателем совсем
+   * на другую. Щелчок внутри выделения выделение сохраняет: иначе правый
+   * щелчок по выделенному куску сбрасывал бы его перед «копировать».
+   */
+  function moveCaretToClick(target: EditorView, event: MouseEvent): void {
+    const pos = target.posAtCoords({ x: event.clientX, y: event.clientY });
+    if (pos === null) return;
+
+    const inside = target.state.selection.ranges.some(
+      (range) => !range.empty && pos >= range.from && pos <= range.to,
+    );
+    if (inside) return;
+
+    target.dispatch({ selection: { anchor: pos } });
+  }
 
   function onScroll(): void {
     if (!view || mounted === null) return;
@@ -111,7 +166,13 @@
   });
 </script>
 
-<div class="editor" bind:this={host}></div>
+<!-- Предупреждение снято сознательно: правый щелчок не делает обёртку
+     интерактивной. Внутри неё живёт область текста CodeMirror — она и есть
+     то, что получает фокус и принимает клавиши, а меню лишь повторяет
+     команды, у которых сочетания уже есть. Роль на обёртке была бы неправдой:
+     сама по себе она ничего не делает. -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="editor" bind:this={host} oncontextmenu={onContextMenu}></div>
 
 <style>
   .editor {

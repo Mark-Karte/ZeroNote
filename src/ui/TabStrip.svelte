@@ -1,10 +1,15 @@
 <script lang="ts">
   import Icon from './Icon.svelte';
   import { kindOf, iconForKind } from '../icons/files';
-  import { tabs, setActive, moveLocal, commitOrder } from '../state/tabs.svelte';
+  import { tabs, setActive, moveLocal, commitOrder, tabById } from '../state/tabs.svelte';
   // Закрытие идёт через действие, а не напрямую через состояние: только там
   // спрашивают про несохранённые правки.
-  import { closeTab } from '../actions/files';
+  import { closeTab, closeOtherTabs, revealInExplorer } from '../actions/files';
+  import { copyText } from '../actions/clipboard';
+  import { showMenu } from '../state/menu.svelte';
+  import { tabMenu, MENU } from './menus';
+  import { commandList } from '../keymap/global.svelte';
+  import { runCommand } from '../keymap/registry';
   import { nextIndex, type TabBox } from './tab-drag';
 
   /**
@@ -87,6 +92,52 @@
     dragging = null;
   }
 
+  /**
+   * Меню вкладки.
+   *
+   * Вкладка под указателем сначала становится активной, и только потом
+   * открывается меню. Иначе «Сохранить» из меню третьей вкладки сохранило бы
+   * первую: команды реестра работают с активной вкладкой, а не с той,
+   * по которой щёлкнули. Notepad++ делает так же.
+   */
+  function onContextMenu(event: MouseEvent, id: number): void {
+    setActive(id);
+
+    const tab = tabById(id);
+    if (!tab) return;
+    const meta = tab.meta;
+
+    showMenu(
+      event,
+      tabMenu(
+        {
+          modified: meta.modified,
+          hasFile: meta.path !== null,
+          others: tabs.items.length - 1,
+        },
+        commandList(),
+      ),
+      (choice) => {
+        switch (choice) {
+          case MENU.closeOthers:
+            void closeOtherTabs(id);
+            return;
+          case MENU.copyPath:
+            if (meta.path) void copyText(meta.path);
+            return;
+          case MENU.copyName:
+            void copyText(meta.title);
+            return;
+          case MENU.reveal:
+            if (meta.path) void revealInExplorer(meta.path);
+            return;
+          default:
+            runCommand(choice);
+        }
+      },
+    );
+  }
+
   function onPointerUp(event: PointerEvent): void {
     const element = event.currentTarget as HTMLElement;
     // Захват мог быть уже потерян: тогда освобождение бросает исключение,
@@ -110,6 +161,7 @@
       aria-selected={tab.meta.id === tabs.activeId}
       title={tab.meta.path ?? tab.meta.title}
       onpointerdown={(e) => onPointerDown(e, tab.meta.id)}
+      oncontextmenu={(e) => onContextMenu(e, tab.meta.id)}
       onpointermove={onPointerMove}
       onpointerup={onPointerUp}
       onpointercancel={onPointerUp}

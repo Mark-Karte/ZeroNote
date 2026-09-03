@@ -63,7 +63,16 @@ toml_edit = "0.25"
 # ReplaceFileW для атомарной замены файла с сохранением прав и атрибутов
 # приёмника (решение Р-006). std::fs::rename использует MoveFileEx и права
 # приёмника теряет, то есть инвариант 3 не выполняет.
-windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem", "Win32_Foundation"] }
+# Плюс чтение буфера обмена (решение Р-109): браузерное readText в WebView2
+# не отвечает вовсе, а брать ради пяти системных вызовов отдельный крейт
+# с поддержкой картинок и трёх операционных систем — дороже, чем написать
+# эти пять вызовов.
+windows-sys = { version = "0.61", features = [
+    "Win32_Storage_FileSystem",
+    "Win32_Foundation",
+    "Win32_System_DataExchange",
+    "Win32_System_Memory",
+] }
 
 [profile.release]
 # Скорость важнее размера: цели по производительности — часть спецификации.

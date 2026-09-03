@@ -23,8 +23,15 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("file.save-as", "Сохранить как"),
     ("file.save-all", "Сохранить всё"),
     ("file.close-tab", "Закрыть вкладку"),
+    ("file.close-all", "Закрыть все вкладки"),
     ("edit.undo", "Отменить"),
     ("edit.redo", "Повторить"),
+    // Буфер обмена. Сочетания за ними записаны, но нажатие перехватывает
+    // не приложение, а вебвью — он делает это правильно (Р-108). Команды
+    // нужны меню и палитре: пункт меню нажатием клавиши не является.
+    ("edit.cut", "Вырезать"),
+    ("edit.copy", "Копировать"),
+    ("edit.paste", "Вставить"),
     ("edit.select-all", "Выделить всё"),
     ("edit.duplicate-line", "Продублировать строку"),
     ("edit.add-cursor-next", "Курсор на следующее совпадение"),
@@ -64,8 +71,12 @@ pub const DEFAULTS: &[(&str, &str)] = &[
     ("ctrl+alt+s", "file.save-as"),
     ("ctrl+shift+s", "file.save-all"),
     ("ctrl+w", "file.close-tab"),
+    ("ctrl+shift+w", "file.close-all"),
     ("ctrl+z", "edit.undo"),
     ("ctrl+y", "edit.redo"),
+    ("ctrl+x", "edit.cut"),
+    ("ctrl+c", "edit.copy"),
+    ("ctrl+v", "edit.paste"),
     ("ctrl+a", "edit.select-all"),
     // Ctrl+D отдан мультикурсору, как в VS Code (Р-091): дублирование строки
     // переехало на соседнее сочетание. Это единственное расхождение

@@ -51,7 +51,14 @@ public class K {
 }
 "@
 
-$proc = Get-Process zeronote -ErrorAction Stop | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+# Окон ZeroNote может быть два: установленное и собранное для отладки.
+# Первое попавшееся брать нельзя — нажатия ушли бы в чужое окно, и понять
+# это можно было бы только по снимку. Номер процесса задаётся переменной
+# окружения ZERONOTE_PID; без неё двусмысленность считается ошибкой.
+$found = @(Get-Process zeronote -ErrorAction Stop | Where-Object { $_.MainWindowHandle -ne 0 })
+if ($env:ZERONOTE_PID) { $found = @($found | Where-Object { $_.Id -eq [int]$env:ZERONOTE_PID }) }
+if ($found.Count -gt 1) { throw "окон ZeroNote несколько: $(($found | ForEach-Object { $_.Id }) -join ', '). Задайте ZERONOTE_PID" }
+$proc = $found | Select-Object -First 1
 if (-not $proc) { throw "окно ZeroNote не найдено" }
 $hwnd = $proc.MainWindowHandle
 

@@ -153,3 +153,6 @@ export const flushDrafts = (entries: { id: number; text: string }[]): Promise<vo
 export const dropDraft = (id: number): Promise<void> => invoke('drop_draft', { id });
 
 export const restoreSession = (): Promise<RestoredSession> => invoke('restore_session');
+
+/** Показать путь в проводнике: папку открыть, файл выделить в его папке. */
+export const revealPath = (path: string): Promise<void> => invoke('reveal_path', { path });

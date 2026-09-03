@@ -1,27 +1,67 @@
 <script lang="ts">
   import Icon from './Icon.svelte';
   import type { PopupItem } from './popup-item';
+  import { placeMenu, type Placed } from './menu-position';
+  import { labelOf } from '../keymap/binding';
 
   interface Props {
     items: PopupItem[];
-    /** Положение якоря на экране — по нему всплывающее меню и ставится. */
-    anchor: DOMRect;
+    /**
+     * Положение якоря на экране — по нему меню и ставится. Так открываются
+     * меню строки состояния: вверх и влево от нажатой кнопки.
+     */
+    anchor?: DOMRect | undefined;
+    /**
+     * Точка щелчка. Так открывается контекстное меню: вниз и вправо от неё,
+     * с переворотом у края окна.
+     */
+    at?: { x: number; y: number } | undefined;
     onpick: (id: string) => void;
     onclose: () => void;
   }
 
-  let { items, anchor, onpick, onclose }: Props = $props();
+  let { items, anchor, at, onpick, onclose }: Props = $props();
 
   let element = $state<HTMLDivElement | null>(null);
+  let placed = $state<Placed | null>(null);
 
   /**
    * Меню всплывает над строкой состояния и прижимается правым краем к якорю:
    * элементы строки состояния стоят справа, и меню, растущее вправо, уехало бы
    * за окно.
    */
-  const position = $derived({
-    bottom: `${window.innerHeight - anchor.top}px`,
-    right: `${Math.max(0, window.innerWidth - anchor.right)}px`,
+  const anchored = $derived(
+    anchor
+      ? {
+          bottom: `${window.innerHeight - anchor.top}px`,
+          right: `${Math.max(0, window.innerWidth - anchor.right)}px`,
+        }
+      : null,
+  );
+
+  /**
+   * Положение от точки считается после отрисовки: до неё неизвестен размер
+   * меню, а без размера нельзя понять, поместится ли оно и куда переворачивать.
+   * До расчёта меню скрыто — иначе кадр-другой оно было бы видно не там.
+   */
+  $effect(() => {
+    // Смена набора пунктов меняет размер, а смена точки — целевое место.
+    void items;
+    if (!at || !element) return;
+
+    // Поле у края окна берётся из токенов, а не задаётся числом здесь:
+    // тот же приём, что у высоты строки дерева.
+    const margin = Number.parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue('--zn-space-2'),
+    );
+
+    const box = element.getBoundingClientRect();
+    placed = placeMenu(
+      at,
+      { width: box.width, height: box.height },
+      { width: window.innerWidth, height: window.innerHeight },
+      Number.isFinite(margin) ? margin : 0,
+    );
   });
 
   function onKeyDown(event: KeyboardEvent): void {
@@ -45,19 +85,25 @@
 
 <div
   class="popup"
+  class:placing={at !== undefined && placed === null}
   bind:this={element}
   role="menu"
   tabindex="-1"
-  style:bottom={position.bottom}
-  style:right={position.right}
+  style:bottom={anchored ? anchored.bottom : null}
+  style:right={anchored ? anchored.right : null}
+  style:left={placed ? `${placed.left}px` : null}
+  style:top={placed ? `${placed.top}px` : null}
 >
   {#each items as item (item.id)}
     {#if item.section}
       <div class="section">{item.section}</div>
+    {:else if item.divider}
+      <div class="divider"></div>
     {/if}
     <button
       class="item"
       class:checked={item.checked}
+      class:danger={item.danger}
       type="button"
       role="menuitem"
       disabled={item.disabled}
@@ -68,6 +114,9 @@
         {#if item.checked}<Icon name="action.check" />{/if}
       </span>
       <span class="label">{item.label}</span>
+      {#if item.key}
+        <span class="key">{labelOf(item.key)}</span>
+      {/if}
     </button>
   {/each}
 </div>
@@ -91,6 +140,13 @@
     animation: rise var(--zn-motion-duration-fast) var(--zn-motion-easing);
   }
 
+  /* Меню от точки до расчёта положения занимает место, но не видно:
+     измерить его размер иначе нельзя, а показывать не там, где нужно,
+     нельзя тем более. */
+  .popup.placing {
+    visibility: hidden;
+  }
+
   @keyframes rise {
     from {
       opacity: 0;
@@ -104,6 +160,14 @@
     font-size: var(--zn-font-size-ui-small);
     text-transform: uppercase;
     letter-spacing: var(--zn-font-letter-spacing-caps);
+  }
+
+  /* Раздел без названия. Поля по бокам меньше, чем у пунктов: черта отделяет
+     группы, а не обводит их. */
+  .divider {
+    height: var(--zn-border-width);
+    margin: var(--zn-space-2) var(--zn-space-2);
+    background-color: var(--zn-color-border-subtle);
   }
 
   .item {
@@ -141,8 +205,28 @@
     color: var(--zn-color-accent);
   }
 
+  /* Необратимое — цветом опасности, как вариант в диалоге (Р-093). */
+  .item.danger {
+    color: var(--zn-color-danger);
+  }
+
   .label {
     flex: 1;
     white-space: nowrap;
+  }
+
+  /* Сочетание — справа и тише подписи: это справка, а не часть пункта.
+     Отступ слева не даёт ему слипнуться с длинным названием. */
+  .key {
+    flex: none;
+    margin-left: var(--zn-space-6);
+    color: var(--zn-color-fg-subtle);
+    font-family: var(--zn-font-family-editor);
+    font-size: var(--zn-font-size-ui-small);
+    white-space: nowrap;
+  }
+
+  .item:disabled .key {
+    color: var(--zn-color-border-default);
   }
 </style>

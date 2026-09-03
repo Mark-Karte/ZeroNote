@@ -5,6 +5,7 @@
 
 pub mod bench;
 pub mod cli;
+pub mod clipboard;
 pub mod commands;
 pub mod fsx;
 pub mod index;
@@ -147,6 +148,8 @@ pub fn run() {
             commands::files::close_buffer,
             commands::files::reorder_buffer,
             commands::files::list_encodings,
+            commands::files::reveal_path,
+            commands::files::clipboard_text,
             commands::roots::list_roots,
             commands::roots::add_root,
             commands::roots::remove_root,

@@ -1,11 +1,16 @@
 <script lang="ts">
   import Icon from '../Icon.svelte';
   import { iconForFile, kindOf } from '../../icons/files';
-  import { rows, toggle, tree, type Row } from '../../state/tree.svelte';
+  import { rows, toggle, tree, refreshDirs, type Row } from '../../state/tree.svelte';
   import { appearance } from '../../theme/store.svelte';
-  import { openDropped } from '../../actions/files';
+  import { openDropped, revealInExplorer } from '../../actions/files';
   import { removeRoot, createProject, importFromObsidian } from '../../actions/project';
+  import { copyText } from '../../actions/clipboard';
   import { roots } from '../../state/roots.svelte';
+  import { showMenu } from '../../state/menu.svelte';
+  import { treeMenu, MENU } from '../menus';
+  import { commandList } from '../../keymap/global.svelte';
+  import { runCommand } from '../../keymap/registry';
 
   /**
    * Дерево файлов — виртуализованный список.
@@ -80,18 +85,97 @@
   function rootOf(row: Row) {
     return roots.items.find((r) => r.id === row.rootId);
   }
+
+  /** Меню строки дерева: всё то же, что кнопками, плюс путь и проводник. */
+  function onRowMenu(event: MouseEvent, row: Row): void {
+    const root = row.isRoot ? rootOf(row) : undefined;
+
+    showMenu(
+      event,
+      treeMenu(
+        {
+          row: {
+            isDir: row.isDir,
+            isRoot: row.isRoot,
+            isLink: row.isLink,
+            expanded: row.expanded,
+          },
+          root: root
+            ? {
+                hasProjectFile: root.hasProjectFile,
+                hasObsidianConfig: root.hasObsidianConfig,
+              }
+            : null,
+        },
+        commandList(),
+      ),
+      (choice) => {
+        switch (choice) {
+          case MENU.open:
+          case MENU.toggle:
+            void activate(row);
+            return;
+          case MENU.refresh:
+            void refreshDirs([row.path]);
+            return;
+          case MENU.copyPath:
+            void copyText(row.path);
+            return;
+          case MENU.copyName:
+            void copyText(row.name);
+            return;
+          case MENU.reveal:
+            void revealInExplorer(row.path);
+            return;
+          case MENU.projectFile:
+            void createProject(row.rootId);
+            return;
+          case MENU.obsidian:
+            void importFromObsidian(row.rootId);
+            return;
+          case MENU.removeRoot:
+            void removeRoot(row.rootId);
+            return;
+          default:
+            runCommand(choice);
+        }
+      },
+    );
+  }
+
+  /**
+   * Меню пустого места панели.
+   *
+   * Сюда событие доходит только если по строке не попали: обработчик строки
+   * останавливает распространение.
+   */
+  function onEmptyMenu(event: MouseEvent): void {
+    showMenu(event, treeMenu({ row: null }, commandList()), runCommand);
+  }
 </script>
 
+<!-- Предупреждения сняты сознательно, и оба раза по одной причине: правый
+     щелчок не делает элемент интерактивным. Нажимается в дереве кнопка внутри
+     строки — она и получает фокус, и принимает клавиши. Меню же повторяет
+     то, что уже есть кнопками строки, и роль на обёртке была бы неправдой. -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   class="viewport"
   bind:this={viewport}
   onscroll={(event) => (scrollTop = event.currentTarget.scrollTop)}
+  oncontextmenu={onEmptyMenu}
 >
   <div class="total" style:height={rowHeight > 0 ? `${items.length * rowHeight}px` : 'auto'}>
     <div class="window" style:transform={`translateY(${first * rowHeight}px)`}>
       {#each visible as row (row.path)}
         {@const root = row.isRoot ? rootOf(row) : undefined}
-        <div class="line" class:root={row.isRoot} class:missing={root && !root.available}>
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <div
+          class="line"
+          class:root={row.isRoot}
+          class:missing={root && !root.available}
+          oncontextmenu={(e) => onRowMenu(e, row)}
+        >
           <button
             class="row"
             type="button"

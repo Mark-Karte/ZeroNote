@@ -202,3 +202,28 @@ export async function closeAllTabs(): Promise<boolean> {
   }
   return true;
 }
+
+/**
+ * Закрыть все вкладки, кроме одной.
+ *
+ * Список снимается до обхода и не включает саму вкладку: закрытие меняет
+ * `tabs.items` прямо во время работы. Отказ на любом вопросе останавливает
+ * закрытие целиком — как и в «закрыть все».
+ */
+export async function closeOtherTabs(keep: number): Promise<boolean> {
+  const ids = tabs.items.map((t) => t.meta.id).filter((id) => id !== keep);
+
+  for (const id of ids) {
+    if (!(await closeTab(id))) return false;
+  }
+  return true;
+}
+
+/** Показать файл или папку в проводнике. */
+export async function revealInExplorer(path: string): Promise<void> {
+  try {
+    await ipc.revealPath(path);
+  } catch (error) {
+    await report(error);
+  }
+}
