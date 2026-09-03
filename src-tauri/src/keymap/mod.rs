@@ -49,6 +49,7 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("view.unfold", "Развернуть блок"),
     ("view.fold-all", "Свернуть всё"),
     ("view.unfold-all", "Развернуть всё"),
+    ("view.go-to-bracket", "Перейти к парной скобке"),
     ("view.go-to-line", "Перейти к строке"),
     ("view.next-tab", "Следующая вкладка"),
     ("view.previous-tab", "Предыдущая вкладка"),
@@ -104,6 +105,11 @@ pub const DEFAULTS: &[(&str, &str)] = &[
     ("alt+shift+0", "view.unfold-all"),
     ("ctrl+alt+f", "view.fold"),
     ("ctrl+alt+shift+f", "view.unfold"),
+    // В Notepad++ переход к парной скобке висит на Ctrl+B, но у нас это
+    // боковая панель по решению Р-053 — сочетание из VS Code, взятое потому,
+    // что папки как проекта в Notepad++ нет вовсе. Двигать его теперь дороже,
+    // чем найти скобкам соседнее свободное.
+    ("ctrl+alt+b", "view.go-to-bracket"),
     ("ctrl+g", "view.go-to-line"),
     ("ctrl+tab", "view.next-tab"),
     ("ctrl+shift+tab", "view.previous-tab"),

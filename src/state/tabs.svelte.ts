@@ -2,7 +2,13 @@ import { EditorState, type Text } from '@codemirror/state';
 import * as ipc from '../ipc/files';
 import type { Buffer, BufferWithText, ViewState } from '../ipc/files';
 import { EditorView } from '@codemirror/view';
-import { extensionsFor, languageCompartment, wrapCompartment } from '../editor/setup';
+import {
+  autoCloseCompartment,
+  autoCloseExtension,
+  extensionsFor,
+  languageCompartment,
+  wrapCompartment,
+} from '../editor/setup';
 import { editorView } from '../editor/current';
 import {
   languageById,
@@ -12,7 +18,7 @@ import {
 // Взаимный импорт с persist: там только функции, и зовутся они в рантайме,
 // поэтому порядок загрузки модулей роли не играет.
 import { forgetDraft, noteEdit, noteStructureChange } from './persist.svelte';
-import { wrapEnabled } from './settings.svelte';
+import { autoCloseEnabled, wrapEnabled } from './settings.svelte';
 import { restoreFromSession } from './roots.svelte';
 
 /**
@@ -141,6 +147,7 @@ function makeState(meta: Buffer, text: string, cursor = 0): EditorState {
       // с ним меняется и то, куда ведут ссылки из этого файла.
       () => tabById(meta.id)?.meta.path ?? null,
       wrapEnabled(),
+      autoCloseEnabled(),
     ),
   });
 }
@@ -158,6 +165,16 @@ export function applyWrap(wrap: boolean): void {
   for (const tab of tabs.items) {
     tab.editor = tab.editor.update({
       effects: wrapCompartment.reconfigure(extension),
+    }).state;
+  }
+}
+
+/** То же самое для автозакрытия скобок и по тем же причинам. */
+export function applyAutoClose(autoClose: boolean): void {
+  const extension = autoCloseExtension(autoClose);
+  for (const tab of tabs.items) {
+    tab.editor = tab.editor.update({
+      effects: autoCloseCompartment.reconfigure(extension),
     }).state;
   }
 }

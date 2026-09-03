@@ -2,6 +2,7 @@ import { foldAll, unfoldAll } from '@codemirror/language';
 import { editorView } from '../editor/current';
 import * as edit from '../editor/commands';
 import { foldBlock, unfoldBlock } from '../editor/folding';
+import { goToBracket } from '../editor/brackets';
 import {
   newFile,
   openFiles,
@@ -95,6 +96,7 @@ export const COMMANDS: Record<CommandId, () => void | Promise<unknown>> = {
   'view.fold-all': inEditor(foldAll),
   'view.unfold-all': inEditor(unfoldAll),
 
+  'view.go-to-bracket': inEditor(goToBracket),
   'view.go-to-line': goToLineDialog,
   'view.next-tab': nextTab,
   'view.previous-tab': previousTab,

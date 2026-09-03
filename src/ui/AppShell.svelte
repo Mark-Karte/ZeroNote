@@ -16,9 +16,14 @@
   import Popup from './Popup.svelte';
   import SettingsScreen from './settings/SettingsScreen.svelte';
   import WelcomeScreen from './welcome/WelcomeScreen.svelte';
-  import { settings, startSettings, wrapEnabled } from '../state/settings.svelte';
+  import {
+    autoCloseEnabled,
+    settings,
+    startSettings,
+    wrapEnabled,
+  } from '../state/settings.svelte';
   import { searchFocusRequest } from '../state/project-search.svelte';
-  import { tabs, restore, applyWrap } from '../state/tabs.svelte';
+  import { tabs, restore, applyWrap, applyAutoClose } from '../state/tabs.svelte';
   import { flushNow } from '../state/persist.svelte';
   import { roots, refresh as refreshRoots, rootProblems } from '../state/roots.svelte';
   import { refreshDirs } from '../state/tree.svelte';
@@ -65,6 +70,12 @@
   $effect(() => {
     const wrap = wrapEnabled();
     untrack(() => applyWrap(wrap));
+  });
+
+  // Автозакрытие скобок — та же настройка того же рода и тем же способом.
+  $effect(() => {
+    const autoClose = autoCloseEnabled();
+    untrack(() => applyAutoClose(autoClose));
   });
 
   onMount(async () => {

@@ -55,6 +55,17 @@ export async function toggleWrap(): Promise<void> {
   await put(['editor', 'wrap'], !wrapEnabled());
 }
 
+/**
+ * Закрывать ли скобки при наборе.
+ *
+ * Умолчание `true` повторяет умолчание ядра и нужно на тот случай, когда
+ * настройки ещё не приехали: несовпадение означало бы, что первые полсекунды
+ * после запуска редактор ведёт себя иначе, чем потом.
+ */
+export function autoCloseEnabled(): boolean {
+  return settings.state?.settings.editor.auto_close ?? true;
+}
+
 export function open(): void {
   settings.open = true;
   settings.problem = null;

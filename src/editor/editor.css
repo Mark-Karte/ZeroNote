@@ -73,6 +73,27 @@
   color: var(--zn-color-fg-default);
 }
 
+/* Парная скобка. Подсвечивается только у редактора в фокусе — так же ведёт
+   себя базовая тема CodeMirror, и это верно: в неактивном окне подсветка
+   спорила бы с выделением.
+
+   Рамка через inset-тень, а не border: border сдвинул бы букву на пиксель,
+   и текст дёргался бы при каждом движении курсора между скобками. */
+.cm-editor.cm-focused .cm-matchingBracket {
+  border-radius: var(--zn-radius-sm);
+  background-color: var(--zn-color-bg-active);
+  box-shadow: inset 0 0 0 var(--zn-border-width) var(--zn-color-border-default);
+  color: var(--zn-color-accent);
+}
+
+/* Скобка без пары — цветом опасности: это не украшение, а сообщение,
+   что структура сломана. */
+.cm-editor.cm-focused .cm-nonmatchingBracket {
+  border-radius: var(--zn-radius-sm);
+  background-color: var(--zn-color-bg-active);
+  color: var(--zn-color-danger);
+}
+
 /* Заглушка на месте свёрнутого. Базовая тема CodeMirror задаёт ей свои цвета
    числами — перекрываем токенами, иначе в тёмной теме она светится белым. */
 .cm-editor .cm-foldPlaceholder {

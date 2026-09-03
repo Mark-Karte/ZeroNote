@@ -48,6 +48,7 @@ vi.mock('../src/state/persist.svelte', () => ({
 
 vi.mock('../src/state/settings.svelte', () => ({
   wrapEnabled: () => false,
+  autoCloseEnabled: () => true,
 }));
 
 vi.mock('../src/state/roots.svelte', () => ({

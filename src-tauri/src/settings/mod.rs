@@ -44,12 +44,27 @@ pub struct AppearanceSettings {
 
 /// Поведение редактора. Не оформление: перенос строк меняет то, как текст
 /// разложен, а не как он выглядит, и в теме ему места нет.
-#[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct EditorSettings {
     /// Переносить длинные строки по ширине окна. По умолчанию нет — так
     /// ведёт себя Notepad++, и для кода это верное умолчание.
     pub wrap: bool,
+    /// Закрывать скобки и кавычки при наборе. По умолчанию да — решение Р-113.
+    pub auto_close: bool,
+}
+
+/// Умолчания пишутся руками, а не выводятся `derive(Default)`: у `bool`
+/// умолчание `false`, а автозакрытие должно быть включено. Забыть про это
+/// легко, и тогда настройка молча выключилась бы у всех, у кого её нет
+/// в файле, — то есть у всех.
+impl Default for EditorSettings {
+    fn default() -> Self {
+        Self {
+            wrap: false,
+            auto_close: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -187,6 +202,10 @@ density = "normal"
 [editor]
 # Переносить длинные строки по ширине окна.
 wrap = false
+# Закрывать скобки и кавычки при наборе. В прозе — markdown и обычном
+# тексте — кавычки не закрываются и при включённой настройке: там они
+# не парные.
+auto_close = true
 "#;
 
 /// Создать файл настроек, если его ещё нет.
@@ -214,6 +233,27 @@ mod tests {
     fn template_matches_defaults() {
         let parsed = parse(DEFAULT_TEMPLATE).expect("образец должен разбираться");
         assert_eq!(parsed, Settings::default());
+    }
+
+    /// Настройка, которой в файле нет, берёт умолчание — и для автозакрытия
+    /// это `true`, а не `false`.
+    ///
+    /// Тест не про сериализацию, а про грабли: у `bool` умолчание `false`,
+    /// и `derive(Default)` молча выключил бы автозакрытие у всех, у кого
+    /// файл настроек написан до появления этого ключа. То есть у всех.
+    #[test]
+    fn auto_close_is_on_when_the_key_is_missing() {
+        let parsed = parse(
+            r#"
+            schema = 1
+            [editor]
+            wrap = true
+        "#,
+        )
+        .expect("файл должен разбираться");
+
+        assert!(parsed.editor.wrap);
+        assert!(parsed.editor.auto_close, "автозакрытие включено по умолчанию");
     }
 
     /// Пустой файл — это все значения по умолчанию, а не ошибка.

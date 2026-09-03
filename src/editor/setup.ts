@@ -1,4 +1,4 @@
-import { Compartment, EditorState, type Extension } from '@codemirror/state';
+import { Compartment, EditorState, Prec, type Extension } from '@codemirror/state';
 import {
   EditorView,
   keymap,
@@ -10,8 +10,15 @@ import {
   rectangularSelection,
 } from '@codemirror/view';
 import { history, historyKeymap, defaultKeymap } from '@codemirror/commands';
+import { bracketMatching } from '@codemirror/language';
 import { search, highlightSelectionMatches } from '@codemirror/search';
+// Пакет называется `autocomplete`, но берём из него ровно одно — закрытие
+// скобок. Автодополнение остаётся вне области первого круга: включается оно
+// отдельным вызовом, которого в проекте нет, и это стережёт тест
+// `tests/brackets.test.ts` (решение Р-112).
+import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import { syntaxColors } from '../theme/syntax';
+import { brackets } from './brackets';
 import { folding } from './folding';
 import { wikilinks, type Target } from './wikilinks';
 import type { Buffer } from '../ipc/files';
@@ -40,6 +47,26 @@ export const languageCompartment = new Compartment();
 export const wrapCompartment = new Compartment();
 
 /**
+ * Отсек автозакрытия скобок.
+ *
+ * По той же причине, что и перенос: настройка общая, переключается на лету,
+ * а пересоздание состояний стёрло бы историю отмены во всех файлах разом.
+ */
+export const autoCloseCompartment = new Compartment();
+
+/**
+ * Что кладётся в отсек автозакрытия.
+ *
+ * `Prec.high` не украшение: `closeBracketsKeymap` перехватывает `Backspace`,
+ * чтобы удалять пустую пару целиком, а `Backspace` занят и в основной
+ * раскладке CodeMirror. Без явного старшинства порядок зависел бы от того,
+ * в каком месте набора стоит отсек, — то есть от случайности.
+ */
+export function autoCloseExtension(enabled: boolean): Extension {
+  return enabled ? [closeBrackets(), Prec.high(keymap.of(closeBracketsKeymap))] : [];
+}
+
+/**
  * Набор расширений редактора для конкретного буфера.
  *
  * Раскладка Notepad++ живёт в оконном диспетчере (`keymap/`), а не здесь:
@@ -51,6 +78,7 @@ export function extensionsFor(
   onFollow: (target: Target) => void,
   sourcePath: () => string | null,
   wrap: boolean,
+  autoClose: boolean,
 ): Extension[] {
   const readOnly = meta.readOnly;
 
@@ -77,6 +105,13 @@ export function extensionsFor(
     // Перенос по умолчанию выключен — так ведёт себя Notepad++, и для кода это
     // верное умолчание. Значение приходит из настроек, переключается на лету.
     wrapCompartment.of(wrap ? EditorView.lineWrapping : []),
+
+    // Подсветка парной скобки. Пару ищет разбор языка: скобка внутри строки
+    // или комментария парой не считается. Где дерева нет — простым просмотром
+    // текста, хуже, но не бесполезно.
+    bracketMatching(),
+    brackets(),
+    autoCloseCompartment.of(autoCloseExtension(autoClose)),
 
     // Мультикурсор. Разрешения мало: без него `selectNextOccurrence` молча
     // схлопывал бы выделения в одно.

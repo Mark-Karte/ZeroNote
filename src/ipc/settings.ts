@@ -24,6 +24,7 @@ export interface Settings {
   };
   editor: {
     wrap: boolean;
+    auto_close: boolean;
   };
 }
 

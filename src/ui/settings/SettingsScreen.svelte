@@ -167,6 +167,25 @@
 
         <div class="row">
           <div class="what">
+            <span class="name">Закрывать скобки при наборе</span>
+            <span class="note">
+              В прозе — markdown и обычном тексте — кавычки не закрываются
+              и при включённой настройке: там они не парные.
+            </span>
+          </div>
+          <select
+            class="control"
+            disabled={broken !== null}
+            value={values.editor.auto_close ? 'yes' : 'no'}
+            onchange={(e) => put(['editor', 'auto_close'], e.currentTarget.value === 'yes')}
+          >
+            <option value="yes">Закрывать</option>
+            <option value="no">Не закрывать</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <div class="what">
             <span class="name">Шрифт интерфейса</span>
             <span class="note">Пусто — из темы. Шрифт редактора задаёт тема.</span>
           </div>
