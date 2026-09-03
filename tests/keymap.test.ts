@@ -44,6 +44,21 @@ describe('разбор нажатия', () => {
     expect(bindingOf(key('Numpad1', { ctrlKey: true }))).toBe('ctrl+1');
   });
 
+  /**
+   * Кроме одного случая: Alt с цифрой на дополнительной клавиатуре — это
+   * системный ввод знака по коду. Alt+0151 даёт тире, Alt+0171 — кавычку;
+   * пишущий по-русски набирает так каждый день. Перехватить первое же
+   * нажатие значило бы отобрать у него тире.
+   */
+  it('не считает сочетанием Alt с цифрой на дополнительной клавиатуре', () => {
+    expect(bindingOf(key('Numpad0', { altKey: true }))).toBeNull();
+    expect(bindingOf(key('Numpad1', { altKey: true, shiftKey: true }))).toBeNull();
+    // А цифра верхнего ряда сочетанием остаётся: на ней и висит свёртка.
+    expect(bindingOf(key('Digit0', { altKey: true }))).toBe('alt+0');
+    // И без Alt дополнительная клавиатура работает как обычно.
+    expect(bindingOf(key('Numpad0', { ctrlKey: true }))).toBe('ctrl+0');
+  });
+
   /** Нажатие одного модификатора сочетанием не является. */
   it('одни модификаторы сочетанием не считает', () => {
     expect(bindingOf(key('ControlLeft', { ctrlKey: true }))).toBeNull();

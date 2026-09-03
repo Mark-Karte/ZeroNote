@@ -12,6 +12,7 @@ import {
 import { history, historyKeymap, defaultKeymap } from '@codemirror/commands';
 import { search, highlightSelectionMatches } from '@codemirror/search';
 import { syntaxColors } from '../theme/syntax';
+import { folding } from './folding';
 import { wikilinks, type Target } from './wikilinks';
 import type { Buffer } from '../ipc/files';
 
@@ -63,6 +64,9 @@ export function extensionsFor(
     syntaxColors,
 
     lineNumbers(),
+    // Поле свёртки — справа от номеров строк, как в Notepad++ и VS Code.
+    // Порядок здесь и есть порядок полей на экране.
+    folding(),
     highlightActiveLineGutter(),
     highlightActiveLine(),
     history(),

@@ -42,6 +42,53 @@
   color: var(--zn-color-fg-muted);
 }
 
+/* Поле свёртки. Уголок тот же, что у папки в дереве, и поворачивается
+   по тому же правилу: вбок — свёрнуто, вниз — раскрыто. */
+.cm-editor .cm-foldGutter {
+  min-width: var(--zn-control-icon-size);
+}
+
+.cm-editor .zn-fold {
+  display: inline-flex;
+  width: var(--zn-control-icon-size);
+  height: var(--zn-control-icon-size);
+  color: var(--zn-color-fg-subtle);
+  /* Поворот только у раскрытого, поэтому и переход только у него имеет смысл —
+     но задаём здесь, чтобы он работал в обе стороны. */
+  transition: transform var(--zn-motion-duration-fast) var(--zn-motion-easing);
+}
+
+.cm-editor .zn-fold svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.cm-editor .zn-fold-open {
+  transform: rotate(90deg);
+}
+
+.cm-editor .cm-foldGutter span:hover .zn-fold,
+.cm-editor .zn-fold:hover {
+  color: var(--zn-color-fg-default);
+}
+
+/* Заглушка на месте свёрнутого. Базовая тема CodeMirror задаёт ей свои цвета
+   числами — перекрываем токенами, иначе в тёмной теме она светится белым. */
+.cm-editor .cm-foldPlaceholder {
+  margin: 0 var(--zn-space-1);
+  padding: 0 var(--zn-space-2);
+  background-color: var(--zn-color-bg-hover);
+  border: var(--zn-border-width) solid var(--zn-color-border-default);
+  border-radius: var(--zn-radius-sm);
+  color: var(--zn-color-fg-muted);
+}
+
+.cm-editor .cm-foldPlaceholder:hover {
+  border-color: var(--zn-color-accent);
+  color: var(--zn-color-fg-default);
+}
+
 .cm-editor .cm-activeLine {
   background-color: var(--zn-color-bg-hover);
 }

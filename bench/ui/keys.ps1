@@ -23,12 +23,22 @@
 #    на разбор числа и всё равно печатал «отправлено». Position = 0 у Keys
 #    делает -At именованным, а ValidatePattern не даёт принять за координаты
 #    что попало.
+# 5. SendKeys шлёт нажатия БЕЗ скан-кода, и это ломает ровно то, ради чего
+#    стенд заводился. Скан-код — то, из чего Chromium делает event.code,
+#    а вся наша раскладка построена на нём: без него Alt+Shift+0 приезжает
+#    как ")" и не совпадает ни с чем, а Ctrl+C вообще не превращается
+#    в команду копирования. Поэтому сочетания шлются через -Chord, который
+#    добывает скан-код сам. Текст и одиночные клавиши по-прежнему через
+#    SendKeys: там скан-код не нужен.
 param(
     [switch]$NoClick,
     # Куда щёлкнуть перед вводом: "x,y" в координатах окна. По умолчанию —
     # середина рабочей области.
     [ValidatePattern('^$|^\d+,\d+$')]
     [string]$At = '',
+    # Сочетание в том же виде, в каком оно пишется в keymap.toml:
+    # "ctrl+shift+p", "alt+0", "f12". Несколько — через запятую.
+    [string]$Chord = '',
     [Parameter(Position = 0, ValueFromRemainingArguments = $true)]
     [string[]]$Keys
 )
@@ -44,6 +54,7 @@ public class K {
   [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, IntPtr p);
   [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
   [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, IntPtr extra);
+  [DllImport("user32.dll")] public static extern uint MapVirtualKey(uint code, uint type);
   [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
   [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint dx, uint dy, uint data, IntPtr extra);
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
@@ -92,6 +103,67 @@ if (-not $NoClick) {
     [K]::mouse_event(0x0002, 0, 0, 0, [IntPtr]::Zero)
     [K]::mouse_event(0x0004, 0, 0, 0, [IntPtr]::Zero)
     Start-Sleep -Milliseconds 300
+}
+
+# Имена клавиш из keymap.toml в виртуальные коды Windows. Буквы и цифры
+# считаются по формуле, здесь только именованные.
+$named = @{
+    'enter' = 0x0D; 'tab' = 0x09; 'escape' = 0x1B; 'space' = 0x20
+    'backspace' = 0x08; 'delete' = 0x2E; 'insert' = 0x2D
+    'home' = 0x24; 'end' = 0x23; 'pageup' = 0x21; 'pagedown' = 0x22
+    'left' = 0x25; 'up' = 0x26; 'right' = 0x27; 'down' = 0x28
+    'comma' = 0xBC
+}
+# Клавиши «расширенного» набора требуют своего флага, иначе система примет
+# стрелку за цифру дополнительной клавиатуры.
+$extended = @(0x2E, 0x2D, 0x24, 0x23, 0x21, 0x22, 0x25, 0x26, 0x27, 0x28)
+
+function Send-Key([int]$vk, [bool]$up) {
+    # Скан-код добывается по виртуальному: без него нажатие приходит
+    # в вебвью с пустым event.code.
+    $scan = [K]::MapVirtualKey([uint32]$vk, 0)
+    $flags = 0
+    if ($extended -contains $vk) { $flags = $flags -bor 0x0001 }
+    if ($up) { $flags = $flags -bor 0x0002 }
+    [K]::keybd_event([byte]$vk, [byte]$scan, [uint32]$flags, [IntPtr]::Zero)
+    Start-Sleep -Milliseconds 30
+}
+
+function Send-Chord([string]$chord) {
+    $ctrl = $false; $alt = $false; $shift = $false; $vk = 0
+    foreach ($part in $chord.Split('+')) {
+        switch ($part.Trim().ToLower()) {
+            'ctrl' { $ctrl = $true }
+            'control' { $ctrl = $true }
+            'alt' { $alt = $true }
+            'shift' { $shift = $true }
+            default {
+                $name = $_
+                if ($named.ContainsKey($name)) { $vk = $named[$name] }
+                elseif ($name -match '^f(\d{1,2})$') { $vk = 0x6F + [int]$Matches[1] }
+                elseif ($name -match '^[a-z]$') { $vk = [int][char]$name.ToUpper() }
+                elseif ($name -match '^[0-9]$') { $vk = 0x30 + [int]$name }
+                else { throw "не понимаю клавишу: $name" }
+            }
+        }
+    }
+    if ($vk -eq 0) { throw "в сочетании нет клавиши: $chord" }
+
+    if ($ctrl) { Send-Key 0x11 $false }
+    if ($alt) { Send-Key 0x12 $false }
+    if ($shift) { Send-Key 0x10 $false }
+    Send-Key $vk $false
+    Send-Key $vk $true
+    if ($shift) { Send-Key 0x10 $true }
+    if ($alt) { Send-Key 0x12 $true }
+    if ($ctrl) { Send-Key 0x11 $true }
+}
+
+if ($Chord -ne '') {
+    foreach ($one in $Chord.Split(',')) {
+        Send-Chord $one.Trim()
+        Start-Sleep -Milliseconds 400
+    }
 }
 
 foreach ($keys in $Keys) {

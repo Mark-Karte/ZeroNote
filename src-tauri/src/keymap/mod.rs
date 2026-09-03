@@ -45,6 +45,10 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("search.replace", "Заменить"),
     ("search.find-next", "Найти далее"),
     ("search.find-previous", "Найти ранее"),
+    ("view.fold", "Свернуть блок"),
+    ("view.unfold", "Развернуть блок"),
+    ("view.fold-all", "Свернуть всё"),
+    ("view.unfold-all", "Развернуть всё"),
     ("view.go-to-line", "Перейти к строке"),
     ("view.next-tab", "Следующая вкладка"),
     ("view.previous-tab", "Предыдущая вкладка"),
@@ -92,6 +96,14 @@ pub const DEFAULTS: &[(&str, &str)] = &[
     ("ctrl+h", "search.replace"),
     ("f3", "search.find-next"),
     ("shift+f3", "search.find-previous"),
+    // Свёртка. «Свернуть всё» и «развернуть всё» — сочетания Notepad++.
+    // Для одного блока там стоит «свернуть текущий уровень»; смысл близкий,
+    // но не тот же: у нас сворачивается блок под курсором, а не весь уровень.
+    // Сочетание взято оттуда же, чтобы рука попадала.
+    ("alt+0", "view.fold-all"),
+    ("alt+shift+0", "view.unfold-all"),
+    ("ctrl+alt+f", "view.fold"),
+    ("ctrl+alt+shift+f", "view.unfold"),
     ("ctrl+g", "view.go-to-line"),
     ("ctrl+tab", "view.next-tab"),
     ("ctrl+shift+tab", "view.previous-tab"),

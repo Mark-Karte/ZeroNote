@@ -1,5 +1,7 @@
+import { foldAll, unfoldAll } from '@codemirror/language';
 import { editorView } from '../editor/current';
 import * as edit from '../editor/commands';
+import { foldBlock, unfoldBlock } from '../editor/folding';
 import {
   newFile,
   openFiles,
@@ -87,6 +89,11 @@ export const COMMANDS: Record<CommandId, () => void | Promise<unknown>> = {
   'search.replace': () => openSearch('replace'),
   'search.find-next': findNext,
   'search.find-previous': findPrevious,
+
+  'view.fold': inEditor(foldBlock),
+  'view.unfold': inEditor(unfoldBlock),
+  'view.fold-all': inEditor(foldAll),
+  'view.unfold-all': inEditor(unfoldAll),
 
   'view.go-to-line': goToLineDialog,
   'view.next-tab': nextTab,

@@ -83,6 +83,9 @@ export interface EditorMenuContext {
   readOnly: boolean;
   /** Ссылки и теги разбираются только в markdown (Р-069). */
   markdown: boolean;
+  /** Есть ли что сворачивать и разворачивать на строке курсора. */
+  canFold: boolean;
+  canUnfold: boolean;
 }
 
 export function editorMenu(ctx: EditorMenuContext, commands: Command[]): PopupItem[] {
@@ -98,6 +101,11 @@ export function editorMenu(ctx: EditorMenuContext, commands: Command[]): PopupIt
 
     fromCommand(commands, 'search.find', { divider: true }),
     fromCommand(commands, 'search.replace', { disabled: ctx.readOnly }),
+
+    fromCommand(commands, 'view.fold', { divider: true, disabled: !ctx.canFold }),
+    fromCommand(commands, 'view.unfold', { disabled: !ctx.canUnfold }),
+    fromCommand(commands, 'view.fold-all'),
+    fromCommand(commands, 'view.unfold-all'),
 
     ctx.markdown ? fromCommand(commands, 'project.follow-link', { divider: true }) : null,
     ctx.markdown ? fromCommand(commands, 'project.backlinks') : null,

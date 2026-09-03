@@ -32,6 +32,10 @@ const COMMANDS: Command[] = [
   { id: 'project.follow-link', title: 'Перейти по ссылке под курсором', binding: 'f12' },
   { id: 'project.backlinks', title: 'Обратные ссылки', binding: 'ctrl+shift+b' },
   { id: 'project.add-root', title: 'Открыть папку', binding: 'ctrl+shift+o' },
+  { id: 'view.fold', title: 'Свернуть блок', binding: 'ctrl+alt+f' },
+  { id: 'view.unfold', title: 'Развернуть блок', binding: 'ctrl+alt+shift+f' },
+  { id: 'view.fold-all', title: 'Свернуть всё', binding: 'alt+0' },
+  { id: 'view.unfold-all', title: 'Развернуть всё', binding: 'alt+shift+0' },
 ];
 
 const ids = (items: PopupItem[]): string[] => items.map((item) => item.id);
@@ -42,7 +46,14 @@ function item(items: PopupItem[], id: string): PopupItem {
   return found!;
 }
 
-const EDITOR = { canUndo: true, canRedo: true, readOnly: false, markdown: false };
+const EDITOR = {
+  canUndo: true,
+  canRedo: true,
+  readOnly: false,
+  markdown: false,
+  canFold: true,
+  canUnfold: true,
+};
 
 describe('пункты по командам реестра', () => {
   /**
@@ -106,6 +117,18 @@ describe('меню редактора', () => {
     expect(item(items, 'edit.paste').disabled).toBe(true);
     expect(item(items, 'search.replace').disabled).toBe(true);
     expect(item(items, 'edit.copy').disabled).toBeUndefined();
+  });
+
+  /**
+   * Свёртка есть не везде: в обычном тексте и в языках без разбора дерева
+   * сворачивать нечего. Пункт остаётся, но погашен — как отмена без истории.
+   */
+  it('гасит свёртку, когда на строке курсора сворачивать нечего', () => {
+    const items = editorMenu({ ...EDITOR, canFold: false, canUnfold: false }, COMMANDS);
+    expect(item(items, 'view.fold').disabled).toBe(true);
+    expect(item(items, 'view.unfold').disabled).toBe(true);
+    // «Свернуть всё» не гасится: оно про весь файл, а не про строку курсора.
+    expect(item(items, 'view.fold-all').disabled).toBeUndefined();
   });
 
   /** Ссылки и теги разбираются только в markdown (Р-069). */

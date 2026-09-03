@@ -48,6 +48,13 @@ export interface KeyLike {
  * например, нажали один модификатор.
  */
 export function bindingOf(event: KeyLike): string | null {
+  // Alt с цифрой на дополнительной клавиатуре — это не сочетание, а системный
+  // ввод знака по коду: Alt+0151 даёт тире, Alt+0171 — открывающую кавычку.
+  // Человек, пишущий по-русски, набирает так каждый день, и перехватить
+  // первое же нажатие значило бы отобрать у него тире. Цифра в верхнем ряду
+  // сочетанием остаётся: Windows различает эти клавиши, и Notepad++ тоже.
+  if (event.altKey && /^Numpad\d$/.test(event.code)) return null;
+
   const key = fromCode(event.code) ?? fromKey(event.key);
   if (key === null) return null;
 

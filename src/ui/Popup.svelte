@@ -64,12 +64,27 @@
     );
   });
 
+  /**
+   * Escape закрывает меню и на этом всё; любое другое нажатие закрывает его
+   * и уходит дальше по назначению.
+   *
+   * Второе — не мелочь. Пока меню не закрывалось само, `Alt+0` из-под
+   * открытого меню сворачивал весь файл, а меню продолжало висеть поверх
+   * изменившегося текста, показывая состояние, которого больше нет.
+   * В Windows меню закрывается от любой клавиши, и правильно делает.
+   */
   function onKeyDown(event: KeyboardEvent): void {
     if (event.key === 'Escape') {
       event.preventDefault();
       event.stopPropagation();
       onclose();
+      return;
     }
+
+    // Одни модификаторы меню не закрывают: пользователь набирает сочетание.
+    if (['Control', 'Alt', 'Shift', 'Meta'].includes(event.key)) return;
+
+    onclose();
   }
 
   // Нажатие мимо меню закрывает его. Слушаем на этапе перехвата, чтобы
@@ -81,7 +96,13 @@
   }
 </script>
 
-<svelte:window onkeydowncapture={onKeyDown} onpointerdowncapture={onPointerDown} />
+<!-- Окно потеряло фокус — меню закрывается: висящее поверх чужого окна
+     оно выглядит как чужое меню. -->
+<svelte:window
+  onkeydowncapture={onKeyDown}
+  onpointerdowncapture={onPointerDown}
+  onblur={onclose}
+/>
 
 <div
   class="popup"
