@@ -44,7 +44,7 @@ async function onModified(id: number): Promise<void> {
       'несохранённые правки.\n\nЧто оставить?',
     [
       { id: 'mine', label: 'Мои правки', primary: true },
-      { id: 'disk', label: 'Версию с диска' },
+      { id: 'disk', label: 'Версию с диска', danger: true },
     ],
   );
 

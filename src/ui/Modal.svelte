@@ -82,6 +82,7 @@
           {#if choice.primary}
             <button
               class="button primary"
+              class:danger={choice.danger}
               type="button"
               bind:this={primaryButton}
               onclick={() => pick(choice.id)}
@@ -89,7 +90,12 @@
               {choice.label}
             </button>
           {:else}
-            <button class="button" type="button" onclick={() => pick(choice.id)}>
+            <button
+              class="button"
+              class:danger={choice.danger}
+              type="button"
+              onclick={() => pick(choice.id)}
+            >
               {choice.label}
             </button>
           {/if}
@@ -120,6 +126,7 @@
        Теперь это роль, и «Контраст» делает её плотнее прочих. */
     background-color: var(--zn-color-bg-overlay);
     cursor: default;
+    animation: fade var(--zn-motion-duration-fast) var(--zn-motion-easing);
   }
 
   .dialog {
@@ -131,6 +138,24 @@
     border: var(--zn-border-width) solid var(--zn-color-border-default);
     border-radius: var(--zn-radius-window);
     box-shadow: var(--zn-shadow-dialog);
+    /* Диалог не возникает, а приподнимается. Это единственная анимация,
+       которую первый круг разрешает: она короче, чем время реакции,
+       и объясняет, откуда взялось окно, а не развлекает. */
+    animation: rise var(--zn-motion-duration-normal) var(--zn-motion-easing);
+  }
+
+  @keyframes fade {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      /* Смещение из токена отступов: пиксели здесь были бы зашитой величиной. */
+      transform: translateY(calc(-1 * var(--zn-space-3)));
+    }
   }
 
   .title {
@@ -183,6 +208,18 @@
 
   .button:hover {
     background-color: var(--zn-color-bg-hover);
+  }
+
+  /* Необратимый вариант виден цветом, а не только текстом: «не сохранять»
+     и «сохранить» рядом различаются одним словом, и промах стоит данных. */
+  .button.danger {
+    border-color: var(--zn-color-danger);
+    color: var(--zn-color-danger);
+  }
+
+  .button.danger:hover {
+    background-color: var(--zn-color-danger);
+    color: var(--zn-color-fg-on-accent);
   }
 
   .button.primary {

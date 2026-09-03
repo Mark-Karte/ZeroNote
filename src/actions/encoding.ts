@@ -30,8 +30,11 @@ export async function reinterpretAs(id: number, encoding: EncodingId): Promise<v
       'Перечитать файл другой кодировкой?',
       'В буфере есть несохранённые изменения. Перечитывание возьмёт байты с диска, и правки пропадут.',
       [
-        { id: 'cancel', label: 'Отмена', cancel: true },
-        { id: 'discard', label: 'Перечитать и потерять правки', primary: true },
+        // По умолчанию — отмена, а не перечитывание: Enter, нажатый не глядя,
+        // не должен стирать набранное. Раньше здесь по умолчанию стояло
+        // именно перечитывание.
+        { id: 'cancel', label: 'Отмена', cancel: true, primary: true },
+        { id: 'discard', label: 'Перечитать и потерять правки', danger: true },
       ],
     );
     if (answer !== 'discard') return;

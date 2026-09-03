@@ -168,7 +168,7 @@ export async function closeTab(id: number): Promise<boolean> {
       `Сохранить изменения в «${tab.meta.title}» перед закрытием?`,
       [
         { id: 'cancel', label: 'Отмена', cancel: true },
-        { id: 'discard', label: 'Не сохранять' },
+        { id: 'discard', label: 'Не сохранять', danger: true },
         { id: 'save', label: 'Сохранить', primary: true },
       ],
     );

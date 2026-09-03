@@ -26,6 +26,7 @@ export type IconName =
   | 'tab.modified'
   | 'action.add-folder'
   | 'action.remove'
+  | 'action.check'
   | 'action.project-file'
   | 'action.obsidian'
   | 'tree.chevron'
@@ -68,6 +69,10 @@ const ICONS: Record<IconName, string> = {
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"><path d="M14 8.5V6a1.5 1.5 0 0 0-1.5-1.5H8L6.86 3.44A1.5 1.5 0 0 0 5.8 3H3.5A1.5 1.5 0 0 0 2 4.5v7A1.5 1.5 0 0 0 3.5 13H8"/><path d="M11.5 9.5v4M9.5 11.5h4" stroke-linecap="round"/></svg>',
   'action.remove':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M4.5 4.5l7 7M11.5 4.5l-7 7"/></svg>',
+  // Галочка выбранного пункта меню. Значком, а не литерой «✓»: та берётся
+  // из шрифта, а во вшитом Plex она другой ширины и уезжает от края.
+  'action.check':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.4l3 3 6-6.8"/></svg>',
   'action.project-file':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"><path d="M9 1.6H4a1.4 1.4 0 0 0-1.4 1.4v10a1.4 1.4 0 0 0 1.4 1.4h8a1.4 1.4 0 0 0 1.4-1.4V6z"/><path d="M9 1.6V6h4.4"/><path d="M8 8.4v3.6M6.2 10.2h3.6" stroke-linecap="round"/></svg>',
 

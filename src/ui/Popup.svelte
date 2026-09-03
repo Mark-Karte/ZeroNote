@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Icon from './Icon.svelte';
   import type { PopupItem } from './popup-item';
 
   interface Props {
@@ -63,7 +64,9 @@
       title={item.hint ?? ''}
       onclick={() => onpick(item.id)}
     >
-      <span class="mark">{item.checked ? '✓' : ''}</span>
+      <span class="mark">
+        {#if item.checked}<Icon name="action.check" />{/if}
+      </span>
       <span class="label">{item.label}</span>
     </button>
   {/each}
@@ -77,16 +80,26 @@
     flex-direction: column;
     min-width: min(var(--zn-control-popup-min-width), 90vw);
     max-height: 70vh;
-    padding: var(--zn-space-2) 0;
+    /* Отступ по кругу, а не только сверху и снизу: пункты внутри скруглены
+       сами, и без бокового поля их углы упирались бы в рамку меню. */
+    padding: var(--zn-space-2);
     background-color: var(--zn-color-bg-raised);
     border: var(--zn-border-width) solid var(--zn-color-border-default);
-    border-radius: var(--zn-radius-md);
+    border-radius: var(--zn-radius-xl);
     box-shadow: var(--zn-shadow-overlay);
     overflow-y: auto;
+    animation: rise var(--zn-motion-duration-fast) var(--zn-motion-easing);
+  }
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(var(--zn-space-2));
+    }
   }
 
   .section {
-    padding: var(--zn-space-3) var(--zn-space-4) var(--zn-space-1);
+    padding: var(--zn-space-3) var(--zn-space-3) var(--zn-space-1);
     color: var(--zn-color-fg-subtle);
     font-size: var(--zn-font-size-ui-small);
     text-transform: uppercase;
@@ -97,8 +110,9 @@
     display: flex;
     align-items: center;
     gap: var(--zn-space-2);
-    padding: var(--zn-space-2) var(--zn-space-4);
+    padding: var(--zn-space-2) var(--zn-space-3);
     border: none;
+    border-radius: var(--zn-radius-md);
     background-color: transparent;
     color: var(--zn-color-fg-default);
     font-family: inherit;
@@ -115,9 +129,15 @@
     color: var(--zn-color-fg-subtle);
   }
 
+  /* Место под галочку занято всегда: иначе выбор пункта сдвигал бы подписи. */
   .mark {
+    display: inline-flex;
     flex: none;
     width: var(--zn-control-icon-size);
+    color: var(--zn-color-accent);
+  }
+
+  .item.checked {
     color: var(--zn-color-accent);
   }
 
