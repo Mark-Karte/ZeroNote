@@ -65,14 +65,24 @@ export const LANGUAGES: Language[] = [
     label: 'Markdown',
     extensions: ['md', 'markdown', 'mdx'],
     load: async () => {
-      const [{ markdown, markdownLanguage }, { languages }] = await Promise.all([
+      const [
+        { markdown, markdownLanguage },
+        { languages },
+        { codeBlocks },
+        { LanguageSupport },
+      ] = await Promise.all([
         import('@codemirror/lang-markdown'),
         import('./markdown-code'),
+        import('./code-blocks'),
+        import('@codemirror/language'),
       ]);
       // Код внутри блоков подсвечивается своим языком: в заметках
       // разработчика блоки кода — обычное дело, и без подсветки они
       // выглядят чужеродно.
-      return markdown({ base: markdownLanguage, codeLanguages: languages });
+      const md = markdown({ base: markdownLanguage, codeLanguages: languages });
+      // Оформление блоков едет вместе с разбором markdown, а не в общем наборе
+      // расширений: в файле `.rs` весь текст и так код, выделять в нём нечего.
+      return new LanguageSupport(md.language, [md.support, codeBlocks()]);
     },
   },
   {

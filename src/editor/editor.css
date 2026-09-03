@@ -119,3 +119,100 @@
   text-decoration: underline dotted;
   text-underline-offset: var(--zn-space-1);
 }
+
+/*
+ * Блоки кода в markdown.
+ *
+ * Подложка — `bg-canvas`, роль утопленного (Р-083): блок вложен в текст,
+ * а не приподнят над ним. Тот же цвет, что у поля ввода внутри панели.
+ *
+ * Рамка нарисована внутренней тенью, а не border: border добавил бы строке
+ * пиксель ширины, и текст внутри блока разъехался бы с текстом вокруг
+ * и с номерами строк.
+ */
+.cm-editor .zn-code-block {
+  background-color: var(--zn-color-bg-canvas);
+  box-shadow:
+    inset var(--zn-border-width) 0 0 var(--zn-color-border-subtle),
+    inset calc(-1 * var(--zn-border-width)) 0 0 var(--zn-color-border-subtle);
+}
+
+.cm-editor .zn-code-block-first {
+  border-start-start-radius: var(--zn-radius-md);
+  border-start-end-radius: var(--zn-radius-md);
+  box-shadow:
+    inset var(--zn-border-width) 0 0 var(--zn-color-border-subtle),
+    inset calc(-1 * var(--zn-border-width)) 0 0 var(--zn-color-border-subtle),
+    inset 0 var(--zn-border-width) 0 var(--zn-color-border-subtle);
+}
+
+.cm-editor .zn-code-block-last {
+  border-end-start-radius: var(--zn-radius-md);
+  border-end-end-radius: var(--zn-radius-md);
+  box-shadow:
+    inset var(--zn-border-width) 0 0 var(--zn-color-border-subtle),
+    inset calc(-1 * var(--zn-border-width)) 0 0 var(--zn-color-border-subtle),
+    inset 0 calc(-1 * var(--zn-border-width)) 0 var(--zn-color-border-subtle);
+}
+
+.cm-editor .zn-code-block-first.zn-code-block-last {
+  box-shadow:
+    inset var(--zn-border-width) 0 0 var(--zn-color-border-subtle),
+    inset calc(-1 * var(--zn-border-width)) 0 0 var(--zn-color-border-subtle),
+    inset 0 var(--zn-border-width) 0 var(--zn-color-border-subtle),
+    inset 0 calc(-1 * var(--zn-border-width)) 0 var(--zn-color-border-subtle);
+}
+
+/* Подпись и кнопка — на строке открывающего ограждения, сразу за ним.
+   Не в углу блока: у нас есть горизонтальная прокрутка, и «угол» уехал бы
+   вместе с текстом. */
+.cm-editor .zn-code-head {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--zn-space-2);
+  margin-inline-start: var(--zn-space-3);
+  vertical-align: middle;
+  user-select: none;
+}
+
+.cm-editor .zn-code-lang {
+  color: var(--zn-color-fg-subtle);
+  font-family: var(--zn-font-family-ui);
+  font-size: var(--zn-font-size-ui-small);
+}
+
+/* Язык написан, но такого у нас нет: блок останется без цвета, и это
+   единственное место, где можно об этом сказать. */
+.cm-editor .zn-code-lang-unknown {
+  color: var(--zn-color-warning);
+}
+
+.cm-editor .zn-code-copy {
+  display: inline-flex;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--zn-color-fg-subtle);
+  cursor: default;
+}
+
+.cm-editor .zn-code-copy svg {
+  display: block;
+  width: var(--zn-control-icon-size);
+  height: var(--zn-control-icon-size);
+}
+
+.cm-editor .zn-code-copy:hover {
+  color: var(--zn-color-fg-default);
+}
+
+/* Через класс самой кнопки, а не рядом с ним: иначе `:hover` выше по весу
+   и перебивает — а указатель в этот момент как раз на кнопке, по ней только
+   что щёлкнули. */
+.cm-editor .zn-code-copy.zn-code-copied {
+  color: var(--zn-color-success);
+}
+
+.cm-editor .zn-code-copy.zn-code-copy-failed {
+  color: var(--zn-color-danger);
+}

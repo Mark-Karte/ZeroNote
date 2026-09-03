@@ -31,10 +31,9 @@ import { syntaxColors } from '../theme/syntax';
  */
 
 const RUNS = 21;
-const SIZES_MIB = [1, 5, 10];
 
 /** Правдоподобный код на C++: подсветка должна работать, а не скучать. */
-const SAMPLE = `// Комментарий к функции обработки
+const CPP = `// Комментарий к функции обработки
 #include <vector>
 #include <string>
 
@@ -61,6 +60,50 @@ private:
 }  // namespace проект
 `;
 
+/**
+ * Заметка с блоками кода.
+ *
+ * Нужна отдельно от C++, потому что в markdown на пути ввода стоит ещё и
+ * оформление блоков (задача 28): на каждое изменение оно обходит дерево
+ * разбора по видимой области. Обход этот по устройству не зависит от размера
+ * файла — а раз «по устройству», значит проверяется числом.
+ */
+const MARKDOWN = `## Раздел заметки
+
+Обычный текст со [[ссылкой]] и тегом #заметка. Дальше блок кода,
+каких в рабочих заметках больше, чем прозы.
+
+\`\`\`rust
+fn обработать(данные: &[i32]) -> i32 {
+    данные.iter().filter(|v| **v > 0).sum()
+}
+\`\`\`
+
+Ещё немного текста между блоками.
+
+\`\`\`ps1
+Get-ChildItem -Recurse | Where-Object { $_.Length -gt 1024 }
+\`\`\`
+
+- пункт списка
+- ещё пункт
+
+`;
+
+interface Case {
+  /** Идентификатор языка в реестре. */
+  id: string;
+  sample: string;
+  /** Размеры документа, МиБ. */
+  sizes: number[];
+}
+
+const CASES: Case[] = [
+  { id: 'cpp', sample: CPP, sizes: [1, 5, 10] },
+  // Двух размеров хватает, чтобы увидеть зависимость от размера, если она есть.
+  { id: 'markdown', sample: MARKDOWN, sizes: [1, 10] },
+];
+
 export interface Row {
   sizeMib: number;
   language: string;
@@ -80,13 +123,13 @@ function median(values: number[]): number {
   return sorted[Math.floor(sorted.length / 2)] ?? 0;
 }
 
-function makeDoc(mib: number): string {
+function makeDoc(sample: string, mib: number): string {
   const target = mib * 1024 * 1024;
   const parts: string[] = [];
   let size = 0;
   while (size < target) {
-    parts.push(SAMPLE);
-    size += SAMPLE.length;
+    parts.push(sample);
+    size += sample.length;
   }
   return parts.join('');
 }
@@ -99,10 +142,6 @@ function nextFrame(): Promise<void> {
 }
 
 export async function runHighlightSuite(): Promise<Row[]> {
-  const language = languageById('cpp');
-  if (!language) throw new Error('в реестре нет языка cpp');
-  const support = await language.load();
-
   // Область под представление настоящая, но за пределами экрана: замер не
   // должен перерисовывать интерфейс приложения.
   const host = document.createElement('div');
@@ -112,45 +151,51 @@ export async function runHighlightSuite(): Promise<Row[]> {
   const rows: Row[] = [];
 
   try {
-    for (const mib of SIZES_MIB) {
-      const doc = makeDoc(mib);
+    for (const item of CASES) {
+      const language = languageById(item.id);
+      if (!language) throw new Error(`в реестре нет языка ${item.id}`);
+      const support = await language.load();
 
-      const start = performance.now();
-      const view = new EditorView({
-        state: EditorState.create({ doc, extensions: [support, syntaxColors] }),
-        parent: host,
-      });
-      await nextFrame();
-      const openMs = performance.now() - start;
+      for (const mib of item.sizes) {
+        const doc = makeDoc(item.sample, mib);
 
-      // Ввод в середину документа: там разбор уже не «в начале файла»,
-      // и любая зависимость от размера проявится.
-      const at = Math.floor(view.state.doc.length / 2);
-      view.dispatch({ selection: { anchor: at } });
-      await nextFrame();
-
-      const edits: number[] = [];
-      const frames: number[] = [];
-      for (let i = 0; i < RUNS; i += 1) {
-        const from = view.state.selection.main.head;
-        const began = performance.now();
-        view.dispatch({ changes: { from, insert: 'x' } });
-        edits.push(performance.now() - began);
+        const start = performance.now();
+        const view = new EditorView({
+          state: EditorState.create({ doc, extensions: [support, syntaxColors] }),
+          parent: host,
+        });
         await nextFrame();
-        frames.push(performance.now() - began);
+        const openMs = performance.now() - start;
+
+        // Ввод в середину документа: там разбор уже не «в начале файла»,
+        // и любая зависимость от размера проявится.
+        const at = Math.floor(view.state.doc.length / 2);
+        view.dispatch({ selection: { anchor: at } });
+        await nextFrame();
+
+        const edits: number[] = [];
+        const frames: number[] = [];
+        for (let i = 0; i < RUNS; i += 1) {
+          const from = view.state.selection.main.head;
+          const began = performance.now();
+          view.dispatch({ changes: { from, insert: 'x' } });
+          edits.push(performance.now() - began);
+          await nextFrame();
+          frames.push(performance.now() - began);
+        }
+
+        rows.push({
+          sizeMib: mib,
+          language: language.label,
+          openMs,
+          editMs: median(edits),
+          editWorstMs: Math.max(...edits),
+          frameMs: median(frames),
+          lines: view.state.doc.lines,
+        });
+
+        view.destroy();
       }
-
-      rows.push({
-        sizeMib: mib,
-        language: language.label,
-        openMs,
-        editMs: median(edits),
-        editWorstMs: Math.max(...edits),
-        frameMs: median(frames),
-        lines: view.state.doc.lines,
-      });
-
-      view.destroy();
     }
   } finally {
     host.remove();

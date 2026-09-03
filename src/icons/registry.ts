@@ -30,6 +30,7 @@ export type IconName =
   | 'action.add-folder'
   | 'action.remove'
   | 'action.check'
+  | 'action.copy'
   | 'action.project-file'
   | 'action.obsidian'
   | 'tree.chevron'
@@ -80,6 +81,9 @@ const ICONS: Record<IconName, string> = {
   // из шрифта, а во вшитом Plex она другой ширины и уезжает от края.
   'action.check':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.4l3 3 6-6.8"/></svg>',
+  // Два листа внахлёст — общепринятый знак копирования.
+  'action.copy':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"><rect x="5.6" y="5.6" width="8.4" height="8.4" rx="1.6"/><path d="M10.9 5.6V3.6A1.6 1.6 0 0 0 9.3 2H3.6A1.6 1.6 0 0 0 2 3.6v5.7a1.6 1.6 0 0 0 1.6 1.6h2"/></svg>',
   'action.project-file':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"><path d="M9 1.6H4a1.4 1.4 0 0 0-1.4 1.4v10a1.4 1.4 0 0 0 1.4 1.4h8a1.4 1.4 0 0 0 1.4-1.4V6z"/><path d="M9 1.6V6h4.4"/><path d="M8 8.4v3.6M6.2 10.2h3.6" stroke-linecap="round"/></svg>',
 
