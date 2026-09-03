@@ -1,11 +1,21 @@
+import { tick } from 'svelte';
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
+import { syntaxTree, type LanguageSupport } from '@codemirror/language';
 
 import { languageById } from '../editor/langs';
+import { editorView } from '../editor/current';
 import { syntaxColors } from '../theme/syntax';
 import { benchStartIndex, benchStopIndex } from '../ipc/bench';
 import { indexProgress } from '../ipc/index';
-import { positionOf } from '../ui/position';
+import {
+  activeTab,
+  tabs,
+  close,
+  createEmpty,
+  sessionRestored,
+  setLanguage,
+} from '../state/tabs.svelte';
 
 /**
  * Инвариант 6: ввод не ждёт фоновую работу.
@@ -22,18 +32,20 @@ import { positionOf } from '../ui/position';
  * * **проверяется совпадение по времени**: если индексация успела закончиться
  *   до конца измерения, замер объявляется недостоверным. Без этой проверки
  *   он всегда показывал бы «всё хорошо» — просто потому, что мерил покой.
+ *
+ * **Ввод идёт через настоящую вкладку** (задача 30, решение Р-102). До неё
+ * стенд печатал в собственный `EditorView`, не связанный с состоянием вкладки,
+ * и всё, что приложение делает на каждое изменение — обновление вкладки,
+ * пересчёт строки состояния, отложенный черновик, перерисовка, — в измерение
+ * не попадало вовсе. Числа были верные, но отвечали не на тот вопрос.
+ *
+ * Первой строкой остался прежний путь — ввод мимо приложения. Он здесь
+ * не ради истории, а как база: разница между ним и вводом через вкладку и есть
+ * цена собственной обвязки, и увидеть её можно только рядом.
  */
 
 const RUNS = 41;
 const DOC_MIB = 1;
-/**
- * Сколько чтений позиции в одном замере.
- *
- * По одному таймер не различает вовсе, по двести — тоже: показывал ноль
- * и на трёх знаках после запятой. Пять тысяч дают число, а не «меньше,
- * чем я умею мерить».
- */
-const READS_PER_SAMPLE = 5000;
 
 const SAMPLE = `// Обработчик очереди сообщений
 #include <string>
@@ -55,23 +67,20 @@ private:
 `;
 
 export interface Row {
-  /** Что мерили: покой или работу под индексацией. */
+  /** Что мерили: каким путём и в каких условиях. */
   what: string;
   /** Синхронная часть вставки символа, медиана, мс. */
   editMs: number;
   /** Худшая синхронная вставка. */
   editWorstMs: number;
   /**
-   * Что на каждое изменение делает строка состояния: медиана, микросекунды.
+   * Вставка вместе с ожиданием ближайшего кадра, медиана, мс.
    *
-   * Отдельной колонкой, а не внутри правки. В приложении это происходит
-   * не внутри dispatch, а перед следующим кадром, и смешать одно с другим
-   * значило бы потерять сравнимость числа правки с прошлыми этапами.
-   *
-   * В микросекундах, потому что в миллисекундах это ноль — и ноль здесь
-   * означал бы «не измерено», а не «ничего не стоит».
+   * Сюда попадает всё, что приложение успевает сделать до отрисовки:
+   * обновление вкладки, пересчёт строки состояния, работа Svelte. Меньше
+   * времени кадра это число быть не может — свойство экрана, не редактора.
    */
-  readUs: number;
+  frameMs: number;
 }
 
 export interface Result {
@@ -105,40 +114,159 @@ function makeDoc(mib: number): string {
   return parts.join('');
 }
 
-/**
- * Вставить символ RUNS раз, вернув синхронные времена.
- *
- * Заодно меряется чтение позиции курсора — то, что на каждое изменение делает
- * строка состояния. Свой редактор здесь не связан с состоянием вкладки, и без
- * этого замера цена строки состояния не попадала в измерение вовсе: на этапе 3
- * счётчик курсоров считали проверенным, а мерили путь, в котором его не было.
- */
-async function typeInto(view: EditorView): Promise<{ edits: number[]; reads: number[] }> {
+interface Samples {
+  edits: number[];
+  frames: number[];
+}
+
+/** Вставить символ RUNS раз, вернув синхронные времена и времена до кадра. */
+async function typeInto(view: EditorView): Promise<Samples> {
   const edits: number[] = [];
-  const reads: number[] = [];
+  const frames: number[] = [];
 
   for (let i = 0; i < RUNS; i += 1) {
     const from = view.state.selection.main.head;
     const began = performance.now();
     view.dispatch({ changes: { from, insert: 'x' } });
     edits.push(performance.now() - began);
+    await nextFrame();
+    frames.push(performance.now() - began);
+  }
 
-    // Пачкой, а не по разу: одно чтение укладывается в разрешение таймера,
-    // и замер честно показывал ноль. Повтор здесь ничего не удешевляет —
-    // ни `Text`, ни `EditorState` расчёт строки не запоминают.
-    const read = performance.now();
-    for (let k = 0; k < READS_PER_SAMPLE; k += 1) {
-      const position = positionOf(view.state);
-      // Результат обязан быть кому-то нужен, иначе движок вправе выбросить
-      // весь цикл — и замер снова покажет ноль, ничего не измерив.
-      if (position.line < 1) throw new Error('позиция вне документа');
+  return { edits, frames };
+}
+
+function row(what: string, samples: Samples): Row {
+  return {
+    what,
+    editMs: median(samples.edits),
+    editWorstMs: Math.max(...samples.edits),
+    frameMs: median(samples.frames),
+  };
+}
+
+/**
+ * Дождаться обещания или сказать, чего не дождались.
+ *
+ * Без ограничения по времени стенд, попавший в непредвиденное состояние,
+ * просто висит, и снаружи это выглядит как «замер идёт».
+ */
+function waitFor(promise: Promise<void>, ms: number, what: string): Promise<void> {
+  return Promise.race([
+    promise,
+    new Promise<void>((_, reject) => {
+      setTimeout(() => reject(new Error(`${what} за ${ms} мс`)), ms);
+    }),
+  ]);
+}
+
+/** Поставить курсор в середину: там разбор уже не «в начале файла». */
+async function toMiddle(view: EditorView): Promise<void> {
+  view.dispatch({ selection: { anchor: Math.floor(view.state.doc.length / 2) } });
+  await nextFrame();
+}
+
+/**
+ * Прежний путь: свой `EditorView` мимо приложения.
+ *
+ * Нужен как база для сравнения — и ровно поэтому набор расширений здесь
+ * минимальный, только язык и цвета.
+ */
+async function measureBare(support: LanguageSupport, doc: string): Promise<Samples> {
+  const host = document.createElement('div');
+  host.style.cssText = 'position:fixed;left:-10000px;top:0;width:800px;height:600px';
+  document.body.appendChild(host);
+
+  const view = new EditorView({
+    state: EditorState.create({
+      doc,
+      extensions: [support, syntaxColors],
+    }),
+    parent: host,
+  });
+
+  try {
+    await toMiddle(view);
+    return await typeInto(view);
+  } finally {
+    view.destroy();
+    host.remove();
+  }
+}
+
+/**
+ * Открыть настоящую вкладку и дождаться, когда она окажется в редакторе.
+ *
+ * Ждать приходится дважды и по-разному: состояние вкладки доезжает
+ * до представления эффектом Svelte, а язык подсветки грузится отдельно
+ * и встаёт на место через отсек. Начать мерить раньше — значит померить
+ * догрузку языка вместо ввода.
+ */
+async function openRealTab(
+  doc: string,
+  born: (id: number) => void,
+): Promise<{ id: number; view: EditorView }> {
+  // Сначала дожидаемся конца восстановления сессии. Иначе оно заменит список
+  // вкладок целиком уже после того, как мы создали свою, — и мерить будем
+  // чужой буфер, ничего не заметив.
+  await waitFor(sessionRestored, 30_000, 'приложение не закончило восстановление сессии');
+
+  const before = new Set(tabs.items.map((t) => t.meta.id));
+  await createEmpty(doc);
+
+  const tab = activeTab();
+  if (!tab) throw new Error('вкладка не открылась');
+  const id = tab.meta.id;
+  // Номер сообщаем первым делом, до всех проверок: вкладка уже существует,
+  // и закрыть её надо в любом случае. Пока это стояло ниже, сорвавшиеся
+  // прогоны оставляли после себя по вкладке в сессии.
+  born(id);
+
+  // Проверка условий, а не веры: дальше идёт ожидание, и если текст потерялся
+  // уже здесь, ждать его бессмысленно, а сообщение будет не про то.
+  if (tab.editor.doc.length !== doc.length) {
+    const all = tabs.items
+      .map((t) => `${t.meta.id}${before.has(t.meta.id) ? '' : '(новая)'}:${t.editor.doc.length}`)
+      .join(', ');
+    throw new Error(
+      `вкладка создана пустой: в активной ${tab.editor.doc.length} знаков вместо ${doc.length};` +
+        ` активная ${tabs.activeId}; все вкладки — ${all}`,
+    );
+  }
+  // Буфер без файла на диске имени языка не подсказывает, а мерить надо
+  // с подсветкой: без неё сравнение с базовой линией теряет смысл.
+  setLanguage(id, 'cpp');
+
+  // Состояние доезжает до представления эффектом Svelte, а тот выполняется
+  // не сразу. `tick` — документированный способ дождаться, а не надеяться,
+  // что хватит кадра.
+  await tick();
+
+  for (let attempt = 0; attempt < 600; attempt += 1) {
+    const view = editorView();
+    if (
+      view &&
+      view.state.doc.length === doc.length &&
+      // Пустое дерево — язык ещё не приехал.
+      syntaxTree(view.state).length > 0
+    ) {
+      return { id, view };
     }
-    reads.push(((performance.now() - read) * 1000) / READS_PER_SAMPLE);
-
     await nextFrame();
   }
 
-  return { edits, reads };
+  // Отказ обязан сказать, чего именно не дождались: «не получилось» здесь
+  // означало бы час на догадки.
+  const view = editorView();
+  const seen = view
+    ? `в представлении ${view.state.doc.length} знаков, дерево ${syntaxTree(view.state).length}`
+    : 'представления нет вовсе';
+  const inTab = activeTab()?.editor.doc.length ?? -1;
+  throw new Error(
+    `редактор не принял документ вкладки: ожидали ${doc.length} знаков, ${seen};` +
+      ` в состоянии вкладки ${inTab};` +
+      ` активная вкладка ${activeTab()?.meta.id ?? 'нет'}, ждали её ${id}`,
+  );
 }
 
 export async function runLiveSuite(): Promise<Result> {
@@ -146,35 +274,25 @@ export async function runLiveSuite(): Promise<Result> {
   if (!language) throw new Error('в реестре нет языка cpp');
   const support = await language.load();
 
-  const host = document.createElement('div');
-  host.style.cssText = 'position:fixed;left:-10000px;top:0;width:800px;height:600px';
-  document.body.appendChild(host);
-
-  const view = new EditorView({
-    state: EditorState.create({
-      doc: makeDoc(DOC_MIB),
-      extensions: [support, syntaxColors],
-    }),
-    parent: host,
-  });
-  view.dispatch({ selection: { anchor: Math.floor(view.state.doc.length / 2) } });
-  await nextFrame();
-
+  const doc = makeDoc(DOC_MIB);
   const rows: Row[] = [];
   let indexedDuring = 0;
   let valid = false;
   let note = '';
   let fixture: string | null = null;
+  let tabId: number | null = null;
 
   try {
-    // Покой: с чем сравнивать.
-    const idle = await typeInto(view);
-    rows.push({
-      what: 'в покое',
-      editMs: median(idle.edits),
-      editWorstMs: Math.max(...idle.edits),
-      readUs: median(idle.reads),
+    // База: тот же ввод, но мимо приложения. Разница со следующей строкой
+    // и есть цена вкладки, строки состояния и перерисовки.
+    rows.push(row('мимо приложения, в покое', await measureBare(support, doc)));
+
+    const real = await openRealTab(doc, (id) => {
+      tabId = id;
     });
+    await toMiddle(real.view);
+
+    rows.push(row('через вкладку, в покое', await typeInto(real.view)));
 
     fixture = await benchStartIndex();
 
@@ -187,15 +305,10 @@ export async function runLiveSuite(): Promise<Result> {
       before = await indexProgress();
     }
 
-    const busy = await typeInto(view);
+    const busy = await typeInto(real.view);
     const after = await indexProgress();
 
-    rows.push({
-      what: 'во время индексации',
-      editMs: median(busy.edits),
-      editWorstMs: Math.max(...busy.edits),
-      readUs: median(busy.reads),
-    });
+    rows.push(row('через вкладку, во время индексации', busy));
 
     indexedDuring = Math.max(0, after.done - before.done);
 
@@ -206,8 +319,9 @@ export async function runLiveSuite(): Promise<Result> {
       ? `За время измерения проиндексировано файлов: ${indexedDuring}.`
       : 'НЕДОСТОВЕРНО: индексация не шла всё время измерения.';
   } finally {
-    view.destroy();
-    host.remove();
+    // Вкладку за собой убираем: стенд не должен оставлять в сессии
+    // мегабайт несохранённого текста.
+    if (tabId !== null) await close(tabId);
     if (fixture !== null) await benchStopIndex(fixture);
   }
 
@@ -216,13 +330,13 @@ export async function runLiveSuite(): Promise<Result> {
 
 export function formatMarkdown(result: Result): string {
   const lines = [
-    '| Что | Правка (медиана) | Правка (худшая) | Позиция курсора |',
+    '| Что | Правка (медиана) | Правка (худшая) | До кадра |',
     '|---|---|---|---|',
   ];
   for (const row of result.rows) {
     lines.push(
       `| ${row.what} | ${row.editMs.toFixed(1)} мс | ${row.editWorstMs.toFixed(1)} мс` +
-        ` | ${row.readUs.toFixed(2)} мкс |`,
+        ` | ${row.frameMs.toFixed(1)} мс |`,
     );
   }
 
@@ -233,9 +347,10 @@ export function formatMarkdown(result: Result): string {
   lines.push('очередь, что у обычной работы. Совпадение по времени проверяется —');
   lines.push('замер, где индексация успела закончиться, объявляется недостоверным.');
   lines.push('');
-  lines.push('«Позиция курсора» — то, что на каждое изменение считает строка');
-  lines.push(`состояния: среднее по ${READS_PER_SAMPLE} чтениям, потому что одно короче`);
-  lines.push('разрешения таймера. Редактор замера свой, поэтому колонка меряет саму');
-  lines.push('работу, а не её путь через реактивность; отрисовка кадра сюда не входит.');
+  lines.push('Ввод идёт через настоящую вкладку, поэтому в «до кадра» входит всё,');
+  lines.push('что приложение делает на каждое изменение: обновление вкладки,');
+  lines.push('пересчёт строки состояния, работа Svelte, отрисовка. Первая строка —');
+  lines.push('тот же ввод мимо приложения; разница с ней и есть цена обвязки.');
+  lines.push('Меньше времени кадра «до кадра» быть не может — свойство экрана.');
   return lines.join('\n');
 }

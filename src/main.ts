@@ -57,27 +57,14 @@ async function main(): Promise<void> {
     config.mode === 'live'
   ) {
     let report: string;
-    if (config.mode === 'open') {
-      report = await benchRunOpen();
-    } else if (config.mode === 'tree') {
-      report = await benchRunTree();
-    } else if (config.mode === 'index') {
-      report = await benchRunIndex();
-    } else if (config.mode === 'live') {
-      // Инвариант 6: ввод под настоящей фоновой индексацией.
-      report = await import('./bench/live-suite').then(async (suite) =>
-        suite.formatMarkdown(await suite.runLiveSuite()),
-      );
-    } else if (config.mode === 'highlight') {
-      // Замер целиком во фронтенде: подсветка живёт здесь (Р-042),
-      // и границы IPC в этом пути нет.
-      report = await import('./bench/highlight-suite').then(async (suite) =>
-        suite.formatMarkdown(await suite.runHighlightSuite()),
-      );
-    } else {
-      report = await import('./bench/ipc-suite').then(async (suite) =>
-        suite.formatMarkdown(await suite.runIpcSuite()),
-      );
+    try {
+      report = await runBench(config.mode);
+    } catch (error) {
+      // Стенд, упавший молча, — худший из возможных: процесс остаётся жить,
+      // perf.ps1 ждёт файла, и выглядит это как «замер идёт». Поэтому ошибка
+      // становится отчётом.
+      const detail = error instanceof Error ? (error.stack ?? error.message) : String(error);
+      report = `ЗАМЕР НЕ ВЫПОЛНЕН\n\n${detail}\n`;
     }
 
     if (config.outPath) {
@@ -97,6 +84,28 @@ async function main(): Promise<void> {
   // Обычный запуск. Число доступно в консоли разработчика для быстрой проверки
   // без прогона стенда.
   console.info(`ZeroNote: готов к вводу за ${startupMs} мс`);
+}
+
+async function runBench(mode: string): Promise<string> {
+  if (mode === 'open') return benchRunOpen();
+  if (mode === 'tree') return benchRunTree();
+  if (mode === 'index') return benchRunIndex();
+
+  if (mode === 'live') {
+    // Инвариант 6: ввод под настоящей фоновой индексацией.
+    const suite = await import('./bench/live-suite');
+    return suite.formatMarkdown(await suite.runLiveSuite());
+  }
+
+  if (mode === 'highlight') {
+    // Замер целиком во фронтенде: подсветка живёт здесь (Р-042),
+    // и границы IPC в этом пути нет.
+    const suite = await import('./bench/highlight-suite');
+    return suite.formatMarkdown(await suite.runHighlightSuite());
+  }
+
+  const suite = await import('./bench/ipc-suite');
+  return suite.formatMarkdown(await suite.runIpcSuite());
 }
 
 void main();
