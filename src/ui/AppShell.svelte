@@ -19,6 +19,7 @@
   import {
     autoCloseEnabled,
     indentSettings,
+    invisiblesEnabled,
     settings,
     startSettings,
     wrapEnabled,
@@ -30,6 +31,7 @@
     applyWrap,
     applyAutoClose,
     applyIndentSettings,
+    applyInvisibles,
   } from '../state/tabs.svelte';
   import { flushNow } from '../state/persist.svelte';
   import { roots, refresh as refreshRoots, rootProblems } from '../state/roots.svelte';
@@ -77,6 +79,12 @@
   $effect(() => {
     const wrap = wrapEnabled();
     untrack(() => applyWrap(wrap));
+  });
+
+  // Невидимые символы — та же настройка того же рода и тем же способом.
+  $effect(() => {
+    const show = invisiblesEnabled();
+    untrack(() => applyInvisibles(show));
   });
 
   // Автозакрытие скобок — та же настройка того же рода и тем же способом.

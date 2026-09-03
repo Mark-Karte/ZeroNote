@@ -33,6 +33,7 @@ import { syntaxColors } from '../theme/syntax';
 import { brackets } from './brackets';
 import { columnAt, indentUnitOf, type Indent } from './indent';
 import { folding } from './folding';
+import { invisibles } from './invisibles';
 import { wikilinks, type Target } from './wikilinks';
 import type { Buffer } from '../ipc/files';
 
@@ -126,6 +127,19 @@ export const indentKeymap = Prec.high(
 );
 
 /**
+ * Отсек невидимых символов.
+ *
+ * Настройка общая, как перенос строк: показывать пробелы «в этом файле,
+ * но не в том» незачем — это способ смотреть на текст, а не свойство файла.
+ */
+export const invisiblesCompartment = new Compartment();
+
+/** Что кладётся в отсек невидимых символов. */
+export function invisiblesExtension(enabled: boolean): Extension {
+  return enabled ? invisibles() : [];
+}
+
+/**
  * Что кладётся в отсек автозакрытия.
  *
  * `Prec.high` не украшение: `closeBracketsKeymap` перехватывает `Backspace`,
@@ -151,6 +165,7 @@ export function extensionsFor(
   wrap: boolean,
   autoClose: boolean,
   indent: Indent,
+  showInvisibles: boolean,
 ): Extension[] {
   const readOnly = meta.readOnly;
 
@@ -177,6 +192,7 @@ export function extensionsFor(
     // Перенос по умолчанию выключен — так ведёт себя Notepad++, и для кода это
     // верное умолчание. Значение приходит из настроек, переключается на лету.
     wrapCompartment.of(wrap ? EditorView.lineWrapping : []),
+    invisiblesCompartment.of(invisiblesExtension(showInvisibles)),
 
     // Подсветка парной скобки. Пару ищет разбор языка: скобка внутри строки
     // или комментария парой не считается. Где дерева нет — простым просмотром

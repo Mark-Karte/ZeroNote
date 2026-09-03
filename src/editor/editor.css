@@ -73,6 +73,42 @@
   color: var(--zn-color-fg-default);
 }
 
+/* Невидимые символы.
+
+   CodeMirror рисует их своими цветами числами — точку серым `#aaa`, стрелку
+   табуляции нарисованной картинкой с зашитым `#888`. Перекрываем токенами:
+   иначе в одной из тем они пропадали бы, а правило «ни одного зашитого
+   цвета» существует ровно для этого. */
+.cm-editor .cm-highlightSpace {
+  background-image: radial-gradient(
+    circle at 50% 55%,
+    var(--zn-color-fg-subtle) 20%,
+    transparent 5%
+  );
+  background-position: center;
+}
+
+/* Стрелку табуляции рисуем знаком, а не картинкой: цвет картинки внутри
+   data-URI переменной не задать, а знак слушается `color`. */
+.cm-editor .cm-highlightTab {
+  position: relative;
+  background-image: none;
+}
+
+.cm-editor .cm-highlightTab::before {
+  content: '→';
+  position: absolute;
+  inset: 0;
+  color: var(--zn-color-fg-subtle);
+  pointer-events: none;
+}
+
+/* Знак переноса строки. Тише текста: он показывает границу, а не содержание. */
+.cm-editor .zn-eol {
+  color: var(--zn-color-fg-subtle);
+  pointer-events: none;
+}
+
 /* Парная скобка. Подсвечивается только у редактора в фокусе — так же ведёт
    себя базовая тема CodeMirror, и это верно: в неактивном окне подсветка
    спорила бы с выделением.

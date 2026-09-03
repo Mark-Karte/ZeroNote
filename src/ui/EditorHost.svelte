@@ -6,6 +6,7 @@
   import { tabs, tabById, activeTab, languageOf } from '../state/tabs.svelte';
   import { setEditorView } from '../editor/current';
   import { canFold, canUnfold } from '../editor/folding';
+  import { invisiblesEnabled } from '../state/settings.svelte';
   import { showMenu } from '../state/menu.svelte';
   import { editorMenu } from './menus';
   import { commandList } from '../keymap/global.svelte';
@@ -83,6 +84,7 @@
           canRedo: redoDepth(state) > 0,
           readOnly: state.readOnly,
           markdown: tab ? languageOf(tab)?.id === 'markdown' : false,
+          invisibles: invisiblesEnabled(),
           canFold: canFold(state),
           canUnfold: canUnfold(state),
         },

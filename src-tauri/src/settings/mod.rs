@@ -60,6 +60,8 @@ pub struct EditorSettings {
     pub indent_style: IndentStyle,
     /// Ширина отступа: сколько пробелов или во сколько столбцов рисуется таб.
     pub indent_width: u8,
+    /// Показывать пробелы, табуляции и переносы строк.
+    pub invisibles: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -82,6 +84,7 @@ impl Default for EditorSettings {
             // ZeroNote равняется по удобствам (Р-114).
             indent_style: IndentStyle::Spaces,
             indent_width: 4,
+            invisibles: false,
         }
     }
 }
@@ -231,6 +234,8 @@ auto_close = true
 # состояния, там же можно сменить для одной вкладки.
 indent_style = "spaces"
 indent_width = 4
+# Показывать пробелы, табуляции и переносы строк.
+invisibles = false
 "#;
 
 /// Создать файл настроек, если его ещё нет.

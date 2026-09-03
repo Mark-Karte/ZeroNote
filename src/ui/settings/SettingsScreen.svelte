@@ -224,6 +224,24 @@
 
         <div class="row">
           <div class="what">
+            <span class="name">Невидимые символы</span>
+            <span class="note">
+              Пробелы точкой, табуляции стрелкой, переносы знаком абзаца.
+            </span>
+          </div>
+          <select
+            class="control"
+            disabled={broken !== null}
+            value={values.editor.invisibles ? 'yes' : 'no'}
+            onchange={(e) => put(['editor', 'invisibles'], e.currentTarget.value === 'yes')}
+          >
+            <option value="no">Не показывать</option>
+            <option value="yes">Показывать</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <div class="what">
             <span class="name">Шрифт интерфейса</span>
             <span class="note">Пусто — из темы. Шрифт редактора задаёт тема.</span>
           </div>

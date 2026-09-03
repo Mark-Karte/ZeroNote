@@ -86,6 +86,8 @@ export interface EditorMenuContext {
   /** Есть ли что сворачивать и разворачивать на строке курсора. */
   canFold: boolean;
   canUnfold: boolean;
+  /** Показываются ли невидимые символы: пункт с галочкой, а не действие. */
+  invisibles: boolean;
 }
 
 export function editorMenu(ctx: EditorMenuContext, commands: Command[]): PopupItem[] {
@@ -101,6 +103,11 @@ export function editorMenu(ctx: EditorMenuContext, commands: Command[]): PopupIt
 
     fromCommand(commands, 'search.find', { divider: true }),
     fromCommand(commands, 'search.replace', { disabled: ctx.readOnly }),
+
+    fromCommand(commands, 'view.invisibles', {
+      divider: true,
+      checked: ctx.invisibles,
+    }),
 
     fromCommand(commands, 'view.fold', { divider: true, disabled: !ctx.canFold }),
     fromCommand(commands, 'view.unfold', { disabled: !ctx.canUnfold }),

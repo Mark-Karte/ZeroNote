@@ -46,10 +46,15 @@ vi.mock('../src/state/persist.svelte', () => ({
   flushNow: vi.fn(async () => undefined),
 }));
 
+// Настройки подменены целиком: тест про состояние вкладки, а не про файл
+// конфигурации. Список приходится дополнять при каждой новой настройке,
+// которую читает `makeState`, — и это правильно: подмена, пропускающая
+// вызов, притворилась бы работающей.
 vi.mock('../src/state/settings.svelte', () => ({
   wrapEnabled: () => false,
   autoCloseEnabled: () => true,
   indentSettings: () => ({ style: 'spaces', width: 4 }),
+  invisiblesEnabled: () => false,
 }));
 
 vi.mock('../src/state/roots.svelte', () => ({

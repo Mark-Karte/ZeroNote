@@ -62,6 +62,19 @@ export async function toggleWrap(): Promise<void> {
  * настройки ещё не приехали: несовпадение означало бы, что первые полсекунды
  * после запуска редактор ведёт себя иначе, чем потом.
  */
+/**
+ * Показывать ли невидимые символы. Настройка общая, как перенос строк:
+ * это способ смотреть на текст, а не свойство файла.
+ */
+export function invisiblesEnabled(): boolean {
+  return settings.state?.settings.editor.invisibles ?? false;
+}
+
+/** Переключить показ невидимых. Значение уезжает в файл — оно настройка. */
+export async function toggleInvisibles(): Promise<void> {
+  await put(['editor', 'invisibles'], !invisiblesEnabled());
+}
+
 export function autoCloseEnabled(): boolean {
   return settings.state?.settings.editor.auto_close ?? true;
 }

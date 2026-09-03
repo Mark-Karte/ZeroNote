@@ -26,7 +26,7 @@ import {
   showBacklinks,
 } from '../actions/project';
 import { openSearch, findNext, findPrevious } from '../state/search.svelte';
-import { toggleWrap } from '../state/settings.svelte';
+import { toggleInvisibles, toggleWrap } from '../state/settings.svelte';
 import { nextTab, previousTab } from '../state/tabs.svelte';
 
 /**
@@ -91,6 +91,7 @@ export const COMMANDS: Record<CommandId, () => void | Promise<unknown>> = {
   'search.find-next': findNext,
   'search.find-previous': findPrevious,
 
+  'view.invisibles': toggleInvisibles,
   'view.fold': inEditor(foldBlock),
   'view.unfold': inEditor(unfoldBlock),
   'view.fold-all': inEditor(foldAll),

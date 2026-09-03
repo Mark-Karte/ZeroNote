@@ -8,6 +8,8 @@ import {
   extensionsFor,
   indentCompartment,
   indentExtension,
+  invisiblesCompartment,
+  invisiblesExtension,
   languageCompartment,
   wrapCompartment,
 } from '../editor/setup';
@@ -21,7 +23,12 @@ import {
 // Взаимный импорт с persist: там только функции, и зовутся они в рантайме,
 // поэтому порядок загрузки модулей роли не играет.
 import { forgetDraft, noteEdit, noteStructureChange } from './persist.svelte';
-import { autoCloseEnabled, indentSettings, wrapEnabled } from './settings.svelte';
+import {
+  autoCloseEnabled,
+  indentSettings,
+  invisiblesEnabled,
+  wrapEnabled,
+} from './settings.svelte';
 import { restoreFromSession } from './roots.svelte';
 
 /**
@@ -159,6 +166,7 @@ function makeState(meta: Buffer, text: string, cursor = 0, indent?: Indent): Edi
       wrapEnabled(),
       autoCloseEnabled(),
       indent ?? resolveIndent(text, indentSettings()),
+      invisiblesEnabled(),
     ),
   });
 }
@@ -205,6 +213,16 @@ function setIndentOf(tab: Tab, indent: Indent): void {
   tab.editor = tab.editor.update({
     effects: indentCompartment.reconfigure(indentExtension(indent)),
   }).state;
+}
+
+/** То же самое для невидимых символов. */
+export function applyInvisibles(show: boolean): void {
+  const extension = invisiblesExtension(show);
+  for (const tab of tabs.items) {
+    tab.editor = tab.editor.update({
+      effects: invisiblesCompartment.reconfigure(extension),
+    }).state;
+  }
 }
 
 /** То же самое для автозакрытия скобок и по тем же причинам. */
