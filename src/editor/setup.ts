@@ -1,4 +1,10 @@
-import { Compartment, EditorState, Prec, type Extension } from '@codemirror/state';
+import {
+  Compartment,
+  EditorSelection,
+  EditorState,
+  Prec,
+  type Extension,
+} from '@codemirror/state';
 import {
   EditorView,
   keymap,
@@ -9,8 +15,14 @@ import {
   dropCursor,
   rectangularSelection,
 } from '@codemirror/view';
-import { history, historyKeymap, defaultKeymap } from '@codemirror/commands';
-import { bracketMatching } from '@codemirror/language';
+import {
+  history,
+  historyKeymap,
+  defaultKeymap,
+  indentLess,
+  indentMore,
+} from '@codemirror/commands';
+import { bracketMatching, indentUnit } from '@codemirror/language';
 import { search, highlightSelectionMatches } from '@codemirror/search';
 // Пакет называется `autocomplete`, но берём из него ровно одно — закрытие
 // скобок. Автодополнение остаётся вне области первого круга: включается оно
@@ -19,6 +31,7 @@ import { search, highlightSelectionMatches } from '@codemirror/search';
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import { syntaxColors } from '../theme/syntax';
 import { brackets } from './brackets';
+import { columnAt, indentUnitOf, type Indent } from './indent';
 import { folding } from './folding';
 import { wikilinks, type Target } from './wikilinks';
 import type { Buffer } from '../ipc/files';
@@ -55,6 +68,64 @@ export const wrapCompartment = new Compartment();
 export const autoCloseCompartment = new Compartment();
 
 /**
+ * Отсек отступа.
+ *
+ * Здесь отсек нужен не ради настройки, а ради самой модели: отступ — свойство
+ * **вкладки**, а не приложения (Р-106). У каждого состояния под этим ключом
+ * лежит своё, и в файле с табами `Tab` даёт таб, даже когда в настройках
+ * пробелы.
+ */
+export const indentCompartment = new Compartment();
+
+/** Что кладётся в отсек отступа. */
+export function indentExtension(indent: Indent): Extension {
+  return [EditorState.tabSize.of(Math.max(1, indent.width)), indentUnit.of(indentUnitOf(indent))];
+}
+
+/**
+ * `Tab` — отступ, `Shift+Tab` — снять отступ.
+ *
+ * Сочетание живёт здесь, а не в реестре команд, и это единственное исключение
+ * из Р-107. Причина в том, что `Tab` вне текста означает совсем другое —
+ * переход по элементам интерфейса. Отняв его глобально, мы отняли бы
+ * клавиатурную навигацию у окна параметров и у диалогов.
+ *
+ * Без выделения вставляется отступ **до ближайшей позиции табуляции**, а не
+ * всегда одинаковое число пробелов: так ведут себя и VS Code, и Notepad++,
+ * и иначе набор в середине строки уводил бы текст в случайные столбцы.
+ */
+function indentOrInsert(view: EditorView): boolean {
+  const { state } = view;
+  if (state.selection.ranges.some((range) => !range.empty)) {
+    return indentMore(view);
+  }
+
+  // Значение отсека — сама строка отступа:  вернул бы число
+  // столбцов, а нам нужно то, что вставляется.
+  const unit = state.facet(indentUnit);
+  const tabSize = state.tabSize;
+
+  view.dispatch(
+    state.changeByRange((range) => {
+      const line = state.doc.lineAt(range.head);
+      const column = columnAt(state.sliceDoc(line.from, range.head), tabSize);
+      const insert = unit === '\t' ? '\t' : ' '.repeat(unit.length - (column % unit.length));
+
+      return {
+        changes: { from: range.from, to: range.to, insert },
+        range: EditorSelection.cursor(range.from + insert.length),
+      };
+    }),
+    { scrollIntoView: true, userEvent: 'input.indent' },
+  );
+  return true;
+}
+
+export const indentKeymap = Prec.high(
+  keymap.of([{ key: 'Tab', run: indentOrInsert, shift: indentLess }]),
+);
+
+/**
  * Что кладётся в отсек автозакрытия.
  *
  * `Prec.high` не украшение: `closeBracketsKeymap` перехватывает `Backspace`,
@@ -79,6 +150,7 @@ export function extensionsFor(
   sourcePath: () => string | null,
   wrap: boolean,
   autoClose: boolean,
+  indent: Indent,
 ): Extension[] {
   const readOnly = meta.readOnly;
 
@@ -111,6 +183,10 @@ export function extensionsFor(
     // текста, хуже, но не бесполезно.
     bracketMatching(),
     brackets(),
+
+    // Отступ — свойство вкладки: он определяется по содержимому файла.
+    indentCompartment.of(indentExtension(indent)),
+    indentKeymap,
     autoCloseCompartment.of(autoCloseExtension(autoClose)),
 
     // Мультикурсор. Разрешения мало: без него `selectNextOccurrence` молча

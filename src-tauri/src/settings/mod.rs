@@ -52,6 +52,21 @@ pub struct EditorSettings {
     pub wrap: bool,
     /// Закрывать скобки и кавычки при наборе. По умолчанию да — решение Р-113.
     pub auto_close: bool,
+    /// Чем набирать отступ там, где файл не подсказал: `"spaces"` или `"tabs"`.
+    ///
+    /// Только умолчание: в существующем файле отступ определяется по его
+    /// содержимому (Р-106). Иначе первое же нажатие `Tab` в чужом файле
+    /// смешало бы табы с пробелами.
+    pub indent_style: IndentStyle,
+    /// Ширина отступа: сколько пробелов или во сколько столбцов рисуется таб.
+    pub indent_width: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum IndentStyle {
+    Spaces,
+    Tabs,
 }
 
 /// Умолчания пишутся руками, а не выводятся `derive(Default)`: у `bool`
@@ -63,6 +78,10 @@ impl Default for EditorSettings {
         Self {
             wrap: false,
             auto_close: true,
+            // Четыре пробела — умолчание VS Code и Obsidian, на которые
+            // ZeroNote равняется по удобствам (Р-114).
+            indent_style: IndentStyle::Spaces,
+            indent_width: 4,
         }
     }
 }
@@ -206,6 +225,12 @@ wrap = false
 # тексте — кавычки не закрываются и при включённой настройке: там они
 # не парные.
 auto_close = true
+# Чем набирать отступ: "spaces" или "tabs", и какой ширины. Это только
+# умолчание: в существующем файле отступ определяется по его содержимому,
+# и настройка его не переписывает. Что определилось — видно в строке
+# состояния, там же можно сменить для одной вкладки.
+indent_style = "spaces"
+indent_width = 4
 "#;
 
 /// Создать файл настроек, если его ещё нет.

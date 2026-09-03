@@ -103,3 +103,20 @@ export async function put(
   }
   await load();
 }
+
+/**
+ * Отступ по умолчанию: чем набирать там, где файл не подсказал.
+ *
+ * Умолчание — четыре пробела, как в VS Code и Obsidian (Р-114). Ширина
+ * ограничивается здесь, а не в ядре: в файле настроек может оказаться ноль,
+ * и `' '.repeat(0)` — это отступ, которого не видно.
+ */
+export function indentSettings(): { style: 'tabs' | 'spaces'; width: number } {
+  const editor = settings.state?.settings.editor;
+  const width = editor?.indent_width ?? 4;
+
+  return {
+    style: editor?.indent_style === 'tabs' ? 'tabs' : 'spaces',
+    width: Math.min(16, Math.max(1, Math.round(width))),
+  };
+}

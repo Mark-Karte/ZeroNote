@@ -25,6 +25,8 @@ export interface Settings {
   editor: {
     wrap: boolean;
     auto_close: boolean;
+    indent_style: 'spaces' | 'tabs';
+    indent_width: number;
   };
 }
 

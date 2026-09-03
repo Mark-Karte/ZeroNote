@@ -3,12 +3,13 @@
   import Popup from './Popup.svelte';
   import type { PopupItem } from './popup-item';
   import { appearance } from '../theme/store.svelte';
-  import { activeTab, languageOf, setLanguage } from '../state/tabs.svelte';
+  import { activeTab, languageOf, setIndent, setLanguage } from '../state/tabs.svelte';
   import { LANGUAGES, languageForFile } from '../editor/langs';
   import { indexing, cancel as cancelIndexing } from '../state/index.svelte';
   import { wrapEnabled, toggleWrap } from '../state/settings.svelte';
   import { plural } from './plural';
   import { positionOf, positionLabel } from './position';
+  import { indentLabel, indentSource } from '../editor/indent';
   import { commandList } from '../keymap/global.svelte';
   import { labelOf } from '../keymap/binding';
   import { goToLineDialog } from '../actions/navigate';
@@ -64,7 +65,7 @@
 
   const ENCODING_LABEL = Object.fromEntries(ENCODINGS.map((e) => [e.id, e.label]));
 
-  type Menu = 'encoding' | 'eol' | 'language';
+  type Menu = 'encoding' | 'eol' | 'language' | 'indent';
 
   let openMenu = $state<Menu | null>(null);
   let anchorRect = $state<DOMRect | null>(null);
@@ -144,6 +145,54 @@
   async function pickEol(id: string): Promise<void> {
     openMenu = null;
     if (tab) await setLineEnding(tab.meta.id, id as LineEnding);
+  }
+
+  /**
+   * Отступ вкладки.
+   *
+   * Показывать определённое обязательно (Р-106): молчаливая догадка хуже
+   * настройки. В подсказке — откуда оно взялось.
+   */
+  const WIDTHS = [2, 4, 8];
+
+  const indentItems = $derived.by((): PopupItem[] => {
+    if (!tab) return [];
+    const current = tab.indent;
+
+    return [
+      {
+        id: 'style:spaces',
+        label: 'Пробелы',
+        section: 'Набирать отступ',
+        checked: current.style === 'spaces',
+      },
+      { id: 'style:tabs', label: 'Табы', checked: current.style === 'tabs' },
+      ...WIDTHS.map((width, index) => ({
+        id: `width:${width}`,
+        label: String(width),
+        section: index === 0 ? 'Ширина' : undefined,
+        checked: current.width === width,
+      })),
+    ];
+  });
+
+  /**
+   * Смена отступа меняет то, чем набирается новый, и только это. Уже набранное
+   * в файле не трогается: это была бы правка всего файла без команды на неё —
+   * прямо против инварианта 1.
+   */
+  function pickIndent(id: string): void {
+    openMenu = null;
+    if (!tab) return;
+
+    const [what, value] = id.split(':');
+    const current = tab.indent;
+
+    if (what === 'style') {
+      setIndent(tab.meta.id, { style: value as 'tabs' | 'spaces', width: current.width });
+    } else {
+      setIndent(tab.meta.id, { style: current.style, width: Number(value) });
+    }
   }
 
   /** Язык, действующий сейчас, и признак «выбран вручную». */
@@ -263,6 +312,15 @@
     <button
       class="item action"
       type="button"
+      title="{indentSource(tab.indent)}. Смена меняет только то, чем набирается новый отступ; уже набранное в файле остаётся как есть."
+      onclick={(e) => toggle('indent', e)}
+    >
+      {indentLabel(tab.indent)}
+    </button>
+
+    <button
+      class="item action"
+      type="button"
       title={tab.language === null
         ? 'Язык подсветки определён по имени файла — нажмите, чтобы сменить'
         : 'Язык подсветки выбран вручную — нажмите, чтобы сменить'}
@@ -325,6 +383,15 @@
     items={languageItems}
     anchor={anchorRect}
     onpick={pickLanguage}
+    onclose={() => (openMenu = null)}
+  />
+{/if}
+
+{#if openMenu === 'indent' && anchorRect}
+  <Popup
+    items={indentItems}
+    anchor={anchorRect}
+    onpick={pickIndent}
     onclose={() => (openMenu = null)}
   />
 {/if}

@@ -6,9 +6,12 @@ import {
   autoCloseCompartment,
   autoCloseExtension,
   extensionsFor,
+  indentCompartment,
+  indentExtension,
   languageCompartment,
   wrapCompartment,
 } from '../editor/setup';
+import { resolveIndent, type Indent } from '../editor/indent';
 import { editorView } from '../editor/current';
 import {
   languageById,
@@ -18,7 +21,7 @@ import {
 // Взаимный импорт с persist: там только функции, и зовутся они в рантайме,
 // поэтому порядок загрузки модулей роли не играет.
 import { forgetDraft, noteEdit, noteStructureChange } from './persist.svelte';
-import { autoCloseEnabled, wrapEnabled } from './settings.svelte';
+import { autoCloseEnabled, indentSettings, wrapEnabled } from './settings.svelte';
 import { restoreFromSession } from './roots.svelte';
 
 /**
@@ -52,6 +55,13 @@ export interface Tab {
    * что это свойство вкладки во фронтенде, а не сведения о буфере из ядра.
    */
   language: string | null;
+  /**
+   * Чем набирается отступ в этом файле.
+   *
+   * Свойство вкладки, а не приложения: определяется по содержимому файла
+   * (Р-106). У настройки роль умолчания — для файлов, где отступов нет.
+   */
+  indent: Indent;
 }
 
 /** Порядок в массиве — это порядок вкладок, такой же, как в ядре. */
@@ -131,7 +141,7 @@ function onEditorUpdate(id: number, view: EditorView): void {
   noteEdit();
 }
 
-function makeState(meta: Buffer, text: string, cursor = 0): EditorState {
+function makeState(meta: Buffer, text: string, cursor = 0, indent?: Indent): EditorState {
   return EditorState.create({
     doc: text,
     // Курсор за пределами документа уронил бы создание состояния: снимок мог
@@ -148,6 +158,7 @@ function makeState(meta: Buffer, text: string, cursor = 0): EditorState {
       () => tabById(meta.id)?.meta.path ?? null,
       wrapEnabled(),
       autoCloseEnabled(),
+      indent ?? resolveIndent(text, indentSettings()),
     ),
   });
 }
@@ -169,6 +180,33 @@ export function applyWrap(wrap: boolean): void {
   }
 }
 
+/**
+ * Применить настройку отступа к тем вкладкам, которые её слушают.
+ *
+ * Только к ним: у файла, где отступ определён по содержимому, настройка
+ * ничего не меняет — иначе правка конфига переписывала бы поведение в чужих
+ * файлах, ради чего Р-106 и написан. Выбранное вручную тоже остаётся.
+ */
+export function applyIndentSettings(fallback: { style: Indent['style']; width: number }): void {
+  for (const tab of tabs.items) {
+    if (tab.indent.source !== 'settings') continue;
+    setIndentOf(tab, { ...fallback, source: 'settings' });
+  }
+}
+
+/** Сменить отступ вкладки вручную — из строки состояния. */
+export function setIndent(id: number, indent: Omit<Indent, 'source'>): void {
+  const tab = tabById(id);
+  if (tab) setIndentOf(tab, { ...indent, source: 'manual' });
+}
+
+function setIndentOf(tab: Tab, indent: Indent): void {
+  tab.indent = indent;
+  tab.editor = tab.editor.update({
+    effects: indentCompartment.reconfigure(indentExtension(indent)),
+  }).state;
+}
+
 /** То же самое для автозакрытия скобок и по тем же причинам. */
 export function applyAutoClose(autoClose: boolean): void {
   const extension = autoCloseExtension(autoClose);
@@ -186,7 +224,10 @@ function put(
   scrollTop = 0,
   language: string | null = null,
 ): void {
-  const editor = makeState(meta, text, cursor);
+  // Отступ определяется один раз, по содержимому: перечитывать его на каждой
+  // правке значило бы менять поведение `Tab` посреди набора.
+  const indent = resolveIndent(text, indentSettings());
+  const editor = makeState(meta, text, cursor, indent);
   baselines.set(meta.id, editor.doc);
 
   const existing = tabById(meta.id);
@@ -195,8 +236,9 @@ function put(
     existing.editor = editor;
     existing.scrollTop = scrollTop;
     existing.language = language;
+    existing.indent = indent;
   } else {
-    tabs.items.push({ meta, editor, scrollTop, language });
+    tabs.items.push({ meta, editor, scrollTop, language, indent });
   }
   tabs.activeId = meta.id;
   // Язык грузится и встаёт на место сам: ждать его открытие файла не должно.
@@ -347,13 +389,14 @@ async function restoreInner(): Promise<string[]> {
 
   for (const item of session.buffers) {
     const { text, cursor, scrollTop, language, ...meta } = item;
-    const editor = makeState(meta, text, cursor);
+    const indent = resolveIndent(text, indentSettings());
+    const editor = makeState(meta, text, cursor, indent);
 
     if (meta.modified) {
       restoredDirty.add(meta.id);
     }
     baselines.set(meta.id, editor.doc);
-    tabs.items.push({ meta, editor, scrollTop, language: language ?? null });
+    tabs.items.push({ meta, editor, scrollTop, language: language ?? null, indent });
     // Язык подтягивается в фоне: старт не должен ждать разбора парсеров.
     void applyLanguage(meta.id);
   }

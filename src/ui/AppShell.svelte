@@ -18,12 +18,19 @@
   import WelcomeScreen from './welcome/WelcomeScreen.svelte';
   import {
     autoCloseEnabled,
+    indentSettings,
     settings,
     startSettings,
     wrapEnabled,
   } from '../state/settings.svelte';
   import { searchFocusRequest } from '../state/project-search.svelte';
-  import { tabs, restore, applyWrap, applyAutoClose } from '../state/tabs.svelte';
+  import {
+    tabs,
+    restore,
+    applyWrap,
+    applyAutoClose,
+    applyIndentSettings,
+  } from '../state/tabs.svelte';
   import { flushNow } from '../state/persist.svelte';
   import { roots, refresh as refreshRoots, rootProblems } from '../state/roots.svelte';
   import { refreshDirs } from '../state/tree.svelte';
@@ -76,6 +83,13 @@
   $effect(() => {
     const autoClose = autoCloseEnabled();
     untrack(() => applyAutoClose(autoClose));
+  });
+
+  // Отступ — почти так же, но применяется не ко всем вкладкам: у файла,
+  // где отступ определён по содержимому, настройка ничего не меняет (Р-106).
+  $effect(() => {
+    const indent = indentSettings();
+    untrack(() => applyIndentSettings(indent));
   });
 
   onMount(async () => {

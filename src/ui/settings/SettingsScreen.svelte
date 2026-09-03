@@ -186,6 +186,44 @@
 
         <div class="row">
           <div class="what">
+            <span class="name">Отступ по умолчанию</span>
+            <span class="note">
+              Только для файлов, где отступов нет: в остальных он определяется
+              по содержимому и виден в строке состояния.
+            </span>
+          </div>
+          <select
+            class="control"
+            disabled={broken !== null}
+            value={values.editor.indent_style}
+            onchange={(e) => put(['editor', 'indent_style'], e.currentTarget.value)}
+          >
+            <option value="spaces">Пробелы</option>
+            <option value="tabs">Табы</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <div class="what">
+            <span class="name">Ширина отступа</span>
+            <span class="note">
+              Сколько пробелов в отступе или во сколько столбцов рисуется таб.
+            </span>
+          </div>
+          <select
+            class="control"
+            disabled={broken !== null}
+            value={String(values.editor.indent_width)}
+            onchange={(e) => put(['editor', 'indent_width'], Number(e.currentTarget.value))}
+          >
+            <option value="2">2</option>
+            <option value="4">4</option>
+            <option value="8">8</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <div class="what">
             <span class="name">Шрифт интерфейса</span>
             <span class="note">Пусто — из темы. Шрифт редактора задаёт тема.</span>
           </div>
