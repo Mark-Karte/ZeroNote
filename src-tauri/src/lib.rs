@@ -130,6 +130,7 @@ pub fn run() {
             commands::settings::settings_state,
             commands::settings::update_setting,
             commands::files::startup_paths,
+            commands::files::recent_files,
             commands::files::list_buffers,
             commands::files::new_buffer,
             commands::files::open_file,

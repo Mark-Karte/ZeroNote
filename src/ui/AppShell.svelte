@@ -14,6 +14,7 @@
   import IconStrip from './sidebar/IconStrip.svelte';
   import Palette from './palette/Palette.svelte';
   import SettingsScreen from './settings/SettingsScreen.svelte';
+  import WelcomeScreen from './welcome/WelcomeScreen.svelte';
   import { settings } from '../state/settings.svelte';
   import { searchFocusRequest } from '../state/project-search.svelte';
   import { tabs, restore } from '../state/tabs.svelte';
@@ -27,7 +28,7 @@
   import { openDropped, closeAllTabs } from '../actions/files';
   import { checkExternalChanges } from '../actions/external';
   import { startupPaths } from '../ipc/files';
-  import { installGlobalKeymap, loadKeymap } from '../keymap/global';
+  import { installGlobalKeymap, loadKeymap } from '../keymap/global.svelte';
 
   let removeKeymap: (() => void) | null = null;
   let unlistenDrop: UnlistenFn | null = null;
@@ -180,10 +181,7 @@
         <SearchPanel />
         <EditorHost />
       {:else}
-        <main class="workarea">
-          <p class="empty">Нет открытых файлов</p>
-          <p class="hint">Ctrl+N — новый, Ctrl+O — открыть, либо перетащите файл сюда</p>
-        </main>
+        <WelcomeScreen />
       {/if}
     </div>
   </div>
@@ -248,26 +246,5 @@
     /* Рабочая область — самый ближний слой: панели стоят на подложке,
        а она лежит на панели. */
     background-color: var(--zn-color-bg-raised);
-  }
-
-  .workarea {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: var(--zn-space-2);
-    min-height: 0;
-  }
-
-  .empty {
-    margin: 0;
-    color: var(--zn-color-fg-subtle);
-  }
-
-  .hint {
-    margin: 0;
-    color: var(--zn-color-fg-subtle);
-    font-size: var(--zn-font-size-ui-small);
   }
 </style>

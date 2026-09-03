@@ -8,6 +8,7 @@ use std::path::PathBuf;
 
 use crate::fsx::text_file;
 use crate::model::buffer::{Buffer, BufferId};
+use crate::session;
 use crate::state::AppState;
 use crate::text::encoding::Encoding;
 use crate::text::eol::{self, Eol};
@@ -67,6 +68,9 @@ pub fn open_file(state: tauri::State<'_, AppState>, path: String) -> Fallible<Bu
     };
 
     if let Some(id) = already_open {
+        // В историю попадает и повторное открытие: пользователь только что
+        // выбрал этот файл, и в списке недавнего он должен оказаться сверху.
+        remember_recent(&state, &path);
         return reload_buffer(state, id);
     }
 
@@ -91,10 +95,45 @@ pub fn open_file(state: tauri::State<'_, AppState>, path: String) -> Fallible<Bu
         )
         .clone();
 
+    // История пишется после успешного чтения: файла, который не открылся,
+    // в списке недавнего быть не должно.
+    drop(buffers);
+    remember_recent(&state, &path);
+
     Ok(BufferWithText {
         buffer,
         text: opened.document.text,
     })
+}
+
+/// Записать файл в историю. Неудача записи не должна мешать открытию:
+/// список недавнего — удобство, а открытый файл — работа.
+fn remember_recent(state: &tauri::State<'_, AppState>, path: &std::path::Path) {
+    let _ = session::recent::remember(&state.data_dir.path, path, session::recent::now_ms());
+}
+
+/// Недавний файл в том виде, в каком его ждёт интерфейс.
+///
+/// Отдельно от записи в файле истории: там имена ключей в стиле TOML
+/// (`opened-at`), потому что файл читается и человеком тоже. Тащить это имя
+/// в JavaScript значило бы писать `entry['opened-at']` в каждом месте.
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RecentFile {
+    pub path: String,
+    pub opened_at: u64,
+}
+
+/// Недавно открытые файлы для стартового экрана.
+#[tauri::command]
+pub fn recent_files(state: tauri::State<'_, AppState>) -> Vec<RecentFile> {
+    session::recent::read(&state.data_dir.path)
+        .into_iter()
+        .map(|entry| RecentFile {
+            path: entry.path.display().to_string(),
+            opened_at: entry.opened_at,
+        })
+        .collect()
 }
 
 /// Перечитать содержимое с диска, сохранив идентификатор буфера и вкладку.

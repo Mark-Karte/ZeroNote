@@ -3,7 +3,7 @@ import type { FileHit, TagHit } from '../ipc/index';
 import { openPath } from './tabs.svelte';
 import { parse, matches, withMode, type PaletteMode } from '../ui/palette/query';
 import { COMMANDS } from '../keymap/registry';
-import { commandList } from '../keymap/global';
+import { commandList } from '../keymap/global.svelte';
 import { showPanel } from './roots.svelte';
 import { searchByTag } from './project-search.svelte';
 

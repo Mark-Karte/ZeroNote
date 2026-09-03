@@ -17,13 +17,20 @@ export interface KeymapState {
   problems: string[];
 }
 
-let bindings: Record<string, string> = {};
-
 /**
- * Названия команд, пришедшие из ядра. Канонический список там (Р-015 в той же
- * логике, что и токены): здесь только его отражение для показа.
+ * Раскладка и названия команд, пришедшие из ядра.
+ *
+ * Реактивное состояние, а не обычные переменные: раскладка приходит из ядра
+ * асинхронно, а показывают её стартовый экран и палитра. С обычными
+ * переменными они успевали отрисоваться до загрузки и оставались с пустыми
+ * плашками навсегда — заметить это можно было только глазами, что и вышло.
+ *
+ * Канонический список команд — в ядре (`keymap/mod.rs`), здесь его отражение.
  */
-let titles: { id: string; title: string }[] = [];
+const keymap = $state<{
+  bindings: Record<string, string>;
+  titles: { id: string; title: string }[];
+}>({ bindings: {}, titles: [] });
 
 /**
  * Команды с человеческими названиями и сочетаниями — для палитры.
@@ -35,12 +42,12 @@ let titles: { id: string; title: string }[] = [];
  */
 export function commandList(): { id: string; title: string; binding: string | null }[] {
   const byCommand = new Map<string, string>();
-  for (const binding of Object.keys(bindings).sort()) {
-    const id = bindings[binding]!;
+  for (const binding of Object.keys(keymap.bindings).sort()) {
+    const id = keymap.bindings[binding]!;
     if (!byCommand.has(id)) byCommand.set(id, binding);
   }
 
-  return titles
+  return keymap.titles
     // Команда без обработчика в палитре не нужна: нажать её было бы нельзя,
     // а объяснить почему — негде.
     .filter((command) => COMMANDS[command.id])
@@ -73,8 +80,8 @@ const WEBVIEW_DEFAULTS = new Set([
 
 export async function loadKeymap(): Promise<string[]> {
   const state = await invoke<KeymapState>('keymap_state');
-  bindings = state.bindings;
-  titles = state.commands;
+  keymap.bindings = state.bindings;
+  keymap.titles = state.commands;
 
   const problems = [...state.problems];
 
@@ -82,11 +89,11 @@ export async function loadKeymap(): Promise<string[]> {
   // и понять почему будет неоткуда. Тест сверяет списки при сборке, но
   // проверка на живом приложении ловит и то, чего тест не видит:
   // например, недособранный реестр из-за порядка загрузки модулей.
-  const orphans = [...new Set(Object.values(bindings))].filter((id) => !COMMANDS[id]);
+  const orphans = [...new Set(Object.values(keymap.bindings))].filter((id) => !COMMANDS[id]);
   if (orphans.length > 0) {
     problems.push(`команды без обработчика: ${orphans.join(', ')}`);
   }
-  if (Object.keys(bindings).length === 0) {
+  if (Object.keys(keymap.bindings).length === 0) {
     problems.push('раскладка пуста: горячие клавиши не работают');
   }
 
@@ -114,7 +121,7 @@ export function installGlobalKeymap(onProblems: (problems: string[]) => void): (
     const binding = bindingOf(event);
     if (binding === null) return;
 
-    const command = bindings[binding];
+    const command = keymap.bindings[binding];
     if (command) {
       // В поле ввода команды правки текста означают совсем другое: Ctrl+A
       // должен выделить содержимое поля, а не весь документ, Ctrl+Z —
