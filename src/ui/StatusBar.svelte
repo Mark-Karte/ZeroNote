@@ -8,11 +8,12 @@
   import { indexing, cancel as cancelIndexing } from '../state/index.svelte';
   import { wrapEnabled, toggleWrap } from '../state/settings.svelte';
   import { plural } from './plural';
+  import { positionOf, positionLabel } from './position';
+  import { commandList } from '../keymap/global.svelte';
+  import { labelOf } from '../keymap/binding';
+  import { goToLineDialog } from '../actions/navigate';
   import type { EncodingId, LineEnding } from '../ipc/files';
   import { convertTo, reinterpretAs, setBom, setLineEnding } from '../actions/encoding';
-
-  // TODO(задача 7): позиция курсора, номер строки, размер выделения.
-  // TODO(окно параметров): состав строки состояния должен настраиваться.
 
   const look = $derived(appearance.current);
   const tab = $derived(activeTab());
@@ -25,6 +26,19 @@
    * только когда курсоров больше одного — иначе это шум в каждом кадре.
    */
   const cursors = $derived(tab?.editor.selection.ranges.length ?? 1);
+
+  /** Строка, столбец и размер выделения. Считается там же и по той же причине. */
+  const position = $derived(tab ? positionOf(tab.editor) : null);
+  const lines = $derived(tab?.editor.doc.lines ?? 0);
+
+  /**
+   * Сочетание берётся из раскладки, а не пишется в разметку: его могли
+   * переназначить в keymap.toml, и подсказка обязана показывать то, что
+   * и правда нажимается.
+   */
+  const goToLineKey = $derived(
+    commandList().find((command) => command.id === 'view.go-to-line')?.binding ?? null,
+  );
 
   const EOL_LABEL: Record<LineEnding, string> = {
     lf: 'LF',
@@ -198,6 +212,19 @@
   {/if}
 
   <span class="spacer"></span>
+
+  {#if position}
+    <button
+      class="item action"
+      type="button"
+      onclick={() => void goToLineDialog()}
+      title="Строка {position.line} из {lines}, столбец {position.column}. Нажмите, чтобы перейти к строке{goToLineKey
+        ? ` (${labelOf(goToLineKey)})`
+        : ''}."
+    >
+      {positionLabel(position)}
+    </button>
+  {/if}
 
   {#if cursors > 1}
     <span class="item accent" title="Escape — вернуться к одному курсору">

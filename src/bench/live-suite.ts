@@ -5,6 +5,7 @@ import { languageById } from '../editor/langs';
 import { syntaxColors } from '../theme/syntax';
 import { benchStartIndex, benchStopIndex } from '../ipc/bench';
 import { indexProgress } from '../ipc/index';
+import { positionOf } from '../ui/position';
 
 /**
  * Инвариант 6: ввод не ждёт фоновую работу.
@@ -25,6 +26,14 @@ import { indexProgress } from '../ipc/index';
 
 const RUNS = 41;
 const DOC_MIB = 1;
+/**
+ * Сколько чтений позиции в одном замере.
+ *
+ * По одному таймер не различает вовсе, по двести — тоже: показывал ноль
+ * и на трёх знаках после запятой. Пять тысяч дают число, а не «меньше,
+ * чем я умею мерить».
+ */
+const READS_PER_SAMPLE = 5000;
 
 const SAMPLE = `// Обработчик очереди сообщений
 #include <string>
@@ -52,6 +61,17 @@ export interface Row {
   editMs: number;
   /** Худшая синхронная вставка. */
   editWorstMs: number;
+  /**
+   * Что на каждое изменение делает строка состояния: медиана, микросекунды.
+   *
+   * Отдельной колонкой, а не внутри правки. В приложении это происходит
+   * не внутри dispatch, а перед следующим кадром, и смешать одно с другим
+   * значило бы потерять сравнимость числа правки с прошлыми этапами.
+   *
+   * В микросекундах, потому что в миллисекундах это ноль — и ноль здесь
+   * означал бы «не измерено», а не «ничего не стоит».
+   */
+  readUs: number;
 }
 
 export interface Result {
@@ -85,19 +105,40 @@ function makeDoc(mib: number): string {
   return parts.join('');
 }
 
-/** Вставить символ RUNS раз, вернув синхронные времена. */
-async function typeInto(view: EditorView): Promise<number[]> {
-  const samples: number[] = [];
+/**
+ * Вставить символ RUNS раз, вернув синхронные времена.
+ *
+ * Заодно меряется чтение позиции курсора — то, что на каждое изменение делает
+ * строка состояния. Свой редактор здесь не связан с состоянием вкладки, и без
+ * этого замера цена строки состояния не попадала в измерение вовсе: на этапе 3
+ * счётчик курсоров считали проверенным, а мерили путь, в котором его не было.
+ */
+async function typeInto(view: EditorView): Promise<{ edits: number[]; reads: number[] }> {
+  const edits: number[] = [];
+  const reads: number[] = [];
 
   for (let i = 0; i < RUNS; i += 1) {
     const from = view.state.selection.main.head;
     const began = performance.now();
     view.dispatch({ changes: { from, insert: 'x' } });
-    samples.push(performance.now() - began);
+    edits.push(performance.now() - began);
+
+    // Пачкой, а не по разу: одно чтение укладывается в разрешение таймера,
+    // и замер честно показывал ноль. Повтор здесь ничего не удешевляет —
+    // ни `Text`, ни `EditorState` расчёт строки не запоминают.
+    const read = performance.now();
+    for (let k = 0; k < READS_PER_SAMPLE; k += 1) {
+      const position = positionOf(view.state);
+      // Результат обязан быть кому-то нужен, иначе движок вправе выбросить
+      // весь цикл — и замер снова покажет ноль, ничего не измерив.
+      if (position.line < 1) throw new Error('позиция вне документа');
+    }
+    reads.push(((performance.now() - read) * 1000) / READS_PER_SAMPLE);
+
     await nextFrame();
   }
 
-  return samples;
+  return { edits, reads };
 }
 
 export async function runLiveSuite(): Promise<Result> {
@@ -130,8 +171,9 @@ export async function runLiveSuite(): Promise<Result> {
     const idle = await typeInto(view);
     rows.push({
       what: 'в покое',
-      editMs: median(idle),
-      editWorstMs: Math.max(...idle),
+      editMs: median(idle.edits),
+      editWorstMs: Math.max(...idle.edits),
+      readUs: median(idle.reads),
     });
 
     fixture = await benchStartIndex();
@@ -150,8 +192,9 @@ export async function runLiveSuite(): Promise<Result> {
 
     rows.push({
       what: 'во время индексации',
-      editMs: median(busy),
-      editWorstMs: Math.max(...busy),
+      editMs: median(busy.edits),
+      editWorstMs: Math.max(...busy.edits),
+      readUs: median(busy.reads),
     });
 
     indexedDuring = Math.max(0, after.done - before.done);
@@ -173,12 +216,13 @@ export async function runLiveSuite(): Promise<Result> {
 
 export function formatMarkdown(result: Result): string {
   const lines = [
-    '| Что | Правка (медиана) | Правка (худшая) |',
-    '|---|---|---|',
+    '| Что | Правка (медиана) | Правка (худшая) | Позиция курсора |',
+    '|---|---|---|---|',
   ];
   for (const row of result.rows) {
     lines.push(
-      `| ${row.what} | ${row.editMs.toFixed(1)} мс | ${row.editWorstMs.toFixed(1)} мс |`,
+      `| ${row.what} | ${row.editMs.toFixed(1)} мс | ${row.editWorstMs.toFixed(1)} мс` +
+        ` | ${row.readUs.toFixed(2)} мкс |`,
     );
   }
 
@@ -188,5 +232,10 @@ export function formatMarkdown(result: Result): string {
   lines.push('Индексация настоящая: тот же рабочий поток, та же база, та же');
   lines.push('очередь, что у обычной работы. Совпадение по времени проверяется —');
   lines.push('замер, где индексация успела закончиться, объявляется недостоверным.');
+  lines.push('');
+  lines.push('«Позиция курсора» — то, что на каждое изменение считает строка');
+  lines.push(`состояния: среднее по ${READS_PER_SAMPLE} чтениям, потому что одно короче`);
+  lines.push('разрешения таймера. Редактор замера свой, поэтому колонка меряет саму');
+  lines.push('работу, а не её путь через реактивность; отрисовка кадра сюда не входит.');
   return lines.join('\n');
 }
