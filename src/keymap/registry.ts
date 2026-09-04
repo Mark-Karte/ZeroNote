@@ -1,6 +1,7 @@
 import { foldAll, unfoldAll } from '@codemirror/language';
 import { editorView } from '../editor/current';
 import * as edit from '../editor/commands';
+import * as md from '../editor/markdown-format';
 import { foldBlock, unfoldBlock } from '../editor/folding';
 import { goToBracket } from '../editor/brackets';
 import {
@@ -131,6 +132,33 @@ export const COMMANDS: Record<CommandId, () => void | Promise<unknown>> = {
   // Сочетания нет и не будет: в VS Code у «About» его тоже нет, а место
   // в раскладке дорого. Команда живёт в палитре, и этого хватает.
   'help.about': showAbout,
+
+  // Разметка markdown. Сочетаний по умолчанию нет (Р-127) — команды зовутся
+  // с панели, из палитры и из контекстного меню, а кому нужны клавиши,
+  // назначит их во вкладке «Клавиши».
+  'md.bold': inEditor(md.asCommand((state) => md.toggleWrap(state, '**'))),
+  'md.italic': inEditor(md.asCommand((state) => md.toggleWrap(state, '*'))),
+  'md.strikethrough': inEditor(md.asCommand((state) => md.toggleWrap(state, '~~'))),
+  'md.highlight': inEditor(md.asCommand((state) => md.toggleWrap(state, '=='))),
+  'md.code': inEditor(md.asCommand((state) => md.toggleWrap(state, '`'))),
+  'md.link': inEditor(md.asCommand(md.insertLink)),
+
+  'md.heading-1': inEditor(md.asCommand((state) => md.toggleHeading(state, 1))),
+  'md.heading-2': inEditor(md.asCommand((state) => md.toggleHeading(state, 2))),
+  'md.heading-3': inEditor(md.asCommand((state) => md.toggleHeading(state, 3))),
+
+  'md.bullet-list': inEditor(md.asCommand((state) => md.togglePrefix(state, '- '))),
+  'md.ordered-list': inEditor(md.asCommand(md.toggleOrdered)),
+  'md.task-list': inEditor(md.asCommand(md.toggleTask)),
+  'md.quote': inEditor(md.asCommand((state) => md.togglePrefix(state, '> '))),
+
+  'md.table': inEditor(md.asCommand((state) => md.insertBlock(state, md.SNIPPETS.table!))),
+  'md.code-block': inEditor(
+    md.asCommand((state) => md.insertBlock(state, md.SNIPPETS['code-block']!)),
+  ),
+  'md.divider': inEditor(
+    md.asCommand((state) => md.insertBlock(state, md.SNIPPETS.divider!)),
+  ),
 };
 
 export function commandIds(): CommandId[] {

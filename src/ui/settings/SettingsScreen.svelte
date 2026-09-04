@@ -280,6 +280,25 @@
 
         <div class="row">
           <div class="what">
+            <span class="name">Панель разметки markdown</span>
+            <span class="note">
+              Жирный, курсив, заголовки, списки, ссылка и заготовки. Появляется
+              только над markdown; всё то же есть в палитре команд.
+            </span>
+          </div>
+          <select
+            class="control"
+            disabled={broken !== null}
+            value={values.editor.markdown_bar ? 'yes' : 'no'}
+            onchange={(e) => put(['editor', 'markdown_bar'], e.currentTarget.value === 'yes')}
+          >
+            <option value="no">Не показывать</option>
+            <option value="yes">Показывать</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <div class="what">
             <span class="name">Шрифт интерфейса</span>
             <span class="note">Пусто — из темы. Шрифт редактора задаёт тема.</span>
           </div>

@@ -7,6 +7,7 @@
   import TabStrip from './TabStrip.svelte';
   import EditorHost from './EditorHost.svelte';
   import SearchPanel from './SearchPanel.svelte';
+  import MarkdownBar from './MarkdownBar.svelte';
   import NoticeStrip from './NoticeStrip.svelte';
   import StatusBar from './StatusBar.svelte';
   import Modal from './Modal.svelte';
@@ -20,6 +21,7 @@
     autoCloseEnabled,
     indentSettings,
     invisiblesEnabled,
+    markdownBarEnabled,
     settings,
     startSettings,
     wrapEnabled,
@@ -32,6 +34,8 @@
     applyAutoClose,
     applyIndentSettings,
     applyInvisibles,
+    activeTab,
+    languageOf,
   } from '../state/tabs.svelte';
   import { flushNow } from '../state/persist.svelte';
   import { roots, refresh as refreshRoots, rootProblems } from '../state/roots.svelte';
@@ -65,6 +69,20 @@
   let unlistenIndex: UnlistenFn | null = null;
   let removeFollow: (() => void) | null = null;
   let dropActive = $state(false);
+
+  /**
+   * Показывать ли панель разметки.
+   *
+   * Только над markdown: в файле кода её кнопки поставили бы звёздочки
+   * посреди программы. Язык берётся у вкладки, а не по расширению файла:
+   * язык можно сменить руками в строке состояния, и панель обязана следовать
+   * за этим выбором.
+   */
+  const showMarkdownBar = $derived.by(() => {
+    if (!markdownBarEnabled()) return false;
+    const tab = activeTab();
+    return tab !== null && languageOf(tab)?.id === 'markdown';
+  });
 
   /** О чём не удалось восстановить — показывается той же полосой, что и прочее. */
   const restoreNotices = $state<string[]>([]);
@@ -296,6 +314,12 @@
         <SettingsScreen />
       {:else if tabs.items.length > 0}
         <SearchPanel />
+        <!-- Панель разметки — только над markdown и только если её не убрали
+             настройкой. В файле кода она показывала бы кнопки, которые
+             испортят текст. -->
+        {#if showMarkdownBar}
+          <MarkdownBar />
+        {/if}
         <EditorHost />
       {:else}
         <WelcomeScreen />

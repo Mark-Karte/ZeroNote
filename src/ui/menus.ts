@@ -81,6 +81,20 @@ function tidy(items: (PopupItem | null)[]): PopupItem[] {
   return out;
 }
 
+/**
+ * Заготовки markdown — меню кнопки на панели разметки.
+ *
+ * Меню, а не три кнопки в ряду: заготовок со временем станет больше,
+ * а место в строке кончится раньше.
+ */
+export function snippetMenu(commands: Command[]): PopupItem[] {
+  return tidy([
+    fromCommand(commands, 'md.table'),
+    fromCommand(commands, 'md.code-block'),
+    fromCommand(commands, 'md.divider'),
+  ]);
+}
+
 export interface EditorMenuContext {
   canUndo: boolean;
   canRedo: boolean;

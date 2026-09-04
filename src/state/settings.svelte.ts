@@ -75,6 +75,16 @@ export async function toggleInvisibles(): Promise<void> {
   await put(['editor', 'invisibles'], !invisiblesEnabled());
 }
 
+/**
+ * Показывать ли панель разметки над markdown-файлами.
+ *
+ * Умолчание `true` повторяет умолчание ядра: несовпадение означало бы, что
+ * первые полсекунды после запуска панели нет, а потом она появляется.
+ */
+export function markdownBarEnabled(): boolean {
+  return settings.state?.settings.editor.markdown_bar ?? true;
+}
+
 export function autoCloseEnabled(): boolean {
   return settings.state?.settings.editor.auto_close ?? true;
 }

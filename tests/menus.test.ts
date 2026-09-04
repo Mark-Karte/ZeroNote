@@ -3,6 +3,7 @@ import {
   MENU,
   editorMenu,
   fieldMenu,
+  snippetMenu,
   tabMenu,
   treeMenu,
   type Command,
@@ -38,6 +39,9 @@ const COMMANDS: Command[] = [
   { id: 'view.unfold-all', title: 'Развернуть всё', binding: 'alt+shift+0' },
   { id: 'view.invisibles', title: 'Показывать невидимые символы', binding: null },
   { id: 'view.bookmark', title: 'Поставить или снять закладку', binding: 'ctrl+f2' },
+  { id: 'md.table', title: 'Заготовка: таблица', binding: null },
+  { id: 'md.code-block', title: 'Заготовка: блок кода', binding: null },
+  { id: 'md.divider', title: 'Заготовка: разделитель', binding: null },
 ];
 
 const ids = (items: PopupItem[]): string[] => items.map((item) => item.id);
@@ -72,6 +76,7 @@ describe('пункты по командам реестра', () => {
       ...tabMenu({ modified: true, hasFile: true, others: 2 }, COMMANDS),
       ...treeMenu({ row: null }, COMMANDS),
       ...fieldMenu({ hasSelection: true, readOnly: false }, COMMANDS),
+      ...snippetMenu(COMMANDS),
     ];
 
     const referenced = ids(all).filter((id) => !id.startsWith('menu.'));

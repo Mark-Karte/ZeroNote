@@ -136,7 +136,9 @@ describe('реестр команд', () => {
     expect(block, 'таблица COMMANDS не найдена').not.toBeNull();
 
     const fromRust = new Set(
-      [...block![1]!.matchAll(/\(\s*"([a-z.-]+)"\s*,/g)].map((m) => m[1]!),
+      // Цифра в имени встречается: `md.heading-1`. Без неё набор команд
+      // разошёлся бы с реестром молча — тест проверял бы сам себя.
+      [...block![1]!.matchAll(/\(\s*"([a-z0-9.-]+)"\s*,/g)].map((m) => m[1]!),
     );
 
     const { commandIds } = await import('../src/keymap/registry');

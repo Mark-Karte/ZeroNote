@@ -62,6 +62,10 @@ pub struct EditorSettings {
     pub indent_width: u8,
     /// Показывать пробелы, табуляции и переносы строк.
     pub invisibles: bool,
+    /// Показывать панель разметки над markdown-файлами. По умолчанию да:
+    /// заметки — половина того, ради чего редактор писался, а панель видна
+    /// только там, где ей место, и не мешает никому больше.
+    pub markdown_bar: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -85,6 +89,7 @@ impl Default for EditorSettings {
             indent_style: IndentStyle::Spaces,
             indent_width: 4,
             invisibles: false,
+            markdown_bar: true,
         }
     }
 }
@@ -236,6 +241,10 @@ indent_style = "spaces"
 indent_width = 4
 # Показывать пробелы, табуляции и переносы строк.
 invisibles = false
+# Панель разметки над markdown-файлами: жирный, курсив, заголовки, списки,
+# ссылка и заготовки. Появляется только на markdown, в остальных файлах
+# её нет. Всё то же есть в палитре команд.
+markdown_bar = true
 "#;
 
 /// Создать файл настроек, если его ещё нет.
@@ -284,6 +293,10 @@ mod tests {
 
         assert!(parsed.editor.wrap);
         assert!(parsed.editor.auto_close, "автозакрытие включено по умолчанию");
+        assert!(
+            parsed.editor.markdown_bar,
+            "панель разметки включена по умолчанию"
+        );
     }
 
     /// Пустой файл — это все значения по умолчанию, а не ошибка.

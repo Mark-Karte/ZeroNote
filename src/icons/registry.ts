@@ -43,7 +43,18 @@ export type IconName =
   | 'panel.settings'
   | 'file.markdown'
   | 'file.text'
-  | 'file.code';
+  | 'file.code'
+  | 'md.bold'
+  | 'md.italic'
+  | 'md.strikethrough'
+  | 'md.highlight'
+  | 'md.code'
+  | 'md.link'
+  | 'md.bullet-list'
+  | 'md.ordered-list'
+  | 'md.task-list'
+  | 'md.quote'
+  | 'md.snippets';
 
 const ICONS: Record<IconName, string> = {
   // Знак приложения: ноль со штрихом — «zero» и перо разом. Тот же рисунок,
@@ -119,6 +130,38 @@ const ICONS: Record<IconName, string> = {
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 4l4 4-4 4"/></svg>',
   'tree.folder-open':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"><path d="M2 11.5V4.5A1.5 1.5 0 0 1 3.5 3h2.3c.4 0 .78.16 1.06.44L8 4.5h4.5A1.5 1.5 0 0 1 14 6v.5"/><path d="M2 11.5 3.7 7.6a1 1 0 0 1 .92-.6h9.4a.7.7 0 0 1 .64.98l-1.7 3.9a1 1 0 0 1-.92.62H3.5A1.5 1.5 0 0 1 2 11.5z"/></svg>',
+
+  // Панель разметки markdown. Все — штриховые, одной толщины и без заливок:
+  // рядом в строке стоят одиннадцать значков, и разнобой в весе виден сразу.
+  'md.bold':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M4.8 2.8h3.6a2.5 2.5 0 0 1 0 5H4.8z"/><path d="M4.8 7.8h4.3a2.6 2.6 0 0 1 0 5.2H4.8z"/></svg>',
+  'md.italic':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M6.6 3h4.8M4.6 13h4.8M10 3 6.4 13"/></svg>',
+  // Буква S, перечёркнутая посередине. Толщина та же, что у прочих.
+  'md.strikethrough':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2.6 8h10.8"/><path d="M11.3 4.9C10.7 3.7 9.5 3 8 3 6.2 3 5 3.9 5 5.2c0 1 .7 1.7 2 2.2"/><path d="M4.9 11.1c.6 1.2 1.8 1.9 3.3 1.9 1.9 0 3-.9 3-2.2 0-.5-.2-.9-.5-1.3"/></svg>',
+  // Буква A на подложке — знак маркера, каким его рисуют текстовые редакторы.
+  'md.highlight':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13.4h10"/><path d="M5.2 10.4 8 2.9l2.8 7.5"/><path d="M6.2 7.8h3.6"/></svg>',
+  'md.code':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5.8 4.2 2.4 8l3.4 3.8"/><path d="M10.2 4.2 13.6 8l-3.4 3.8"/></svg>',
+  'md.link':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M6.9 9.1a2.7 2.7 0 0 0 3.8 0l2-2a2.7 2.7 0 1 0-3.8-3.8l-.8.8"/><path d="M9.1 6.9a2.7 2.7 0 0 0-3.8 0l-2 2a2.7 2.7 0 1 0 3.8 3.8l.8-.8"/></svg>',
+  // Точки нарисованы отрезком нулевой длины с круглым концом: так у списка
+  // не появляется заливки, а значит, и своего цвета.
+  'md.bullet-list':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M3 4h.01M3 8h.01M3 12h.01"/><path d="M6.4 4h7.2M6.4 8h7.2M6.4 12h7.2"/></svg>',
+  'md.ordered-list':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M6.6 4h7M6.6 8h7M6.6 12h7"/><path d="M1.9 3.1 3 2.4V6"/><path d="M1.9 10.2a1.2 1.2 0 0 1 2.3.4c0 .9-2.3 1.4-2.3 2.6h2.4"/></svg>',
+  // Один флажок, а не два: при шестнадцати пикселях две галочки со строками
+  // сливаются в кашу — проверено на живом окне.
+  'md.task-list':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="1.9" y="4" width="6.2" height="6.2" rx="1.5"/><path d="M3.4 7.1 4.6 8.3 6.6 5.7"/><path d="M10.4 6h3.7M10.4 9.2h3.7"/></svg>',
+  'md.quote':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2.8 3.4v9.2"/><path d="M6.4 5h7.2M6.4 8h7.2M6.4 11h4.4"/></svg>',
+  // Заготовка — это вставка готового блока, отсюда плюс внутри рамки.
+  'md.snippets':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2.4" y="2.4" width="11.2" height="11.2" rx="2"/><path d="M8 5.4v5.2M5.4 8h5.2"/></svg>',
 
   'file.markdown':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"><path d="M9 1.6H4a1.4 1.4 0 0 0-1.4 1.4v10a1.4 1.4 0 0 0 1.4 1.4h8a1.4 1.4 0 0 0 1.4-1.4V6z"/><path d="M9 1.6V6h4.4"/><path d="M5.2 11.6V8.4l1.5 1.8 1.5-1.8v3.2" stroke-linecap="round"/></svg>',
