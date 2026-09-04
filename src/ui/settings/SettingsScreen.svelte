@@ -5,6 +5,7 @@
   import { openDropped } from '../../actions/files';
   import { showAbout } from '../../actions/about';
   import { version } from '../../version';
+  import KeysScreen from './KeysScreen.svelte';
 
   /**
    * Экран параметров.
@@ -17,6 +18,15 @@
    * Изменение применяется сразу и пишется в файл. Кнопок «применить»
    * и «отменить» нет: файл и есть состояние (Р-077).
    */
+
+  /**
+   * Клавиши — отдельной вкладкой, а не строками среди прочего.
+   *
+   * Команд около шестидесяти, и списком такой длины они утопили бы в себе
+   * пять настроек оформления. Разделение просил владелец: «чтобы не мусорить
+   * в основных настройках».
+   */
+  let tab = $state<'general' | 'keys'>('general');
 
   const file = $derived(settings.state);
   const values = $derived(file?.settings);
@@ -58,9 +68,35 @@
   <div class="page">
     <header class="head">
       <h1 class="title">Параметры</h1>
-      <p class="subtitle">Оформление · Шрифт · Файл настроек · О программе</p>
+      <p class="subtitle">
+        {tab === 'general'
+          ? 'Оформление · Шрифт · Файл настроек · О программе'
+          : 'Горячие клавиши · keymap.toml'}
+      </p>
     </header>
 
+    <div class="tabs">
+      <button
+        class="tab"
+        class:current={tab === 'general'}
+        type="button"
+        onclick={() => (tab = 'general')}
+      >
+        Настройки
+      </button>
+      <button
+        class="tab"
+        class:current={tab === 'keys'}
+        type="button"
+        onclick={() => (tab = 'keys')}
+      >
+        Клавиши
+      </button>
+    </div>
+
+    {#if tab === 'keys'}
+      <KeysScreen />
+    {:else}
     {#if broken}
       <p class="broken">
         <Icon name="status.warning" />
@@ -305,6 +341,7 @@
       </div>
       <button class="button" type="button" onclick={showAbout}>Сведения</button>
     </div>
+    {/if}
   </div>
 </div>
 
@@ -335,6 +372,33 @@
   .subtitle {
     margin: var(--zn-space-2) 0 0 0;
     color: var(--zn-color-fg-subtle);
+  }
+
+  .tabs {
+    display: flex;
+    gap: var(--zn-space-2);
+    margin-bottom: var(--zn-space-5);
+    border-bottom: var(--zn-border-width) solid var(--zn-color-border-subtle);
+  }
+
+  .tab {
+    padding: var(--zn-space-2) var(--zn-space-4);
+    border: none;
+    border-bottom: var(--zn-border-width-thick) solid transparent;
+    background: none;
+    color: var(--zn-color-fg-subtle);
+    font-family: inherit;
+    font-size: var(--zn-font-size-ui);
+    cursor: default;
+  }
+
+  .tab:hover {
+    color: var(--zn-color-fg-default);
+  }
+
+  .tab.current {
+    border-bottom-color: var(--zn-color-accent);
+    color: var(--zn-color-fg-default);
   }
 
   .broken {

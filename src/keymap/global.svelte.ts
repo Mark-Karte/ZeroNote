@@ -1,21 +1,18 @@
-import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { bindingOf } from './binding';
 import { COMMANDS } from './registry';
+import * as ipc from '../ipc/keymap';
+import type { CommandInfo, KeymapState } from '../ipc/keymap';
 
 /**
  * Оконный диспетчер горячих клавиш.
  *
  * Стоит на этапе перехвата (`capture`) намеренно: иначе Ctrl+S достался бы
  * сначала CodeMirror или вебвью, и до нас не дошёл бы. Раскладка приходит
- * из ядра — там она собирается из умолчаний Notepad++ и файла пользователя.
+ * из ядра — там она собирается из умолчаний и файла пользователя.
  */
 
-export interface KeymapState {
-  bindings: Record<string, string>;
-  commands: { id: string; title: string }[];
-  problems: string[];
-}
+export type { CommandInfo, KeymapState };
 
 /**
  * Раскладка и названия команд, пришедшие из ядра.
@@ -29,8 +26,38 @@ export interface KeymapState {
  */
 const keymap = $state<{
   bindings: Record<string, string>;
-  titles: { id: string; title: string }[];
-}>({ bindings: {}, titles: [] });
+  titles: CommandInfo[];
+  /** Что не так с файлом раскладки. Редактор клавиш при непустом не правит. */
+  problems: string[];
+}>({ bindings: {}, titles: [], problems: [] });
+
+/** Раскладка целиком — редактору клавиш, чтобы искать занятые сочетания. */
+export function currentBindings(): Record<string, string> {
+  return keymap.bindings;
+}
+
+/** Жалоба на файл раскладки или `null`. */
+export function keymapProblem(): string | null {
+  return keymap.problems[0] ?? null;
+}
+
+/**
+ * Команды с их сочетаниями и умолчаниями — для редактора клавиш.
+ *
+ * Отсеиваются те, у кого нет обработчика: назначить сочетание команде,
+ * которую некому выполнить, значит пообещать несуществующее. Тот же отбор,
+ * что и в палитре.
+ */
+export function commandTable(): CommandInfo[] {
+  return keymap.titles.filter((command) => COMMANDS[command.id]);
+}
+
+/** Занять раскладку, пришедшую в ответ на правку. */
+export function applyKeymap(state: KeymapState): void {
+  keymap.bindings = state.bindings;
+  keymap.titles = state.commands;
+  keymap.problems = state.problems;
+}
 
 /**
  * Команды с человеческими названиями и сочетаниями — для палитры.
@@ -120,9 +147,8 @@ const WEBVIEW_DEFAULTS = new Set([
 ]);
 
 export async function loadKeymap(): Promise<string[]> {
-  const state = await invoke<KeymapState>('keymap_state');
-  keymap.bindings = state.bindings;
-  keymap.titles = state.commands;
+  const state = await ipc.keymapState();
+  applyKeymap(state);
 
   const problems = [...state.problems];
 
@@ -157,8 +183,40 @@ function inFormField(target: EventTarget | null): boolean {
   );
 }
 
+/**
+ * Кому уходят нажатия вместо команд, пока идёт назначение сочетания.
+ *
+ * Отдельным крючком, а не своим слушателем в редакторе клавиш: диспетчер
+ * стоит на перехвате и вешается при запуске, а слушатель, добавленный позже,
+ * на том же этапе окажется после него — то есть опоздает. Ctrl+S во время
+ * назначения успел бы сохранить файл, Ctrl+W — закрыть вкладку.
+ */
+let capturing: ((binding: string | null) => void) | null = null;
+
+/**
+ * Перехватить следующие нажатия для редактора клавиш.
+ *
+ * Возвращает функцию, которая возвращает клавиши приложению. Вызвать её
+ * обязательно: пока захват включён, ни одна команда не работает.
+ */
+export function captureChords(onChord: (binding: string | null) => void): () => void {
+  capturing = onChord;
+  return () => {
+    if (capturing === onChord) capturing = null;
+  };
+}
+
 export function installGlobalKeymap(onProblems: (problems: string[]) => void): () => void {
   const onKeyDown = (event: KeyboardEvent): void => {
+    // Идёт назначение сочетания — нажатие принадлежит редактору клавиш,
+    // и выполнять по нему команду нельзя ни в коем случае.
+    if (capturing) {
+      event.preventDefault();
+      event.stopPropagation();
+      capturing(bindingOf(event));
+      return;
+    }
+
     const binding = bindingOf(event);
     if (binding === null) return;
 
