@@ -18,6 +18,7 @@ import {
   closeActiveTab,
   closeAllTabs,
 } from '../actions/files';
+import { showAbout } from '../actions/about';
 import { copySelection, cutSelection, pasteIntoEditor } from '../actions/clipboard';
 import { goToLineDialog } from '../actions/navigate';
 import {
@@ -122,6 +123,10 @@ export const COMMANDS: Record<CommandId, () => void | Promise<unknown>> = {
   'project.search': searchInProject,
   'project.follow-link': followLink,
   'project.backlinks': showBacklinks,
+
+  // Сочетания нет и не будет: в VS Code у «About» его тоже нет, а место
+  // в раскладке дорого. Команда живёт в палитре, и этого хватает.
+  'help.about': showAbout,
 };
 
 export function commandIds(): CommandId[] {

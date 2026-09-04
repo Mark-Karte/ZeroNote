@@ -125,6 +125,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::about::webview_version,
             commands::appearance::appearance_state,
             commands::appearance::builtin_theme_source,
             commands::keymap::keymap_state,

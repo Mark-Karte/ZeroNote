@@ -4,6 +4,7 @@
 //! `theme/`, `settings/`. Это не стилистическое требование: логика, вынесенная
 //! из команд, тестируется обычным `cargo test` без запуска приложения.
 
+pub mod about;
 pub mod appearance;
 pub mod entries;
 pub mod files;

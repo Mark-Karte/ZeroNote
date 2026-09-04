@@ -3,6 +3,8 @@
   import { settings, put } from '../../state/settings.svelte';
   import { appearance } from '../../theme/store.svelte';
   import { openDropped } from '../../actions/files';
+  import { showAbout } from '../../actions/about';
+  import { version } from '../../version';
 
   /**
    * Экран параметров.
@@ -56,7 +58,7 @@
   <div class="page">
     <header class="head">
       <h1 class="title">Параметры</h1>
-      <p class="subtitle">Оформление · Шрифт · Файл настроек</p>
+      <p class="subtitle">Оформление · Шрифт · Файл настроек · О программе</p>
     </header>
 
     {#if broken}
@@ -291,6 +293,18 @@
         и класть в git — изменения подхватываются на лету.
       </p>
     {/if}
+
+    <!-- Снаружи проверки на разобранный файл: на вопрос «какая у вас версия»
+         надо отвечать и тогда, когда settings.toml испорчен. Иначе версия
+         прячется ровно в том случае, когда её и спрашивают. -->
+    <div class="card">
+      <span class="card-icon mark"><Icon name="app.mark" /></span>
+      <div class="what">
+        <span class="name">ZeroNote {version}</span>
+        <span class="note">Свободная программа под лицензией MIT.</span>
+      </div>
+      <button class="button" type="button" onclick={showAbout}>Сведения</button>
+    </div>
   </div>
 </div>
 
@@ -421,6 +435,13 @@
     border-radius: var(--zn-radius-xl);
     background-color: var(--zn-color-bg-selected);
     color: var(--zn-color-accent);
+  }
+
+  /* Знак приложения — единственная двухцветная иконка (Р-099): кольцо берёт
+     currentColor, штрих внутри — акцент. Покрасить плитку акцентом целиком
+     значило бы слить штрих с кольцом и потерять сам знак. */
+  .card-icon.mark {
+    color: var(--zn-color-fg-default);
   }
 
   .button {
