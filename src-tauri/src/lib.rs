@@ -160,6 +160,8 @@ pub fn run() {
             commands::files::clipboard_text,
             commands::entries::create_entry,
             commands::entries::rename_entry,
+            commands::entries::plan_rename,
+            commands::entries::apply_link_edits,
             commands::entries::delete_entry,
             commands::entries::move_buffer,
             commands::roots::list_roots,

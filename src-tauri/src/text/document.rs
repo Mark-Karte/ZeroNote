@@ -109,6 +109,64 @@ fn decode_with(bytes: &[u8], encoding: Encoding, bom: bool, confident: bool) -> 
     }
 }
 
+/// Текст файла ровно таким, каким он лежит на диске, — без приведения
+/// переносов строк.
+///
+/// Нужно правке ссылок при переименовании (Р-136). Обычное чтение сводит
+/// переносы к `\n`, потому что таково внутреннее представление буфера,
+/// и запись возвращает их обратно **одним** видом. Для файла, который открыл
+/// пользователь, это его же выбор; для файла, который он не открывал, это
+/// изменение байтов, о котором никто не просил.
+///
+/// Здесь текст не трогается вовсе: правка меняет только байты цели ссылки,
+/// а всё остальное — включая смешанные переносы — возвращается как было.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RawDocument {
+    /// Текст с теми переносами, которые были в файле.
+    pub text: String,
+    pub encoding: Encoding,
+    pub bom: bool,
+    /// В байтах были последовательности, недопустимые в этой кодировке.
+    /// Обратная запись такого файла байты уже не восстановит.
+    pub lossy: bool,
+}
+
+pub fn read_raw(bytes: &[u8]) -> Result<RawDocument, ReadError> {
+    let detection = detect::detect(bytes).map_err(ReadError::Detect)?;
+    let encoding = detection.encoding;
+
+    let body = if detection.bom {
+        &bytes[encoding.bom_bytes().len()..]
+    } else {
+        bytes
+    };
+    let decoded = encoding::decode(body, encoding);
+
+    Ok(RawDocument {
+        text: decoded.text,
+        encoding,
+        bom: detection.bom,
+        lossy: decoded.lossy,
+    })
+}
+
+/// Собрать байты из текста, у которого переносы уже свои.
+///
+/// Пара к `read_raw`: `to_bytes` разворачивает `\n` в выбранный перенос,
+/// а здесь разворачивать нечего — текст и не сворачивали.
+pub fn raw_to_bytes(text: &str, encoding: Encoding, bom: bool) -> Result<Vec<u8>, EncodeError> {
+    let body = encoding::encode(text, encoding)?;
+    if !bom {
+        return Ok(body);
+    }
+
+    let prefix = encoding.bom_bytes();
+    let mut out = Vec::with_capacity(prefix.len() + body.len());
+    out.extend_from_slice(prefix);
+    out.extend_from_slice(&body);
+    Ok(out)
+}
+
 /// Собрать байты для записи.
 ///
 /// Тип переноса передаётся отдельно, а не берётся из `EolInfo`, намеренно:
@@ -152,6 +210,43 @@ mod tests {
     use super::*;
 
     const RUSSIAN: &str = "Съешь же ещё этих мягких французских булок.";
+
+    /// Главное свойство сырого чтения: прочитать и записать обратно —
+    /// получить те же самые байты, включая смешанные переносы строк.
+    ///
+    /// Это то, чем правка ссылок в чужом файле отличается от сохранения
+    /// буфера (Р-136): у обычного чтения переносы сводятся к одному виду,
+    /// и запись вернула бы их одним видом тоже.
+    #[test]
+    fn raw_round_trip_keeps_mixed_line_endings() {
+        let text = "Первая\r\nВторая\nТретья\r\n";
+        let bytes = text.as_bytes();
+
+        let raw = read_raw(bytes).unwrap();
+        assert_eq!(raw.text, text, "сырой текст не должен трогать переносы");
+
+        let back = raw_to_bytes(&raw.text, raw.encoding, raw.bom).unwrap();
+        assert_eq!(back, bytes);
+
+        // А обычное чтение те же байты не восстановит — и это не дефект,
+        // а разница назначения.
+        let normalized = read(bytes).unwrap();
+        assert!(normalized.eol.mixed);
+        assert_ne!(to_bytes_as_read(&normalized).unwrap(), bytes);
+    }
+
+    /// Метка порядка байтов остаётся меткой и при сыром чтении.
+    #[test]
+    fn raw_round_trip_keeps_the_bom() {
+        let mut bytes = Encoding::Utf8.bom_bytes().to_vec();
+        bytes.extend_from_slice("Привет\r\n".as_bytes());
+
+        let raw = read_raw(&bytes).unwrap();
+
+        assert!(raw.bom);
+        assert_eq!(raw.text, "Привет\r\n");
+        assert_eq!(raw_to_bytes(&raw.text, raw.encoding, raw.bom).unwrap(), bytes);
+    }
 
     /// Подсказка проекта решает там, где определение только гадает.
     #[test]

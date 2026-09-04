@@ -202,6 +202,23 @@ impl Index {
             .flatten()
     }
 
+    /// Какие ссылки придётся поправить, если переименовать это (Р-137).
+    ///
+    /// Соединение берётся изменяемым: внутри идёт откатываемая транзакция.
+    /// Мьютекс держится всё это время — тем и обеспечивается, что подмены
+    /// путей не увидит никто, включая индексацию в фоне.
+    pub fn rename_plan(
+        &self,
+        root_id: RootId,
+        root_path: &str,
+        from: &str,
+        to: &str,
+    ) -> Option<super::rename::RenamePlan> {
+        let connection = self.connection.as_ref()?;
+        let mut connection = connection.lock().expect("соединение с индексом повреждено");
+        super::rename::plan(&mut connection, root_id, root_path, from, to).ok()
+    }
+
     /// Каким текстом сослаться на этот файл из того (Р-134).
     pub fn link_text(
         &self,

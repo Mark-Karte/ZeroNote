@@ -110,6 +110,78 @@ pub fn rename_entry(
     Ok(target.to_string_lossy().into_owned())
 }
 
+/// Что придётся поправить, если переименовать это (Р-136).
+///
+/// Зовётся **до** переименования и ничего не меняет: ответ показывается
+/// человеку, и он вправе отказаться. Пустой список файлов означает, что
+/// ссылок на переименовываемое нет и спрашивать не о чем.
+#[tauri::command]
+pub fn plan_rename(
+    state: tauri::State<'_, AppState>,
+    path: String,
+    name: String,
+) -> Fallible<crate::index::rename::RenamePlan> {
+    let path = PathBuf::from(path);
+    let root = guard(&state, &path)?;
+
+    let target = entry_ops::renamed_path(&path, &name).map_err(|e| e.to_string())?;
+    guard(&state, &target)?;
+
+    let root_id = {
+        let roots = state.roots.lock().expect("реестр корней повреждён");
+        roots
+            .for_path(&path)
+            .map(|root| root.id)
+            .ok_or("путь не входит ни в одну открытую папку")?
+    };
+
+    let plan = state.index.lock().expect("индекс повреждён").rename_plan(
+        root_id,
+        &root.display().to_string(),
+        &path.to_string_lossy(),
+        &target.to_string_lossy(),
+    );
+
+    // Индекса нет — значит, и знания о ссылках нет. Пустой план честнее
+    // выдуманного: переименование при этом работает как прежде.
+    Ok(plan.unwrap_or(crate::index::rename::RenamePlan {
+        target: target.to_string_lossy().into_owned(),
+        files: Vec::new(),
+        links: 0,
+    }))
+}
+
+/// Поправить ссылки по плану. Возвращает жалобы на файлы, которые не вышло.
+///
+/// Зовётся уже после переименования, и часть плана к этому времени могла
+/// устареть: файл успели изменить в другой программе. Такой файл пропускается
+/// с объяснением, а остальные правятся — половина работы лучше, чем ничего,
+/// потому что каждый файл здесь независим.
+#[tauri::command]
+pub fn apply_link_edits(
+    state: tauri::State<'_, AppState>,
+    files: Vec<crate::index::rename::FileEdits>,
+) -> Vec<String> {
+    let mut problems = Vec::new();
+
+    for file in files {
+        let path = PathBuf::from(&file.path);
+
+        // Те же отказы, что у любой записи: свой проект и не `.obsidian`.
+        // План приходит снаружи, и доверять ему на слово нельзя.
+        if let Err(complaint) = guard(&state, &path) {
+            problems.push(format!("{}: {complaint}", file.inside));
+            continue;
+        }
+
+        if let Err(error) = crate::fsx::link_edit::apply(&path, &file.edits) {
+            problems.push(format!("{}: {error}", file.inside));
+        }
+    }
+
+    problems
+}
+
 /// Тот же файл, только записанный другим регистром.
 fn same_name_other_case(from: &Path, to: &Path) -> bool {
     let (Some(a), Some(b)) = (from.file_name(), to.file_name()) else {

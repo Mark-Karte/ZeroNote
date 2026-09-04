@@ -29,6 +29,43 @@ export const createEntry = (parent: string, name: string, folder: boolean): Prom
 export const renameEntry = (path: string, name: string): Promise<string> =>
   invoke('rename_entry', { path, name });
 
+/** Одна замена в файле: где, что было и что станет. */
+export interface LinkEdit {
+  /** Смещение цели ссылки в байтах от начала файла. */
+  offset: number;
+  was: string;
+  becomes: string;
+}
+
+/** Что изменится в одном файле. */
+export interface FileEdits {
+  /** Путь после переименования: файл со ссылками мог и сам переехать. */
+  path: string;
+  /** Путь внутри корня — его и показывают человеку. */
+  inside: string;
+  edits: LinkEdit[];
+}
+
+/** Что придётся поправить, если переименовать (Р-136). */
+export interface RenamePlan {
+  target: string;
+  files: FileEdits[];
+  links: number;
+}
+
+/**
+ * Спросить план **до** переименования. Ничего не меняет.
+ *
+ * Считается симуляцией переименования в откатываемой транзакции (Р-137),
+ * поэтому список точен: в нём только те ссылки, которые и правда разъедутся.
+ */
+export const planRename = (path: string, name: string): Promise<RenamePlan> =>
+  invoke('plan_rename', { path, name });
+
+/** Поправить ссылки по плану. Возвращает жалобы на то, что не вышло. */
+export const applyLinkEdits = (files: FileEdits[]): Promise<string[]> =>
+  invoke('apply_link_edits', { files });
+
 /** Удалить в корзину. Мимо корзины не удаляет никогда (Р-110). */
 export const deleteEntry = (path: string): Promise<void> =>
   invoke('delete_entry', { path });

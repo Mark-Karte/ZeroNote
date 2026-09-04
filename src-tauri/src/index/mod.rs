@@ -16,6 +16,7 @@ pub mod graph;
 pub mod jobs;
 pub mod names;
 pub mod query;
+pub mod rename;
 pub mod schema;
 pub mod writer;
 

@@ -5,6 +5,9 @@ import { askChoice, askInput } from '../state/modal.svelte';
 import { applyMeta, tabs, close as closeTabState } from '../state/tabs.svelte';
 import { refreshDirs } from '../state/tree.svelte';
 import { openDropped } from './files';
+import { checkExternalChanges } from './external';
+import { describePlan, movedPath, splitPlan } from './rename-plan';
+import type { FileEdits } from '../ipc/tree';
 
 /**
  * Создание, переименование и удаление в дереве.
@@ -64,11 +67,64 @@ export async function renameEntry(path: string, oldName: string): Promise<void> 
   if (name === null || name.trim() === '' || name === oldName) return;
 
   try {
+    // План спрашивается до переименования и ничего не меняет (Р-136).
+    // Он же проверяет имя: отказ придёт здесь, а не после того, как файл
+    // уже переехал.
+    const plan = await ipc.planRename(path, name);
+    // Пути вкладок переводятся в новый мир: план приходит с путями после
+    // переименования, а вкладка внутри переименовываемой папки ещё лежит
+    // по старому пути и иначе не совпала бы ни с чем.
+    const busy = unsavedPaths().map((open) => movedPath(open, path, plan.target) ?? open);
+    const split = splitPlan(plan.files, busy);
+
+    let fixLinks = false;
+    if (plan.files.length > 0) {
+      const answer = await askChoice('Обновить ссылки?', describePlan(oldName, split), [
+        { id: 'fix', label: 'Переименовать и обновить', primary: true },
+        { id: 'rename', label: 'Только переименовать' },
+        { id: 'cancel', label: 'Отмена', cancel: true },
+      ]);
+      if (answer === null || answer === 'cancel') return;
+      fixLinks = answer === 'fix';
+    }
+
     const moved = await ipc.renameEntry(path, name);
     await movedTabs(path, moved);
     await refreshDirs([parentOf(path)]);
+
+    if (fixLinks && split.editable.length > 0) {
+      await fixLinksOnDisk(split.editable);
+    }
   } catch (error) {
     await report(error);
+  }
+}
+
+/** Пути вкладок с несохранёнными правками: их файлы на диске не трогаем. */
+function unsavedPaths(): string[] {
+  return tabs.items
+    .filter((tab) => tab.meta.modified && tab.meta.path !== null)
+    .map((tab) => tab.meta.path as string);
+}
+
+/**
+ * Применить правку ссылок и разобраться с последствиями.
+ *
+ * Перечитывание открытых вкладок — не мелочь: механизм внешних изменений
+ * опрашивает диск при получении окном фокуса (Р-014), а во время нашей же
+ * правки окно фокус не теряет. Без явного вызова чистая вкладка показывала бы
+ * старый текст до следующего переключения в другое окно и обратно.
+ */
+async function fixLinksOnDisk(files: FileEdits[]): Promise<void> {
+  const problems = await ipc.applyLinkEdits(files);
+
+  await checkExternalChanges();
+
+  if (problems.length > 0) {
+    await message(
+      `Ссылки поправлены не везде:\n\n${problems.join('\n')}`,
+      { title: 'ZeroNote', kind: 'warning' },
+    );
   }
 }
 
@@ -80,19 +136,11 @@ export async function renameEntry(path: string, oldName: string): Promise<void> 
  * по несуществующему пути.
  */
 async function movedTabs(from: string, to: string): Promise<void> {
-  const prefix = `${from}\\`;
-
   for (const tab of [...tabs.items]) {
     const path = tab.meta.path;
     if (path === null) continue;
 
-    let target: string | null = null;
-    if (path === from) {
-      target = to;
-    } else if (path.startsWith(prefix)) {
-      target = to + path.slice(from.length);
-    }
-
+    const target = movedPath(path, from, to);
     if (target !== null) {
       const list = await moveBuffer(tab.meta.id, target);
       const meta = list.find((buffer) => buffer.id === tab.meta.id);

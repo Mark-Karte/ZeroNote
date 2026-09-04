@@ -22,6 +22,14 @@ pub struct Link {
     pub embed: bool,
     /// Смещение начала ссылки в байтах от начала файла.
     pub offset: usize,
+    /// Границы **цели** в байтах от начала файла: то, что надо заменить,
+    /// чтобы ссылка стала вести в другое место.
+    ///
+    /// Отдельно от `offset`, потому что по полям целиком ссылку не собрать:
+    /// цель здесь очищена от пробелов, а в файле они могли быть —
+    /// `[[ Планы ]]` встречается. Переименование (Р-136) правит ровно эти
+    /// байты и ничего вокруг них.
+    pub target_span: (usize, usize),
 }
 
 /// Всё, что нашлось в файле.
@@ -216,6 +224,12 @@ fn collect_links(line: &str, line_offset: usize, out: &mut Vec<Link>) {
             None => (before_alias, None),
         };
 
+        // Границы цели в исходной строке: от начала внутренностей ссылки плюс
+        // то, что съели пробелы слева. Считается до `trim`, иначе адрес
+        // потеряется вместе с пробелами.
+        let target_start = open + 2 + (target.len() - target.trim_start().len());
+        let target_end = target_start + target.trim().len();
+
         let target = target.trim().to_owned();
         if target.is_empty() && heading.is_none() {
             continue;
@@ -231,6 +245,7 @@ fn collect_links(line: &str, line_offset: usize, out: &mut Vec<Link>) {
             alias,
             embed,
             offset: line_offset + open,
+            target_span: (line_offset + target_start, line_offset + target_end),
         });
     }
 }
@@ -415,6 +430,40 @@ mod tests {
         assert_eq!(parsed.tags, vec!["настоящий"]);
         assert_eq!(parsed.links.len(), 1);
         assert_eq!(parsed.links[0].target, "Ссылка");
+    }
+
+    /// Границы цели указывают ровно на то, что надо заменить, — без скобок,
+    /// без раздела, без подписи и без пробелов, которые автор поставил внутри.
+    ///
+    /// Именно эти байты правит переименование (Р-136), и промах здесь означал
+    /// бы испорченный чужой файл.
+    #[test]
+    fn target_span_covers_only_the_target() {
+        let text = "Смотри [[ работа/Планы #Раздел | список ]] и всё.\n";
+        let found = extract(text, 0).links;
+
+        let (from, to) = found[0].target_span;
+        assert_eq!(&text[from..to], "работа/Планы");
+    }
+
+    /// Простая ссылка — тот же ответ, без хитростей.
+    #[test]
+    fn target_span_on_a_plain_link() {
+        let text = "Начало [[Планы]] конец.\n";
+        let found = extract(text, 0).links;
+
+        let (from, to) = found[0].target_span;
+        assert_eq!(&text[from..to], "Планы");
+    }
+
+    /// Вставка отличается только восклицательным знаком снаружи скобок.
+    #[test]
+    fn target_span_works_in_an_embed() {
+        let text = "![[Схема]]\n";
+        let found = extract(text, 0).links;
+
+        let (from, to) = found[0].target_span;
+        assert_eq!(&text[from..to], "Схема");
     }
 
     /// Маскировка вставок не должна портить смещения: они нужны для перехода.
