@@ -300,6 +300,25 @@
 
         <div class="row">
           <div class="what">
+            <span class="name">Подсказка имён при [[</span>
+            <span class="note">
+              Список заметок проекта после двух скобок в markdown. Автодополнением
+              кода ZeroNote не занимается.
+            </span>
+          </div>
+          <select
+            class="control"
+            disabled={broken !== null}
+            value={values.editor.link_suggest ? 'yes' : 'no'}
+            onchange={(e) => put(['editor', 'link_suggest'], e.currentTarget.value === 'yes')}
+          >
+            <option value="no">Не подсказывать</option>
+            <option value="yes">Подсказывать</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <div class="what">
             <span class="name">Шрифт интерфейса</span>
             <span class="note">Пусто — из темы. Шрифт редактора задаёт тема.</span>
           </div>

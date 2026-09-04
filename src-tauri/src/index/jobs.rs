@@ -202,6 +202,19 @@ impl Index {
             .flatten()
     }
 
+    /// Каким текстом сослаться на этот файл из того (Р-134).
+    pub fn link_text(
+        &self,
+        path: &str,
+        from: &str,
+        root_id: RootId,
+        relative: &str,
+    ) -> Option<String> {
+        let connection = self.connection.as_ref()?;
+        let connection = connection.lock().expect("соединение с индексом повреждено");
+        super::graph::link_text(&connection, path, from, root_id, relative).ok()
+    }
+
     /// Кто ссылается на этот файл.
     pub fn backlinks(&self, path: &str) -> Vec<super::graph::Backlink> {
         let Some(connection) = &self.connection else {

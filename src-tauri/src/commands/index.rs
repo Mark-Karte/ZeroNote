@@ -245,6 +245,97 @@ pub fn find_files(
     crate::index::names::best(&query, relative, limit.unwrap_or(50) as usize)
 }
 
+/// Корень ссылающегося файла: номер и путь.
+///
+/// Ссылка не покидает пределов своего проекта, поэтому всё, что связано
+/// с `[[ссылками]]`, начинается с этого вопроса.
+fn root_of(state: &AppState, from: &str) -> Option<(RootId, String)> {
+    let roots = state.roots.lock().expect("реестр корней повреждён");
+    roots
+        .for_path(std::path::Path::new(from))
+        .map(|root| (root.id, root.path.display().to_string()))
+}
+
+/// Путь внутри корня в настоящем регистре.
+///
+/// Проверка префикса — по приведённым ключам: путь корня приходит из реестра,
+/// путь файла — из базы, и совпадать по регистру они не обязаны.
+fn inside_root(path: &str, root_path: &str) -> Option<String> {
+    let key = crate::index::writer::path_key(std::path::Path::new(path));
+    let root_key = crate::index::writer::path_key(std::path::Path::new(root_path));
+    if !key.starts_with(&root_key) {
+        return None;
+    }
+
+    Some(
+        path.get(root_path.len()..)?
+            .trim_start_matches(['\\', '/'])
+            .to_owned(),
+    )
+}
+
+/// Заметки для подсказки имён при `[[` (Р-132).
+///
+/// Отличий от быстрого открытия три, и все они про честность подсказки
+/// (Р-134): список ограничен корнем ссылающегося файла — на файл из другого
+/// проекта не сослаться никаким текстом; сам этот файл из списка исключён —
+/// ссылка на себя не ведёт никуда; а файл вне проектов не получает подсказки
+/// вовсе, потому что ссылаться ему не на что.
+#[tauri::command]
+pub fn find_notes(
+    state: tauri::State<'_, AppState>,
+    query: String,
+    from: String,
+    limit: Option<u32>,
+) -> Vec<FileHit> {
+    let Some((root_id, root_path)) = root_of(&state, &from) else {
+        return Vec::new();
+    };
+
+    let files = state.index.lock().expect("индекс повреждён").files();
+    let limit = limit.unwrap_or(20) as usize;
+
+    let relative = files.into_iter().filter(|(id, _, _)| *id == root_id).map(
+        |(root_id, path, name)| {
+            let inside = inside_root(&path, &root_path).unwrap_or_else(|| path.clone());
+            (root_id, path, name, inside)
+        },
+    );
+
+    // Себя отсеиваем после отбора, а не до: приведение пути к общему виду
+    // стоит одной строки на файл, и платить эту цену за все десять тысяч имён
+    // на каждое нажатие незачем. Берём на одну строку больше, чтобы список
+    // не укоротился, когда своя же заметка попала в выдачу.
+    let source = crate::index::writer::path_key(std::path::Path::new(&from));
+    let mut hits = crate::index::names::best(&query, relative, limit + 1);
+    hits.retain(|hit| {
+        crate::index::writer::path_key(std::path::Path::new(&hit.path)) != source
+    });
+    hits.truncate(limit);
+    hits
+}
+
+/// Каким текстом записать ссылку на этот файл из того, что открыт (Р-134).
+///
+/// `null` означает «сослаться нельзя»: файл вне проектов или из другого корня.
+/// Подсказка такие файлы не показывает, но ответ на этот вопрос обязан быть
+/// честным и без неё — команду зовут и после того, как список успел устареть.
+#[tauri::command]
+pub fn link_target(
+    state: tauri::State<'_, AppState>,
+    path: String,
+    from: String,
+) -> Option<String> {
+    let (root_id, root_path) = root_of(&state, &from)?;
+    let relative = inside_root(&path, &root_path)?;
+
+    state
+        .index
+        .lock()
+        .expect("индекс повреждён")
+        .link_text(&path, &from, root_id, &relative)
+}
+
 /// Поиск по содержимому.
 ///
 /// `root_id` не задан — ищем во всех корнях сразу.

@@ -37,6 +37,7 @@ import { columnAt, indentUnitOf, type Indent } from './indent';
 import { folding } from './folding';
 import { invisibles } from './invisibles';
 import { wikilinks, type Target } from './wikilinks';
+import { linkSuggestions, type LinkContext } from './suggest';
 import type { Buffer } from '../ipc/files';
 
 /**
@@ -172,6 +173,13 @@ export interface EditorOptions {
    */
   onBookmarks: (view: EditorView) => void;
   onFollow: (target: Target) => void;
+  /**
+   * Вокруг курсора набирается `[[ссылка]]` — или больше не набирается.
+   *
+   * Расширение только сообщает; показывать ли список и что в нём, решается
+   * выше (Р-132). Редактор не знает ни про индекс, ни про всплывающие окна.
+   */
+  onLinkContext: (context: LinkContext | null, view: EditorView) => void;
   /** Путь берётся каждый раз заново: «сохранить как» его меняет. */
   sourcePath: () => string | null;
   wrap: boolean;
@@ -194,6 +202,8 @@ export function extensionsFor(meta: Buffer, options: EditorOptions): Extension[]
   return [
     // Ссылки и теги: подсветка, пометка висячих и переход по Ctrl+щелчку.
     wikilinks(options.onFollow, options.sourcePath),
+    // Подсказка имён при `[[`: расширение сообщает контекст, список живёт выше.
+    linkSuggestions(options.onLinkContext),
 
     // Пусто до тех пор, пока не приедет язык. Большие файлы остаются
     // без подсветки навсегда — это записанная политика больших файлов.

@@ -49,6 +49,24 @@ export interface FileHit {
 export const findFiles = (query: string, limit?: number): Promise<FileHit[]> =>
   invoke('find_files', { query, limit: limit ?? null });
 
+/**
+ * Заметки для подсказки имён при `[[` (Р-132).
+ *
+ * От `findFiles` отличается тем, что список честен по отношению к ссылке
+ * (Р-134): только корень ссылающегося файла, без него самого. Файл вне
+ * проектов не получает подсказки вовсе — сослаться ему не на что.
+ */
+export const findNotes = (query: string, from: string, limit?: number): Promise<FileHit[]> =>
+  invoke('find_notes', { query, from, limit: limit ?? null });
+
+/**
+ * Каким текстом записать ссылку на этот файл, чтобы она привела именно в него.
+ *
+ * `null` — сослаться нельзя: файл в другом проекте или вне проектов.
+ */
+export const linkTarget = (path: string, from: string): Promise<string | null> =>
+  invoke('link_target', { path, from });
+
 /** Куда ведёт `[[ссылка]]`. */
 export interface Resolved {
   path: string;

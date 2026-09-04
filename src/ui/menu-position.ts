@@ -40,6 +40,41 @@ export function placeMenu(at: Point, menu: Size, viewport: Size, margin = 0): Pl
   };
 }
 
+/** Место курсора в тексте: узкий прямоугольник высотой в строку. */
+export interface Caret {
+  left: number;
+  top: number;
+  bottom: number;
+}
+
+/**
+ * Куда поставить список, всплывающий у курсора в тексте.
+ *
+ * Правило другое, чем у меню от щелчка, и разница существенная. Меню
+ * переворачивается вокруг точки, оставляя её снаружи; здесь же снаружи должна
+ * остаться **вся строка с курсором** — иначе список накроет то самое место,
+ * которое подсказывает, и человек перестанет видеть, что набирает.
+ * Поэтому вниз считается от низа строки, а вверх — от её верха.
+ *
+ * По горизонтали переворота нет вовсе: список привязан к началу ссылки,
+ * и уехать он может только вправо, у самого края окна. Там он просто
+ * прижимается к краю.
+ */
+export function placeAtCaret(
+  caret: Caret,
+  menu: Size,
+  viewport: Size,
+  margin = 0,
+): Placed {
+  const below = caret.bottom;
+  const fits = below + menu.height <= viewport.height - margin;
+
+  return {
+    left: Math.max(margin, Math.min(caret.left, viewport.width - margin - menu.width)),
+    top: fits ? below : Math.max(margin, caret.top - menu.height),
+  };
+}
+
 /**
  * Одна ось. Обе считаются одинаково, и это не совпадение: «вниз» и «вправо» —
  * одно и то же правило, просто применённое к разным координатам.

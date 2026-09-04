@@ -85,6 +85,11 @@ export function markdownBarEnabled(): boolean {
   return settings.state?.settings.editor.markdown_bar ?? true;
 }
 
+/** Подсказывать ли имена заметок после `[[` в markdown (Р-132). */
+export function linkSuggestEnabled(): boolean {
+  return settings.state?.settings.editor.link_suggest ?? true;
+}
+
 export function autoCloseEnabled(): boolean {
   return settings.state?.settings.editor.auto_close ?? true;
 }

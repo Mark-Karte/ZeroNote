@@ -176,6 +176,8 @@ pub fn run() {
             commands::index::reindex_root,
             commands::index::search_project,
             commands::index::find_files,
+            commands::index::find_notes,
+            commands::index::link_target,
             commands::index::resolve_link,
             commands::index::resolve_links,
             commands::index::create_note,

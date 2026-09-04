@@ -15,6 +15,7 @@
   import IconStrip from './sidebar/IconStrip.svelte';
   import Palette from './palette/Palette.svelte';
   import Popup from './Popup.svelte';
+  import Suggest from './Suggest.svelte';
   import SettingsScreen from './settings/SettingsScreen.svelte';
   import WelcomeScreen from './welcome/WelcomeScreen.svelte';
   import {
@@ -330,6 +331,9 @@
   <StatusBar />
   <Modal />
   <Palette />
+  <!-- Подсказка имён при `[[`. Рисуется здесь по той же причине, что и меню:
+       список стоит у курсора и обязан выходить за пределы области текста. -->
+  <Suggest />
 
   <!-- Контекстное меню одно на окно и рисуется здесь, а не там, где вызвано:
        внутри прокручиваемой панели оно уезжало бы вместе с содержимым,

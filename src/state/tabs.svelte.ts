@@ -31,6 +31,9 @@ import {
   wrapEnabled,
 } from './settings.svelte';
 import { restoreFromSession } from './roots.svelte';
+// Подсказка про вкладки ничего не знает — всё, что ей нужно, приходит
+// аргументами. Поэтому обычный импорт, а не отложенный: круга здесь нет.
+import { reportContext } from './suggest.svelte';
 
 /**
  * Вкладки и их содержимое.
@@ -185,6 +188,18 @@ function makeState(
       // Переход по ссылке живёт в `state/links`: редактор не должен знать
       // про вкладки и панели. Импорт по требованию — иначе получится круг.
       onFollow: (target) => void import('./links.svelte').then((m) => m.follow(target)),
+      // Подсказка имён при `[[` (Р-132). Язык и путь берутся у вкладки здесь,
+      // а не внутри подсказки: язык меняют руками в строке состояния,
+      // а путь — «сохранить как», и обе перемены должны действовать сразу.
+      onLinkContext: (context, view) => {
+        const tab = tabById(meta.id);
+        reportContext({
+          context,
+          path: tab?.meta.path ?? null,
+          markdown: tab ? languageOf(tab)?.id === 'markdown' : false,
+          view,
+        });
+      },
       // Путь берётся каждый раз заново: «сохранить как» его меняет, а вместе
       // с ним меняется и то, куда ведут ссылки из этого файла.
       sourcePath: () => tabById(meta.id)?.meta.path ?? null,

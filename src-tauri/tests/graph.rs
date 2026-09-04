@@ -327,3 +327,106 @@ fn like_wildcards_in_query_are_literal() {
 
     let _ = fs::remove_dir_all(&dir);
 }
+
+/// Главное свойство подсказки имён (Р-134): что показали, то и вставили.
+///
+/// Уникальному имени хватает короткого текста — так пишут ссылки руками,
+/// и подсказка не должна писать иначе.
+#[test]
+fn link_text_is_short_when_the_name_is_unique() {
+    let dir = temp_dir("linktext-short");
+    let db = vault(
+        &dir,
+        &[("Дневник.md", "# Дневник\n"), ("работа/Планы.md", "# Планы\n")],
+    );
+
+    let from = dir.join("Дневник.md").display().to_string();
+    let target = dir.join("работа").join("Планы.md").display().to_string();
+
+    let text = graph::link_text(&db, &target, &from, 1, r"работа\Планы.md").unwrap();
+
+    assert_eq!(text, "Планы");
+    // И она обязана вести обратно ровно туда, откуда взята.
+    let back = graph::resolve(&db, &text, &from, 1).unwrap().unwrap();
+    assert_eq!(back.path, target);
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// А вот ради чего всё это: две заметки с одним именем.
+///
+/// Короткое имя разрешается в ближайшую, поэтому дальней достаётся путь
+/// от корня. Возьми подсказка имя, она предложила бы одну заметку,
+/// а вставила ссылку на другую — молча.
+#[test]
+fn link_text_takes_the_path_when_the_name_is_taken() {
+    let dir = temp_dir("linktext-path");
+    let db = vault(
+        &dir,
+        &[
+            ("работа/Планы.md", "# Рабочие\n"),
+            ("личное/Планы.md", "# Личные\n"),
+            ("работа/Дневник.md", "# Дневник\n"),
+        ],
+    );
+
+    let from = dir.join("работа/Дневник.md").display().to_string();
+    let near = dir.join("работа").join("Планы.md").display().to_string();
+    let far = dir.join("личное").join("Планы.md").display().to_string();
+
+    let to_near = graph::link_text(&db, &near, &from, 1, r"работа\Планы.md").unwrap();
+    let to_far = graph::link_text(&db, &far, &from, 1, r"личное\Планы.md").unwrap();
+
+    assert_eq!(to_near, "Планы");
+    assert_eq!(to_far, "личное/Планы");
+
+    // Проверка, ради которой тест и написан: обе ссылки ведут каждая в свою.
+    assert_eq!(graph::resolve(&db, &to_near, &from, 1).unwrap().unwrap().path, near);
+    assert_eq!(graph::resolve(&db, &to_far, &from, 1).unwrap().unwrap().path, far);
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// Не-markdown ссылается по имени без расширения: в индексе имя лежит именно
+/// так, и `[[рисунок.png]]` не разрешилось бы ни во что.
+#[test]
+fn link_text_drops_the_extension_of_other_files() {
+    let dir = temp_dir("linktext-ext");
+    let db = vault(
+        &dir,
+        &[("Дневник.md", "# Дневник\n"), ("схема.svg", "<svg/>\n")],
+    );
+
+    let from = dir.join("Дневник.md").display().to_string();
+    let target = dir.join("схема.svg").display().to_string();
+
+    let text = graph::link_text(&db, &target, &from, 1, "схема.svg").unwrap();
+
+    assert_eq!(text, "схема");
+    assert!(graph::resolve(&db, &text, &from, 1).unwrap().is_some());
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// Псевдоним из frontmatter короткое имя не отменяет.
+///
+/// Разрешение пробует имена раньше псевдонимов, поэтому заметка, чьё имя
+/// занято чужим псевдонимом, всё равно ссылается по имени.
+#[test]
+fn link_text_is_not_confused_by_an_alias() {
+    let dir = temp_dir("linktext-alias");
+    let db = vault(
+        &dir,
+        &[
+            ("Дневник.md", "# Дневник\n"),
+            ("Планы.md", "# Планы\n"),
+            ("Отчёт.md", "---\naliases: [Планы]\n---\n\n# Отчёт\n"),
+        ],
+    );
+
+    let from = dir.join("Дневник.md").display().to_string();
+    let target = dir.join("Планы.md").display().to_string();
+
+    let text = graph::link_text(&db, &target, &from, 1, "Планы.md").unwrap();
+
+    assert_eq!(text, "Планы");
+    assert_eq!(graph::resolve(&db, &text, &from, 1).unwrap().unwrap().path, target);
+    let _ = fs::remove_dir_all(&dir);
+}
