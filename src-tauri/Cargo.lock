@@ -5131,7 +5131,7 @@ checksum = "e13c156562582aa81c60cb29407084cdb54c4164760106ab78e6c5b0858cf64e"
 
 [[package]]
 name = "zeronote"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "encoding_rs",
  "ignore",
