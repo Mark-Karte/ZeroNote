@@ -5,7 +5,7 @@ import { parse, matches, withMode, type PaletteMode } from '../ui/palette/query'
 import { COMMANDS } from '../keymap/registry';
 import { commandList } from '../keymap/global.svelte';
 import { showPanel } from './roots.svelte';
-import { searchByTag } from './project-search.svelte';
+import { openTag } from './project-search.svelte';
 
 /**
  * Палитра: одно поле с режимами по префиксу (Р-076).
@@ -135,7 +135,7 @@ export async function accept(): Promise<void> {
       // прямо здесь: файлов с тегом бывает много, а панель умеет их листать,
       // помнить и показывать рядом с открытым файлом.
       showPanel('search');
-      await searchByTag(item.tag);
+      await openTag(item.tag);
       return;
   }
 }

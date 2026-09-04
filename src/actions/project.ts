@@ -206,6 +206,12 @@ export function showOutline(): void {
   noteStructureChange();
 }
 
+/** Показать теги проекта. */
+export function showTags(): void {
+  showPanel('tags');
+  noteStructureChange();
+}
+
 /** Поиск по проекту: открыть панель и забрать фокус в поле. */
 export function searchInProject(): void {
   showPanel('search');

@@ -4,6 +4,7 @@
   import ProjectSearch from './ProjectSearch.svelte';
   import Backlinks from './Backlinks.svelte';
   import Outline from './Outline.svelte';
+  import Tags from './Tags.svelte';
   import { roots, setSidebarWidth } from '../../state/roots.svelte';
   import { addRootDialog } from '../../actions/project';
   import { noteStructureChange } from '../../state/persist.svelte';
@@ -118,6 +119,8 @@
     <Backlinks />
   {:else if roots.panel === 'outline'}
     <Outline />
+  {:else if roots.panel === 'tags'}
+    <Tags />
   {:else}
     <header class="head">
       <span class="title">Папки</span>

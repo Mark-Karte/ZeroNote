@@ -20,6 +20,10 @@
     { id: 'search', icon: 'panel.search', title: 'Поиск в проекте (Ctrl+Shift+F)' },
     { id: 'links', icon: 'panel.links', title: 'Обратные ссылки' },
     { id: 'outline', icon: 'panel.outline', title: 'Оглавление документа' },
+    // Значок общий с палитрой: это одна и та же решётка, и вторая копия
+    // того же рисунка ради имени с приставкой `panel.` разошлась бы
+    // с первой при первой же правке.
+    { id: 'tags', icon: 'palette.tag', title: 'Теги проекта' },
   ];
 
   function pick(id: PanelId): void {
