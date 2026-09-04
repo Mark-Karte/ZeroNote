@@ -33,6 +33,7 @@ import {
   searchInProject,
   followLink,
   showBacklinks,
+  showOutline,
 } from '../actions/project';
 import { openSearch, findNext, findPrevious } from '../state/search.svelte';
 import { toggleInvisibles, toggleWrap } from '../state/settings.svelte';
@@ -129,6 +130,7 @@ export const COMMANDS: Record<CommandId, () => void | Promise<unknown>> = {
   'project.search': searchInProject,
   'project.follow-link': followLink,
   'project.backlinks': showBacklinks,
+  'view.outline': showOutline,
 
   // Сочетания нет и не будет: в VS Code у «About» его тоже нет, а место
   // в раскладке дорого. Команда живёт в палитре, и этого хватает.

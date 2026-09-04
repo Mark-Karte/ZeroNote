@@ -13,7 +13,7 @@ import { expand, forgetRoot } from './tree.svelte';
  * отражение этого списка для интерфейса.
  */
 /** Какая панель показана в боковой полосе. */
-export type PanelId = 'tree' | 'search' | 'links';
+export type PanelId = 'tree' | 'search' | 'links' | 'outline';
 
 export const roots = $state<{
   items: Root[];
@@ -103,8 +103,8 @@ export async function restoreFromSession(
   roots.sidebarWidth = sidebarWidth;
   // Неизвестное имя панели из чужой или будущей версии не должно оставлять
   // полосу пустой.
-  roots.panel =
-    panel === 'search' || panel === 'links' ? (panel as PanelId) : 'tree';
+  const known: PanelId[] = ['tree', 'search', 'links', 'outline'];
+  roots.panel = known.includes(panel as PanelId) ? (panel as PanelId) : 'tree';
 
   // Какие папки внутри были раскрыты, мы не помним — и не пытаемся: список
   // раскрытых узлов быстро устаревает, а восстановление несуществующих

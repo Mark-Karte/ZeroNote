@@ -200,6 +200,12 @@ export function showBacklinks(): void {
   noteStructureChange();
 }
 
+/** Показать оглавление открытой заметки. */
+export function showOutline(): void {
+  showPanel('outline');
+  noteStructureChange();
+}
+
 /** Поиск по проекту: открыть панель и забрать фокус в поле. */
 export function searchInProject(): void {
   showPanel('search');

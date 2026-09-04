@@ -40,6 +40,7 @@ export type IconName =
   | 'panel.tree'
   | 'panel.search'
   | 'panel.links'
+  | 'panel.outline'
   | 'panel.settings'
   | 'file.markdown'
   | 'file.text'
@@ -118,6 +119,12 @@ const ICONS: Record<IconName, string> = {
   // Два звена цепи: обратные ссылки — это про связь между заметками.
   'panel.links':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"><path d="M6.6 9.4a2.6 2.6 0 0 0 3.9.3l2-2a2.6 2.6 0 0 0-3.7-3.7l-1.1 1.1"/><path d="M9.4 6.6a2.6 2.6 0 0 0-3.9-.3l-2 2a2.6 2.6 0 0 0 3.7 3.7l1.1-1.1"/></svg>',
+
+  // Оглавление: строки со ступенчатым отступом — то, как список выглядит
+  // в самой панели. Список без отступа читался бы как обычный перечень
+  // и не отличался бы от значка маркированного списка.
+  'panel.outline':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2.5 3.5h11"/><path d="M5 7h8.5"/><path d="M7.5 10.5h6"/><path d="M5 14h8.5"/></svg>',
 
   // Классическая шестерёнка — как в референсе, внизу полосы значков.
   'panel.settings':

@@ -3,6 +3,7 @@
   import FileTree from './FileTree.svelte';
   import ProjectSearch from './ProjectSearch.svelte';
   import Backlinks from './Backlinks.svelte';
+  import Outline from './Outline.svelte';
   import { roots, setSidebarWidth } from '../../state/roots.svelte';
   import { addRootDialog } from '../../actions/project';
   import { noteStructureChange } from '../../state/persist.svelte';
@@ -115,6 +116,8 @@
     <ProjectSearch bind:this={searchPanel} />
   {:else if roots.panel === 'links'}
     <Backlinks />
+  {:else if roots.panel === 'outline'}
+    <Outline />
   {:else}
     <header class="head">
       <span class="title">Папки</span>
