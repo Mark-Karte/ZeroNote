@@ -260,6 +260,39 @@ pub fn prune_drafts(data: &Path, keep: &[BufferId]) {
 mod tests {
     use super::*;
 
+    /// Снимок, записанный прошлой версией, обязан читаться нынешней.
+    ///
+    /// Проверка ради обновления: в 0.5.0 у буфера появились закладки, и файл
+    /// сессии от 0.4.0 этого поля не содержит. Отказ здесь означал бы, что
+    /// после обновления человек находит пустое окно вместо своих вкладок.
+    #[test]
+    fn snapshot_without_bookmarks_still_parses() {
+        let old = r#"
+active = 1
+next-id = 2
+next-untitled = 1
+sidebar = true
+sidebar-width = 280
+sidebar-panel = "tree"
+
+[[buffers]]
+id = 1
+path = 'C:\заметки\файл.md'
+title = "файл.md"
+encoding = "utf8"
+eol = "lf"
+cursor = 10
+scroll-top = 0.0
+"#;
+
+        let parsed: WorkspaceSnapshot =
+            toml::from_str(old).expect("снимок прошлой версии должен читаться");
+
+        assert_eq!(parsed.buffers.len(), 1);
+        assert!(parsed.buffers[0].bookmarks.is_empty());
+        assert_eq!(parsed.buffers[0].cursor, 10);
+    }
+
     fn temp_dir(tag: &str) -> PathBuf {
         let nanos = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
