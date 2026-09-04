@@ -93,6 +93,20 @@ powershell -File bench\ui\keys.ps1 -At "500,145" -Chord "home,shift+end,ctrl+c"
 — и на этом легко начать чинить исправную команду. Не сработало один раз —
 повторить, и только потом искать причину в приложении.
 
+**Системное окно в снимок приложения не попадает.** `shot.ps1` снимает окно
+ZeroNote через `PrintWindow`, а `message()` и `ask()` из `plugin-dialog` —
+это отдельные окна Windows. На снимке их нет, зато видно кнопку, застрявшую
+в состоянии «Проверяю…», — и это читается как зависание. Такие проверки
+снимаются целиком с экрана:
+
+```powershell
+Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+$b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+$bmp = New-Object System.Drawing.Bitmap($b.Width, $b.Height)
+[System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+$bmp.Save("экран.png")
+```
+
 ## Главное правило
 
 Целиться надо по проверке, а не по вере: щёлкнуть, снять экран, убедиться,
