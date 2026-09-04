@@ -84,6 +84,10 @@ export const COMMANDS: Record<CommandId, () => void | Promise<unknown>> = {
   'edit.paste': inEditorAsync(pasteIntoEditor),
 
   'edit.select-all': inEditor(edit.selectAll),
+  'edit.select-line': inEditor(edit.selectLine),
+  'edit.undo-cursor': inEditor(edit.undoSelection),
+  'edit.redo-cursor': inEditor(edit.redoSelection),
+  'edit.toggle-comment': inEditor(edit.toggleComment),
   'edit.duplicate-line': inEditor(edit.duplicateLine),
   'edit.add-cursor-next': inEditor(edit.addCursorNext),
   'edit.toggle-wrap': toggleWrap,

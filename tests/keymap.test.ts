@@ -59,6 +59,33 @@ describe('разбор нажатия', () => {
     expect(bindingOf(key('Numpad0', { ctrlKey: true }))).toBe('ctrl+0');
   });
 
+  /**
+   * Знаки препинания названы по положению клавиши, а не по нанесённому знаку.
+   * Иначе `Ctrl+/` на русской раскладке был бы другим сочетанием, чем на
+   * английской, — та же беда, от которой спасает `code` у букв.
+   */
+  it('понимает знаки препинания по положению клавиши', () => {
+    expect(bindingOf(key('Slash', { ctrlKey: true }))).toBe('ctrl+slash');
+    expect(bindingOf(key('Backslash', { ctrlKey: true, shiftKey: true }))).toBe(
+      'ctrl+shift+backslash',
+    );
+    expect(bindingOf(key('BracketLeft', { ctrlKey: true }))).toBe('ctrl+bracketleft');
+    expect(bindingOf(key('Equal', { ctrlKey: true }))).toBe('ctrl+equal');
+    expect(bindingOf(key('Minus', { ctrlKey: true }))).toBe('ctrl+minus');
+  });
+
+  /**
+   * До задачи 41 знаков препинания в словаре не было вовсе, кроме запятой,
+   * и `Ctrl+«+»` не распознавался. Из-за этого масштаб интерфейса менялся
+   * вопреки списку сочетаний, отбираемых у вебвью: строки `ctrl+=` и `ctrl+-`
+   * в нём не могли совпасть ни с чем (Р-121).
+   */
+  it('выдаёт для масштаба ровно те имена, что стоят в списке для вебвью', () => {
+    expect(bindingOf(key('Equal', { ctrlKey: true }))).toBe('ctrl+equal');
+    expect(bindingOf(key('Minus', { ctrlKey: true }))).toBe('ctrl+minus');
+    expect(bindingOf(key('Digit0', { ctrlKey: true }))).toBe('ctrl+0');
+  });
+
   /** Нажатие одного модификатора сочетанием не является. */
   it('одни модификаторы сочетанием не считает', () => {
     expect(bindingOf(key('ControlLeft', { ctrlKey: true }))).toBeNull();
@@ -140,6 +167,15 @@ describe('подпись сочетания', () => {
       expect(labelOf('ctrl+down')).toBe('Ctrl ↓');
       expect(labelOf('ctrl+pageup')).toBe('Ctrl PgUp');
     });
+  });
+
+  /** Подпись показывает знак, а не имя клавиши: `Ctrl /`, а не `Ctrl Slash`. */
+  it('подписывает знаки препинания знаками', async () => {
+    const { labelOf } = await import('../src/keymap/binding');
+
+    expect(labelOf('ctrl+slash')).toBe('Ctrl /');
+    expect(labelOf('ctrl+shift+backslash')).toBe('Ctrl Shift \\');
+    expect(labelOf('ctrl+comma')).toBe('Ctrl ,');
   });
 
   it('порядок частей не меняется', async () => {

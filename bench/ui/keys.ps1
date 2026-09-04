@@ -112,7 +112,12 @@ $named = @{
     'backspace' = 0x08; 'delete' = 0x2E; 'insert' = 0x2D
     'home' = 0x24; 'end' = 0x23; 'pageup' = 0x21; 'pagedown' = 0x22
     'left' = 0x25; 'up' = 0x26; 'right' = 0x27; 'down' = 0x28
-    'comma' = 0xBC
+    # Знаки препинания названы по положению клавиши — так же, как в раскладке
+    # приложения (Р-121). Коды здесь американские: виртуальный код клавиши
+    # от раскладки не зависит, зависит только нанесённый на неё знак.
+    'comma' = 0xBC; 'period' = 0xBE; 'slash' = 0xBF; 'backslash' = 0xDC
+    'bracketleft' = 0xDB; 'bracketright' = 0xDD; 'semicolon' = 0xBA
+    'quote' = 0xDE; 'backquote' = 0xC0; 'minus' = 0xBD; 'equal' = 0xBB
 }
 # Клавиши «расширенного» набора требуют своего флага, иначе система примет
 # стрелку за цифру дополнительной клавиатуры.

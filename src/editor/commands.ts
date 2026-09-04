@@ -1,6 +1,14 @@
 import type { EditorView } from '@codemirror/view';
 import { EditorSelection, type ChangeSpec } from '@codemirror/state';
-import { undo, redo, selectAll } from '@codemirror/commands';
+import {
+  undo,
+  redo,
+  selectAll,
+  selectLine,
+  undoSelection,
+  redoSelection,
+  toggleComment,
+} from '@codemirror/commands';
 import { selectNextOccurrence } from '@codemirror/search';
 
 /**
@@ -145,4 +153,18 @@ export function goToLine(view: EditorView, line: number): boolean {
   return true;
 }
 
-export { undo, redo, selectAll };
+/**
+ * Взято у CodeMirror целиком и не переписано.
+ *
+ * Эти четыре команды до задачи 41 уже работали — их приносил набор
+ * `defaultKeymap`, — но были не видны: ни в палитре, ни в меню, ни в
+ * `keymap.toml`. Переназначить их было нельзя, а найти можно было только
+ * в чужой документации. Теперь у них есть имена в реестре, и сочетание
+ * над ними наше (Р-122).
+ *
+ * Своих реализаций им не написано намеренно: `selectLine` знает про
+ * множественные курсоры и про уже выделенные строки, `toggleComment` берёт
+ * знак комментария из разбора языка, а отмена курсора живёт в той же истории,
+ * что и отмена правки. Всё это мы бы повторяли, а не улучшали.
+ */
+export { undo, redo, selectAll, selectLine, undoSelection, redoSelection, toggleComment };

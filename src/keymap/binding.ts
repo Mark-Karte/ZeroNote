@@ -29,9 +29,46 @@ const NAMED: Record<string, string> = {
   ArrowRight: 'right',
   ArrowUp: 'up',
   ArrowDown: 'down',
-  // Знаки препинания как клавиши: пока нужна одна, для Ctrl+«,» —
-  // сочетания окна параметров, привычного по другим редакторам.
+  // Знаки препинания названы по положению клавиши, а не по нанесённому
+  // знаку — по той же причине, по какой буквы берутся из `code`: сочетание
+  // не должно зависеть от раскладки.
+  //
+  // До задачи 41 здесь была одна `Comma`, и всё остальное разбор нажатия
+  // просто не видел. Значит, `Ctrl+/` нельзя было ни назначить, ни отнять
+  // у редактора, а строки `ctrl+=` и `ctrl+-` в списке отнимаемых у вебвью
+  // не совпадали ни с чем и молча не работали (Р-121).
   Comma: 'comma',
+  Period: 'period',
+  Slash: 'slash',
+  Backslash: 'backslash',
+  BracketLeft: 'bracketleft',
+  BracketRight: 'bracketright',
+  Semicolon: 'semicolon',
+  Quote: 'quote',
+  Backquote: 'backquote',
+  Minus: 'minus',
+  Equal: 'equal',
+};
+
+/**
+ * Те же знаки для запасного пути, когда `code` пуст.
+ *
+ * Там раскладка уже вмешалась, и деться от этого некуда: клавиша сообщает
+ * о себе только нанесённым знаком. Берём латинский набор — тот же, что
+ * и в именах выше.
+ */
+const PUNCTUATION: Record<string, string> = {
+  ',': 'comma',
+  '.': 'period',
+  '/': 'slash',
+  '\\': 'backslash',
+  '[': 'bracketleft',
+  ']': 'bracketright',
+  ';': 'semicolon',
+  "'": 'quote',
+  '`': 'backquote',
+  '-': 'minus',
+  '=': 'equal',
 };
 
 /** Только то, что нужно для расчёта: так функцию можно проверить тестом. */
@@ -68,6 +105,16 @@ export function bindingOf(event: KeyLike): string | null {
 /** Как называется клавиша на подписи. Остальное пишется с большой буквы. */
 const SHOWN: Record<string, string> = {
   comma: ',',
+  period: '.',
+  slash: '/',
+  backslash: '\\',
+  bracketleft: '[',
+  bracketright: ']',
+  semicolon: ';',
+  quote: "'",
+  backquote: '`',
+  minus: '-',
+  equal: '=',
   escape: 'Esc',
   pageup: 'PgUp',
   pagedown: 'PgDn',
@@ -121,6 +168,7 @@ function fromKey(key: string | undefined): string | null {
   if (!key) return null;
   if (key === ' ') return 'space';
   if (key.length === 1 && /^[a-z0-9]$/i.test(key)) return key.toLowerCase();
+  if (PUNCTUATION[key]) return PUNCTUATION[key];
 
   // Функциональные клавиши приходят в `key` тем же именем, что и в `code`.
   const fn = /^F(\d{1,2})$/.exec(key);
