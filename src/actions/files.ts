@@ -13,6 +13,7 @@ import {
 } from '../state/tabs.svelte';
 import { askChoice } from '../state/modal.svelte';
 import { forgetDraft, noteStructureChange } from '../state/persist.svelte';
+import { autosavable } from '../state/autosave-rules';
 import { resolveMixedLineEndings } from './encoding';
 import { confirmOverwrite } from './external';
 
@@ -98,6 +99,42 @@ async function writeTo(id: number, path?: string): Promise<boolean> {
     await report(error);
     return false;
   }
+}
+
+/**
+ * Записать всё, что можно записать, ни о чём не спрашивая (Р-141).
+ *
+ * Возвращает жалобы: диск переполнен, файл стал недоступен. Молчать о них
+ * нельзя — человек уверен, что его работа на диске, — но и диалогом
+ * останавливать набор незачем, поэтому они едут в полосу предупреждений.
+ *
+ * Расхождение с диском не жалоба, а обычное дело: файл поправили в другой
+ * программе. Такую вкладку пропускаем, и при возвращении фокуса в окно
+ * человек получит обычный вопрос (Р-014).
+ */
+export async function autosaveAll(): Promise<string[]> {
+  const complaints: string[] = [];
+  let saved = false;
+
+  // Снимок списка: `applyMeta` правит вкладки, а между шагами есть await.
+  for (const tab of [...tabs.items]) {
+    if (!autosavable(tab.meta)) continue;
+
+    try {
+      const result = await ipc.saveBuffer(tab.meta.id, textOf(tab));
+      if (result.conflict || !result.buffer) continue;
+
+      applyMeta(result.buffer);
+      resetBaseline(tab.meta.id);
+      await forgetDraft(tab.meta.id);
+      saved = true;
+    } catch (error) {
+      complaints.push(`не удалось сохранить «${tab.meta.title}»: ${String(error)}`);
+    }
+  }
+
+  if (saved) noteStructureChange();
+  return complaints;
 }
 
 export async function save(id: number): Promise<boolean> {

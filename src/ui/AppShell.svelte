@@ -39,6 +39,7 @@
     languageOf,
   } from '../state/tabs.svelte';
   import { flushNow } from '../state/persist.svelte';
+  import { autosave, autosaveNow } from '../state/autosave.svelte';
   import { roots, refresh as refreshRoots, rootProblems } from '../state/roots.svelte';
   import { refreshDirs } from '../state/tree.svelte';
   import { TREE_CHANGED } from '../ipc/tree';
@@ -87,6 +88,14 @@
 
   /** О чём не удалось восстановить — показывается той же полосой, что и прочее. */
   const restoreNotices = $state<string[]>([]);
+
+  // Смена вкладки — второй повод записать (Р-141). Эффект здесь, а не
+  // в `state/tabs`: состояние не должно звать действия, иначе получится круг.
+  // На запуске срабатывает вхолостую — изменённых вкладок ещё нет.
+  $effect(() => {
+    void tabs.activeId;
+    untrack(() => autosaveNow());
+  });
 
   // Перенос строк — общая настройка, а состояния вкладок создаются каждое
   // со своим набором расширений. Эффект здесь, а не в `state/settings`:
@@ -162,7 +171,13 @@
     // Файлы сверяются с диском при возвращении фокуса в окно: именно тогда
     // пользователь мог что-то сделать с ними в другой программе (Р-014).
     unlistenFocus = await getCurrentWindow().onFocusChanged(({ payload }) => {
-      if (!payload) return;
+      if (!payload) {
+        // Окно потеряли — значит, человек ушёл к другой программе и ждёт,
+        // что на диске уже свежее (Р-141). Если автосохранение выключено,
+        // вызов ничего не делает.
+        autosaveNow();
+        return;
+      }
       void checkExternalChanges();
       // Тогда же перечитываются корни: zeronote.toml могли поправить в другой
       // программе, а пропавший сетевой диск — подключить обратно.
@@ -288,7 +303,7 @@
 
 <div class="shell" class:drop={dropActive}>
   <TitleBar />
-  <NoticeStrip extra={[...restoreNotices, ...rootProblems()]} />
+  <NoticeStrip extra={[...restoreNotices, ...rootProblems(), ...autosave.problems]} />
 
   <!-- Вкладки на уровне окна, а не над одним редактором: так они идут
        во всю ширину и не сдвигаются, когда открывается боковая панель. -->

@@ -31,6 +31,7 @@ import {
   wrapEnabled,
 } from './settings.svelte';
 import { restoreFromSession } from './roots.svelte';
+import { scheduleAutosave } from './autosave.svelte';
 // Подсказка про вкладки ничего не знает — всё, что ей нужно, приходит
 // аргументами. Поэтому обычный импорт, а не отложенный: круга здесь нет.
 import { reportContext } from './suggest.svelte';
@@ -153,6 +154,8 @@ function onEditorUpdate(id: number, view: EditorView): void {
 
   // Черновик уйдёт на диск через задержку — инвариант 4.
   noteEdit();
+  // А если включено автосохранение, то через ту же паузу и сам файл (Р-141).
+  scheduleAutosave();
 }
 
 /**

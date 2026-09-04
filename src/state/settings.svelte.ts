@@ -90,6 +90,17 @@ export function linkSuggestEnabled(): boolean {
   return settings.state?.settings.editor.link_suggest ?? true;
 }
 
+/**
+ * Писать ли правки в файл без команды (Р-133, Р-141).
+ *
+ * Умолчание `false` повторяет умолчание ядра, и здесь это важнее обычного:
+ * несовпадение означало бы, что первые полсекунды после запуска приложение
+ * пишет в чужие файлы, а потом перестаёт.
+ */
+export function autosaveEnabled(): boolean {
+  return settings.state?.settings.editor.autosave ?? false;
+}
+
 export function autoCloseEnabled(): boolean {
   return settings.state?.settings.editor.auto_close ?? true;
 }
