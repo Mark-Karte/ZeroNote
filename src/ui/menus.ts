@@ -32,6 +32,10 @@ export const MENU = {
   copyName: 'menu.copy-name',
   reveal: 'menu.reveal',
   closeOthers: 'menu.close-others',
+  newFile: 'menu.new-file',
+  newFolder: 'menu.new-folder',
+  rename: 'menu.rename',
+  delete: 'menu.delete',
   projectFile: 'menu.project-file',
   obsidian: 'menu.obsidian',
   removeRoot: 'menu.remove-root',
@@ -221,8 +225,29 @@ export function treeMenu(ctx: TreeMenuContext, commands: Command[]): PopupItem[]
     root[0] = { ...root[0]!, divider: true };
   }
 
+  // Создать, переименовать, удалить. Запись в папку пользователя разрешена
+  // только по явной команде (Р-049) — пункт меню ею и является. Удаление
+  // только в корзину (Р-110), и подпись об этом говорит прямо.
+  const edits: PopupItem[] = [
+    { id: MENU.newFile, label: 'Создать файл', divider: true },
+    { id: MENU.newFolder, label: 'Создать папку' },
+  ];
+
+  // У корня переименования и удаления нет: за ним тянутся запись в сессии,
+  // наблюдатель и содержимое индекса. Для него есть «Убрать папку».
+  if (!row.isRoot) {
+    edits.push({ id: MENU.rename, label: 'Переименовать', divider: true, key: 'f2' });
+    edits.push({
+      id: MENU.delete,
+      label: 'Удалить в корзину',
+      danger: true,
+      hint: 'Мимо корзины ZeroNote не удаляет',
+    });
+  }
+
   return tidy([
     ...head,
+    ...edits,
 
     { id: MENU.copyPath, label: 'Копировать путь', divider: true },
     { id: MENU.copyName, label: 'Копировать имя' },

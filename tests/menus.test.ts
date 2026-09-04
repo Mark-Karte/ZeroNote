@@ -171,10 +171,39 @@ describe('меню дерева', () => {
   it('у файла предлагает открыть', () => {
     expect(ids(treeMenu({ row: file }, COMMANDS))).toEqual([
       MENU.open,
+      MENU.newFile,
+      MENU.newFolder,
+      MENU.rename,
+      MENU.delete,
       MENU.copyPath,
       MENU.copyName,
       MENU.reveal,
     ]);
+  });
+
+  /** Удаление необратимо на вид, и цвет должен об этом говорить (Р-093). */
+  it('помечает удаление опасным', () => {
+    expect(item(treeMenu({ row: file }, COMMANDS), MENU.delete).danger).toBe(true);
+  });
+
+  /**
+   * У корня переименования и удаления нет: за ним тянутся запись в сессии,
+   * наблюдатель и содержимое индекса. Для него есть «Убрать папку».
+   */
+  it('у корня не предлагает переименовать и удалить', () => {
+    const items = treeMenu(
+      {
+        row: { ...dir, isRoot: true },
+        root: { hasProjectFile: true, hasObsidianConfig: false },
+      },
+      COMMANDS,
+    );
+
+    expect(ids(items)).not.toContain(MENU.rename);
+    expect(ids(items)).not.toContain(MENU.delete);
+    // А создать внутри корня — можно и нужно.
+    expect(ids(items)).toContain(MENU.newFile);
+    expect(ids(items)).toContain(MENU.removeRoot);
   });
 
   it('у папки предлагает раскрыть, а у раскрытой — свернуть и обновить', () => {

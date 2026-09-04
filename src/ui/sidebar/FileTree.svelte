@@ -6,6 +6,7 @@
   import { openDropped, revealInExplorer } from '../../actions/files';
   import { removeRoot, createProject, importFromObsidian } from '../../actions/project';
   import { copyText } from '../../actions/clipboard';
+  import { createEntry, deleteEntry, renameEntry } from '../../actions/entries';
   import { roots } from '../../state/roots.svelte';
   import { showMenu } from '../../state/menu.svelte';
   import { treeMenu, MENU } from '../menus';
@@ -86,6 +87,32 @@
     return roots.items.find((r) => r.id === row.rootId);
   }
 
+  /**
+   * Куда класть новое: в саму папку или рядом с файлом.
+   *
+   * Ссылка — не папка, внутрь неё мы не заходим никогда (Р-054), поэтому
+   * и создаём рядом с ней, а не в ней.
+   */
+  function folderOf(row: Row): string {
+    if (row.isDir && !row.isLink) return row.path;
+    const cut = row.path.lastIndexOf('\\');
+    return cut > 0 ? row.path.slice(0, cut) : row.path;
+  }
+
+  /**
+   * F2 переименовывает то, на чём стоит фокус.
+   *
+   * Сочетание живёт здесь, а не в реестре команд: в тексте F2 — переход
+   * к следующей закладке, и это разные действия на одной клавише. Оконный
+   * диспетчер уступает её дереву по признаку `.zn-tree` (Р-117); в VS Code
+   * F2 тоже контекстный и в дереве означает ровно это.
+   */
+  function onRowKey(event: KeyboardEvent, row: Row): void {
+    if (event.key !== 'F2' || row.isRoot) return;
+    event.preventDefault();
+    void renameEntry(row.path, row.name);
+  }
+
   /** Меню строки дерева: всё то же, что кнопками, плюс путь и проводник. */
   function onRowMenu(event: MouseEvent, row: Row): void {
     const root = row.isRoot ? rootOf(row) : undefined;
@@ -127,6 +154,18 @@
           case MENU.reveal:
             void revealInExplorer(row.path);
             return;
+          case MENU.newFile:
+            void createEntry(folderOf(row), false);
+            return;
+          case MENU.newFolder:
+            void createEntry(folderOf(row), true);
+            return;
+          case MENU.rename:
+            void renameEntry(row.path, row.name);
+            return;
+          case MENU.delete:
+            void deleteEntry(row.path, row.name, row.isDir);
+            return;
           case MENU.projectFile:
             void createProject(row.rootId);
             return;
@@ -160,7 +199,7 @@
      то, что уже есть кнопками строки, и роль на обёртке была бы неправдой. -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-  class="viewport"
+  class="viewport zn-tree"
   bind:this={viewport}
   onscroll={(event) => (scrollTop = event.currentTarget.scrollTop)}
   oncontextmenu={onEmptyMenu}
@@ -175,6 +214,7 @@
           class:root={row.isRoot}
           class:missing={root && !root.available}
           oncontextmenu={(e) => onRowMenu(e, row)}
+          onkeydown={(e) => onRowKey(e, row)}
         >
           <button
             class="row"

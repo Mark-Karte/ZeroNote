@@ -243,6 +243,22 @@ impl Buffers {
         buffer.lossy = false;
         true
     }
+
+    /// Файл переехал: его переименовали или переименовали папку над ним.
+    ///
+    /// Меняются только путь и имя вкладки. Содержимое, признак изменения
+    /// и состояние на диске остаются: файл тот же самый, у него просто
+    /// другое имя, и объявлять его сохранённым нельзя — несохранённые правки
+    /// никуда не делись.
+    pub fn move_to(&mut self, id: BufferId, path: PathBuf) -> bool {
+        let Some(buffer) = self.get_mut(id) else {
+            return false;
+        };
+
+        buffer.title = Buffer::title_for(&path);
+        buffer.path = Some(path);
+        true
+    }
 }
 
 #[cfg(test)]

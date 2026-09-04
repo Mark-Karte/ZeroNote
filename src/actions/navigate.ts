@@ -14,6 +14,7 @@ export async function goToLineDialog(): Promise<void> {
     'Перейти к строке',
     `Всего строк: ${total}`,
     String(current),
+    'Перейти',
   );
   if (answer === null) return;
 

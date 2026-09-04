@@ -5,6 +5,7 @@
 //! из команд, тестируется обычным `cargo test` без запуска приложения.
 
 pub mod appearance;
+pub mod entries;
 pub mod files;
 pub mod index;
 pub mod keymap;

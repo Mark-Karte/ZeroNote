@@ -20,3 +20,15 @@ export const readChildren = (rootId: number, path: string): Promise<TreeEntry[]>
 
 /** Событие ядра: содержимое перечисленных папок могло измениться. */
 export const TREE_CHANGED = 'tree-changed';
+
+/** Создать пустой файл или папку. Возвращает путь созданного. */
+export const createEntry = (parent: string, name: string, folder: boolean): Promise<string> =>
+  invoke('create_entry', { parent, name, folder });
+
+/** Переименовать. Возвращает новый путь. */
+export const renameEntry = (path: string, name: string): Promise<string> =>
+  invoke('rename_entry', { path, name });
+
+/** Удалить в корзину. Мимо корзины не удаляет никогда (Р-110). */
+export const deleteEntry = (path: string): Promise<void> =>
+  invoke('delete_entry', { path });

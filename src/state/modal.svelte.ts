@@ -58,13 +58,18 @@ export function askChoice(
 /**
  * Спросить строку.
  *
- * Возвращает введённое или `null`, если пользователь отказался. Используется
- * переходом к строке; пригодится всему, где нужен короткий ввод.
+ * Возвращает введённое или `null`, если пользователь отказался.
+ *
+ * Подпись кнопки задаётся вызывающим и не имеет умолчания по смыслу:
+ * «Перейти», «Создать» и «Переименовать» — разные обещания, и одно вместо
+ * другого читается как ошибка. Первая версия подписывала кнопку «Перейти»
+ * всегда, потому что первым её позвал переход к строке.
  */
 export function askInput(
   title: string,
   text: string,
-  initial = '',
+  initial: string,
+  confirm: string,
 ): Promise<string | null> {
   return open({
     title,
@@ -72,7 +77,7 @@ export function askInput(
     input: { initial },
     choices: [
       { id: 'cancel', label: 'Отмена', cancel: true },
-      { id: 'ok', label: 'Перейти', primary: true },
+      { id: 'ok', label: confirm, primary: true },
     ],
   });
 }

@@ -159,3 +159,7 @@ export const restoreSession = (): Promise<RestoredSession> => invoke('restore_se
 
 /** Показать путь в проводнике: папку открыть, файл выделить в его папке. */
 export const revealPath = (path: string): Promise<void> => invoke('reveal_path', { path });
+
+/** Сказать ядру, что открытый файл переехал: переименовали его или папку над ним. */
+export const moveBuffer = (id: number, path: string): Promise<Buffer[]> =>
+  invoke('move_buffer', { id, path });

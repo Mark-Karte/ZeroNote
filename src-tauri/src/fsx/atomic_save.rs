@@ -171,8 +171,9 @@ fn replace_file(target: &Path, temp: &Path) -> io::Result<()> {
     let target_wide = wide(target);
     let temp_wide = wide(temp);
 
-    // Один из двух unsafe в проекте — второй читает буфер обмена
-    // (`clipboard.rs`, Р-109). Обоснование — в DESIGN.md, решение Р-006.
+    // Один из трёх unsafe в проекте: два других читают буфер обмена
+    // (`clipboard.rs`, Р-109) и удаляют в корзину (`fsx/recycle.rs`, Р-110).
+    // Обоснование — в DESIGN.md, решение Р-006.
     //
     // Что здесь может пойти не так и почему не идёт:
     //
