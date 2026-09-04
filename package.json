@@ -1,7 +1,7 @@
 {
   "name": "zeronote",
   "private": true,
-  "version": "0.5.0",
+  "version": "0.5.1",
   "license": "MIT",
   "author": "Mark Karte",
   "contributors": [
@@ -32,7 +32,8 @@
     "@codemirror/state": "^6.7.1",
     "@codemirror/view": "^6.43.8",
     "@tauri-apps/api": "^2.11.1",
-    "@tauri-apps/plugin-dialog": "^2.7.2"
+    "@tauri-apps/plugin-dialog": "^2.7.2",
+    "@tauri-apps/plugin-updater": "^2.11.0"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.3.0",

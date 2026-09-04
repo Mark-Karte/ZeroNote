@@ -20,6 +20,7 @@ import {
   closeAllTabs,
 } from '../actions/files';
 import { showAbout } from '../actions/about';
+import { checkForUpdates } from '../state/updates.svelte';
 import { copySelection, cutSelection, pasteIntoEditor } from '../actions/clipboard';
 import { goToLineDialog } from '../actions/navigate';
 import {
@@ -132,6 +133,7 @@ export const COMMANDS: Record<CommandId, () => void | Promise<unknown>> = {
   // Сочетания нет и не будет: в VS Code у «About» его тоже нет, а место
   // в раскладке дорого. Команда живёт в палитре, и этого хватает.
   'help.about': showAbout,
+  'help.check-updates': checkForUpdates,
 
   // Разметка markdown. Сочетаний по умолчанию нет (Р-127) — команды зовутся
   // с панели, из палитры и из контекстного меню, а кому нужны клавиши,

@@ -94,6 +94,10 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        // Обновление из GitHub. Подключение плагина само по себе в сеть
+        // не ходит: соединение открывается только на явное нажатие
+        // «проверить обновления» (Р-118). Фоновой проверки нет и не будет.
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(app_state)
         .setup(move |app| {
             // `app.handle()` даёт ручку к приложению, которую можно передать

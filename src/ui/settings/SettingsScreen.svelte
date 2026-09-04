@@ -6,6 +6,7 @@
   import { showAbout } from '../../actions/about';
   import { version } from '../../version';
   import KeysScreen from './KeysScreen.svelte';
+  import { updates, checkForUpdates } from '../../state/updates.svelte';
 
   /**
    * Экран параметров.
@@ -358,6 +359,16 @@
         <span class="name">ZeroNote {version}</span>
         <span class="note">Свободная программа под лицензией MIT.</span>
       </div>
+      <!-- Единственная кнопка в приложении, открывающая сетевое соединение
+           (Р-118). Проверка идёт только по нажатию, установка — по второму. -->
+      <button
+        class="button quiet"
+        type="button"
+        disabled={updates.busy}
+        onclick={checkForUpdates}
+      >
+        {updates.busy ? 'Проверяю…' : 'Обновления'}
+      </button>
       <button class="button" type="button" onclick={showAbout}>Сведения</button>
     </div>
     {/if}
@@ -543,6 +554,22 @@
   .button:hover {
     background-color: var(--zn-color-accent-hover);
     border-color: var(--zn-color-accent-hover);
+  }
+
+  /* Кнопка обновлений второстепенная: главное в карточке — версия. */
+  .quiet {
+    border-color: var(--zn-color-border-default);
+    background-color: transparent;
+    color: var(--zn-color-fg-default);
+  }
+
+  .quiet:hover:not(:disabled) {
+    background-color: var(--zn-color-bg-hover);
+    border-color: var(--zn-color-border-default);
+  }
+
+  .button:disabled {
+    color: var(--zn-color-fg-subtle);
   }
 
   .footer {
