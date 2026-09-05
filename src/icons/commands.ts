@@ -77,6 +77,7 @@ const ICON_FOR: Record<string, IconName> = {
   // же места сбивал бы с толку.
   'view.outline': 'panel.outline',
   'view.tags': 'palette.tag',
+  'view.bookmarks': 'cmd.bookmark',
 
   // Проект.
   'project.add-root': 'action.add-folder',

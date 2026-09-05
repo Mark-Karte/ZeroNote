@@ -212,6 +212,12 @@ export function showTags(): void {
   noteStructureChange();
 }
 
+/** Показать закладки открытых вкладок. */
+export function showBookmarks(): void {
+  showPanel('bookmarks');
+  noteStructureChange();
+}
+
 /** Поиск по проекту: открыть панель и забрать фокус в поле. */
 export function searchInProject(): void {
   showPanel('search');

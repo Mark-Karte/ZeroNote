@@ -5,6 +5,7 @@
   import Backlinks from './Backlinks.svelte';
   import Outline from './Outline.svelte';
   import Tags from './Tags.svelte';
+  import Bookmarks from './Bookmarks.svelte';
   import { roots, setSidebarWidth } from '../../state/roots.svelte';
   import { addRootDialog } from '../../actions/project';
   import { noteStructureChange } from '../../state/persist.svelte';
@@ -121,6 +122,8 @@
     <Outline />
   {:else if roots.panel === 'tags'}
     <Tags />
+  {:else if roots.panel === 'bookmarks'}
+    <Bookmarks />
   {:else}
     <header class="head">
       <span class="title">Папки</span>
