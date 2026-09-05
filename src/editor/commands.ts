@@ -8,6 +8,8 @@ import {
   undoSelection,
   redoSelection,
   toggleComment,
+  moveLineUp,
+  moveLineDown,
 } from '@codemirror/commands';
 import { selectNextOccurrence } from '@codemirror/search';
 
@@ -83,38 +85,6 @@ export function deleteLine(view: EditorView): boolean {
   return true;
 }
 
-/** Перенос строки на одну позицию вверх или вниз. */
-function moveLine(view: EditorView, delta: -1 | 1): boolean {
-  const doc = view.state.doc;
-  const line = doc.lineAt(view.state.selection.main.head);
-  const target = line.number + delta;
-
-  // За края документа двигать некуда.
-  if (target < 1 || target > doc.lines) return false;
-
-  const other = doc.line(target);
-  const cursorOffset = view.state.selection.main.head - line.from;
-
-  // Меняем строки местами, переписывая обе разом: так операция остаётся
-  // одним шагом отмены, а не двумя.
-  const [first, second] = delta === -1 ? [other, line] : [line, other];
-  const swapped = `${second.text}\n${first.text}`;
-
-  view.dispatch({
-    changes: { from: first.from, to: second.to, insert: swapped },
-    selection: EditorSelection.cursor(
-      (delta === -1 ? other.from : other.from + line.text.length - other.text.length) +
-        cursorOffset,
-    ),
-    scrollIntoView: true,
-    userEvent: 'move.line',
-  });
-  return true;
-}
-
-export const moveLineUp = (view: EditorView): boolean => moveLine(view, -1);
-export const moveLineDown = (view: EditorView): boolean => moveLine(view, 1);
-
 /** Смена регистра выделения. Без выделения делать нечего. */
 function changeCase(view: EditorView, to: 'upper' | 'lower'): boolean {
   const changes: ChangeSpec[] = [];
@@ -156,7 +126,7 @@ export function goToLine(view: EditorView, line: number): boolean {
 /**
  * Взято у CodeMirror целиком и не переписано.
  *
- * Эти четыре команды до задачи 41 уже работали — их приносил набор
+ * Четыре из них до задачи 41 уже работали — их приносил набор
  * `defaultKeymap`, — но были не видны: ни в палитре, ни в меню, ни в
  * `keymap.toml`. Переназначить их было нельзя, а найти можно было только
  * в чужой документации. Теперь у них есть имена в реестре, и сочетание
@@ -166,5 +136,21 @@ export function goToLine(view: EditorView, line: number): boolean {
  * множественные курсоры и про уже выделенные строки, `toggleComment` берёт
  * знак комментария из разбора языка, а отмена курсора живёт в той же истории,
  * что и отмена правки. Всё это мы бы повторяли, а не улучшали.
+ *
+ * Перемещение строк пришло сюда позже остальных, задачей 52, и не потому,
+ * что не было написано, а потому, что было написано хуже (Р-142). Своя
+ * реализация двигала строку главного курсора и молча не замечала остальные,
+ * хотя тем же самым `Alt+↑` из `defaultKeymap` двигались все выделенные:
+ * два сочетания «одного и того же» вели себя по-разному.
  */
-export { undo, redo, selectAll, selectLine, undoSelection, redoSelection, toggleComment };
+export {
+  undo,
+  redo,
+  selectAll,
+  selectLine,
+  undoSelection,
+  redoSelection,
+  toggleComment,
+  moveLineUp,
+  moveLineDown,
+};
