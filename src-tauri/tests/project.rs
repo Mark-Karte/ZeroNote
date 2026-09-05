@@ -8,10 +8,15 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use zeronote_lib::model::root::Roots;
+use zeronote_lib::model::root::{Roots, normalize};
 use zeronote_lib::project;
 use zeronote_lib::text::encoding::Encoding;
 
+/// Временная папка — в том виде, в каком путь хранит приложение (Р-163).
+///
+/// `std::env::temp_dir()` бывает коротким именем (`C:\Users\RUNNER~1\...`),
+/// а корень приложение разворачивает. Тогда `for_path` и правила про папку
+/// по короткой записи честно отвечают «не моё»: это путь снаружи корня.
 fn temp_dir(tag: &str) -> PathBuf {
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -19,7 +24,7 @@ fn temp_dir(tag: &str) -> PathBuf {
         .unwrap_or(0);
     let dir = std::env::temp_dir().join(format!("zeronote-roots-{tag}-{nanos}"));
     fs::create_dir_all(&dir).expect("не удалось создать временную папку");
-    dir
+    normalize(&dir)
 }
 
 /// Всё, что лежит в папке, включая вложенное, — для сравнения «до и после».
