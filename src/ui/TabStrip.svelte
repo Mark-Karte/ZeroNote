@@ -190,9 +190,14 @@
     display: flex;
     flex: none;
     align-items: stretch;
-    gap: var(--zn-space-1);
+    /* Зазора между вкладками нет: их разделяет черта, а не пустота.
+       Пустота между одинаковыми прямоугольниками не делит их, а размывает —
+       именно так полоса вкладок и выглядела до задачи 56. */
+    gap: 0;
     height: var(--zn-control-tab-height);
-    padding-inline: var(--zn-space-3);
+    /* Полосы окна — шапка, вкладки, строка состояния — начинаются
+       от одной вертикали. До задачи 56 их было три разных. */
+    padding-inline: var(--zn-space-4);
     background-color: var(--zn-color-bg-surface);
     border-bottom: var(--zn-border-width) solid var(--zn-color-border-subtle);
     overflow-x: auto;
@@ -203,6 +208,7 @@
   /* Вкладка — карточка со скруглённым верхом, как в референсе: нижние углы
      прямые, потому что вкладка стоит на рабочей области, а не висит в воздухе. */
   .tab {
+    position: relative;
     display: flex;
     flex: 0 1 var(--zn-control-tab-max-width);
     min-width: var(--zn-control-tab-min-width);
@@ -219,14 +225,49 @@
     transition: background-color var(--zn-motion-duration-fast) var(--zn-motion-easing);
   }
 
+  /* Черта между вкладками. Не во всю высоту: короткая черта делит, длинная
+     нарезает полосу на клетки. */
+  .tab::after {
+    content: '';
+    position: absolute;
+    inset-block: var(--zn-space-3);
+    inset-inline-end: 0;
+    width: var(--zn-border-width);
+    background-color: var(--zn-color-border-subtle);
+  }
+
+  /*
+   * Где черты нет.
+   *
+   * У последней вкладки — потому что делить не с кем. У активной и у её
+   * левой соседки — потому что край карточки уже проведён и вторая линия
+   * рядом с ним читается как дрожание. То же у вкладки под курсором:
+   * заливка сама себе граница.
+   *
+   * `:has` выбирает вкладку по её соседке справа — иначе «предыдущую перед
+   * активной» в CSS не достать.
+   */
+  .tab:last-child::after,
+  .tab.active::after,
+  .tab:has(+ .tab.active)::after,
+  .tab:hover::after,
+  .tab:has(+ .tab:hover)::after {
+    display: none;
+  }
+
   .tab:hover {
     background-color: var(--zn-color-bg-hover);
     color: var(--zn-color-fg-muted);
   }
 
+  /* Активная вкладка — карточка рабочей области, поднятая на полосу,
+     плюс акцентная черта сверху: издалека видно, где ты, не читая имён.
+     Черта внутренней тенью, а не рамкой: рамка сдвинула бы содержимое
+     вкладки на пиксель вниз. */
   .tab.active {
     background-color: var(--zn-color-bg-raised);
     border-color: var(--zn-color-border-subtle);
+    box-shadow: inset 0 var(--zn-border-width-thick) 0 var(--zn-color-accent);
     color: var(--zn-color-fg-default);
   }
 

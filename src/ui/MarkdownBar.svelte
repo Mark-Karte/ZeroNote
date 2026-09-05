@@ -111,21 +111,27 @@
 </div>
 
 <style>
+  /* Панель отделена от текста чертой, а не отступом. Отступ говорит «здесь
+     пусто», черта — «здесь кончаются кнопки и начинается ваш файл»; второе
+     и есть правда. */
   .bar {
     display: flex;
     align-items: center;
     gap: var(--zn-space-1);
     flex: none;
-    padding: var(--zn-space-2) var(--zn-space-3);
-    margin-bottom: var(--zn-space-2);
+    /* Высота — общая для всех полос инструментов в окне: столько же
+       у заголовка боковой панели и у поля поиска в ней. */
+    height: var(--zn-control-toolbar-height);
+    padding-inline: var(--zn-space-3);
+    border-bottom: var(--zn-border-width) solid var(--zn-color-border-subtle);
   }
 
   .key {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: var(--zn-control-strip-button-size);
-    height: var(--zn-control-strip-button-size);
+    width: var(--zn-control-toolbar-button-size);
+    height: var(--zn-control-toolbar-button-size);
     border: none;
     border-radius: var(--zn-radius-md);
     background: none;
@@ -148,7 +154,7 @@
     border-bottom-left-radius: 0;
     padding-left: var(--zn-space-2);
     width: auto;
-    min-width: var(--zn-control-strip-button-size);
+    min-width: var(--zn-control-toolbar-button-size);
   }
 
   .text {

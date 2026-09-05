@@ -397,8 +397,8 @@
     display: flex;
     flex: 1;
     min-height: 0;
-    gap: var(--zn-space-1);
-    padding: var(--zn-space-1);
+    gap: var(--zn-space-2);
+    padding: var(--zn-space-2);
   }
 
   /*
