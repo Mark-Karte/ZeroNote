@@ -1,0 +1,95 @@
+# Непрерывная сборка: те же три проверки, что стоят в CLAUDE.md перед
+# коммитом, — только выполняются они не на машине разработчика, а на чистой.
+#
+# Задача 61 этапа 9. Записана в план четвёртый раз и три раза откладывалась:
+# она ничего не добавляет пользователю. Делается перед тремя задачами живого
+# превью, которые правят один и тот же путь ввода, и ошибка в них видна
+# не сразу.
+name: Проверки
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Прогон только читает исходники. Ни сборки установщика, ни выпуска здесь
+# нет, и ключа подписи обновлений (Р-129) сборка не видит: он лежит вне
+# репозитория и в секреты не кладётся.
+permissions:
+  contents: read
+
+# Пуш поверх незаконченного прогона отменяет прошлый: результат
+# позапрошлого состояния дерева не нужен никому.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Инкрементальная сборка тут бесполезна — прогон начинается с кэша,
+  # а не с прошлой правки, — а места занимает вдвое. Ровно она раздула
+  # `target/debug` на машине разработки до 44 ГиБ.
+  CARGO_INCREMENTAL: 0
+  CARGO_TERM_COLOR: always
+
+jobs:
+  checks:
+    name: Фронтенд и ядро
+    # Только Windows, и это не экономия. Границы первого круга — Windows
+    # 10/11; в зависимостях `windows-sys`, а `fsx/recycle.rs` и
+    # `clipboard.rs` целиком под `cfg(windows)`. На Linux ядро не соберётся,
+    # а если бы собралось — проверяло бы платформу, которой у нас нет.
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      # Кэш ядра. Ключ — по `Cargo.lock`; когда он меняется, берётся
+      # ближайший прошлый кэш и дособирается только изменившееся.
+      # Сохраняется он только при промахе ключа, поэтому `target` от
+      # прогона к прогону не растёт.
+      - name: Кэш cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      # В логе провалившегося прогона первым делом смотрят, чем он собран.
+      - name: Версии
+        run: |
+          node -v
+          npm -v
+          rustc -V
+          cargo -V
+
+      - name: Зависимости фронтенда
+        run: npm ci
+
+      - name: Типы (npm run check)
+        run: npm run check
+
+      - name: Тесты фронтенда (npm test)
+        run: npm test
+
+      # Сборка фронтенда стоит перед тестами ядра не для порядка: `lib.rs`
+      # зовёт `tauri::generate_context!`, а тот вшивает в бинарник
+      # содержимое `dist/`. Без собранного фронтенда ядро не компилируется,
+      # то есть `cargo test` не запустится вовсе.
+      - name: Сборка фронтенда (npm run build)
+        run: npm run build
+
+      # `--locked` — то же, что `npm ci` для фронтенда: сборка обязана
+      # обойтись записанными версиями, а не подобрать себе новые.
+      - name: Тесты ядра (cargo test)
+        working-directory: src-tauri
+        run: cargo test --locked

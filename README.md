@@ -1,5 +1,7 @@
 # ZeroNote
 
+[![Проверки](https://github.com/Mark-Karte/ZeroNote/actions/workflows/ci.yml/badge.svg)](https://github.com/Mark-Karte/ZeroNote/actions/workflows/ci.yml)
+
 Редактор текста и заметок для Windows. Открывается мгновенно, как Notepad++,
 а с папкой работает как с проектом — деревом файлов, поиском по содержимому
 и связями между заметками.
@@ -149,6 +151,10 @@ npm test
 ```bash
 cd src-tauri && cargo test
 ```
+
+Те же три проверки идут на каждое изменение в `main` и на каждый запрос
+слияния — [.github/workflows/ci.yml](.github/workflows/ci.yml), на Windows.
+Значок вверху показывает состояние последнего прогона.
 
 Замеры производительности — стенд встроен в приложение и включается
 аргументами командной строки; цели и результаты в [DESIGN.md](DESIGN.md),
