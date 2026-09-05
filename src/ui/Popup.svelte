@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from './Icon.svelte';
+  import { iconForCommand } from '../icons/commands';
   import type { PopupItem } from './popup-item';
   import { placeMenu, type Placed } from './menu-position';
   import { labelOf } from '../keymap/binding';
@@ -131,8 +132,15 @@
       title={item.hint ?? ''}
       onclick={() => onpick(item.id)}
     >
-      <span class="mark">
-        {#if item.checked}<Icon name="action.check" />{/if}
+      <!-- Место под значок занято всегда: иначе подписи разъезжались бы
+           от строки к строке. Выбранный пункт показывает галочку вместо
+           значка — так устроены меню Windows, и так место не удваивается. -->
+      <span class="mark" class:checked={item.checked}>
+        {#if item.checked}
+          <Icon name="action.check" />
+        {:else if iconForCommand(item.id)}
+          <Icon name={iconForCommand(item.id)!} />
+        {/if}
       </span>
       <span class="label">{item.label}</span>
       {#if item.key}
@@ -214,12 +222,32 @@
     color: var(--zn-color-fg-subtle);
   }
 
-  /* Место под галочку занято всегда: иначе выбор пункта сдвигал бы подписи. */
+  /* Значок пункта — тише подписи: он помогает найти строку глазами,
+     а не спорит с ней за внимание. Галочка выбранного, наоборот, акцентом:
+     она сообщает состояние, а не называет действие. */
   .mark {
     display: inline-flex;
     flex: none;
     width: var(--zn-control-icon-size);
+    color: var(--zn-color-fg-subtle);
+  }
+
+  .mark.checked {
     color: var(--zn-color-accent);
+  }
+
+  .item:hover:not(:disabled) .mark:not(.checked) {
+    color: var(--zn-color-fg-muted);
+  }
+
+  .item:disabled .mark {
+    color: var(--zn-color-border-default);
+  }
+
+  /* Необратимое действие красит и значок: корзина цветом опасности читается
+     раньше подписи. */
+  .item.danger .mark:not(.checked) {
+    color: var(--zn-color-danger);
   }
 
   .item.checked {

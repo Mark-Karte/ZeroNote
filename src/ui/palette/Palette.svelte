@@ -2,6 +2,7 @@
   import { untrack } from 'svelte';
   import Icon from '../Icon.svelte';
   import { iconForFile, kindOf } from '../../icons/files';
+  import { iconForCommand } from '../../icons/commands';
   import { palette, refresh, close, move, accept, mode } from '../../state/palette.svelte';
   import { roots } from '../../state/roots.svelte';
   import { matchRange, placeholderFor, parse } from './query';
@@ -190,7 +191,12 @@
                   </span>
                   <span class="aside">{place(item.hit.path, item.hit.rootId)}</span>
                 {:else if item.kind === 'command'}
-                  <span class="glyph"><Icon name="palette.command" /></span>
+                  <!-- Значок команды тот же, что у неё в меню: строка палитры
+                       и пункт меню — одно действие (Р-148). Запасной уголок
+                       остаётся: команда без значка не должна ломать строку. -->
+                  <span class="glyph">
+                    <Icon name={iconForCommand(item.id) ?? 'palette.command'} />
+                  </span>
                   <span class="name wide">
                     {#each split(item.title, term) as piece}
                       {#if piece.hit}<mark>{piece.text}</mark>{:else}{piece.text}{/if}
