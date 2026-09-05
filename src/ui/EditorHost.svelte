@@ -7,7 +7,8 @@
   import { setEditorView } from '../editor/current';
   import { canFold, canUnfold } from '../editor/folding';
   import { bookmarkedHere } from '../editor/bookmarks';
-  import { invisiblesEnabled } from '../state/settings.svelte';
+  import { invisiblesEnabled, readableWidthEnabled } from '../state/settings.svelte';
+  import { readableColumn } from '../editor/readable';
   import { showMenu } from '../state/menu.svelte';
   import { editorMenu } from './menus';
   import { commandList } from '../keymap/global.svelte';
@@ -15,6 +16,22 @@
   import '../editor/editor.css';
 
   let host: HTMLDivElement;
+  /**
+   * Показывать ли текст колонкой по центру (Р-156).
+   *
+   * Класс на обёртке, а не расширение редактора: это оформление, и меняться
+   * оно должно вместе с настройкой и с языком вкладки, не трогая состояние
+   * и историю отмены.
+   */
+  const readable = $derived.by(() => {
+    const tab = activeTab();
+    return readableColumn({
+      wrap: false,
+      readableWidth: readableWidthEnabled(),
+      markdown: tab ? languageOf(tab)?.id === 'markdown' : false,
+    });
+  });
+
   let view: EditorView | null = null;
 
   /**
@@ -179,7 +196,12 @@
      команды, у которых сочетания уже есть. Роль на обёртке была бы неправдой:
      сама по себе она ничего не делает. -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="editor" bind:this={host} oncontextmenu={onContextMenu}></div>
+<div
+  class="editor"
+  class:zn-readable={readable}
+  bind:this={host}
+  oncontextmenu={onContextMenu}
+></div>
 
 <style>
   .editor {

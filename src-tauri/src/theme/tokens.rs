@@ -126,6 +126,11 @@ pub const METRICS_NORMAL: &[(&str, &str)] = &[
     // Ширина текстовой полосы на экранах вроде параметров: строка длиннее
     // читается хуже, сколько бы места ни было.
     ("control-page-width", "660px"),
+    // Ширина текстовой колонки в редакторе: markdown по центру окна
+    // (задача 58). В знаках, а не в пикселях, — мера читаемости
+    // измеряется знаками в строке, и при другом кегле шрифта колонка
+    // обязана меняться вместе с ним.
+    ("control-editor-width", "82ch"),
     ("control-sidebar-width", "240px"),
     ("control-sidebar-min-width", "160px"),
     ("control-sidebar-max-width", "640px"),
@@ -174,6 +179,7 @@ pub const METRICS_COMPACT: &[(&str, &str)] = &[
     ("control-popup-min-width", "220px"),
     ("control-search-width", "240px"),
     ("control-page-width", "560px"),
+    ("control-editor-width", "82ch"),
     ("control-sidebar-width", "200px"),
     ("control-sidebar-min-width", "140px"),
     ("control-sidebar-max-width", "560px"),

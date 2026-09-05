@@ -14,6 +14,7 @@ import {
   wrapCompartment,
 } from '../editor/setup';
 import { resolveIndent, type Indent } from '../editor/indent';
+import { wrapFor } from '../editor/readable';
 import { bookmarkLines } from '../editor/bookmarks';
 import { editorView } from '../editor/current';
 import {
@@ -29,6 +30,7 @@ import {
   indentSettings,
   invisiblesEnabled,
   wrapEnabled,
+  readableWidthEnabled,
 } from './settings.svelte';
 import { restoreFromSession } from './roots.svelte';
 import { scheduleAutosave } from './autosave.svelte';
@@ -206,7 +208,14 @@ function makeState(
       // Путь берётся каждый раз заново: «сохранить как» его меняет, а вместе
       // с ним меняется и то, куда ведут ссылки из этого файла.
       sourcePath: () => tabById(meta.id)?.meta.path ?? null,
-      wrap: wrapEnabled(),
+      // Перенос считается по вкладке, а не по одной настройке: у markdown
+      // его включает читаемая ширина (Р-156). Язык здесь уже известен —
+      // он берётся из имени файла или выбран руками.
+      wrap: wrapFor({
+        wrap: wrapEnabled(),
+        readableWidth: readableWidthEnabled(),
+        markdown: languageForFile(meta.path ?? meta.title)?.id === 'markdown',
+      }),
       autoClose: autoCloseEnabled(),
       indent: indent ?? resolveIndent(text, indentSettings()),
       invisibles: invisiblesEnabled(),
@@ -223,9 +232,9 @@ function makeState(
  * вкладкам, а не только по активной, — иначе переключение вкладки возвращало бы
  * прежний перенос.
  */
-export function applyWrap(wrap: boolean): void {
-  const extension = wrap ? EditorView.lineWrapping : [];
+export function applyWrap(): void {
   for (const tab of tabs.items) {
+    const extension = wrapOf(tab) ? EditorView.lineWrapping : [];
     tab.editor = tab.editor.update({
       effects: wrapCompartment.reconfigure(extension),
     }).state;
@@ -313,6 +322,21 @@ function put(
  *
  * Выбор пользователя главнее имени файла: он для того и сделан.
  */
+/**
+ * Переносить ли строки на этой вкладке.
+ *
+ * Не просто настройка: читаемая ширина markdown включает перенос сама
+ * (Р-156). Правило лежит в `editor/readable.ts` чистой функцией и оттуда же
+ * проверяется тестом — здесь только подстановка того, что знает вкладка.
+ */
+export function wrapOf(tab: Tab): boolean {
+  return wrapFor({
+    wrap: wrapEnabled(),
+    readableWidth: readableWidthEnabled(),
+    markdown: languageOf(tab)?.id === 'markdown',
+  });
+}
+
 export function languageOf(tab: Tab): Language | null {
   return tab.language !== null
     ? languageById(tab.language)

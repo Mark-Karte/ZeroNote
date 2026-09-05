@@ -3,7 +3,7 @@
   import Popup from './Popup.svelte';
   import type { PopupItem } from './popup-item';
   import { appearance } from '../theme/store.svelte';
-  import { activeTab, languageOf, setIndent, setLanguage } from '../state/tabs.svelte';
+  import { activeTab, languageOf, setIndent, setLanguage, wrapOf } from '../state/tabs.svelte';
   import { LANGUAGES, languageForFile } from '../editor/langs';
   import { indexing, cancel as cancelIndexing } from '../state/index.svelte';
   import { wrapEnabled, toggleWrap } from '../state/settings.svelte';
@@ -282,15 +282,23 @@
   {/if}
 
   {#if tab}
+    <!--
+      Показывается перенос **этой вкладки**, а не общая настройка: у markdown
+      его включает читаемая ширина (Р-156), и надпись «без переноса» над
+      переносящимся текстом была бы тихой неправдой. Нажатие по-прежнему
+      меняет общую настройку — подпись подсказки об этом и говорит.
+    -->
     <button
       class="item action"
       type="button"
-      title={wrapEnabled()
-        ? 'Длинные строки переносятся по ширине окна — нажмите, чтобы выключить'
-        : 'Длинные строки не переносятся — нажмите, чтобы включить'}
+      title={wrapOf(tab) && !wrapEnabled()
+        ? 'Перенос включён читаемой шириной markdown. Нажатие меняет общую настройку для остальных файлов'
+        : wrapEnabled()
+          ? 'Длинные строки переносятся по ширине окна — нажмите, чтобы выключить'
+          : 'Длинные строки не переносятся — нажмите, чтобы включить'}
       onclick={() => void toggleWrap()}
     >
-      {wrapEnabled() ? 'перенос' : 'без переноса'}
+      {wrapOf(tab) ? 'перенос' : 'без переноса'}
     </button>
 
     {#if tab.meta.readOnly}

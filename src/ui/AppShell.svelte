@@ -26,6 +26,7 @@
     settings,
     startSettings,
     wrapEnabled,
+    readableWidthEnabled,
   } from '../state/settings.svelte';
   import { searchFocusRequest } from '../state/project-search.svelte';
   import {
@@ -105,8 +106,14 @@
   // им состояние редактора, то есть пишет ровно в то, что читает. Без него
   // эффект вызывает сам себя — и окно остаётся с недорисованным содержимым.
   $effect(() => {
+    // Читаемая ширина читается тоже: у markdown она включает перенос сама
+    // (Р-156), и её переключение обязано доехать до вкладок так же, как
+    // переключение самого переноса.
     const wrap = wrapEnabled();
-    untrack(() => applyWrap(wrap));
+    const readable = readableWidthEnabled();
+    void wrap;
+    void readable;
+    untrack(() => applyWrap());
   });
 
   // Невидимые символы — та же настройка того же рода и тем же способом.

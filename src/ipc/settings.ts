@@ -29,6 +29,7 @@ export interface Settings {
     indent_width: number;
     invisibles: boolean;
     markdown_bar: boolean;
+    readable_width: boolean;
     link_suggest: boolean;
     autosave: boolean;
   };

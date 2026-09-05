@@ -282,6 +282,25 @@
 
         <div class="row">
           <div class="what">
+            <span class="name">Читаемая ширина markdown</span>
+            <span class="note">
+              Текст заметки стоит колонкой по центру окна и переносится по её
+              краю. Только markdown: в коде длина строки — часть смысла.
+            </span>
+          </div>
+          <select
+            class="control"
+            disabled={broken !== null}
+            value={values.editor.readable_width ? 'yes' : 'no'}
+            onchange={(e) => put(['editor', 'readable_width'], e.currentTarget.value === 'yes')}
+          >
+            <option value="no">Во всю ширину</option>
+            <option value="yes">Колонкой по центру</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <div class="what">
             <span class="name">Панель разметки markdown</span>
             <span class="note">
               Жирный, курсив, заголовки, списки, ссылка и заготовки. Появляется
