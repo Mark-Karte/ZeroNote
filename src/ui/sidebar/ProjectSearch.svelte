@@ -1,7 +1,7 @@
 <script lang="ts">
   import Icon from '../Icon.svelte';
   import { iconForFile } from '../../icons/files';
-  import { MARK_START, MARK_END } from '../../ipc/index';
+  import { snippetPieces } from '../snippet';
   import {
     projectSearch,
     schedule,
@@ -15,7 +15,8 @@
    *
    * Отрывок приходит из FTS5 с пометками управляющими знаками — по ним он
    * и разрезается. Подставлять сюда разметку из ядра нельзя: в текстах
-   * пользователя встречается что угодно, включая разметку.
+   * пользователя встречается что угодно, включая разметку. Разбор и обрезка
+   * ведущего контекста — в `ui/snippet.ts`.
    */
 
   let field: HTMLInputElement | undefined = $state();
@@ -23,24 +24,6 @@
   export function focusField(): void {
     field?.focus();
     field?.select();
-  }
-
-  /** Отрывок, разрезанный на обычные куски и совпадения. */
-  function pieces(snippet: string): { text: string; hit: boolean }[] {
-    const out: { text: string; hit: boolean }[] = [];
-
-    for (const chunk of snippet.split(MARK_START)) {
-      const [hit, ...rest] = chunk.split(MARK_END);
-      if (rest.length === 0) {
-        // До первой пометки — обычный текст.
-        if (hit !== '') out.push({ text: hit!, hit: false });
-        continue;
-      }
-      if (hit !== '') out.push({ text: hit!, hit: true });
-      const tail = rest.join(MARK_END);
-      if (tail !== '') out.push({ text: tail, hit: false });
-    }
-    return out;
   }
 
   function place(path: string, rootId: number): string {
@@ -97,7 +80,7 @@
             <span class="place">{place(hit.path, hit.rootId)}</span>
           </span>
           <span class="snippet">
-            {#each pieces(hit.snippet) as piece}
+            {#each snippetPieces(hit.snippet) as piece}
               {#if piece.hit}<mark>{piece.text}</mark>{:else}{piece.text}{/if}
             {/each}
           </span>
