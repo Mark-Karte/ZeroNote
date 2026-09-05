@@ -51,6 +51,7 @@
   --zn-color-syntax-operator: #656d76;
   --zn-color-syntax-variable: #1f2328;
   --zn-color-syntax-punctuation: #818a94;
+  --zn-color-syntax-markup: #818a94;
   --zn-color-syntax-heading: #1f2328;
   --zn-color-syntax-link: #0969da;
   --zn-color-syntax-emphasis: #1f2328;
@@ -74,6 +75,9 @@
   --zn-font-size-editor: 14px;
   --zn-font-line-height-ui: 1.4;
   --zn-font-line-height-editor: 1.5;
+  --zn-font-size-editor-heading-1: 1.5em;
+  --zn-font-size-editor-heading-2: 1.28em;
+  --zn-font-size-editor-heading-3: 1.12em;
   --zn-font-weight-normal: 400;
   --zn-font-weight-medium: 500;
   --zn-font-weight-strong: 600;

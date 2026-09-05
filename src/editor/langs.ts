@@ -69,22 +69,33 @@ export const LANGUAGES: Language[] = [
         { markdown, markdownLanguage },
         { languages },
         { codeBlocks },
+        { quotes },
+        { highlightMark },
         { LanguageSupport },
       ] = await Promise.all([
         import('@codemirror/lang-markdown'),
         import('./markdown-code'),
         import('./code-blocks'),
+        import('./quotes'),
+        import('./markdown-highlight'),
         import('@codemirror/language'),
       ]);
       // Код внутри блоков подсвечивается своим языком: в заметках
       // разработчика блоки кода — обычное дело, и без подсветки они
       // выглядят чужеродно.
-      const md = markdown({ base: markdownLanguage, codeLanguages: languages });
+      const md = markdown({
+        base: markdownLanguage,
+        codeLanguages: languages,
+        // Выделение `==так==`: его ставит наша панель разметки, а в GFM
+        // такого узла нет (задача 57).
+        extensions: [highlightMark],
+      });
       // Оформление блоков едет вместе с разбором markdown, а не в общем наборе
       // расширений: в файле `.rs` весь текст и так код, выделять в нём нечего.
       return new LanguageSupport(md.language, [
         md.support,
         codeBlocks(),
+        quotes(),
         // В прозе кавычка, закрывающаяся сама, только мешает: «сказал» —
         // это не начало строкового литерала. Скобки закрываются, кавычки нет,
         // и это свойство языка, а не общая настройка (решение Р-113).
