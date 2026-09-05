@@ -8,9 +8,18 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use zeronote_lib::model::root::Roots;
+use zeronote_lib::model::root::{Roots, normalize};
 use zeronote_lib::project::{self, obsidian};
 
+/// Временная папка — в том виде, в каком путь хранит приложение.
+///
+/// `std::env::temp_dir()` отдаёт то, что стоит в `TMP`, а там бывает короткое
+/// имя: на машине непрерывной сборки это `C:\Users\RUNNER~1\...`. Корень
+/// приложение разворачивает (`root::normalize`), и тогда путь из `temp_dir`
+/// и путь корня — две записи одной папки; про путь снаружи корня `decide`
+/// честно отвечает «не скрыт», и перенесённое правило выглядит не работающим.
+///
+/// На машине разработчика этого не видно: `user` короткого имени не требует.
 fn temp_dir(tag: &str) -> PathBuf {
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -18,7 +27,7 @@ fn temp_dir(tag: &str) -> PathBuf {
         .unwrap_or(0);
     let dir = std::env::temp_dir().join(format!("zeronote-obsidian-it-{tag}-{nanos}"));
     fs::create_dir_all(&dir).expect("не удалось создать временную папку");
-    dir
+    normalize(&dir)
 }
 
 /// Правдоподобное хранилище: настройки, заметки, вложенная папка.
