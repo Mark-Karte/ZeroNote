@@ -1,0 +1,54 @@
+# «Tokyo Night» — тёмно-синяя тема: для работы вечером при выключенном свете.
+#
+# Источник палитры: Tokyo Night. © 2018–настоящее время Enkia, лицензия MIT.
+# https://github.com/enkia/tokyo-night-vscode-theme
+#
+# Адаптация (Р-144). Что изменено:
+#
+# * комментарий поднят с #565f89 до #7a83af — в источнике 2,8:1 на фоне
+#   редактора, самый тихий комментарий из всех взятых тем. Оттенок сохранён;
+# * цвет интерфейса — сиреневый, а не синий: синий занят функциями, и в дереве
+#   файлов заметки и код оказались бы одного цвета.
+#
+# Устройство палитры и назначение ключей описаны в dark.toml.
+
+schema = 1
+id = "tokyo-night"
+name = "Tokyo Night"
+appearance = "dark"
+
+[palette]
+bg-0 = "#13141c"
+bg-1 = "#16161e"
+bg-2 = "#1a1b26"
+bg-3 = "#232538"
+bg-4 = "#2e3350"
+
+fg-0 = "#c0caf5"
+fg-1 = "#98a2ce"
+fg-2 = "#737b9e"
+fg-on-accent = "#13141c"
+
+accent = "#bb9af7"
+accent-hover = "#cfb4ff"
+accent-soft = "rgba(187, 154, 247, 0.16)"
+accent-selection = "rgba(187, 154, 247, 0.30)"
+
+border = "#2f3549"
+border-subtle = "#20222f"
+
+danger = "#f7768e"
+warning = "#e0af68"
+success = "#9ece6a"
+
+syn-keyword = "#bb9af7"
+syn-string = "#9ece6a"
+syn-comment = "#7a83af"
+syn-number = "#ff9e64"
+syn-type = "#2ac3de"
+syn-function = "#7aa2f7"
+
+shadow-weak = "rgba(0, 0, 0, 0.35)"
+shadow-strong = "rgba(0, 0, 0, 0.65)"
+
+overlay = "rgba(6, 7, 12, 0.60)"

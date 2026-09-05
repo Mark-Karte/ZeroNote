@@ -1,0 +1,54 @@
+# «Catppuccin Latte» — светлая тема с холодной серо-сиреневой подложкой.
+#
+# Источник палитры: Catppuccin Latte. © 2021 Catppuccin, лицензия MIT.
+# https://github.com/catppuccin/catppuccin
+#
+# Адаптация (Р-144). Три слоя фона взяты у источника как есть — crust, mantle,
+# base ложатся ровно на наши подложку, панель и рабочую область. А вот
+# акцентные цвета Latte пастельные: персиковый даёт 2,3:1, жёлтый — 2,0:1.
+# Светлота каждого опущена до 4,6:1, оттенок оставлен. Тема остаётся узнаваемой
+# фоном и строем, но её цвета у нас плотнее, чем в источнике: пастель
+# и читаемость не совмещаются, и выбрана читаемость (Р-078).
+#
+# Устройство палитры и назначение ключей описаны в light.toml.
+
+schema = 1
+id = "catppuccin-latte"
+name = "Catppuccin Latte"
+appearance = "light"
+
+[palette]
+bg-0 = "#dce0e8"
+bg-1 = "#e6e9ef"
+bg-2 = "#eff1f5"
+bg-3 = "#d9dde6"
+bg-4 = "#ccd0da"
+
+fg-0 = "#42455f"
+fg-1 = "#5e6176"
+fg-2 = "#797c8e"
+fg-on-accent = "#eff1f5"
+
+accent = "#7e2fe5"
+accent-hover = "#6c1fd0"
+accent-soft = "rgba(126, 47, 229, 0.10)"
+accent-selection = "rgba(126, 47, 229, 0.20)"
+
+border = "#ccd0da"
+border-subtle = "#dfe2e9"
+
+danger = "#c60031"
+warning = "#945100"
+success = "#007200"
+
+syn-keyword = "#7e2fe5"
+syn-string = "#007200"
+syn-comment = "#5e6172"
+syn-number = "#bb2900"
+syn-type = "#945100"
+syn-function = "#0056e2"
+
+shadow-weak = "rgba(30, 32, 48, 0.10)"
+shadow-strong = "rgba(30, 32, 48, 0.22)"
+
+overlay = "rgba(30, 32, 48, 0.35)"

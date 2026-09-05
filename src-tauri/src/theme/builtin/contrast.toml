@@ -37,9 +37,9 @@ success = "#8cf0b4"
 
 syn-keyword = "#d6a2ff"
 syn-string = "#8cf0b4"
-syn-comment = "#7a7a7a"
+syn-comment = "#828282"
 syn-number = "#ffd98c"
-syn-type = "#ffc46b"
+syn-type = "#ffab70"
 syn-function = "#8cc8ff"
 
 shadow-weak = "rgba(0, 0, 0, 0.60)"

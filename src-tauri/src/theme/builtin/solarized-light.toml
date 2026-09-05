@@ -1,0 +1,56 @@
+# «Solarized Light» — тёплая светлая тема для долгого чтения и письма.
+#
+# Источник палитры: Solarized. © 2011 Ethan Schoonover, лицензия MIT.
+# https://github.com/altercation/solarized
+#
+# Адаптация (Р-144), и здесь она самая заметная из шести. Solarized Light
+# задуман низкоконтрастным: восемь его цветов дают на собственном фоне
+# от 2,6:1 до 3,8:1 — половину нашего порога. Светлота каждого опущена
+# до 4,6:1, оттенок и насыщенность оставлены. Получается «Solarized, который
+# видно»: тот же строй, те же фоны, но текст читается.
+#
+# Кроме того, серых слоёв в источнике два (base2, base3), а нам нужно три —
+# промежуточный выведен между ними.
+#
+# Устройство палитры и назначение ключей описаны в light.toml.
+
+schema = 1
+id = "solarized-light"
+name = "Solarized Light"
+appearance = "light"
+
+[palette]
+bg-0 = "#eee8d5"
+bg-1 = "#f6efdc"
+bg-2 = "#fdf6e3"
+bg-3 = "#e9e2cd"
+bg-4 = "#ded7c2"
+
+fg-0 = "#073642"
+fg-1 = "#546a71"
+fg-2 = "#788585"
+fg-on-accent = "#fdf6e3"
+
+accent = "#006baf"
+accent-hover = "#005a94"
+accent-soft = "rgba(0, 107, 175, 0.10)"
+accent-selection = "rgba(0, 107, 175, 0.20)"
+
+border = "#d9d2bd"
+border-subtle = "#e7e0cb"
+
+danger = "#ca1d23"
+warning = "#866100"
+success = "#596f00"
+
+syn-keyword = "#596f00"
+syn-string = "#00746d"
+syn-comment = "#5c6a6a"
+syn-number = "#b93c04"
+syn-type = "#866100"
+syn-function = "#006baf"
+
+shadow-weak = "rgba(40, 34, 20, 0.10)"
+shadow-strong = "rgba(40, 34, 20, 0.22)"
+
+overlay = "rgba(40, 34, 20, 0.35)"

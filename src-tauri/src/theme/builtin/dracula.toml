@@ -1,0 +1,56 @@
+# «Dracula» — тёмная тема с розовым и лиловым.
+#
+# Источник палитры: Dracula. © 2023 Dracula Theme, лицензия MIT.
+# https://github.com/dracula/dracula-theme
+#
+# Адаптация (Р-144). Что изменено:
+#
+# * комментарий поднят с #6272a4 до #8291c5 — в источнике 3,0:1 на фоне
+#   редактора. Оттенок сохранён;
+# * красный поднят на единицу светлоты: #ff5555 давал 4,53:1, то есть ходил
+#   по самой границе;
+# * цвет интерфейса — розовый, а не лиловый: лиловый занят числами, и в дереве
+#   файлов заметки и данные оказались бы одного цвета.
+#
+# Устройство палитры и назначение ключей описаны в dark.toml.
+
+schema = 1
+id = "dracula"
+name = "Dracula"
+appearance = "dark"
+
+[palette]
+bg-0 = "#1a1b23"
+bg-1 = "#21222c"
+bg-2 = "#282a36"
+bg-3 = "#343746"
+bg-4 = "#44475a"
+
+fg-0 = "#f8f8f2"
+fg-1 = "#b9bdd1"
+fg-2 = "#8b90b0"
+fg-on-accent = "#1a1b23"
+
+accent = "#ff79c6"
+accent-hover = "#ff9ed6"
+accent-soft = "rgba(255, 121, 198, 0.16)"
+accent-selection = "rgba(255, 121, 198, 0.28)"
+
+border = "#4b4f66"
+border-subtle = "#33353f"
+
+danger = "#ff5857"
+warning = "#ffb86c"
+success = "#50fa7b"
+
+syn-keyword = "#ff79c6"
+syn-string = "#f1fa8c"
+syn-comment = "#8291c5"
+syn-number = "#bd93f9"
+syn-type = "#8be9fd"
+syn-function = "#50fa7b"
+
+shadow-weak = "rgba(0, 0, 0, 0.30)"
+shadow-strong = "rgba(0, 0, 0, 0.60)"
+
+overlay = "rgba(10, 10, 16, 0.58)"

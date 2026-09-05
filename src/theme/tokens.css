@@ -10,60 +10,60 @@
  *
  * Набор имён здесь и в tokens.rs обязан совпадать ровно — расхождение валит
  * тест. Значения расходиться могут: они всё равно перезаписываются. Здесь
- * они взяты из встроенной светлой темы «Бумага».
+ * они взяты из встроенной светлой темы «GitHub Light».
  */
 
 :root {
   /* --- Цвет: семантические роли. Палитра сюда не попадает: компонент не
      должен знать, какой именно серый ему достался. --- */
-  --zn-color-bg-canvas: #e8eaef;
-  --zn-color-bg-surface: #f7f8fa;
+  --zn-color-bg-canvas: #eff2f5;
+  --zn-color-bg-surface: #f6f8fa;
   --zn-color-bg-raised: #ffffff;
-  --zn-color-bg-hover: #eceef4;
-  --zn-color-bg-active: #dfe3ea;
-  --zn-color-bg-selected: rgba(76, 95, 224, 0.12);
-  --zn-color-bg-selection: rgba(76, 95, 224, 0.22);
-  --zn-color-bg-overlay: rgba(24, 30, 42, 0.35);
+  --zn-color-bg-hover: #eaeef2;
+  --zn-color-bg-active: #dfe3e8;
+  --zn-color-bg-selected: rgba(9, 105, 218, 0.10);
+  --zn-color-bg-selection: rgba(9, 105, 218, 0.20);
+  --zn-color-bg-overlay: rgba(31, 35, 40, 0.35);
 
-  --zn-color-fg-default: #1b1f27;
-  --zn-color-fg-muted: #535b6a;
-  --zn-color-fg-subtle: #8b93a3;
+  --zn-color-fg-default: #1f2328;
+  --zn-color-fg-muted: #656d76;
+  --zn-color-fg-subtle: #818a94;
   --zn-color-fg-on-accent: #ffffff;
 
-  --zn-color-accent: #4c5fe0;
-  --zn-color-accent-hover: #3a4ccc;
+  --zn-color-accent: #0969da;
+  --zn-color-accent-hover: #0a58c2;
 
-  --zn-color-border-default: #c7ccd6;
-  --zn-color-border-subtle: #e1e4ea;
-  --zn-color-border-focus: #4c5fe0;
+  --zn-color-border-default: #d0d7de;
+  --zn-color-border-subtle: #e4e8ec;
+  --zn-color-border-focus: #0969da;
 
-  --zn-color-danger: #c0392b;
-  --zn-color-warning: #a15c00;
-  --zn-color-success: #1b7f52;
+  --zn-color-danger: #cf222e;
+  --zn-color-warning: #956300;
+  --zn-color-success: #177d36;
 
   /* --- Подсветка синтаксиса. Такие же токены, как всё остальное (Р-047). --- */
-  --zn-color-syntax-keyword: #7a45d6;
-  --zn-color-syntax-string: #1b7f52;
-  --zn-color-syntax-comment: #98a0ad;
-  --zn-color-syntax-number: #8a6d1f;
-  --zn-color-syntax-type: #a65a12;
-  --zn-color-syntax-function: #2563c7;
-  --zn-color-syntax-operator: #535b6a;
-  --zn-color-syntax-variable: #1b1f27;
-  --zn-color-syntax-punctuation: #8b93a3;
-  --zn-color-syntax-heading: #1b1f27;
-  --zn-color-syntax-link: #4c5fe0;
-  --zn-color-syntax-emphasis: #1b1f27;
-  --zn-color-syntax-strong: #1b1f27;
-  --zn-color-syntax-quote: #535b6a;
-  --zn-color-syntax-invalid: #c0392b;
+  --zn-color-syntax-keyword: #cf222e;
+  --zn-color-syntax-string: #0a3069;
+  --zn-color-syntax-comment: #656e78;
+  --zn-color-syntax-number: #0550ae;
+  --zn-color-syntax-type: #953800;
+  --zn-color-syntax-function: #804edd;
+  --zn-color-syntax-operator: #656d76;
+  --zn-color-syntax-variable: #1f2328;
+  --zn-color-syntax-punctuation: #818a94;
+  --zn-color-syntax-heading: #1f2328;
+  --zn-color-syntax-link: #0969da;
+  --zn-color-syntax-emphasis: #1f2328;
+  --zn-color-syntax-strong: #1f2328;
+  --zn-color-syntax-quote: #656d76;
+  --zn-color-syntax-invalid: #cf222e;
 
   /* --- Цвет метки файла по виду содержимого. Расширение → роль решает
      реестр значков, а не тема. --- */
-  --zn-color-file-note: #4c5fe0;
-  --zn-color-file-code: #2563c7;
-  --zn-color-file-data: #8a6d1f;
-  --zn-color-file-other: #8b93a3;
+  --zn-color-file-note: #0969da;
+  --zn-color-file-code: #804edd;
+  --zn-color-file-data: #0550ae;
+  --zn-color-file-other: #818a94;
 
   /* --- Типографика --- */
   --zn-font-family-ui: 'IBM Plex Sans', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
@@ -127,10 +127,10 @@
   --zn-control-strip-button-size: 38px;
 
   /* --- Глубина --- */
-  --zn-shadow-raised: 0 1px 2px rgba(16, 24, 40, 0.1);
-  --zn-shadow-overlay: 0 18px 44px -16px rgba(16, 24, 40, 0.22);
-  --zn-shadow-dialog: 0 32px 80px -20px rgba(16, 24, 40, 0.22);
-  --zn-shadow-window: 0 24px 60px -20px rgba(16, 24, 40, 0.22), 0 2px 6px rgba(16, 24, 40, 0.1);
+  --zn-shadow-raised: 0 1px 2px rgba(31, 35, 40, 0.10);
+  --zn-shadow-overlay: 0 18px 44px -16px rgba(31, 35, 40, 0.22);
+  --zn-shadow-dialog: 0 32px 80px -20px rgba(31, 35, 40, 0.22);
+  --zn-shadow-window: 0 24px 60px -20px rgba(31, 35, 40, 0.22), 0 2px 6px rgba(31, 35, 40, 0.10);
 
   --zn-z-panel: 10;
   --zn-z-overlay: 100;

@@ -43,9 +43,12 @@ ZeroNote понимает как свойство markdown, а не как «р�
 
 ![Поиск по проекту с отрывками](docs/screenshots/search.png)
 
-Семь встроенных тем, светлая и тёмная пара следуют настройке Windows.
+Семь встроенных тем: One Dark, Dracula, Tokyo Night, GitHub Light, Solarized
+Light, Catppuccin Latte и «Контраст». Шесть первых — адаптации популярных тем
+под наш слой оформления, все под лицензией MIT, ссылки на источники —
+в заголовках файлов тем. Светлая и тёмная пара следуют настройке Windows.
 
-![Светлая тема «Бумага»](docs/screenshots/window-light.png)
+![Светлая тема](docs/screenshots/window-light.png)
 
 ## Что умеет
 
@@ -183,6 +186,23 @@ Mark Karte и Claude (Anthropic). Проект пишется в паре: ар�
 ## Лицензия
 
 MIT — см. [LICENSE](LICENSE). Правообладатель — Mark Karte.
+
+Палитры шести встроенных тем адаптированы из популярных тем редакторов —
+изменены светлота части цветов и раскладка ролей, оттенки оставлены. Все шесть
+источников под лицензией MIT:
+
+- **One Dark** — © 2016 GitHub Inc., [atom/one-dark-syntax](https://github.com/atom/one-dark-syntax)
+- **Dracula** — © 2023 Dracula Theme, [dracula/dracula-theme](https://github.com/dracula/dracula-theme)
+- **Tokyo Night** — © 2018–настоящее время Enkia, [enkia/tokyo-night-vscode-theme](https://github.com/enkia/tokyo-night-vscode-theme)
+- **GitHub Light** — © 2020 Primer, [primer/github-vscode-theme](https://github.com/primer/github-vscode-theme)
+- **Solarized Light** — © 2011 Ethan Schoonover, [altercation/solarized](https://github.com/altercation/solarized)
+- **Catppuccin Latte** — © 2021 Catppuccin, [catppuccin/catppuccin](https://github.com/catppuccin/catppuccin)
+
+Лицензия MIT для всех шести звучит так же, как наша: разрешено использовать,
+копировать, изменять и распространять при условии, что уведомление
+об авторских правах и текст разрешения приложены к копии. Ссылка на источник
+и перечень изменений стоят в заголовке каждого файла темы; полные тексты
+лицензий — в перечисленных репозиториях.
 
 Вместе с приложением распространяются два шрифта под SIL Open Font License 1.1:
 **IBM Plex Sans** (© 2017 IBM Corp.) и **JetBrains Mono**

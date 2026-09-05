@@ -224,9 +224,10 @@ schema = 1
 [appearance]
 # "system" — следовать настройке оформления Windows.
 # Иначе — идентификатор темы. Встроенные:
-#   светлые — "light" (Бумага), "sepia" (Сепия)
-#   тёмные  — "dark" (Графит), "midnight" (Полночь), "nordic" (Нордик),
-#             "pine" (Хвоя), "contrast" (Контраст)
+#   светлые — "light" (GitHub Light), "solarized-light" (Solarized Light),
+#             "catppuccin-latte" (Catppuccin Latte)
+#   тёмные  — "dark" (One Dark), "dracula" (Dracula),
+#             "tokyo-night" (Tokyo Night), "contrast" (Контраст)
 # Свою тему кладите в data/themes/ и указывайте её id.
 theme = "system"
 
