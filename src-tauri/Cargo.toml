@@ -73,6 +73,9 @@ toml_edit = "0.25"
 # не отвечает вовсе, а брать ради пяти системных вызовов отдельный крейт
 # с поддержкой картинок и трёх операционных систем — дороже, чем написать
 # эти пять вызовов.
+# Плюс один процесс на папку данных (задача 69): именованный мьютекс
+# и разрешение вывести окно вперёд. Новых крейтов это не потребовало —
+# только ещё три группы объявлений в уже подключённом.
 windows-sys = { version = "0.61", features = [
     "Win32_Storage_FileSystem",
     "Win32_Foundation",
@@ -80,6 +83,11 @@ windows-sys = { version = "0.61", features = [
     "Win32_System_Memory",
     # Удаление в корзину (Р-110): SHFileOperationW и SHQueryRecycleBin.
     "Win32_UI_Shell",
+    # Один экземпляр на папку данных: CreateMutexW и SECURITY_ATTRIBUTES
+    # для нулевого указателя, AllowSetForegroundWindow.
+    "Win32_System_Threading",
+    "Win32_Security",
+    "Win32_UI_WindowsAndMessaging",
 ] }
 
 [profile.release]

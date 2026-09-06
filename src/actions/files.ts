@@ -11,6 +11,7 @@ import {
   tabs,
   close as closeTabState,
 } from '../state/tabs.svelte';
+import { FILE_FILTERS } from './file-types';
 import { askChoice } from '../state/modal.svelte';
 import { forgetDraft, noteStructureChange } from '../state/persist.svelte';
 import { add as addRoot } from '../state/roots.svelte';
@@ -27,10 +28,7 @@ import { confirmOverwrite } from './external';
  * откуда его позвали.
  */
 
-const FILTERS = [
-  { name: 'Текст и заметки', extensions: ['txt', 'md', 'markdown', 'log', 'toml', 'json', 'ini', 'csv'] },
-  { name: 'Все файлы', extensions: ['*'] },
-];
+const FILTERS = FILE_FILTERS;
 
 async function report(error: unknown): Promise<void> {
   await message(String(error), { title: 'ZeroNote', kind: 'error' });

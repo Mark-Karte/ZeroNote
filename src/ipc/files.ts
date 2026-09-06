@@ -52,6 +52,14 @@ export interface EncodingOption {
 /** Файлы из командной строки: «Открыть с помощью», запуск из консоли. */
 export const startupPaths = (): Promise<string[]> => invoke('startup_paths');
 
+/**
+ * Второй экземпляр передал свои пути и ушёл (Р-191).
+ *
+ * Имя события повторяет `single::OPEN_PATHS` в ядре — как `tree-changed`
+ * и `index-progress` до него.
+ */
+export const OPEN_PATHS = 'open-paths';
+
 export const listBuffers = (): Promise<Buffer[]> => invoke('list_buffers');
 
 export const newBuffer = (): Promise<Buffer> => invoke('new_buffer');

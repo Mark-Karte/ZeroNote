@@ -50,7 +50,7 @@
   import { forgetResolved } from '../editor/wikilinks';
   import { openDropped, closeAllTabs } from '../actions/files';
   import { checkExternalChanges } from '../actions/external';
-  import { startupPaths } from '../ipc/files';
+  import { startupPaths, OPEN_PATHS } from '../ipc/files';
   import { installGlobalKeymap, loadKeymap, commandList } from '../keymap/global.svelte';
   import { contextMenu, hideMenu, showMenu } from '../state/menu.svelte';
   import { fieldMenu } from './menus';
@@ -71,6 +71,7 @@
   let unlistenFocus: UnlistenFn | null = null;
   let unlistenTree: UnlistenFn | null = null;
   let unlistenIndex: UnlistenFn | null = null;
+  let unlistenOpen: UnlistenFn | null = null;
   let removeFollow: (() => void) | null = null;
   let dropActive = $state(false);
 
@@ -216,6 +217,13 @@
       void refreshDirs(event.payload);
     });
 
+    // Второй экземпляр приложения передал нам свои пути и ушёл (Р-191).
+    // Окно ядро уже показало и вывело вперёд — наше дело открыть то,
+    // что просили, тем же путём, что и брошенное в окно.
+    unlistenOpen = await listen<string[]>(OPEN_PATHS, (event) => {
+      void openDropped(event.payload);
+    });
+
     // Ход индексации: состояние приходит событиями, а не опросом.
     unlistenIndex = await listen<IndexProgress>(INDEX_PROGRESS, (event) => {
       applyProgress(event.payload);
@@ -323,6 +331,7 @@
     unlistenFocus?.();
     unlistenTree?.();
     unlistenIndex?.();
+    unlistenOpen?.();
     removeFollow?.();
   });
 </script>

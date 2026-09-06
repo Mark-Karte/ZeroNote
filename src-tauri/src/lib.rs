@@ -15,6 +15,7 @@ pub mod model;
 pub mod project;
 pub mod session;
 pub mod settings;
+pub mod single;
 pub mod state;
 pub mod text;
 pub mod theme;
@@ -91,6 +92,22 @@ pub fn run() {
 
     let app_state = prepare_state();
     let watched_dir = app_state.data_dir.path.clone();
+    let requests_dir = app_state.data_dir.path.clone();
+
+    // Одно приложение — один процесс на папку данных (Р-191).
+    //
+    // Проверяется здесь, до создания окна и вебвью: второму экземпляру они
+    // не нужны вовсе, а окно, мелькнувшее и тут же исчезнувшее, человек
+    // читает как сбой. Замок держится до конца процесса — отсюда `_lock`,
+    // а не `_`: последнее уронило бы его сразу же.
+    let _lock = match single::claim(&watched_dir) {
+        single::Instance::First(guard) => guard,
+        single::Instance::Second => {
+            let args: Vec<String> = std::env::args().collect();
+            single::hand_over(&watched_dir, &cli::file_paths(&args));
+            return;
+        }
+    };
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -103,6 +120,11 @@ pub fn run() {
             // `app.handle()` даёт ручку к приложению, которую можно передать
             // в другой поток. Клонируем её, потому что сам `app` остаётся здесь.
             watch::spawn(app.handle().clone(), watched_dir);
+
+            // Записки от вторых экземпляров: пути из проводника и просьба
+            // показаться. Свой поток и свой шаг опроса — почему, сказано
+            // в `single.rs`.
+            single::watch(app.handle().clone(), requests_dir);
 
             // Поток-сборщик событий файловой системы. Наблюдатели за корнями
             // ставятся позже — при восстановлении сессии и при добавлении
