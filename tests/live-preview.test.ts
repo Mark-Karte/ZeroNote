@@ -124,9 +124,9 @@ describe('живое превью: знаки вокруг текста', () => 
     expect(hiddenParts(doc, 0)).toEqual(['`', '`']);
   });
 
-  it('знаки заголовка и цитаты остаются: это задача 65', () => {
-    const doc = '# Заголовок\n\n> цитата\n\n**жирный**\n';
-    expect(hiddenParts(doc, 0)).toEqual(['**', '**']);
+  it('знаки списка остаются: списки в превью не входят', () => {
+    const doc = '- пункт с **жирным**\n1. второй\n';
+    expect(hiddenParts(doc, doc.length)).toEqual(['**', '**']);
   });
 
   it('вложенная разметка прячется целиком и по порядку', () => {
@@ -138,6 +138,75 @@ describe('живое превью: знаки вокруг текста', () => 
   it('обычный текст не трогается вовсе', () => {
     const doc = 'просто строка без разметки\n';
     expect(hiddenParts(doc, doc.length)).toEqual([]);
+  });
+
+  it('решётка заголовка прячется вместе с пробелом за ней', () => {
+    const doc = '# Заголовок\n\n## Второй\n';
+    // Пробел уходит со знаком: иначе текст заголовка съехал бы вправо.
+    expect(shown(doc, doc.length)).toBe('Заголовок\n\nВторой\n');
+  });
+
+  it('угловая скобка цитаты прячется, черту рисует украшение строки', () => {
+    const doc = '> цитата\n> вторая\n\n';
+    expect(shown(doc, doc.length)).toBe('цитата\nвторая\n\n');
+  });
+
+  it('вложенная цитата теряет обе скобки', () => {
+    const doc = '>> глубоко\n\n';
+    expect(shown(doc, doc.length)).toBe('глубоко\n\n');
+  });
+
+  it('ссылка показывается своим текстом', () => {
+    const doc = 'см. [текст](https://example.org/путь) дальше\n\n';
+    expect(shown(doc, doc.length)).toBe('см. текст дальше\n\n');
+  });
+
+  it('картинка не трогается: без адреса подпись вела бы в никуда', () => {
+    const doc = '![подпись](файл.png)\n\n';
+    expect(hiddenParts(doc, doc.length)).toEqual([]);
+  });
+
+  it('вики-ссылка теряет обе пары скобок', () => {
+    const doc = 'см. [[Заметка]] дальше\n\n';
+    expect(shown(doc, doc.length)).toBe('см. Заметка дальше\n\n');
+  });
+
+  it('вики-ссылка с подписью показывается подписью', () => {
+    const doc = 'см. [[Планы работ|планы]] дальше\n\n';
+    expect(shown(doc, doc.length)).toBe('см. планы дальше\n\n');
+  });
+
+  it('раздел в вики-ссылке остаётся: он часть того, куда ведёт ссылка', () => {
+    const doc = 'см. [[Заметка#Раздел]]\n\n';
+    expect(shown(doc, doc.length)).toBe('см. Заметка#Раздел\n\n');
+  });
+
+  it('горизонтальная черта рисуется чертой, а дефисы прячутся', () => {
+    const doc = 'до\n\n---\n\nпосле\n';
+    expect(shown(doc, 0)).toBe('до\n\n\n\nпосле\n');
+
+    const editor = state(doc, 0);
+    const set = decorateLivePreview(editor, [{ from: 0, to: editor.doc.length }]);
+    const classes: string[] = [];
+    const iter = set.iter();
+    while (iter.value !== null) {
+      const spec = iter.value.spec as { class?: string };
+      if (typeof spec.class === 'string') classes.push(spec.class);
+      iter.next();
+    }
+    expect(classes).toEqual(['zn-hr']);
+  });
+
+  it('подчёркнутый заголовок не трогается: под чертой осталась бы пустота', () => {
+    const doc = 'Заголовок\n=========\n\n';
+    expect(hiddenParts(doc, doc.length)).toEqual([]);
+  });
+
+  it('строка под курсором показывает и блочную разметку', () => {
+    const doc = '# Заголовок\n> цитата\n';
+
+    expect(shown(doc, 0)).toBe('# Заголовок\nцитата\n');
+    expect(shown(doc, doc.indexOf('цитата'))).toBe('Заголовок\n> цитата\n');
   });
 
   it('превью включается только для markdown', () => {

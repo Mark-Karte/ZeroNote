@@ -70,6 +70,37 @@ export function forgetResolved(): void {
   resolved.clear();
 }
 
+/** Одна найденная вики-ссылка: где стоит и что внутри скобок. */
+export interface WikilinkSpan {
+  /** Смещение `[[` от начала переданного текста. */
+  from: number;
+  /** Смещение сразу за `]]`. */
+  to: number;
+  /** Содержимое скобок как есть: цель, раздел и подпись. */
+  inner: string;
+}
+
+/**
+ * Найти вики-ссылки в куске текста.
+ *
+ * Отдельной функцией, потому что потребителей у поиска два: подсветка здесь
+ * и живое превью, которое прячет скобки (задача 65). Второе выражение
+ * для того же разошлось бы с первым на первой же правке — как разошлись бы
+ * две таблицы значков (Р-148).
+ */
+export function wikilinkSpans(text: string): WikilinkSpan[] {
+  const out: WikilinkSpan[] = [];
+
+  // `lastIndex` сбрасывается на каждом заходе: выражение глобальное и общее,
+  // а вызывают его из разных мест.
+  LINK.lastIndex = 0;
+  for (let m = LINK.exec(text); m !== null; m = LINK.exec(text)) {
+    out.push({ from: m.index, to: m.index + m[0].length, inner: m[1] ?? '' });
+  }
+
+  return out;
+}
+
 /** Разобрать цель ссылки: убрать раздел и подпись. */
 export function linkTarget(inner: string): string {
   const withoutAlias = inner.split('|')[0] ?? inner;
@@ -87,9 +118,8 @@ function decorate(view: EditorView, source: string | null, unknown: Set<string>)
     // по возрастанию, а два прохода дают его вперемешку.
     const found: { from: number; to: number; mark: Decoration }[] = [];
 
-    LINK.lastIndex = 0;
-    for (let m = LINK.exec(text); m !== null; m = LINK.exec(text)) {
-      const target = linkTarget(m[1] ?? '');
+    for (const span of wikilinkSpans(text)) {
+      const target = linkTarget(span.inner);
       let mark = linkMark;
 
       if (source !== null && target !== '') {
@@ -103,7 +133,7 @@ function decorate(view: EditorView, source: string | null, unknown: Set<string>)
         }
       }
 
-      found.push({ from: from + m.index, to: from + m.index + m[0].length, mark });
+      found.push({ from: from + span.from, to: from + span.to, mark });
     }
 
     TAG.lastIndex = 0;

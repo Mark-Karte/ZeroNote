@@ -1,5 +1,5 @@
 import { syntaxTree } from '@codemirror/language';
-import { RangeSetBuilder, type EditorState, type Line } from '@codemirror/state';
+import type { EditorState, Line, Range } from '@codemirror/state';
 import {
   Decoration,
   ViewPlugin,
@@ -8,13 +8,15 @@ import {
   type ViewUpdate,
 } from '@codemirror/view';
 
+import { wikilinkSpans } from './wikilinks';
+
 /**
- * Живое превью markdown: знаки вокруг текста прячутся.
+ * Живое превью markdown: разметка не показывается, а действует.
  *
  * Задача 57 сделала оформление в исходнике — жирный жирным, но со звёздочками
  * на экране. Живое превью убирает знаки: `**жирный**` показывается как
- * **жирный**, `==выделение==` — цветом, `` `код` `` — подложкой без обратных
- * кавычек.
+ * **жирный**, `# Заголовок` — заголовком без решётки, `[текст](url)` — одним
+ * текстом, `---` — чертой.
  *
  * Три правила, на которых всё держится, записаны до кода:
  *
@@ -34,8 +36,8 @@ import {
 /**
  * Узлы, чьи знаки прячутся: пара ограничителей вокруг куска текста.
  *
- * Заголовки, цитаты и ссылки сюда не входят — у них знак не окружает текст,
- * а стоит перед ним и меняет строку целиком; это задача 65.
+ * Задача 64. Блочная разметка — заголовок, цитата, черта — разбирается ниже
+ * отдельно: у неё знак не окружает текст, а стоит перед ним.
  */
 const INLINE = new Set(['Emphasis', 'StrongEmphasis', 'Strikethrough', 'Highlight', 'InlineCode']);
 
@@ -51,18 +53,26 @@ const MARKS = new Set(['EmphasisMark', 'StrikethroughMark', 'HighlightMark', 'Co
 /** Пустая замена: место знака не занимает ничего. */
 const hidden = Decoration.replace({});
 
+/** Строка `---` рисуется чертой, а не дефисами. */
+const ruleLine = Decoration.line({ class: 'zn-hr' });
+
 /** Задевает ли строку курсор или выделение. */
 function touched(state: EditorState, line: Line): boolean {
   // Перебором по выделениям, а не набором номеров строк: `Ctrl+A` в файле
   // на десять мегабайт дал бы набор в миллион чисел на каждое нажатие.
   // Выделений обычно одно, курсоров — единицы.
-  return state.selection.ranges.some(
-    (range) => range.from <= line.to && range.to >= line.from,
-  );
+  return state.selection.ranges.some((range) => range.from <= line.to && range.to >= line.from);
+}
+
+/** Сколько пробелов стоит за знаком: они прячутся вместе с ним. */
+function spacesAfter(state: EditorState, at: number, limit: number): number {
+  let end = at;
+  while (end < limit && state.doc.sliceString(end, end + 1) === ' ') end += 1;
+  return end - at;
 }
 
 /**
- * Спрятать знаки разметки в заданных отрезках документа.
+ * Спрятать разметку в заданных отрезках документа.
  *
  * Принимает состояние и отрезки, а не представление, — чтобы проверяться
  * тестом без окна. Отрезки — видимые: заметка бывает длиной в мегабайт,
@@ -72,35 +82,103 @@ export function decorateLivePreview(
   state: EditorState,
   ranges: readonly { from: number; to: number }[],
 ): DecorationSet {
-  const builder = new RangeSetBuilder<Decoration>();
+  const found: Range<Decoration>[] = [];
   const tree = syntaxTree(state);
+  const { doc } = state;
 
-  // `RangeSetBuilder` требует строго возрастающих позиций и падает на повторе.
-  // Знак, попавший на границу двух видимых отрезков, обошёлся бы дважды.
-  let lastTo = -1;
+  /** Спрятать кусок, если его строку не задевает курсор (Р-158). */
+  const hide = (from: number, to: number): void => {
+    if (from >= to) return;
+    if (touched(state, doc.lineAt(from))) return;
+    found.push(hidden.range(from, to));
+  };
+
+  // Вики-ссылки разбираются первыми: их знаки не в дереве, а внутри `[[…]]`
+  // лежит чужой узел `Link`, который иначе спрятался бы наполовину.
+  const wiki: { from: number; to: number }[] = [];
+
+  for (const range of ranges) {
+    const text = doc.sliceString(range.from, range.to);
+
+    for (const span of wikilinkSpans(text)) {
+      const from = range.from + span.from;
+      const to = range.from + span.to;
+      wiki.push({ from, to });
+
+      // `[[цель|подпись]]` показывается подписью: цель уезжает вместе
+      // со скобками. `[[имя]]` — просто именем.
+      const alias = span.inner.indexOf('|');
+      const head = alias >= 0 ? from + 2 + alias + 1 : from + 2;
+      hide(from, head);
+      hide(to - 2, to);
+    }
+  }
+
+  const insideWiki = (from: number): boolean =>
+    wiki.some((span) => from >= span.from && from < span.to);
 
   for (const range of ranges) {
     tree.iterate({
       from: range.from,
       to: range.to,
       enter(node) {
-        if (!MARKS.has(node.name)) return;
-
         const parent = node.node.parent;
-        if (!parent || !INLINE.has(parent.name)) return;
 
-        if (node.from < lastTo) return;
+        // Знаки вокруг куска текста: `**`, `*`, `~~`, `==`, обратная кавычка.
+        if (MARKS.has(node.name)) {
+          if (parent && INLINE.has(parent.name)) hide(node.from, node.to);
+          return;
+        }
 
-        // Строка курсора показывается исходником целиком (Р-158).
-        if (touched(state, state.doc.lineAt(node.from))) return;
+        // Решётка заголовка — вместе с пробелом за ней: иначе текст
+        // заголовка съезжал бы вправо на один знак.
+        if (node.name === 'HeaderMark' && parent?.name.startsWith('ATXHeading')) {
+          const line = doc.lineAt(node.from);
+          hide(node.from, node.to + spacesAfter(state, node.to, line.to));
+          return;
+        }
 
-        lastTo = node.to;
-        builder.add(node.from, node.to, hidden);
+        // Угловая скобка цитаты — тоже с пробелом. Черта слева остаётся:
+        // её рисует украшение строки (задача 57, Р-153).
+        //
+        // Родитель здесь не проверяется, в отличие от прочих знаков, и это
+        // не небрежность: у второй строки цитаты `QuoteMark` лежит внутри
+        // `Paragraph`, а не `Blockquote` — абзац тянется через строки
+        // (ленивое продолжение CommonMark, то же, что поправило ожидание
+        // в задаче 57). При этом `QuoteMark` рождает только разбор цитаты,
+        // так что имени узла достаточно.
+        if (node.name === 'QuoteMark') {
+          const line = doc.lineAt(node.from);
+          hide(node.from, node.to + spacesAfter(state, node.to, line.to));
+          return;
+        }
+
+        // Ссылка показывается своим текстом: скобки и адрес прячутся.
+        //
+        // Только `Link`. У картинки узлы те же, но прятать у неё нечего:
+        // без адреса от `![подпись](файл.png)` осталась бы подпись, ведущая
+        // в никуда. Картинки — этап 10, вместе со вкладкой для них.
+        if ((node.name === 'LinkMark' || node.name === 'URL') && parent?.name === 'Link') {
+          if (!insideWiki(node.from)) hide(node.from, node.to);
+          return;
+        }
+
+        // Горизонтальная черта рисуется чертой, а не дефисами. Это отменяет
+        // правило задачи 57 для превью — ровно то, о чём предупреждает Р-160.
+        if (node.name === 'HorizontalRule') {
+          const line = doc.lineAt(node.from);
+          if (touched(state, line)) return;
+          found.push(ruleLine.range(line.from));
+          hide(node.from, node.to);
+        }
       },
     });
   }
 
-  return builder.finish();
+  // Сортировка вместо `RangeSetBuilder`: источников два — дерево разбора
+  // и свой разбор вики-ссылок, — и в порядке возрастания они приходят
+  // только вперемешку.
+  return Decoration.set(found, true);
 }
 
 /**
