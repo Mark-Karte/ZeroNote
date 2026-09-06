@@ -1,6 +1,12 @@
 import { syntaxTree } from '@codemirror/language';
 import { RangeSetBuilder, type EditorState } from '@codemirror/state';
-import { Decoration, EditorView, ViewPlugin, type DecorationSet } from '@codemirror/view';
+import {
+  Decoration,
+  EditorView,
+  ViewPlugin,
+  type DecorationSet,
+  type ViewUpdate,
+} from '@codemirror/view';
 
 /**
  * Цитаты в markdown: черта слева и отступ.
@@ -74,8 +80,20 @@ export function quotes() {
         this.decorations = decorateQuotes(view.state, view.visibleRanges);
       }
 
-      update(update: { docChanged: boolean; viewportChanged: boolean; view: EditorView }) {
-        if (update.docChanged || update.viewportChanged) {
+      /**
+       * Сравнение деревьев обязательно, и причина точная (Р-169, приёмка
+       * этапа 9). Язык при установке разбирает синхронно только первые
+       * 3000 знаков (`LanguageState.init`), а дальше дерево дорастает
+       * фоновой работой — обновлениями, у которых нет ни правки, ни смены
+       * видимой области. Первый экран, который длиннее трёх тысяч знаков,
+       * оставался бы без украшений до первой правки или прокрутки.
+       */
+      update(update: ViewUpdate) {
+        if (
+          update.docChanged ||
+          update.viewportChanged ||
+          syntaxTree(update.startState) !== syntaxTree(update.state)
+        ) {
           this.decorations = decorateQuotes(update.view.state, update.view.visibleRanges);
         }
       }

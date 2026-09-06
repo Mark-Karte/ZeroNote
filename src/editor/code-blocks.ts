@@ -6,6 +6,7 @@ import {
   ViewPlugin,
   WidgetType,
   type DecorationSet,
+  type ViewUpdate,
 } from '@codemirror/view';
 
 import { icon } from '../icons/registry';
@@ -231,8 +232,20 @@ export function codeBlocks() {
         this.decorations = decorateBlocks(view.state, view.visibleRanges);
       }
 
-      update(update: { docChanged: boolean; viewportChanged: boolean; view: EditorView }) {
-        if (update.docChanged || update.viewportChanged) {
+      /**
+       * Сравнение деревьев обязательно, и причина точная (Р-169, приёмка
+       * этапа 9). Язык при установке разбирает синхронно только первые
+       * 3000 знаков (`LanguageState.init`), а дальше дерево дорастает
+       * фоновой работой — обновлениями, у которых нет ни правки, ни смены
+       * видимой области. Первый экран, который длиннее трёх тысяч знаков,
+       * оставался бы без украшений до первой правки или прокрутки.
+       */
+      update(update: ViewUpdate) {
+        if (
+          update.docChanged ||
+          update.viewportChanged ||
+          syntaxTree(update.startState) !== syntaxTree(update.state)
+        ) {
           this.decorations = decorateBlocks(update.view.state, update.view.visibleRanges);
         }
       }

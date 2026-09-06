@@ -1,7 +1,8 @@
-import { EditorState } from '@codemirror/state';
+import { EditorState, type Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 
 import { languageById } from '../editor/langs';
+import { livePreview } from '../editor/live-preview';
 import { syntaxColors } from '../theme/syntax';
 
 /**
@@ -31,6 +32,9 @@ import { syntaxColors } from '../theme/syntax';
  */
 
 const RUNS = 21;
+
+/** Движений курсора в пачке: одно дешевле разрешения часов вебвью. */
+const CARET_MOVES = 50;
 
 /** Правдоподобный код на C++: подсветка должна работать, а не скучать. */
 const CPP = `// Комментарий к функции обработки
@@ -91,17 +95,29 @@ Get-ChildItem -Recurse | Where-Object { $_.Length -gt 1024 }
 `;
 
 interface Case {
-  /** Идентификатор языка в реестре. */
   id: string;
   sample: string;
-  /** Размеры документа, МиБ. */
   sizes: number[];
+  /** Подпись в таблице, если она отличается от названия языка. */
+  label?: string;
+  /** Что поставить сверх языка: превью ставится отсеком, здесь — напрямую. */
+  extra?: () => Extension[];
 }
 
 const CASES: Case[] = [
   { id: 'cpp', sample: CPP, sizes: [1, 5, 10] },
   // Двух размеров хватает, чтобы увидеть зависимость от размера, если она есть.
   { id: 'markdown', sample: MARKDOWN, sizes: [1, 10] },
+  // Живое превью — работа, которой до этапа 9 не было (Р-158): украшения
+  // пересобираются и на смену выделения, то есть на голое движение курсора.
+  // Строка нужна затем, чтобы плату назвать числом, а не словами.
+  {
+    id: 'markdown',
+    sample: MARKDOWN,
+    sizes: [1, 10],
+    label: 'Markdown + превью',
+    extra: () => [livePreview()],
+  },
 ];
 
 export interface Row {
@@ -115,6 +131,14 @@ export interface Row {
   editWorstMs: number;
   /** Вставка вместе с ожиданием кадра, медиана, мс. */
   frameMs: number;
+  /**
+   * Движение курсора на знак, медиана, мс.
+   *
+   * Правку оно не делает, и до этапа 9 стоило бы ровно ничего. С живым
+   * превью (Р-158) на нём пересобираются украшения видимой области —
+   * это и есть плата за правило «строка под курсором показывает исходник».
+   */
+  caretMs: number;
   lines: number;
 }
 
@@ -161,7 +185,10 @@ export async function runHighlightSuite(): Promise<Row[]> {
 
         const start = performance.now();
         const view = new EditorView({
-          state: EditorState.create({ doc, extensions: [support, syntaxColors] }),
+          state: EditorState.create({
+            doc,
+            extensions: [support, syntaxColors, ...(item.extra?.() ?? [])],
+          }),
           parent: host,
         });
         await nextFrame();
@@ -184,13 +211,27 @@ export async function runHighlightSuite(): Promise<Row[]> {
           frames.push(performance.now() - began);
         }
 
+        // Голое движение курсора: ни одного изменения документа.
+        //
+        // Пачкой и делением, а не по одному с медианой, как правка. Причина
+        // в инструменте: часы вебвью округляют до 0,1 мс, а одно движение
+        // дешевле этого — по одному замеру все строки показывали ровно 0,1,
+        // то есть дно шкалы, а не цену работы.
+        const caretBegan = performance.now();
+        for (let i = 0; i < CARET_MOVES; i += 1) {
+          const head = view.state.selection.main.head;
+          view.dispatch({ selection: { anchor: head + (i % 2 === 0 ? 1 : -1) } });
+        }
+        const caretMs = (performance.now() - caretBegan) / CARET_MOVES;
+
         rows.push({
           sizeMib: mib,
-          language: language.label,
+          language: item.label ?? language.label,
           openMs,
           editMs: median(edits),
           editWorstMs: Math.max(...edits),
           frameMs: median(frames),
+          caretMs,
           lines: view.state.doc.lines,
         });
 
@@ -206,20 +247,27 @@ export async function runHighlightSuite(): Promise<Row[]> {
 
 export function formatMarkdown(rows: Row[]): string {
   const lines = [
-    '| Размер | Язык | Строк | Открытие | Правка (медиана) | Правка (худшая) | До кадра |',
-    '|---|---|---|---|---|---|---|',
+    '| Размер | Язык | Строк | Открытие | Правка (медиана) | Правка (худшая) | До кадра | Курсор |',
+    '|---|---|---|---|---|---|---|---|',
   ];
   for (const r of rows) {
     lines.push(
       `| ${r.sizeMib} МиБ | ${r.language} | ${r.lines} | ${r.openMs.toFixed(0)} мс |` +
         ` ${r.editMs.toFixed(1)} мс | ${r.editWorstMs.toFixed(1)} мс |` +
-        ` ${r.frameMs.toFixed(1)} мс |`,
+        ` ${r.frameMs.toFixed(1)} мс | ${r.caretMs.toFixed(2)} мс |`,
     );
   }
   lines.push('');
   lines.push('«Правка» — синхронная часть: она задерживает обработку следующего');
   lines.push('нажатия. «До кадра» включает ожидание ближайшего кадра и меньше');
   lines.push('времени кадра быть не может — это свойство экрана, а не редактора.');
+  lines.push('');
+  lines.push('«Курсор» — движение на знак без правки, среднее по пятидесяти');
+  lines.push('подряд: одно движение дешевле разрешения часов вебвью (0,1 мс)');
+  lines.push('и по одному не меряется вовсе. С живым превью на нём пересобираются');
+  lines.push('украшения (Р-158), без превью не происходит ничего — разница строк');
+  lines.push('markdown и «Markdown + превью» и есть плата за правило «строка');
+  lines.push('под курсором показывает исходник».');
   lines.push('');
   lines.push('Разбор идёт от видимой области и откладывает остальное, поэтому');
   lines.push('цифры почти не зависят от размера файла. Зависимость означала бы,');
