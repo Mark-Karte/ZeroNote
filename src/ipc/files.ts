@@ -157,6 +157,21 @@ export const dropDraft = (id: number): Promise<void> => invoke('drop_draft', { i
 
 export const restoreSession = (): Promise<RestoredSession> => invoke('restore_session');
 
+/** Пути, разложенные ядром на файлы и папки. */
+export interface SplitPaths {
+  files: string[];
+  folders: string[];
+}
+
+/**
+ * Разложить пути на файлы и папки — для перетаскивания в окно.
+ *
+ * Спрашивается у ядра: в вебвью файловой системы нет, а гадать по расширению
+ * нельзя — папка с точкой в имени встречается чаще, чем кажется.
+ */
+export const splitPaths = (paths: string[]): Promise<SplitPaths> =>
+  invoke('split_paths', { paths });
+
 /** Показать путь в проводнике: папку открыть, файл выделить в его папке. */
 export const revealPath = (path: string): Promise<void> => invoke('reveal_path', { path });
 

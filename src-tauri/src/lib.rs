@@ -160,6 +160,7 @@ pub fn run() {
             commands::files::reorder_buffer,
             commands::files::list_encodings,
             commands::files::reveal_path,
+            commands::files::split_paths,
             commands::files::clipboard_text,
             commands::entries::create_entry,
             commands::entries::rename_entry,

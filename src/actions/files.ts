@@ -13,6 +13,7 @@ import {
 } from '../state/tabs.svelte';
 import { askChoice } from '../state/modal.svelte';
 import { forgetDraft, noteStructureChange } from '../state/persist.svelte';
+import { add as addRoot } from '../state/roots.svelte';
 import { autosavable } from '../state/autosave-rules';
 import { resolveMixedLineEndings } from './encoding';
 import { confirmOverwrite } from './external';
@@ -57,9 +58,33 @@ export async function openFiles(): Promise<void> {
   }
 }
 
-/** Открыть пути, пришедшие извне: перетаскивание файлов в окно. */
+/**
+ * Открыть пути, пришедшие извне: перетаскивание в окно, командная строка,
+ * только что созданный файл.
+ *
+ * **Папка открывается корнем, а не читается как файл.** До этого сюда шли
+ * все пути подряд, и брошенная в окно папка давала «Отказано в доступе»:
+ * Windows именно так отвечает на попытку прочитать каталог. Нашёл владелец,
+ * работая в программе каждый день.
+ *
+ * Ни о чём не спрашиваем: добавление корня ничего не пишет в папку (Р-049)
+ * и убирается одним пунктом меню, а вопрос в ответ на перетаскивание — это
+ * лишний шаг там, где намерение и так однозначно.
+ */
 export async function openDropped(paths: string[]): Promise<void> {
-  for (const path of paths) {
+  const { files, folders } = await ipc.splitPaths(paths);
+
+  for (const folder of folders) {
+    try {
+      await addRoot(folder);
+      // Корень — часть сессии: он не должен теряться при перезапуске.
+      noteStructureChange();
+    } catch (error) {
+      await report(error);
+    }
+  }
+
+  for (const path of files) {
     try {
       await openPath(path);
     } catch (error) {

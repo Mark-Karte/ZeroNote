@@ -507,8 +507,98 @@ pub fn reveal_path(path: String) -> Fallible<()> {
     crate::fsx::reveal::reveal(std::path::Path::new(&path)).map_err(|error| error.to_string())
 }
 
+/// Пути, разложенные на файлы и папки.
+#[derive(Debug, Default, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SplitPaths {
+    pub files: Vec<String>,
+    pub folders: Vec<String>,
+}
+
+/// Разложить пути на файлы и папки — для перетаскивания в окно.
+///
+/// Одним вызовом на все пути, а не по одному: в окно роняют и десяток файлов
+/// сразу, и десять обращений через IPC ради десяти системных вызовов —
+/// это плата ни за что.
+///
+/// Несуществующий путь считается файлом сознательно: он уедет в открытие
+/// и вернётся оттуда внятным «файл не найден». Молча выбросить его значило бы
+/// сделать вид, что ничего не роняли.
+#[tauri::command]
+pub fn split_paths(paths: Vec<String>) -> SplitPaths {
+    let mut out = SplitPaths::default();
+
+    for path in paths {
+        if std::path::Path::new(&path).is_dir() {
+            out.folders.push(path);
+        } else {
+            out.files.push(path);
+        }
+    }
+
+    out
+}
+
 /// Текст из буфера обмена — для пункта «Вставить» (Р-109).
 #[tauri::command]
 pub fn clipboard_text() -> Fallible<String> {
     crate::clipboard::text()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_dir(tag: &str) -> PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let dir = std::env::temp_dir().join(format!("zeronote-split-{tag}-{nanos}"));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// Папка, брошенная в окно, обязана отличаться от файла: иначе она уедет
+    /// в чтение и вернётся оттуда «Отказано в доступе».
+    #[test]
+    fn folders_are_told_from_files() {
+        let dir = temp_dir("kinds");
+        let file = dir.join("заметка.md");
+        let nested = dir.join("Архив");
+        std::fs::write(&file, "текст").unwrap();
+        std::fs::create_dir_all(&nested).unwrap();
+
+        let split = split_paths(vec![
+            file.display().to_string(),
+            nested.display().to_string(),
+            dir.display().to_string(),
+        ]);
+
+        assert_eq!(split.files, vec![file.display().to_string()]);
+        assert_eq!(
+            split.folders,
+            vec![nested.display().to_string(), dir.display().to_string()]
+        );
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Несуществующий путь считается файлом: он уедет в открытие и вернётся
+    /// внятной ошибкой. Молча выбросить его — сделать вид, что ничего
+    /// не роняли.
+    #[test]
+    fn missing_path_goes_to_files() {
+        let split = split_paths(vec!["C:/нет/такого/пути.md".to_owned()]);
+
+        assert_eq!(split.files.len(), 1);
+        assert!(split.folders.is_empty());
+    }
+
+    /// Пустой список — пустой ответ, а не ошибка: в окно можно уронить
+    /// и то, у чего нет пути вовсе.
+    #[test]
+    fn nothing_dropped_is_not_an_error() {
+        assert_eq!(split_paths(Vec::new()), SplitPaths::default());
+    }
 }
