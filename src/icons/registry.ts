@@ -93,6 +93,7 @@ export type IconName =
   | 'cmd.bracket'
   | 'cmd.go-to-line'
   | 'cmd.invisibles'
+  | 'cmd.live-preview'
   | 'cmd.next-tab'
   | 'cmd.previous-tab'
   | 'cmd.sidebar'
@@ -350,6 +351,9 @@ const ICONS: Record<IconName, string> = {
   // Знак абзаца — им же помечается перенос строки в тексте.
   'cmd.invisibles':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M11.8 3.2H7.9a2.9 2.9 0 0 0 0 5.8h1.4"/><path d="M9.3 3.2v9.6M11.8 3.2v9.6"/></svg>',
+  // Глаз: показ, а не правка. Тот же смысл, что у «предпросмотра» везде.
+  'cmd.live-preview':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M1.6 8s2.6-4.2 6.4-4.2S14.4 8 14.4 8s-2.6 4.2-6.4 4.2S1.6 8 1.6 8Z"/><circle cx="8" cy="8" r="1.9"/></svg>',
   // Уголок и край окна: следующая вкладка и предыдущая.
   'cmd.next-tab':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"><path d="M5.4 3.4 10 8l-4.6 4.6"/><path d="M12.6 3.4v9.2"/></svg>',

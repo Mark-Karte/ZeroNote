@@ -61,6 +61,7 @@ pub const COMMANDS: &[(&str, &str)] = &[
     ("view.bookmark-previous", "Предыдущая закладка"),
     ("view.bookmarks-clear", "Снять все закладки"),
     ("view.invisibles", "Показывать невидимые символы"),
+    ("view.live-preview", "Живое превью markdown"),
     ("view.fold", "Свернуть блок"),
     ("view.unfold", "Развернуть блок"),
     ("view.fold-all", "Свернуть всё"),

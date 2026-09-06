@@ -30,6 +30,7 @@ export interface Settings {
     invisibles: boolean;
     markdown_bar: boolean;
     readable_width: boolean;
+    live_preview: boolean;
     link_suggest: boolean;
     autosave: boolean;
   };

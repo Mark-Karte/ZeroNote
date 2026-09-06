@@ -3,10 +3,17 @@
   import Popup from './Popup.svelte';
   import type { PopupItem } from './popup-item';
   import { appearance } from '../theme/store.svelte';
-  import { activeTab, languageOf, setIndent, setLanguage, wrapOf } from '../state/tabs.svelte';
+  import {
+    activeTab,
+    languageOf,
+    livePreviewOf,
+    setIndent,
+    setLanguage,
+    wrapOf,
+  } from '../state/tabs.svelte';
   import { LANGUAGES, languageForFile } from '../editor/langs';
   import { indexing, cancel as cancelIndexing } from '../state/index.svelte';
-  import { wrapEnabled, toggleWrap } from '../state/settings.svelte';
+  import { wrapEnabled, toggleWrap, toggleLivePreview } from '../state/settings.svelte';
   import { plural } from './plural';
   import { positionOf, positionLabel } from './position';
   import { indentLabel, indentSource } from '../editor/indent';
@@ -300,6 +307,25 @@
     >
       {wrapOf(tab) ? 'перенос' : 'без переноса'}
     </button>
+
+    <!--
+      Переключатель превью стоит только над markdown: в коде и обычном тексте
+      прятать нечего, и кнопка «исходник» там означала бы, что бывает и другое
+      состояние. Порядок тот же, что у переноса: показывается состояние этой
+      вкладки, нажатие меняет общую настройку.
+    -->
+    {#if languageOf(tab)?.id === 'markdown'}
+      <button
+        class="item action"
+        type="button"
+        title={livePreviewOf(tab)
+          ? 'Знаки разметки не показываются; строка под курсором — всегда исходник. Нажмите, чтобы показать разметку'
+          : 'Показывается исходник со знаками разметки — нажмите, чтобы включить живое превью'}
+        onclick={() => void toggleLivePreview()}
+      >
+        {livePreviewOf(tab) ? 'превью' : 'исходник'}
+      </button>
+    {/if}
 
     {#if tab.meta.readOnly}
       <span class="item warn" title="Правка запрещена">

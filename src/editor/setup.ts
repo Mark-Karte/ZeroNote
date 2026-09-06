@@ -36,6 +36,7 @@ import { brackets } from './brackets';
 import { columnAt, indentUnitOf, type Indent } from './indent';
 import { folding } from './folding';
 import { invisibles } from './invisibles';
+import { livePreview } from './live-preview';
 import { wikilinks, type Target } from './wikilinks';
 import { linkSuggestions, type LinkContext } from './suggest';
 import type { Buffer } from '../ipc/files';
@@ -143,6 +144,20 @@ export function invisiblesExtension(enabled: boolean): Extension {
 }
 
 /**
+ * Отсек живого превью markdown.
+ *
+ * Настройка общая, как перенос и невидимые, но включается только там, где
+ * есть что прятать: решение «эта вкладка markdown» принимается выше
+ * (`livePreviewOn`), сюда приезжает готовое да или нет.
+ */
+export const livePreviewCompartment = new Compartment();
+
+/** Что кладётся в отсек живого превью. */
+export function livePreviewExtension(enabled: boolean): Extension {
+  return enabled ? livePreview() : [];
+}
+
+/**
  * Что кладётся в отсек автозакрытия.
  *
  * `Prec.high` не украшение: `closeBracketsKeymap` перехватывает `Backspace`,
@@ -186,6 +201,8 @@ export interface EditorOptions {
   autoClose: boolean;
   indent: Indent;
   invisibles: boolean;
+  /** Прятать ли знаки разметки: markdown и включённая настройка. */
+  livePreview: boolean;
   /** Номера строк с закладками — из сессии. Для нового буфера пусто. */
   bookmarks: number[];
 }
@@ -228,6 +245,7 @@ export function extensionsFor(meta: Buffer, options: EditorOptions): Extension[]
     // верное умолчание. Значение приходит из настроек, переключается на лету.
     wrapCompartment.of(options.wrap ? EditorView.lineWrapping : []),
     invisiblesCompartment.of(invisiblesExtension(options.invisibles)),
+    livePreviewCompartment.of(livePreviewExtension(options.livePreview)),
 
     // Подсветка парной скобки. Пару ищет разбор языка: скобка внутри строки
     // или комментария парой не считается. Где дерева нет — простым просмотром

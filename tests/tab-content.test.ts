@@ -56,6 +56,7 @@ vi.mock('../src/state/settings.svelte', () => ({
   indentSettings: () => ({ style: 'spaces', width: 4 }),
   invisiblesEnabled: () => false,
   readableWidthEnabled: () => true,
+  livePreviewEnabled: () => true,
 }));
 
 vi.mock('../src/state/roots.svelte', () => ({

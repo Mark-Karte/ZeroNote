@@ -10,11 +10,14 @@ import {
   indentExtension,
   invisiblesCompartment,
   invisiblesExtension,
+  livePreviewCompartment,
+  livePreviewExtension,
   languageCompartment,
   wrapCompartment,
 } from '../editor/setup';
 import { resolveIndent, type Indent } from '../editor/indent';
 import { wrapFor } from '../editor/readable';
+import { livePreviewOn } from '../editor/live-preview';
 import { bookmarkLines } from '../editor/bookmarks';
 import { editorView } from '../editor/current';
 import {
@@ -29,6 +32,7 @@ import {
   autoCloseEnabled,
   indentSettings,
   invisiblesEnabled,
+  livePreviewEnabled,
   wrapEnabled,
   readableWidthEnabled,
 } from './settings.svelte';
@@ -219,6 +223,10 @@ function makeState(
       autoClose: autoCloseEnabled(),
       indent: indent ?? resolveIndent(text, indentSettings()),
       invisibles: invisiblesEnabled(),
+      livePreview: livePreviewOn({
+        livePreview: livePreviewEnabled(),
+        markdown: languageForFile(meta.path ?? meta.title)?.id === 'markdown',
+      }),
       bookmarks,
     }),
   });
@@ -266,6 +274,22 @@ function setIndentOf(tab: Tab, indent: Indent): void {
   tab.editor = tab.editor.update({
     effects: indentCompartment.reconfigure(indentExtension(indent)),
   }).state;
+}
+
+/**
+ * Применить живое превью ко всем вкладкам.
+ *
+ * По вкладке, а не одним значением на всех: превью включается только
+ * у markdown (Р-159), и у соседней вкладки с кодом отсек обязан остаться
+ * пустым. Тот же ход, что у переноса с читаемой шириной.
+ */
+export function applyLivePreview(): void {
+  for (const tab of tabs.items) {
+    const extension = livePreviewExtension(livePreviewOf(tab));
+    tab.editor = tab.editor.update({
+      effects: livePreviewCompartment.reconfigure(extension),
+    }).state;
+  }
 }
 
 /** То же самое для невидимых символов. */
@@ -329,6 +353,13 @@ function put(
  * (Р-156). Правило лежит в `editor/readable.ts` чистой функцией и оттуда же
  * проверяется тестом — здесь только подстановка того, что знает вкладка.
  */
+export function livePreviewOf(tab: Tab): boolean {
+  return livePreviewOn({
+    livePreview: livePreviewEnabled(),
+    markdown: languageOf(tab)?.id === 'markdown',
+  });
+}
+
 export function wrapOf(tab: Tab): boolean {
   return wrapFor({
     wrap: wrapEnabled(),
@@ -392,6 +423,12 @@ export function setLanguage(id: number, language: string | null): void {
 
   tab.language = language;
   void applyLanguage(id);
+  // Язык сменился — вместе с ним меняется и то, что зависит от «это markdown»:
+  // колонка с переносом (Р-156) и живое превью (Р-159). Без этого выбор
+  // «Markdown» в строке состояния не давал бы ни того ни другого до первой
+  // правки настроек.
+  applyWrap();
+  applyLivePreview();
   // Выбор — часть сессии: он не должен теряться при перезапуске.
   noteStructureChange();
 }

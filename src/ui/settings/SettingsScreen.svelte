@@ -231,6 +231,26 @@
 
         <div class="row">
           <div class="what">
+            <span class="name">Живое превью markdown</span>
+            <span class="note">
+              Знаки разметки не показываются, а действуют: `**жирный**` виден
+              жирным. Строка под курсором всегда показывается исходником,
+              поэтому править разметку можно не выключая превью.
+            </span>
+          </div>
+          <select
+            class="control"
+            disabled={broken !== null}
+            value={values.editor.live_preview ? 'yes' : 'no'}
+            onchange={(e) => put(['editor', 'live_preview'], e.currentTarget.value === 'yes')}
+          >
+            <option value="no">Показывать разметку</option>
+            <option value="yes">Живое превью</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <div class="what">
             <span class="name">Читаемая ширина markdown</span>
             <span class="note">
               Текст заметки стоит колонкой по центру окна и переносится по её

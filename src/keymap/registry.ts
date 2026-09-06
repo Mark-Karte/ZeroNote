@@ -38,7 +38,7 @@ import {
   showBookmarks,
 } from '../actions/project';
 import { openSearch, findNext, findPrevious } from '../state/search.svelte';
-import { toggleInvisibles, toggleWrap } from '../state/settings.svelte';
+import { toggleInvisibles, toggleLivePreview, toggleWrap } from '../state/settings.svelte';
 import { nextTab, previousTab } from '../state/tabs.svelte';
 
 /**
@@ -113,6 +113,7 @@ export const COMMANDS: Record<CommandId, () => void | Promise<unknown>> = {
   'view.bookmarks-clear': inEditor(clearBookmarks),
 
   'view.invisibles': toggleInvisibles,
+  'view.live-preview': toggleLivePreview,
   'view.fold': inEditor(foldBlock),
   'view.unfold': inEditor(unfoldBlock),
   'view.fold-all': inEditor(foldAll),

@@ -22,6 +22,7 @@
     autoCloseEnabled,
     indentSettings,
     invisiblesEnabled,
+    livePreviewEnabled,
     markdownBarEnabled,
     settings,
     startSettings,
@@ -36,6 +37,7 @@
     applyAutoClose,
     applyIndentSettings,
     applyInvisibles,
+    applyLivePreview,
     activeTab,
     languageOf,
   } from '../state/tabs.svelte';
@@ -114,6 +116,15 @@
     void wrap;
     void readable;
     untrack(() => applyWrap());
+  });
+
+  // Живое превью — та же настройка того же рода и тем же способом. Оно
+  // включается только у markdown, но настройка общая, и доехать должна
+  // до всех вкладок: соседняя с кодом обязана остаться без превью.
+  $effect(() => {
+    const preview = livePreviewEnabled();
+    void preview;
+    untrack(() => applyLivePreview());
   });
 
   // Невидимые символы — та же настройка того же рода и тем же способом.

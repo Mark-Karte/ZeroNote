@@ -62,6 +62,7 @@ const ICON_FOR: Record<string, IconName> = {
   'view.bookmark-previous': 'cmd.bookmark-previous',
   'view.bookmarks-clear': 'cmd.bookmarks-clear',
   'view.invisibles': 'cmd.invisibles',
+  'view.live-preview': 'cmd.live-preview',
   'view.fold': 'cmd.fold',
   'view.unfold': 'cmd.unfold',
   'view.fold-all': 'cmd.fold-all',

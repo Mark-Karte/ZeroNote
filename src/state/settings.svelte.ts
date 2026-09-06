@@ -102,6 +102,21 @@ export function readableWidthEnabled(): boolean {
 }
 
 /**
+ * Показывать ли markdown без знаков разметки (Р-159).
+ *
+ * Умолчание `true` повторяет умолчание ядра: иначе первые полсекунды после
+ * запуска заметка стояла бы со звёздочками, а потом они бы исчезали.
+ */
+export function livePreviewEnabled(): boolean {
+  return settings.state?.settings.editor.live_preview ?? true;
+}
+
+/** Переключить живое превью. Значение уезжает в файл — оно настройка. */
+export async function toggleLivePreview(): Promise<void> {
+  await put(['editor', 'live_preview'], !livePreviewEnabled());
+}
+
+/**
  * Писать ли правки в файл без команды (Р-133, Р-141).
  *
  * Умолчание `false` повторяет умолчание ядра, и здесь это важнее обычного:
