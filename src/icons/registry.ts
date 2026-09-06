@@ -56,6 +56,11 @@ export type IconName =
   | 'md.task-list'
   | 'md.quote'
   | 'md.snippets'
+  | 'md.callout-note'
+  | 'md.callout-tip'
+  | 'md.callout-warning'
+  | 'md.callout-danger'
+  | 'md.callout-quote'
   | 'cmd.file-new'
   | 'cmd.save'
   | 'cmd.save-as'
@@ -223,6 +228,23 @@ const ICONS: Record<IconName, string> = {
   'md.quote':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2.8 3.4v9.2"/><path d="M6.4 5h7.2M6.4 8h7.2M6.4 11h4.4"/></svg>',
   // Заготовка — это вставка готового блока, отсюда плюс внутри рамки.
+  // Значки callout-ов: рисуются вместо знака `[!тип]` (задача 66).
+  // Кружок с «i» — заметка.
+  'md.callout-note':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.8"/><path d="M8 7.2v3.4"/><path d="M8 5.1v.1"/></svg>',
+  // Лампочка — подсказка.
+  'md.callout-tip':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.4a4 4 0 0 0-2.4 7.2c.4.3.6.8.6 1.3v.3h3.6v-.3c0-.5.2-1 .6-1.3A4 4 0 0 0 8 2.4Z"/><path d="M6.6 13.4h2.8"/></svg>',
+  // Треугольник с восклицательным знаком — внимание.
+  'md.callout-warning':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.6 14 12.6H2Z"/><path d="M8 6.6v2.6"/><path d="M8 10.9v.1"/></svg>',
+  // Молния — опасность. Не треугольник: он уже занят вниманием, а два
+  // похожих знака рядом означали бы, что карточки делают одно и то же.
+  'md.callout-danger':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M9.2 1.8 4.2 8.9h3.2l-.6 5.3 5-7.1H8.6Z"/></svg>',
+  // Кавычки — цитата.
+  'md.callout-quote':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M6.2 4.6c-1.9.6-3 2.1-3 4.1 0 1.4.8 2.4 2 2.4s1.9-.8 1.9-1.9-.7-1.8-1.7-1.8h-.3c.1-.9.7-1.6 1.6-2Z"/><path d="M12.6 4.6c-1.9.6-3 2.1-3 4.1 0 1.4.8 2.4 2 2.4s1.9-.8 1.9-1.9-.7-1.8-1.7-1.8h-.3c.1-.9.7-1.6 1.6-2Z"/></svg>',
   'md.snippets':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2.4" y="2.4" width="11.2" height="11.2" rx="2"/><path d="M8 5.4v5.2M5.4 8h5.2"/></svg>',
 

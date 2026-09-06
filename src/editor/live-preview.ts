@@ -3,11 +3,14 @@ import type { EditorState, Line, Range } from '@codemirror/state';
 import {
   Decoration,
   ViewPlugin,
+  WidgetType,
   type DecorationSet,
   type EditorView,
   type ViewUpdate,
 } from '@codemirror/view';
 
+import { icon } from '../icons/registry';
+import { CALLOUT_ICON, parseCallout, type CalloutKind } from './callouts';
 import { wikilinkSpans } from './wikilinks';
 
 /**
@@ -55,6 +58,35 @@ const hidden = Decoration.replace({});
 
 /** Строка `---` рисуется чертой, а не дефисами. */
 const ruleLine = Decoration.line({ class: 'zn-hr' });
+
+/** Остаток первой строки callout-а — его заголовок. */
+const calloutTitle = Decoration.mark({ class: 'zn-callout-title' });
+
+/**
+ * Значок callout-а: рисуется вместо знака `[!tip]`.
+ *
+ * Виджет, а не украшение текста: на месте знака должен появиться рисунок,
+ * которого в документе нет. Документ при этом не меняется ни на знак —
+ * `Decoration.replace` подменяет показ (Р-160).
+ */
+class CalloutIcon extends WidgetType {
+  constructor(readonly kind: CalloutKind) {
+    super();
+  }
+
+  /** Без этого узел пересоздаётся на каждой пересборке украшений. */
+  override eq(other: CalloutIcon): boolean {
+    return other.kind === this.kind;
+  }
+
+  override toDOM(): HTMLElement {
+    const span = document.createElement('span');
+    span.className = 'zn-callout-icon';
+    // Разметка из собственного реестра значков, а не из файла пользователя.
+    span.innerHTML = icon(CALLOUT_ICON[this.kind]);
+    return span;
+  }
+}
 
 /** Задевает ли строку курсор или выделение. */
 function touched(state: EditorState, line: Line): boolean {
@@ -117,6 +149,10 @@ export function decorateLivePreview(
   const insideWiki = (from: number): boolean =>
     wiki.some((span) => from >= span.from && from < span.to);
 
+  // Строки, уже получившие карточку: у вложенного callout-а внутри callout-а
+  // строка иначе получила бы два фона. Первый — внешний — выигрывает.
+  const carded = new Set<number>();
+
   for (const range of ranges) {
     tree.iterate({
       from: range.from,
@@ -160,6 +196,46 @@ export function decorateLivePreview(
         // в никуда. Картинки — этап 10, вместе со вкладкой для них.
         if ((node.name === 'LinkMark' || node.name === 'URL') && parent?.name === 'Link') {
           if (!insideWiki(node.from)) hide(node.from, node.to);
+          return;
+        }
+
+        // Callout: цитата, первая строка которой написана `[!тип] Заголовок`.
+        //
+        // Карточка остаётся и под курсором, в отличие от спрятанных знаков:
+        // она оформление строки, как черта у цитаты (Р-153). По правилу Р-158
+        // возвращается только сам знак `[!тип]` — вместо значка.
+        if (node.name === 'Blockquote') {
+          const first = doc.lineAt(node.from);
+          const marker = parseCallout(first.text);
+          if (!marker) return;
+
+          // Шаг назад: у цитаты, дописанной до конца документа, `node.to`
+          // указывает уже на начало следующей строки. Та же поправка,
+          // что у блоков кода и у цитат.
+          const last = doc.lineAt(Math.min(Math.max(node.from, node.to - 1), range.to));
+
+          for (let number = first.number; number <= last.number; number += 1) {
+            if (carded.has(number)) continue;
+            carded.add(number);
+
+            const parts = ['zn-callout', `zn-callout-${marker.kind}`];
+            if (number === first.number) parts.push('zn-callout-first');
+            if (number === last.number) parts.push('zn-callout-last');
+
+            found.push(Decoration.line({ class: parts.join(' ') }).range(doc.line(number).from));
+          }
+
+          const markFrom = first.from + marker.from;
+          const markTo = first.from + marker.to;
+
+          if (!touched(state, first)) {
+            found.push(
+              Decoration.replace({ widget: new CalloutIcon(marker.kind) }).range(markFrom, markTo),
+            );
+          }
+          if (markTo < first.to) {
+            found.push(calloutTitle.range(markTo, first.to));
+          }
           return;
         }
 

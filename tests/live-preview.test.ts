@@ -209,6 +209,86 @@ describe('живое превью: знаки вокруг текста', () => 
     expect(shown(doc, doc.indexOf('цитата'))).toBe('Заголовок\n> цитата\n');
   });
 
+  it('callout получает карточку на все свои строки', () => {
+    const doc = '> [!tip] Совет\n> вторая строка\n\nпосле\n';
+    const editor = state(doc, doc.length);
+    const set = decorateLivePreview(editor, [{ from: 0, to: editor.doc.length }]);
+
+    const lines = new Map<number, string>();
+    const iter = set.iter();
+    while (iter.value !== null) {
+      const spec = iter.value.spec as { class?: string };
+      if (typeof spec.class === 'string' && spec.class.startsWith('zn-callout ')) {
+        lines.set(editor.doc.lineAt(iter.from).number, spec.class);
+      }
+      iter.next();
+    }
+
+    expect(lines.get(1)).toContain('zn-callout-tip');
+    expect(lines.get(1)).toContain('zn-callout-first');
+    expect(lines.get(2)).toContain('zn-callout-last');
+    // Пустая строка за цитатой в карточку не входит.
+    expect(lines.has(3)).toBe(false);
+  });
+
+  it('знак callout-а заменяется значком, а заголовок остаётся текстом', () => {
+    const doc = '> [!warning] Осторожно\n> текст\n\n';
+    const editor = state(doc, doc.length);
+    const set = decorateLivePreview(editor, [{ from: 0, to: editor.doc.length }]);
+
+    let widget = false;
+    let title = '';
+    const iter = set.iter();
+    while (iter.value !== null) {
+      const spec = iter.value.spec as { widget?: unknown; class?: string };
+      if (spec.widget) {
+        widget = true;
+        expect(editor.doc.sliceString(iter.from, iter.to)).toBe('[!warning] ');
+      }
+      if (spec.class === 'zn-callout-title') {
+        title = editor.doc.sliceString(iter.from, iter.to);
+      }
+      iter.next();
+    }
+
+    expect(widget).toBe(true);
+    expect(title).toBe('Осторожно');
+  });
+
+  it('курсор на первой строке возвращает знак, но карточку не убирает', () => {
+    const doc = '> [!tip] Совет\n> текст\n\n';
+    const editor = state(doc, 0);
+    const set = decorateLivePreview(editor, [{ from: 0, to: editor.doc.length }]);
+
+    let widget = false;
+    let card = false;
+    const iter = set.iter();
+    while (iter.value !== null) {
+      const spec = iter.value.spec as { widget?: unknown; class?: string };
+      if (spec.widget) widget = true;
+      if (typeof spec.class === 'string' && spec.class.startsWith('zn-callout ')) card = true;
+      iter.next();
+    }
+
+    // Знак виден исходником (Р-158), карточка на месте — она оформление
+    // строки, как черта у цитаты.
+    expect(widget).toBe(false);
+    expect(card).toBe(true);
+  });
+
+  it('обычная цитата карточки не получает', () => {
+    const doc = '> просто цитата\n\n';
+    const editor = state(doc, doc.length);
+    const set = decorateLivePreview(editor, [{ from: 0, to: editor.doc.length }]);
+
+    const iter = set.iter();
+    while (iter.value !== null) {
+      const spec = iter.value.spec as { class?: string };
+      expect(spec.class ?? '').not.toContain('zn-callout');
+      iter.next();
+    }
+  });
+
   it('превью включается только для markdown', () => {
     expect(livePreviewOn({ livePreview: true, markdown: true })).toBe(true);
     expect(livePreviewOn({ livePreview: true, markdown: false })).toBe(false);

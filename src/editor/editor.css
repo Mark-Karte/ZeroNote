@@ -261,6 +261,89 @@
 }
 
 /*
+ * Callout-ы в живом превью (задача 66).
+ *
+ * `> [!tip] Совет` — обычная цитата, у которой первая строка написана
+ * в известном виде. Отсюда и вид: та же черта слева, что у цитаты, плюс
+ * цвет роли и лёгкая заливка.
+ *
+ * Правила стоят ПОСЛЕ `.zn-quote` намеренно: строка callout-а — это и цитата
+ * тоже, оба класса лежат на одном элементе и спорят за одну тень. Побеждает
+ * последнее правило, и это должен быть цвет роли, а не общий цвет цитаты.
+ *
+ * `--callout-color` без приставки `--zn-`: приставка принадлежит слою
+ * токенов (задача 49), а это внутренняя переменная одного украшения.
+ *
+ * Подложка — `bg-canvas`, роль утопленного (Р-083), та же, что у блоков кода:
+ * callout вложен в текст, а не приподнят над ним. Заливки цветом роли здесь
+ * нет намеренно, хотя она напрашивалась: это был бы четвёртый фон под текстом,
+ * а проверка читаемости (Р-143) считает контраст на трёх. Цвет роли и так
+ * назван трижды — чертой, значком и заголовком.
+ */
+.cm-editor .zn-callout {
+  padding-left: var(--zn-space-3);
+  box-shadow: inset var(--zn-border-width-thick) 0 0 var(--callout-color);
+  background-color: var(--zn-color-bg-canvas);
+}
+
+.cm-editor .zn-callout-note {
+  --callout-color: var(--zn-color-accent);
+}
+
+.cm-editor .zn-callout-tip {
+  --callout-color: var(--zn-color-success);
+}
+
+.cm-editor .zn-callout-warning {
+  --callout-color: var(--zn-color-warning);
+}
+
+.cm-editor .zn-callout-danger {
+  --callout-color: var(--zn-color-danger);
+}
+
+.cm-editor .zn-callout-quote {
+  --callout-color: var(--zn-color-syntax-quote);
+}
+
+/* Скругление только сверху у первой строки и снизу у последней: карточка
+   собирается из строк, а не из одного блока — блок нельзя, строки редактора
+   принадлежат редактору. */
+.cm-editor .zn-callout-first {
+  border-top-left-radius: var(--zn-radius-md);
+  border-top-right-radius: var(--zn-radius-md);
+}
+
+.cm-editor .zn-callout-last {
+  border-bottom-left-radius: var(--zn-radius-md);
+  border-bottom-right-radius: var(--zn-radius-md);
+}
+
+/* Значок вместо знака `[!тип]`. Цвет — роли, размер — строки списка.
+   Зазор справа обязателен: знак прячется вместе с пробелом за ним, и без
+   отступа значок упирается в заголовок — видно только на живом окне. */
+.cm-editor .zn-callout-icon {
+  display: inline-flex;
+  vertical-align: text-bottom;
+  margin-right: var(--zn-space-2);
+  width: var(--zn-control-icon-size);
+  height: var(--zn-control-icon-size);
+  color: var(--callout-color);
+}
+
+.cm-editor .zn-callout-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Заголовок callout-а — остаток первой строки. */
+.cm-editor .zn-callout-title {
+  color: var(--callout-color);
+  font-weight: var(--zn-font-weight-strong);
+}
+
+/*
  * Горизонтальная черта в живом превью (задача 65).
  *
  * Строка `---` теряет дефисы и получает черту. Это отменяет правило задачи 57
