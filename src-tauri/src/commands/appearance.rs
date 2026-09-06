@@ -152,6 +152,37 @@ pub fn builtin_theme_source(appearance: Appearance) -> String {
     theme::builtin_source(appearance).to_owned()
 }
 
+/// Образцы тем для вкладки «Темы»: цвета каждой темы, какими их увидит глаз.
+///
+/// Отдельной командой, а не полем состояния оформления. Состояние собирается
+/// при каждом запуске и при каждой правке файла в папке данных; образцы нужны
+/// одному экрану, который открывают раз в месяц. Класть разбор и сборку всех
+/// тем на путь запуска ради него — платить за вкладку постоянно.
+#[tauri::command]
+pub fn theme_samples(state: tauri::State<'_, AppState>) -> Vec<theme::ThemeSample> {
+    theme::samples(&state.data_dir.themes_dir())
+}
+
+/// «Создать свою на основе этой»: копия файла темы в папке пользователя.
+///
+/// Возвращается описание новой темы — интерфейсу нужен её идентификатор,
+/// чтобы тут же её выбрать.
+#[tauri::command]
+pub fn create_theme(state: tauri::State<'_, AppState>, id: String) -> Result<ThemeInfo, String> {
+    theme::create_copy(&state.data_dir.themes_dir(), &id).map_err(|e| e.to_string())
+}
+
+/// Показать папку тем в проводнике.
+///
+/// Папку создаёт запуск приложения, но её могли удалить руками между запусками,
+/// а «открыть» не должно превращаться в сообщение об ошибке из-за этого.
+#[tauri::command]
+pub fn open_themes_dir(state: tauri::State<'_, AppState>) -> Result<(), String> {
+    let dir = state.data_dir.themes_dir();
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    crate::fsx::reveal::reveal(&dir).map_err(|e| e.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

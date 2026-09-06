@@ -40,3 +40,41 @@ export function fetchAppearance(systemDark: boolean): Promise<AppearanceState> {
 export function builtinThemeSource(appearance: Appearance): Promise<string> {
   return invoke<string>('builtin_theme_source', { appearance });
 }
+
+/**
+ * Цвета образца темы — восемь ролей, по которым тему узнают на глаз.
+ *
+ * Считает их ядро: подстановка палитры и донашивание недостающего живут там,
+ * и вторая реализация здесь разошлась бы с первой.
+ */
+export interface ThemeSample {
+  id: string;
+  bg: string;
+  fg: string;
+  muted: string;
+  accent: string;
+  border: string;
+  keyword: string;
+  string: string;
+  comment: string;
+}
+
+/**
+ * Образцы всех доступных тем.
+ *
+ * Отдельным вызовом, а не полем состояния оформления: состояние собирается
+ * при каждом запуске, а образцы нужны одной вкладке.
+ */
+export function themeSamples(): Promise<ThemeSample[]> {
+  return invoke<ThemeSample[]>('theme_samples');
+}
+
+/** Копия темы в папке пользователя. Возвращает описание новой темы. */
+export function createTheme(id: string): Promise<ThemeInfo> {
+  return invoke<ThemeInfo>('create_theme', { id });
+}
+
+/** Показать папку тем в проводнике. */
+export function openThemesDir(): Promise<void> {
+  return invoke('open_themes_dir');
+}

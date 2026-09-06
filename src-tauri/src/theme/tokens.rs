@@ -140,6 +140,9 @@ pub const METRICS_NORMAL: &[(&str, &str)] = &[
     ("control-tree-row-height", "22px"),
     ("control-strip-width", "50px"),
     ("control-strip-button-size", "38px"),
+    // Карточка темы в параметрах: ширина, при которой в образец помещается
+    // строка кода из трёх слов, а в окно — три-четыре карточки в ряд.
+    ("control-theme-card-width", "180px"),
 ];
 
 /// Метрики компактной плотности.
@@ -187,6 +190,7 @@ pub const METRICS_COMPACT: &[(&str, &str)] = &[
     ("control-tree-row-height", "19px"),
     ("control-strip-width", "42px"),
     ("control-strip-button-size", "32px"),
+    ("control-theme-card-width", "160px"),
 ];
 
 /// Семантические роли, выраженные через палитру.

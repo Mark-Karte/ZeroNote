@@ -313,11 +313,27 @@ pub struct ThemeInfo {
 /// не попадает в него, а причина возвращается отдельным списком, чтобы
 /// интерфейс мог показать её пользователю, а не проглотить.
 pub fn available(themes_dir: &Path) -> (Vec<ThemeInfo>, Vec<String>) {
-    let mut list: Vec<ThemeInfo> = BUILTIN
+    let (themes, problems) = load_all(themes_dir);
+    let list = themes
+        .iter()
+        .map(|(theme, builtin)| info_of(theme, *builtin))
+        .collect();
+    (list, problems)
+}
+
+/// Все разобранные темы: встроенные плюс всё, что лежит в папке пользователя.
+///
+/// Отдельно от `available`, потому что потребителей у списка два и им нужно
+/// разное: списку выбора хватает имени, образцу нужны цвета, а цвета живут
+/// в самом файле темы. Читать и разбирать папку дважды ради этого незачем.
+///
+/// `bool` — встроенная ли тема; файла на диске у такой нет.
+fn load_all(themes_dir: &Path) -> (Vec<(ThemeFile, bool)>, Vec<String>) {
+    let mut list: Vec<(ThemeFile, bool)> = BUILTIN
         .iter()
         .map(|(_, source)| {
             let theme = parse(source).expect("встроенная тема должна разбираться");
-            info_of(&theme, true)
+            (theme, true)
         })
         .collect();
     let mut problems = Vec::new();
@@ -338,8 +354,8 @@ pub fn available(themes_dir: &Path) -> (Vec<ThemeInfo>, Vec<String>) {
             Ok(source) => match parse(&source) {
                 Ok(theme) => {
                     // Пользовательская тема с id встроенной перекрывает её.
-                    list.retain(|existing| existing.id != theme.id);
-                    list.push(info_of(&theme, false));
+                    list.retain(|(existing, _)| existing.id != theme.id);
+                    list.push((theme, false));
                 }
                 Err(e) => problems.push(format!("{}: {e}", path.display())),
             },
@@ -347,7 +363,7 @@ pub fn available(themes_dir: &Path) -> (Vec<ThemeInfo>, Vec<String>) {
         }
     }
 
-    list.sort_by(|a, b| a.name.cmp(&b.name));
+    list.sort_by(|(a, _), (b, _)| a.name.cmp(&b.name));
     (list, problems)
 }
 
@@ -380,6 +396,203 @@ pub fn load_by_id(themes_dir: &Path, id: &str) -> Option<ThemeFile> {
     }
 
     builtin_by_id(id)
+}
+
+/// Цвета для образца темы в окне параметров.
+///
+/// Не весь набор токенов, а восемь цветов, по которым тему узнают на глаз:
+/// фон рабочей области, текст, приглушённый текст, акцент, граница и три
+/// цвета кода. Отдавать наружу всю таблицу значило бы гонять через IPC
+/// по сотне значений на тему ради картинки в сотню пикселей.
+///
+/// Считает их ядро, а не интерфейс: подстановка палитры, донашивание
+/// недостающего из встроенной пары и разбор ссылок живут здесь, и вторая
+/// реализация во фронтенде разошлась бы с первой на первой же теме.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ThemeSample {
+    pub id: String,
+    pub bg: String,
+    pub fg: String,
+    pub muted: String,
+    pub accent: String,
+    pub border: String,
+    pub keyword: String,
+    pub string: String,
+    pub comment: String,
+}
+
+/// Образцы всех доступных тем.
+///
+/// Плотность на цвета не влияет — она задаёт отступы и кегли, — поэтому
+/// берётся обычная, и образец одинаков при любой настройке плотности.
+/// Тема, которая не собирается, в образцы не попадает: про неё уже сказано
+/// в `problems` состояния оформления, и второй раз жаловаться незачем.
+pub fn samples(themes_dir: &Path) -> Vec<ThemeSample> {
+    let (themes, _) = load_all(themes_dir);
+
+    themes
+        .iter()
+        .filter_map(|(theme, _)| {
+            let tokens = resolve(theme, Density::Normal).ok()?;
+            let pick = |name: &str| tokens.get(name).cloned().unwrap_or_default();
+
+            Some(ThemeSample {
+                id: theme.id.clone(),
+                bg: pick("color-bg-raised"),
+                fg: pick("color-fg-default"),
+                muted: pick("color-fg-muted"),
+                accent: pick("color-accent"),
+                border: pick("color-border-default"),
+                keyword: pick("color-syntax-keyword"),
+                string: pick("color-syntax-string"),
+                comment: pick("color-syntax-comment"),
+            })
+        })
+        .collect()
+}
+
+/// Исходник темы — текст файла как он есть, вместе с комментариями.
+///
+/// Порядок тот же, что у `load_by_id`: пользовательский файл сильнее
+/// встроенной темы с тем же идентификатором.
+pub fn source_of(themes_dir: &Path, id: &str) -> Option<String> {
+    if let Ok(entries) = std::fs::read_dir(themes_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("toml") {
+                continue;
+            }
+            if let Ok(source) = std::fs::read_to_string(&path)
+                && let Ok(theme) = parse(&source)
+                && theme.id == id
+            {
+                return Some(source);
+            }
+        }
+    }
+
+    BUILTIN
+        .iter()
+        .find(|(name, _)| *name == id)
+        .map(|(_, source)| (*source).to_owned())
+}
+
+/// Имя и идентификатор темы, сделанной из другой.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CopyNaming {
+    pub id: String,
+    pub name: String,
+}
+
+/// Свободные имя и идентификатор для копии: «Dracula (копия)», `dracula-копия`.
+///
+/// Занятым считается и идентификатор темы, и имя файла в папке: копия не должна
+/// ни перекрыть чужую тему, ни лечь поверх чужого файла.
+pub fn free_copy_naming(base_id: &str, base_name: &str, taken: &BTreeSet<String>) -> CopyNaming {
+    let stem = id_stem(base_id);
+
+    let first = format!("{stem}-копия");
+    if !taken.contains(&first) {
+        return CopyNaming {
+            id: first,
+            name: format!("{base_name} (копия)"),
+        };
+    }
+
+    (2..)
+        .map(|n| CopyNaming {
+            id: format!("{stem}-копия-{n}"),
+            name: format!("{base_name} (копия {n})"),
+        })
+        .find(|naming| !taken.contains(&naming.id))
+        .expect("перебор без конца обязан найти свободный идентификатор")
+}
+
+/// Основа идентификатора: то, что годится и в имя файла.
+///
+/// Идентификатор пользовательской темы — любая строка из её файла, а мы делаем
+/// из него имя файла. Всё, что не буква, не цифра, не дефис и не подчёркивание,
+/// заменяется дефисом; кириллица остаётся кириллицей.
+fn id_stem(base: &str) -> String {
+    let mut out = String::with_capacity(base.len());
+
+    for ch in base.chars() {
+        if ch.is_alphanumeric() || ch == '-' || ch == '_' {
+            out.push(ch);
+        } else if !out.ends_with('-') {
+            out.push('-');
+        }
+    }
+
+    let trimmed = out.trim_matches('-');
+    if trimmed.is_empty() {
+        "тема".to_owned()
+    } else {
+        trimmed.to_owned()
+    }
+}
+
+/// Переписать идентификатор и имя в исходнике темы.
+///
+/// `toml_edit`, а не пересборка через serde: у встроенных тем в заголовке файла
+/// стоит разбор палитры и ссылка на источник, а копия делается ровно затем,
+/// чтобы её правили руками. Копия без этих пояснений была бы хуже оригинала
+/// именно тем, ради чего её делают. То же соображение, что в Р-013 про
+/// настройки.
+pub fn retitle(source: &str, id: &str, name: &str) -> Result<String, ThemeError> {
+    let mut document: toml_edit::DocumentMut = source
+        .parse()
+        .map_err(|e: toml_edit::TomlError| ThemeError::Parse(e.to_string()))?;
+
+    document["id"] = toml_edit::value(id);
+    document["name"] = toml_edit::value(name);
+
+    Ok(document.to_string())
+}
+
+/// Создать в папке пользователя копию темы `id`.
+///
+/// Копируется исходник целиком — комментарии, порядок ключей, форматирование;
+/// меняются только идентификатор и имя. Иначе копия перекрыла бы оригинал:
+/// пользовательская тема с идентификатором встроенной сильнее её.
+///
+/// Существующий файл не перезаписывается никогда: имя подбирается свободное,
+/// а запись идёт с `create_new` — она отказывается писать поверх. Это то же
+/// правило, что у образца `settings.toml`.
+pub fn create_copy(themes_dir: &Path, id: &str) -> Result<ThemeInfo, ThemeError> {
+    let source = source_of(themes_dir, id)
+        .ok_or_else(|| ThemeError::Io(format!("тема «{id}» не найдена")))?;
+    let theme = parse(&source)?;
+
+    let (existing, _) = load_all(themes_dir);
+    let mut taken: BTreeSet<String> = existing.into_iter().map(|(theme, _)| theme.id).collect();
+    if let Ok(entries) = std::fs::read_dir(themes_dir) {
+        for entry in entries.flatten() {
+            if let Some(stem) = entry.path().file_stem().and_then(|s| s.to_str()) {
+                taken.insert(stem.to_owned());
+            }
+        }
+    }
+
+    let naming = free_copy_naming(&theme.id, &theme.name, &taken);
+    let text = retitle(&source, &naming.id, &naming.name)?;
+
+    std::fs::create_dir_all(themes_dir).map_err(|e| ThemeError::Io(e.to_string()))?;
+    let path = themes_dir.join(format!("{}.toml", naming.id));
+    std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&path)
+        .and_then(|mut file| std::io::Write::write_all(&mut file, text.as_bytes()))
+        .map_err(|e| ThemeError::Io(format!("{}: {e}", path.display())))?;
+
+    Ok(ThemeInfo {
+        id: naming.id,
+        name: naming.name,
+        appearance: theme.appearance,
+        builtin: false,
+    })
 }
 
 #[cfg(test)]
@@ -847,5 +1060,179 @@ mod tests {
             parse(source),
             Err(ThemeError::UnsupportedSchema { found: 99 })
         );
+    }
+
+    fn temp_themes(tag: &str) -> std::path::PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let dir = std::env::temp_dir().join(format!("zeronote-themes-{tag}-{nanos}"));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// Образец есть у каждой встроенной темы, и цвета в нём настоящие.
+    ///
+    /// Пустая строка здесь опаснее неверного цвета: в CSS она молча
+    /// отбрасывается, и карточка поехала бы на цветах текущей темы — то есть
+    /// показывала бы одно и то же для всех тем.
+    #[test]
+    fn every_builtin_theme_has_a_sample() {
+        let dir = temp_themes("samples");
+        let samples = samples(&dir);
+
+        assert_eq!(samples.len(), BUILTIN.len());
+        for sample in &samples {
+            for (role, value) in [
+                ("фон", &sample.bg),
+                ("текст", &sample.fg),
+                ("акцент", &sample.accent),
+                ("ключевое слово", &sample.keyword),
+                ("строка", &sample.string),
+                ("комментарий", &sample.comment),
+            ] {
+                assert!(
+                    value.starts_with('#'),
+                    "тема {}: {role} не цвет, а «{value}»",
+                    sample.id
+                );
+            }
+        }
+
+        let light = samples.iter().find(|s| s.id == "light").unwrap();
+        let dark = samples.iter().find(|s| s.id == "dark").unwrap();
+        assert_ne!(light.bg, dark.bg, "образцы светлой и тёмной совпали");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Копия сохраняет комментарии исходника: их и правят.
+    #[test]
+    fn retitle_keeps_the_comments() {
+        let source = builtin_source(Appearance::Dark);
+        let copy = retitle(source, "мой-тёмный", "Мой тёмный").unwrap();
+
+        let theme = parse(&copy).unwrap();
+        assert_eq!(theme.id, "мой-тёмный");
+        assert_eq!(theme.name, "Мой тёмный");
+        // Палитра и все переопределения на месте — переписаны две строки,
+        // а не собран заново весь файл.
+        assert_eq!(theme.palette, parse(source).unwrap().palette);
+
+        let first_comment = source
+            .lines()
+            .find(|line| line.starts_with('#'))
+            .expect("у встроенной темы есть заголовок с пояснением");
+        assert!(
+            copy.contains(first_comment),
+            "комментарий исходника потерян"
+        );
+
+        let _ = copy;
+    }
+
+    /// Вторая копия той же темы не ложится поверх первой, а получает номер.
+    #[test]
+    fn second_copy_gets_a_number() {
+        let dir = temp_themes("copy-twice");
+
+        let first = create_copy(&dir, "dark").unwrap();
+        let second = create_copy(&dir, "dark").unwrap();
+
+        assert_eq!(first.id, "dark-копия");
+        assert_eq!(second.id, "dark-копия-2");
+        assert!(first.name.ends_with("(копия)"), "{}", first.name);
+        assert!(second.name.ends_with("(копия 2)"), "{}", second.name);
+        assert!(!first.builtin && !second.builtin);
+        assert_eq!(first.appearance, Appearance::Dark);
+
+        assert!(dir.join("dark-копия.toml").exists());
+        assert!(dir.join("dark-копия-2.toml").exists());
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Копия не перекрывает оригинал: у неё свой идентификатор, и в списке
+    /// остаются обе темы. Пользовательская тема с id встроенной сильнее её —
+    /// копия с тем же id молча съела бы встроенную.
+    #[test]
+    fn copy_does_not_shadow_the_original() {
+        let dir = temp_themes("copy-shadow");
+        let copy = create_copy(&dir, "dracula").unwrap();
+
+        let (list, problems) = available(&dir);
+
+        assert!(problems.is_empty(), "{problems:?}");
+        assert!(list.iter().any(|t| t.id == "dracula" && t.builtin));
+        assert!(list.iter().any(|t| t.id == copy.id && !t.builtin));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Копия делается и с пользовательской темы, а не только со встроенной:
+    /// «взять свою и попробовать иначе» — тот же самый ход.
+    #[test]
+    fn user_theme_can_be_copied_too() {
+        let dir = temp_themes("copy-user");
+        std::fs::write(
+            dir.join("моя.toml"),
+            "# мой комментарий
+schema = 1
+id = \"моя\"
+name = \"Моя\"
+appearance = \"dark\"
+
+[palette]
+bg-0 = \"#010203\"
+",
+        )
+        .unwrap();
+
+        let copy = create_copy(&dir, "моя").unwrap();
+
+        assert_eq!(copy.id, "моя-копия");
+        let text = std::fs::read_to_string(dir.join("моя-копия.toml")).unwrap();
+        assert!(text.contains("# мой комментарий"));
+        assert!(text.contains("#010203"), "палитра не скопирована");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Идентификатор становится именем файла, поэтому косая черта и пробелы
+    /// в нём не переживают копирования.
+    #[test]
+    fn copy_id_is_safe_as_a_file_name() {
+        let naming = free_copy_naming("моя тема/2", "Моя тема", &BTreeSet::new());
+
+        assert_eq!(naming.id, "моя-тема-2-копия");
+        assert_eq!(naming.name, "Моя тема (копия)");
+
+        // Идентификатор из одних запрещённых знаков не должен дать пустое имя.
+        let odd = free_copy_naming("///", "Без имени", &BTreeSet::new());
+        assert_eq!(odd.id, "тема-копия");
+    }
+
+    /// Пользовательский файл сильнее встроенной темы и при чтении исходника —
+    /// иначе копия делалась бы не с того, что человек видит на экране.
+    #[test]
+    fn user_file_wins_when_reading_the_source() {
+        let dir = temp_themes("source-of");
+        std::fs::write(
+            dir.join("dark.toml"),
+            "schema = 1
+id = \"dark\"
+name = \"Своя тёмная\"
+appearance = \"dark\"
+",
+        )
+        .unwrap();
+
+        let source = source_of(&dir, "dark").unwrap();
+        assert!(source.contains("Своя тёмная"));
+        assert!(source_of(&dir, "dracula").unwrap().contains("Dracula"));
+        assert_eq!(source_of(&dir, "нет-такой"), None);
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

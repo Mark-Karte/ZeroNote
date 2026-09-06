@@ -1,11 +1,11 @@
 <script lang="ts">
   import Icon from '../Icon.svelte';
   import { settings, put } from '../../state/settings.svelte';
-  import { appearance } from '../../theme/store.svelte';
   import { openDropped } from '../../actions/files';
   import { showAbout } from '../../actions/about';
   import { version } from '../../version';
   import KeysScreen from './KeysScreen.svelte';
+  import ThemesScreen from './ThemesScreen.svelte';
   import { updates, checkForUpdates } from '../../state/updates.svelte';
 
   /**
@@ -28,18 +28,11 @@
    * пять настроек оформления. Разделение просил владелец: «чтобы не мусорить
    * в основных настройках».
    */
-  let tab = $state<'general' | 'keys'>('general');
+  let tab = $state<'general' | 'themes' | 'keys'>('general');
 
   const file = $derived(settings.state);
   const values = $derived(file?.settings);
   const broken = $derived(file?.broken ?? null);
-
-  /** Темы, доступные для выбора. Приходят из того же места, что и оформление. */
-  const themes = $derived(appearance.current?.themes ?? []);
-  const light = $derived(themes.filter((t) => t.appearance === 'light'));
-  const dark = $derived(themes.filter((t) => t.appearance === 'dark'));
-
-  const followsSystem = $derived(values?.appearance.theme === 'system');
 
   /** Пустая строка в поле шрифта означает «как в теме», то есть убрать ключ. */
   function fontFamily(text: string): void {
@@ -73,7 +66,9 @@
       <p class="subtitle">
         {tab === 'general'
           ? 'Оформление · Шрифт · Файл настроек · О программе'
-          : 'Горячие клавиши · keymap.toml'}
+          : tab === 'themes'
+            ? 'Темы · Образцы · Своя тема из файла'
+            : 'Горячие клавиши · keymap.toml'}
       </p>
     </header>
 
@@ -88,6 +83,14 @@
       </button>
       <button
         class="tab"
+        class:current={tab === 'themes'}
+        type="button"
+        onclick={() => (tab = 'themes')}
+      >
+        Темы
+      </button>
+      <button
+        class="tab"
         class:current={tab === 'keys'}
         type="button"
         onclick={() => (tab = 'keys')}
@@ -98,6 +101,8 @@
 
     {#if tab === 'keys'}
       <KeysScreen />
+    {:else if tab === 'themes'}
+      <ThemesScreen />
     {:else}
     {#if broken}
       <p class="broken">
@@ -113,62 +118,6 @@
 
     {#if values}
       <div class="rows" class:frozen={broken !== null}>
-        <div class="row">
-          <div class="what">
-            <span class="name">Тема оформления</span>
-            <span class="note">
-              «Как в Windows» переключает пару тем вслед за системной настройкой.
-            </span>
-          </div>
-          <select
-            class="control"
-            disabled={broken !== null}
-            value={values.appearance.theme}
-            onchange={(e) => put(['appearance', 'theme'], e.currentTarget.value)}
-          >
-            <option value="system">Как в Windows</option>
-            {#each themes as theme (theme.id)}
-              <option value={theme.id}>{theme.name}</option>
-            {/each}
-          </select>
-        </div>
-
-        {#if followsSystem}
-          <div class="row">
-            <div class="what">
-              <span class="name">Светлая тема</span>
-              <span class="note">Когда Windows в светлом оформлении.</span>
-            </div>
-            <select
-              class="control"
-              disabled={broken !== null}
-              value={values.appearance.light_theme}
-              onchange={(e) => put(['appearance', 'light_theme'], e.currentTarget.value)}
-            >
-              {#each light as theme (theme.id)}
-                <option value={theme.id}>{theme.name}</option>
-              {/each}
-            </select>
-          </div>
-
-          <div class="row">
-            <div class="what">
-              <span class="name">Тёмная тема</span>
-              <span class="note">Когда Windows в тёмном оформлении.</span>
-            </div>
-            <select
-              class="control"
-              disabled={broken !== null}
-              value={values.appearance.dark_theme}
-              onchange={(e) => put(['appearance', 'dark_theme'], e.currentTarget.value)}
-            >
-              {#each dark as theme (theme.id)}
-                <option value={theme.id}>{theme.name}</option>
-              {/each}
-            </select>
-          </div>
-        {/if}
-
         <div class="row">
           <div class="what">
             <span class="name">Плотность интерфейса</span>
