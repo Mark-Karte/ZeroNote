@@ -1,6 +1,8 @@
 <script lang="ts">
   import Icon from './Icon.svelte';
   import { kindOf, iconForKind } from '../icons/files';
+  import type { IconName } from '../icons/registry';
+  import type { Buffer } from '../ipc/files';
   import { tabs, setActive, moveLocal, commitOrder, tabById } from '../state/tabs.svelte';
   // Закрытие идёт через действие, а не напрямую через состояние: только там
   // спрашивают про несохранённые правки.
@@ -113,6 +115,7 @@
         {
           modified: meta.modified,
           hasFile: meta.path !== null,
+          text: meta.kind === 'text',
           others: tabs.items.length - 1,
         },
         commandList(),
@@ -136,6 +139,17 @@
         }
       },
     );
+  }
+
+  /**
+   * Значок вкладки.
+   *
+   * У текста он говорит о виде файла — заметка, код, данные, — а у вкладки,
+   * которая не текст, о ней самой: расширения у параметров нет, и таблица
+   * `icons/files.ts` про них ничего не знает и знать не должна.
+   */
+  function tabIcon(meta: Buffer): IconName {
+    return meta.kind === 'settings' ? 'panel.settings' : iconForKind(kindOf(meta.title));
   }
 
   function onPointerUp(event: PointerEvent): void {
@@ -168,7 +182,7 @@
       onlostpointercapture={finishDrag}
     >
       <span class="kind" data-kind={kindOf(tab.meta.title)}>
-        <Icon name={iconForKind(kindOf(tab.meta.title))} />
+        <Icon name={tabIcon(tab.meta)} />
       </span>
       <span class="name">{tab.meta.title}</span>
       <button

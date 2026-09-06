@@ -145,6 +145,7 @@ pub fn run() {
             commands::files::recent_files,
             commands::files::list_buffers,
             commands::files::new_buffer,
+            commands::files::open_settings,
             commands::files::open_file,
             commands::files::reload_buffer,
             commands::files::reinterpret_encoding,

@@ -4,7 +4,7 @@
 //! список буферов ведёт `model/`.
 
 use crate::fsx::text_file;
-use crate::model::buffer::{Buffer, BufferId, Buffers};
+use crate::model::buffer::{Buffer, BufferId, Buffers, TabKind};
 use crate::model::root::{Root, Roots};
 use crate::session::{self, BufferSnapshot, RootSnapshot, WorkspaceSnapshot};
 use crate::state::AppState;
@@ -36,6 +36,7 @@ pub struct ViewState {
 fn snapshot_of(buffer: &Buffer, view: Option<&ViewState>) -> BufferSnapshot {
     BufferSnapshot {
         id: buffer.id,
+        kind: buffer.kind.to_snapshot(),
         path: buffer.path.clone(),
         title: buffer.title.clone(),
         encoding: buffer.encoding,
@@ -50,7 +51,13 @@ fn snapshot_of(buffer: &Buffer, view: Option<&ViewState>) -> BufferSnapshot {
         disk_size: buffer.disk.map(|d| d.size),
         // Черновик нужен всем, у кого содержимое отличается от диска, и всем,
         // у кого диска нет вовсе. Большие файлы только для чтения — им нет.
-        has_draft: !buffer.large && (buffer.modified || buffer.path.is_none()),
+        //
+        // Вид проверяется первым, и это не перестраховка: у вкладки параметров
+        // пути тоже нет, и без проверки она попала бы в черновики как обычный
+        // безымянный буфер — с пустым файлом на диске в придачу.
+        has_draft: buffer.kind == TabKind::Text
+            && !buffer.large
+            && (buffer.modified || buffer.path.is_none()),
         cursor: view.map(|v| v.cursor).unwrap_or(0),
         scroll_top: view.map(|v| v.scroll_top).unwrap_or(0.0),
         language: view.and_then(|v| v.language.clone()),
@@ -236,6 +243,42 @@ pub fn restore_session(state: tauri::State<'_, AppState>) -> RestoredSession {
     let mut restored = Vec::new();
 
     for item in &snapshot.buffers {
+        let Some(kind) = TabKind::parse(&item.kind) else {
+            // Вкладка из более новой версии: показать её нечем. Пропускаем
+            // одну, а не отвергаем снимок целиком, — иначе откат на прошлую
+            // версию закрывал бы человеку все вкладки разом.
+            notices.push(format!(
+                "вкладка «{}» пропущена: неизвестный вид «{}»",
+                item.title, item.kind
+            ));
+            continue;
+        };
+
+        // Вид решает, как вкладку поднимать. `match`, а не `if`: картинка
+        // в задаче 70 обязана заставить вспомнить и про это место.
+        match kind {
+            // Вкладка, которая не текст, собирается из одного вида: ни файла
+            // читать, ни черновика поднимать у неё нечего. Собирает её та же
+            // функция, что и при создании нажатием, — иначе восстановленная
+            // вкладка однажды отличилась бы от созданной.
+            TabKind::Settings => {
+                let buffer = Buffer::settings(item.id);
+                restored.push(RestoredBuffer {
+                    buffer: BufferWithText {
+                        buffer: buffer.clone(),
+                        text: String::new(),
+                    },
+                    cursor: 0,
+                    scroll_top: 0.0,
+                    language: None,
+                    bookmarks: Vec::new(),
+                });
+                buffers.push(buffer);
+                continue;
+            }
+            TabKind::Text => {}
+        }
+
         // Черновик главнее файла: в нём то, чего на диске ещё нет.
         let draft = if item.has_draft {
             session::read_draft(data, item.id)
@@ -313,9 +356,44 @@ pub fn restore_session(state: tauri::State<'_, AppState>) -> RestoredSession {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// У вкладки, которая не текст, черновика нет.
+    ///
+    /// Проверка стоит того: пути у такой вкладки тоже нет, и по остальным
+    /// признакам она неотличима от безымянного буфера — а тому черновик как
+    /// раз нужен. Ошибка здесь означала бы файл в папке данных, который
+    /// никто не читает и никто не удаляет.
+    #[test]
+    fn tab_that_is_not_text_gets_no_draft() {
+        let snapshot = snapshot_of(&Buffer::settings(1), None);
+
+        assert_eq!(snapshot.kind, "settings");
+        assert!(!snapshot.has_draft);
+    }
+
+    /// А безымянный текстовый буфер черновик получает — иначе проверка выше
+    /// проходила бы и на правиле, запрещающем черновики вообще.
+    #[test]
+    fn untitled_text_buffer_still_gets_a_draft() {
+        let mut buffers = Buffers::new();
+        let buffer = buffers.create_untitled(crate::text::eol::DEFAULT).clone();
+
+        let snapshot = snapshot_of(&buffer, None);
+
+        assert!(snapshot.kind.is_empty(), "вид текста в снимок не пишется");
+        assert!(snapshot.has_draft);
+    }
+}
+
+/// Текстовый буфер из снимка. Вкладки других видов сюда не доходят:
+/// их поднимает `match` по виду выше.
 fn buffer_from(item: &BufferSnapshot, from_draft: bool) -> Buffer {
     Buffer {
         id: item.id,
+        kind: TabKind::Text,
         path: item.path.clone(),
         title: item.title.clone(),
         encoding: item.encoding,

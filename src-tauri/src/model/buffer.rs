@@ -17,11 +17,71 @@ use crate::text::eol::{Eol, EolInfo};
 
 pub type BufferId = u64;
 
+/// Вид вкладки (Р-180).
+///
+/// Поле буфера, а не отдельный список во фронтенде: порядок вкладок, активная
+/// вкладка и сессия обязаны лежать в одном месте. Два списка разъехались бы
+/// на первом же перетаскивании вкладки — и разъехались бы молча.
+///
+/// Видов пока два. `image` и `pdf` появятся в задачах 70 и 71 вместе со своим
+/// кодом: значение перечисления, которого никто не создаёт, — это ветка
+/// `match`, которая никогда не выполняется, и проверить её нечем.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TabKind {
+    /// Текстовый буфер: путь, кодировка, переносы, содержимое.
+    #[default]
+    Text,
+    /// Параметры приложения. Ни файла, ни байтов, ни кодировки.
+    Settings,
+}
+
+impl TabKind {
+    /// Как вид записывается в снимок сессии.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            TabKind::Text => "text",
+            TabKind::Settings => "settings",
+        }
+    }
+
+    /// Как вид записывается в снимок сессии.
+    ///
+    /// У текста — пусто, и это не экономия места. Снимок, в котором открыты
+    /// одни текстовые вкладки, обязан читаться прошлой версией приложения,
+    /// а у неё `deny_unknown_fields` и про поле `kind` она не знает: одна
+    /// лишняя строка означала бы «после отката все вкладки закрылись».
+    pub fn to_snapshot(self) -> String {
+        match self {
+            TabKind::Text => String::new(),
+            other => other.as_str().to_owned(),
+        }
+    }
+
+    /// Разобрать вид из снимка. `None` — вид из более новой версии.
+    ///
+    /// В снимке вид лежит строкой, а не перечислением, по той же причине,
+    /// по которой строкой лежит панель боковой полосы: незнакомое значение
+    /// не должно отвергать снимок целиком. Пропустить одну вкладку — потеря
+    /// одной вкладки, отвергнуть снимок — потеря всех.
+    pub fn parse(text: &str) -> Option<TabKind> {
+        match text {
+            // Пусто — снимок от версии, которая видов не знала: там всё текст.
+            "" | "text" => Some(TabKind::Text),
+            "settings" => Some(TabKind::Settings),
+            _ => None,
+        }
+    }
+}
+
 /// Сведения о буфере, которыми владеет ядро.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Buffer {
     pub id: BufferId,
+    /// Что это за вкладка. Рядом с путём, потому что это свойство того же
+    /// порядка: чем вкладка является, а не что в ней сейчас набрано.
+    pub kind: TabKind,
     /// `None` — буфер существует только в памяти и на диске файла не имеет.
     /// Это обычный сценарий, а не исключение: такие буферы тоже переживают
     /// аварийное завершение (инвариант 4).
@@ -51,6 +111,38 @@ impl Buffer {
     /// Имя вкладки для буфера без файла: «Без имени 1», «Без имени 2», …
     fn untitled_name(number: u32) -> String {
         format!("Без имени {number}")
+    }
+
+    /// Вкладка параметров с заданным номером.
+    ///
+    /// Одна функция и для создания, и для восстановления из сессии: вкладка,
+    /// собранная при запуске, обязана быть той же самой, что созданная
+    /// нажатием. Разойдись они — разница вылезла бы через месяц и не там,
+    /// где сделана.
+    pub fn settings(id: BufferId) -> Buffer {
+        Buffer {
+            id,
+            kind: TabKind::Settings,
+            path: None,
+            title: "Параметры".to_owned(),
+            // Кодировка, переносы и состояние на диске к этой вкладке
+            // не относятся: ни файла, ни байтов у неё нет. Значения ниже
+            // нейтральные, и смотреть на них нельзя — смотрит только тот,
+            // кто сначала проверил вид вкладки.
+            encoding: Encoding::Utf8,
+            bom: false,
+            eol: Eol::Lf,
+            eol_mixed: false,
+            modified: false,
+            // Правка запрещена, и это не условность: текста, который можно
+            // было бы править, у вкладки нет вовсе. Отсюда бесплатно
+            // получается и то, что её не тронет автосохранение.
+            read_only: true,
+            large: false,
+            lossy: false,
+            encoding_confident: true,
+            disk: None,
+        }
     }
 
     fn title_for(path: &std::path::Path) -> String {
@@ -146,6 +238,7 @@ impl Buffers {
 
         self.items.push(Buffer {
             id,
+            kind: TabKind::Text,
             path: None,
             title: Buffer::untitled_name(number),
             encoding: Encoding::Utf8,
@@ -160,6 +253,26 @@ impl Buffers {
             disk: None,
         });
 
+        self.items.last().expect("буфер только что добавлен")
+    }
+
+    /// Вкладка параметров — одна на окно.
+    ///
+    /// Повторное нажатие обязано показать уже открытую, а не завести вторую:
+    /// иначе через неделю работы у человека шесть одинаковых вкладок
+    /// «Параметры». Та же мысль, что у `find_by_path` для файлов, и та же
+    /// причина: два места, показывающие одно, расходятся молча.
+    pub fn create_settings(&mut self) -> &Buffer {
+        if let Some(index) = self
+            .items
+            .iter()
+            .position(|b| b.kind == TabKind::Settings)
+        {
+            return &self.items[index];
+        }
+
+        let id = self.take_id();
+        self.items.push(Buffer::settings(id));
         self.items.last().expect("буфер только что добавлен")
     }
 
@@ -182,6 +295,7 @@ impl Buffers {
 
         self.items.push(Buffer {
             id,
+            kind: TabKind::Text,
             path: Some(path),
             title,
             encoding,
@@ -357,6 +471,72 @@ mod tests {
 
         assert!(buffer.large);
         assert!(buffer.read_only);
+    }
+
+    /// Вид по умолчанию — текст: без него старый код и старые снимки
+    /// означали бы вкладку неизвестно чего.
+    #[test]
+    fn ordinary_buffers_are_text() {
+        let mut buffers = Buffers::new();
+        let untitled = buffers.create_untitled(Eol::CrLf).id;
+        let file = open_file(&mut buffers, "a.txt");
+
+        assert_eq!(buffers.get(untitled).unwrap().kind, TabKind::Text);
+        assert_eq!(buffers.get(file).unwrap().kind, TabKind::Text);
+    }
+
+    /// Вкладка параметров одна: второе нажатие показывает открытую.
+    #[test]
+    fn settings_tab_is_single() {
+        let mut buffers = Buffers::new();
+
+        let first = buffers.create_settings().id;
+        let second = buffers.create_settings().id;
+
+        assert_eq!(first, second);
+        assert_eq!(buffers.list().len(), 1);
+    }
+
+    /// Закрыв параметры, их можно открыть снова — и это уже другая вкладка.
+    #[test]
+    fn settings_tab_returns_after_closing() {
+        let mut buffers = Buffers::new();
+        let first = buffers.create_settings().id;
+
+        buffers.close(first);
+        let second = buffers.create_settings().id;
+
+        assert_ne!(first, second, "переиспользование номера перепутает вкладки");
+        assert_eq!(buffers.list().len(), 1);
+    }
+
+    /// У вкладки параметров нет файла и нет правки. Первое означает, что
+    /// её нечего сохранять, второе — что закрывается она без вопросов.
+    #[test]
+    fn settings_tab_has_no_file_and_no_edits() {
+        let mut buffers = Buffers::new();
+        let buffer = buffers.create_settings();
+
+        assert_eq!(buffer.kind, TabKind::Settings);
+        assert_eq!(buffer.path, None);
+        assert!(!buffer.modified);
+        assert!(buffer.read_only);
+    }
+
+    /// Вид переживает запись в снимок и чтение обратно. Пустая строка —
+    /// снимок прошлой версии, незнакомая — вкладка из будущей.
+    #[test]
+    fn kind_survives_the_session_file() {
+        for kind in [TabKind::Text, TabKind::Settings] {
+            assert_eq!(TabKind::parse(&kind.to_snapshot()), Some(kind));
+        }
+
+        assert!(
+            TabKind::Text.to_snapshot().is_empty(),
+            "текст в снимок не пишется: иначе прошлая версия его не прочитает"
+        );
+        assert_eq!(TabKind::parse(""), Some(TabKind::Text));
+        assert_eq!(TabKind::parse("image"), None, "вид из будущей версии");
     }
 
     #[test]

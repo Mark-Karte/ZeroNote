@@ -53,16 +53,16 @@
    */
   function stash(id: number | null): void {
     if (!view || id === null) return;
-    const tab = tabById(id);
-    if (!tab) return;
+    const editor = tabById(id)?.editor;
+    if (!editor) return;
 
     const state = view.state;
     const scrollTop = view.scrollDOM.scrollTop;
     // Запись в уходящую вкладку не должна становиться зависимостью эффекта:
     // иначе он вызовет сам себя.
     untrack(() => {
-      tab.editor = state;
-      tab.scrollTop = scrollTop;
+      editor.state = state;
+      editor.scrollTop = scrollTop;
     });
   }
 
@@ -136,9 +136,9 @@
 
   function onScroll(): void {
     if (!view || mounted === null) return;
-    const tab = tabById(mounted);
-    if (tab) {
-      tab.scrollTop = view.scrollDOM.scrollTop;
+    const editor = tabById(mounted)?.editor;
+    if (editor) {
+      editor.scrollTop = view.scrollDOM.scrollTop;
     }
   }
 
@@ -155,18 +155,20 @@
    * состояния.
    *
    * Одной только `activeId` недостаточно, и это стоило дефекта: перечитывание
-   * файла с диска и «интерпретировать как» подменяют `tab.editor`, не трогая
+   * файла с диска и «интерпретировать как» подменяют состояние вкладки, не трогая
    * активную вкладку. Эффект, зависящий только от номера, такую подмену
    * не замечал — модель обновлялась, а на экране оставался прежний текст.
    *
    * Сравнение идёт по тождеству объекта состояния. Собственные правки
-   * пользователя тоже проходят здесь, но там `tab.editor` и есть текущее
+   * пользователя тоже проходят здесь, но там состояние вкладки и есть текущее
    * состояние представления, поэтому ничего не происходит.
    */
   $effect(() => {
     const id = tabs.activeId;
     const tab = id === null ? null : tabById(id);
-    const wanted = tab ? tab.editor : null;
+    // У вкладки, которая не текст, состояния нет — но и этого компонента
+    // над ней нет: рабочую область занимает её собственный экран.
+    const editor = tab?.editor ?? null;
 
     if (!view) return;
 
@@ -175,16 +177,16 @@
       mounted = id;
     }
 
-    if (!wanted) {
+    if (!editor) {
       view.setState(EditorState.create({ doc: '' }));
       return;
     }
 
-    if (view.state !== wanted) {
-      view.setState(wanted);
+    if (view.state !== editor.state) {
+      view.setState(editor.state);
       // Прокрутка выставляется после смены состояния: до неё содержимого
       // нужной высоты в разметке ещё нет и прокручивать некуда.
-      view.scrollDOM.scrollTop = tab!.scrollTop;
+      view.scrollDOM.scrollTop = editor.scrollTop;
       view.focus();
     }
   });

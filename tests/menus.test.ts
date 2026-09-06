@@ -73,7 +73,7 @@ describe('пункты по командам реестра', () => {
     const known = new Set(commandIds());
     const all = [
       ...editorMenu({ ...EDITOR, markdown: true }, COMMANDS),
-      ...tabMenu({ modified: true, hasFile: true, others: 2 }, COMMANDS),
+      ...tabMenu({ modified: true, hasFile: true, text: true, others: 2 }, COMMANDS),
       ...treeMenu({ row: null }, COMMANDS),
       ...fieldMenu({ hasSelection: true, readOnly: false }, COMMANDS),
       ...snippetMenu(COMMANDS),
@@ -151,21 +151,50 @@ describe('меню редактора', () => {
 
 describe('меню вкладки', () => {
   it('гасит сохранение, когда сохранять нечего', () => {
-    const items = tabMenu({ modified: false, hasFile: true, others: 1 }, COMMANDS);
+    const items = tabMenu(
+      { modified: false, hasFile: true, text: true, others: 1 },
+      COMMANDS,
+    );
     expect(item(items, 'file.save').disabled).toBe(true);
   });
 
   it('гасит «закрыть другие», когда вкладка одна', () => {
-    const items = tabMenu({ modified: true, hasFile: true, others: 0 }, COMMANDS);
+    const items = tabMenu(
+      { modified: true, hasFile: true, text: true, others: 0 },
+      COMMANDS,
+    );
     expect(item(items, MENU.closeOthers).disabled).toBe(true);
   });
 
   /** У буфера без файла нет ни пути, ни места в проводнике. Имя есть всегда. */
   it('гасит путь и проводник у буфера без файла', () => {
-    const items = tabMenu({ modified: true, hasFile: false, others: 1 }, COMMANDS);
+    const items = tabMenu(
+      { modified: true, hasFile: false, text: true, others: 1 },
+      COMMANDS,
+    );
     expect(item(items, MENU.copyPath).disabled).toBe(true);
     expect(item(items, MENU.reveal).disabled).toBe(true);
     expect(item(items, MENU.copyName).disabled).toBeUndefined();
+  });
+
+  /**
+   * Вкладка, которая не текст (Р-180): параметры, а дальше картинка и PDF.
+   *
+   * Сохранение гаснет, но не исчезает: пункт, пропавший из середины
+   * знакомого меню, читается как поломка, а недоступный с подсказкой
+   * отвечает на вопрос «почему нельзя». Закрытие при этом обязано остаться
+   * доступным — иначе вкладку нечем закрыть, кроме крестика.
+   */
+  it('гасит сохранение у вкладки, которая не текст', () => {
+    const items = tabMenu(
+      { modified: false, hasFile: false, text: false, others: 1 },
+      COMMANDS,
+    );
+
+    expect(item(items, 'file.save').disabled).toBe(true);
+    expect(item(items, 'file.save-as').disabled).toBe(true);
+    expect(item(items, 'file.save-as').hint).toBeTruthy();
+    expect(item(items, 'file.close-tab').disabled).toBeUndefined();
   });
 });
 

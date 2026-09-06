@@ -7,7 +7,7 @@ import {
   openPath,
   resetBaseline,
   tabById,
-  textOf,
+  contentOf,
   tabs,
   close as closeTabState,
 } from '../state/tabs.svelte';
@@ -95,20 +95,22 @@ export async function openDropped(paths: string[]): Promise<void> {
 
 async function writeTo(id: number, path?: string): Promise<boolean> {
   const tab = tabById(id);
-  if (!tab) return false;
+  // Записывать можно только текст: у вкладки другого вида содержимого,
+  // которое ложится в файл, нет вовсе.
+  if (!tab?.editor) return false;
 
   // Файл со смешанными переносами нельзя записать обратно как есть, и решать
   // за пользователя, к чему его привести, мы не будем (Р-018).
   if (!(await resolveMixedLineEndings(id))) return false;
 
   try {
-    let result = await ipc.saveBuffer(id, textOf(tab), path);
+    let result = await ipc.saveBuffer(id, contentOf(tab.editor), path);
 
     // Файл изменили между чтением и сохранением. Молча затирать чужую
     // работу нельзя — спрашиваем и пишем только с разрешения.
     if (result.conflict) {
       if (!(await confirmOverwrite(id))) return false;
-      result = await ipc.saveBuffer(id, textOf(tab), path, true);
+      result = await ipc.saveBuffer(id, contentOf(tab.editor), path, true);
     }
 
     if (!result.buffer) return false;
@@ -143,10 +145,11 @@ export async function autosaveAll(): Promise<string[]> {
 
   // Снимок списка: `applyMeta` правит вкладки, а между шагами есть await.
   for (const tab of [...tabs.items]) {
-    if (!autosavable(tab.meta)) continue;
+    const editor = tab.editor;
+    if (!editor || !autosavable(tab.meta)) continue;
 
     try {
-      const result = await ipc.saveBuffer(tab.meta.id, textOf(tab));
+      const result = await ipc.saveBuffer(tab.meta.id, contentOf(editor));
       if (result.conflict || !result.buffer) continue;
 
       applyMeta(result.buffer);
@@ -164,7 +167,10 @@ export async function autosaveAll(): Promise<string[]> {
 
 export async function save(id: number): Promise<boolean> {
   const tab = tabById(id);
-  if (!tab) return false;
+  // Без этой проверки «Сохранить» над параметрами открыло бы диалог
+  // «сохранить как»: файла у такой вкладки нет, и обычный путь принял бы
+  // её за новый безымянный буфер.
+  if (!tab?.editor) return false;
 
   // Сохранять нечего — и это важно не только для скорости: перезапись
   // нетронутого файла со смешанными переносами изменила бы его (Р-018).
@@ -176,7 +182,7 @@ export async function save(id: number): Promise<boolean> {
 
 export async function saveAs(id: number): Promise<boolean> {
   const tab = tabById(id);
-  if (!tab) return false;
+  if (!tab?.editor) return false;
 
   const path = await saveDialog({
     filters: FILTERS,

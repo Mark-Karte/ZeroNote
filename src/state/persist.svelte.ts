@@ -1,5 +1,5 @@
 import * as ipc from '../ipc/files';
-import { tabs, textOf, viewStateOf } from './tabs.svelte';
+import { tabs, contentOf, viewStateOf } from './tabs.svelte';
 import { roots } from './roots.svelte';
 
 /**
@@ -31,7 +31,14 @@ let sessionTimer: ReturnType<typeof setTimeout> | null = null;
 /** Буферы, которым нужен черновик: изменённые и те, у кого нет файла. */
 function draftable() {
   return tabs.items.filter(
-    (tab) => !tab.meta.large && (tab.meta.modified || tab.meta.path === null),
+    (tab) =>
+      // Вкладка, которая не текст, черновика не получает: терять у неё нечего,
+      // а по остальным признакам она выглядит как безымянный буфер — пути
+      // у неё тоже нет, и без этой проверки её «содержимое» уезжало бы
+      // на диск каждые две секунды.
+      tab.editor !== null &&
+      !tab.meta.large &&
+      (tab.meta.modified || tab.meta.path === null),
   );
 }
 
@@ -56,7 +63,8 @@ async function writeDrafts(): Promise<void> {
   const seen = new Map<number, string>();
 
   for (const tab of draftable()) {
-    const text = textOf(tab);
+    if (!tab.editor) continue;
+    const text = contentOf(tab.editor);
     seen.set(tab.meta.id, text);
     // Не переписываем то, что не менялось: на больших буферах это заметно.
     if (lastFlushed.get(tab.meta.id) !== text) {

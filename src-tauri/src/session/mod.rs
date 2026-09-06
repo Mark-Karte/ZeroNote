@@ -43,6 +43,15 @@ pub const SESSION_SCHEMA: u32 = 1;
 #[serde(deny_unknown_fields, rename_all = "kebab-case")]
 pub struct BufferSnapshot {
     pub id: BufferId,
+    /// Вид вкладки (Р-180). Пусто — снимок от версии, которая видов не знала:
+    /// там всё текст.
+    ///
+    /// Строкой, а не перечислением: незнакомое значение из более новой версии
+    /// не должно отвергать снимок целиком. Пропустить одну вкладку — потеря
+    /// одной вкладки, отвергнуть снимок — потеря всех. Разбор —
+    /// `TabKind::parse`, запись — `TabKind::to_snapshot`.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub kind: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub path: Option<PathBuf>,
     pub title: String,
@@ -291,6 +300,25 @@ scroll-top = 0.0
         assert_eq!(parsed.buffers.len(), 1);
         assert!(parsed.buffers[0].bookmarks.is_empty());
         assert_eq!(parsed.buffers[0].cursor, 10);
+        assert_eq!(parsed.buffers[0].kind, "", "запись без вида — это текст");
+    }
+
+    /// Снимок с одними текстовыми вкладками не должен содержать поля `kind`.
+    ///
+    /// Это не про размер файла, а про откат: прошлая версия читает снимок
+    /// с `deny_unknown_fields`, и лишняя строка означала бы «после отката
+    /// все вкладки закрылись». Проверка сторожит именно это.
+    #[test]
+    fn text_only_session_writes_no_kind() {
+        let dir = temp_dir("no-kind");
+        let mut only_text = snapshot();
+        only_text.buffers.retain(|b| b.kind.is_empty());
+
+        write_session(&dir, &only_text).unwrap();
+        let text = std::fs::read_to_string(session_path(&dir)).unwrap();
+
+        assert!(!text.contains("kind"), "поле вида просочилось в снимок:\n{text}");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     fn temp_dir(tag: &str) -> PathBuf {
@@ -319,6 +347,7 @@ scroll-top = 0.0
             buffers: vec![
                 BufferSnapshot {
                     id: 1,
+                    kind: String::new(),
                     path: Some(PathBuf::from(r"C:\заметки\список дел.md")),
                     title: "список дел.md".to_owned(),
                     encoding: Encoding::Windows1251,
@@ -339,6 +368,7 @@ scroll-top = 0.0
                 },
                 BufferSnapshot {
                     id: 2,
+                    kind: String::new(),
                     path: None,
                     title: "Без имени 1".to_owned(),
                     encoding: Encoding::Utf8,
@@ -352,6 +382,29 @@ scroll-top = 0.0
                     disk_modified_ms: None,
                     disk_size: None,
                     has_draft: true,
+                    cursor: 0,
+                    scroll_top: 0.0,
+                    language: None,
+                    bookmarks: Vec::new(),
+                },
+                // Вкладка, которая не текст. Её в снимке отличает только вид:
+                // ни файла, ни черновика, ни кодировки у неё нет.
+                BufferSnapshot {
+                    id: 3,
+                    kind: "settings".to_owned(),
+                    path: None,
+                    title: "Параметры".to_owned(),
+                    encoding: Encoding::Utf8,
+                    bom: false,
+                    eol: Eol::Lf,
+                    eol_mixed: false,
+                    modified: false,
+                    large: false,
+                    lossy: false,
+                    encoding_confident: true,
+                    disk_modified_ms: None,
+                    disk_size: None,
+                    has_draft: false,
                     cursor: 0,
                     scroll_top: 0.0,
                     language: None,

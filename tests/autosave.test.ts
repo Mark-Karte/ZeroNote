@@ -13,6 +13,7 @@ import type { Buffer } from '../src/ipc/files';
 function buffer(over: Partial<Buffer> = {}): Buffer {
   return {
     id: 1,
+    kind: 'text',
     path: 'C:\\проект\\Заметка.md',
     title: 'Заметка.md',
     encoding: 'utf8',
@@ -78,5 +79,18 @@ describe('чего автосохранение не трогает', () => {
 
   it('большой файл в упрощённом режиме', () => {
     expect(autosavable(buffer({ large: true }))).toBe(false);
+  });
+
+  /**
+   * Вкладка, которая не текст (Р-180).
+   *
+   * Проверка не праздная: у вкладки параметров нет пути — ровно как
+   * у безымянного буфера, — и без явного отказа общее правило приняло бы
+   * её за обычный буфер без файла.
+   */
+  it('отказывает вкладке, которая не текст', () => {
+    const settings = buffer({ kind: 'settings', path: null, title: 'Параметры' });
+
+    expect(autosavable(settings)).toBe(false);
   });
 });

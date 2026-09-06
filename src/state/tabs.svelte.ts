@@ -55,9 +55,16 @@ import { reportContext } from './suggest.svelte';
  * вкладок ничего из этого не теряет — и поэтому же оно ничего не стоит.
  */
 
-export interface Tab {
-  meta: Buffer;
-  editor: EditorState;
+/**
+ * Редактор вкладки — всё, что есть только у текста.
+ *
+ * Отдельным объектом, а не полями рядом с `meta`: у вкладки, которая
+ * не текст, ничего этого нет — ни состояния редактора, ни языка, ни отступа.
+ * Проверка `tab.editor !== null` и есть проверка «это текст», и она же
+ * заставляет вспомнить о прочих видах в каждом месте, где текст нужен.
+ */
+export interface TabEditor {
+  state: EditorState;
   /**
    * Прокрутка редактора.
    *
@@ -80,6 +87,13 @@ export interface Tab {
    * (Р-106). У настройки роль умолчания — для файлов, где отступов нет.
    */
   indent: Indent;
+}
+
+export interface Tab {
+  /** Сведения из ядра, включая вид вкладки (Р-180). */
+  meta: Buffer;
+  /** `null` у вкладки, которая не текст: параметры, а дальше картинка и PDF. */
+  editor: TabEditor | null;
 }
 
 /** Порядок в массиве — это порядок вкладок, такой же, как в ядре. */
@@ -120,21 +134,31 @@ export function tabById(id: number): Tab | null {
   return tabs.items.find((t) => t.meta.id === id) ?? null;
 }
 
-/** Текст буфера во внутреннем виде — с переводами строк `\n`. */
-export function textOf(tab: Tab): string {
-  return tab.editor.doc.toString();
+/**
+ * Текст буфера во внутреннем виде — с переводами строк `\n`.
+ *
+ * Принимает редактор, а не вкладку: у вкладки, которая не текст, содержимого
+ * нет вовсе, и возвращать за неё пустую строку значило бы дать сохранению
+ * повод записать пустой файл.
+ */
+export function contentOf(editor: TabEditor): string {
+  return editor.state.doc.toString();
 }
 
 /** То, что нужно сессии от вида: где курсор и куда прокручено. */
 export function viewStateOf(tab: Tab): ViewState {
+  const editor = tab.editor;
+
+  // У вкладки, которая не текст, курсора и закладок нет: в снимок уезжает
+  // один её вид, и ядро по нему поднимает её обратно.
   return {
     id: tab.meta.id,
-    cursor: tab.editor.selection.main.head,
-    scrollTop: tab.scrollTop,
-    language: tab.language,
+    cursor: editor ? editor.state.selection.main.head : 0,
+    scrollTop: editor?.scrollTop ?? 0,
+    language: editor?.language ?? null,
     // Номера строк, а не позиции: файл могли поправить в другой программе,
     // пока приложение было закрыто, и номер переживает такую правку лучше.
-    bookmarks: bookmarkLines(tab.editor),
+    bookmarks: editor ? bookmarkLines(editor.state) : [],
   };
 }
 
@@ -146,9 +170,9 @@ export function viewStateOf(tab: Tab): ViewState {
  */
 function onEditorUpdate(id: number, view: EditorView): void {
   const tab = tabById(id);
-  if (!tab) return;
+  if (!tab?.editor) return;
 
-  tab.editor = view.state;
+  tab.editor.state = view.state;
 
   const baseline = baselines.get(id);
   const modified = restoredDirty.has(id) || (baseline ? !view.state.doc.eq(baseline) : false);
@@ -173,9 +197,9 @@ function onEditorUpdate(id: number, view: EditorView): void {
  */
 function onBookmarksChanged(id: number, view: EditorView): void {
   const tab = tabById(id);
-  if (!tab) return;
+  if (!tab?.editor) return;
 
-  tab.editor = view.state;
+  tab.editor.state = view.state;
   noteStructureChange();
 }
 
@@ -242,8 +266,11 @@ function makeState(
  */
 export function applyWrap(): void {
   for (const tab of tabs.items) {
+    const editor = tab.editor;
+    if (!editor) continue;
+
     const extension = wrapOf(tab) ? EditorView.lineWrapping : [];
-    tab.editor = tab.editor.update({
+    editor.state = editor.state.update({
       effects: wrapCompartment.reconfigure(extension),
     }).state;
   }
@@ -258,20 +285,20 @@ export function applyWrap(): void {
  */
 export function applyIndentSettings(fallback: { style: Indent['style']; width: number }): void {
   for (const tab of tabs.items) {
-    if (tab.indent.source !== 'settings') continue;
-    setIndentOf(tab, { ...fallback, source: 'settings' });
+    if (tab.editor === null || tab.editor.indent.source !== 'settings') continue;
+    setIndentOf(tab.editor, { ...fallback, source: 'settings' });
   }
 }
 
 /** Сменить отступ вкладки вручную — из строки состояния. */
 export function setIndent(id: number, indent: Omit<Indent, 'source'>): void {
-  const tab = tabById(id);
-  if (tab) setIndentOf(tab, { ...indent, source: 'manual' });
+  const editor = tabById(id)?.editor;
+  if (editor) setIndentOf(editor, { ...indent, source: 'manual' });
 }
 
-function setIndentOf(tab: Tab, indent: Indent): void {
-  tab.indent = indent;
-  tab.editor = tab.editor.update({
+function setIndentOf(editor: TabEditor, indent: Indent): void {
+  editor.indent = indent;
+  editor.state = editor.state.update({
     effects: indentCompartment.reconfigure(indentExtension(indent)),
   }).state;
 }
@@ -285,8 +312,11 @@ function setIndentOf(tab: Tab, indent: Indent): void {
  */
 export function applyLivePreview(): void {
   for (const tab of tabs.items) {
+    const editor = tab.editor;
+    if (!editor) continue;
+
     const extension = livePreviewExtension(livePreviewOf(tab));
-    tab.editor = tab.editor.update({
+    editor.state = editor.state.update({
       effects: livePreviewCompartment.reconfigure(extension),
     }).state;
   }
@@ -295,8 +325,8 @@ export function applyLivePreview(): void {
 /** То же самое для невидимых символов. */
 export function applyInvisibles(show: boolean): void {
   const extension = invisiblesExtension(show);
-  for (const tab of tabs.items) {
-    tab.editor = tab.editor.update({
+  for (const editor of editors()) {
+    editor.state = editor.state.update({
       effects: invisiblesCompartment.reconfigure(extension),
     }).state;
   }
@@ -305,11 +335,18 @@ export function applyInvisibles(show: boolean): void {
 /** То же самое для автозакрытия скобок и по тем же причинам. */
 export function applyAutoClose(autoClose: boolean): void {
   const extension = autoCloseExtension(autoClose);
-  for (const tab of tabs.items) {
-    tab.editor = tab.editor.update({
+  for (const editor of editors()) {
+    editor.state = editor.state.update({
       effects: autoCloseCompartment.reconfigure(extension),
     }).state;
   }
+}
+
+/** Редакторы всех вкладок, у которых он есть. */
+function editors(): TabEditor[] {
+  return tabs.items
+    .map((tab) => tab.editor)
+    .filter((editor): editor is TabEditor => editor !== null);
 }
 
 function put(
@@ -322,18 +359,17 @@ function put(
   // Отступ определяется один раз, по содержимому: перечитывать его на каждой
   // правке значило бы менять поведение `Tab` посреди набора.
   const indent = resolveIndent(text, indentSettings());
-  const editor = makeState(meta, text, cursor, indent);
-  baselines.set(meta.id, editor.doc);
+  const state = makeState(meta, text, cursor, indent);
+  baselines.set(meta.id, state.doc);
+
+  const editor: TabEditor = { state, scrollTop, language, indent };
 
   const existing = tabById(meta.id);
   if (existing) {
     existing.meta = meta;
     existing.editor = editor;
-    existing.scrollTop = scrollTop;
-    existing.language = language;
-    existing.indent = indent;
   } else {
-    tabs.items.push({ meta, editor, scrollTop, language, indent });
+    tabs.items.push({ meta, editor });
   }
   tabs.activeId = meta.id;
   // Язык грузится и встаёт на место сам: ждать его открытие файла не должно.
@@ -354,6 +390,7 @@ function put(
  * проверяется тестом — здесь только подстановка того, что знает вкладка.
  */
 export function livePreviewOf(tab: Tab): boolean {
+  if (!tab.editor) return false;
   return livePreviewOn({
     livePreview: livePreviewEnabled(),
     markdown: languageOf(tab)?.id === 'markdown',
@@ -361,6 +398,7 @@ export function livePreviewOf(tab: Tab): boolean {
 }
 
 export function wrapOf(tab: Tab): boolean {
+  if (!tab.editor) return false;
   return wrapFor({
     wrap: wrapEnabled(),
     readableWidth: readableWidthEnabled(),
@@ -369,8 +407,13 @@ export function wrapOf(tab: Tab): boolean {
 }
 
 export function languageOf(tab: Tab): Language | null {
-  return tab.language !== null
-    ? languageById(tab.language)
+  // У вкладки, которая не текст, языка нет — и это ответ, а не отговорка:
+  // от него зависят панель разметки, превью и колонка читаемой ширины,
+  // и все они над параметрами показываться не должны.
+  if (!tab.editor) return null;
+
+  return tab.editor.language !== null
+    ? languageById(tab.editor.language)
     : languageForFile(tab.meta.path ?? tab.meta.title);
 }
 
@@ -382,7 +425,7 @@ export function languageOf(tab: Tab): Language | null {
  */
 async function applyLanguage(id: number): Promise<void> {
   const tab = tabById(id);
-  if (!tab) return;
+  if (!tab?.editor) return;
 
   // Свыше порога подсветки нет — это записанная политика больших файлов:
   // разбор десятков мегабайт съел бы и память, и отзывчивость.
@@ -391,7 +434,7 @@ async function applyLanguage(id: number): Promise<void> {
 
   // За время загрузки вкладку могли закрыть или переключить язык ещё раз.
   const current = tabById(id);
-  if (!current || languageOf(current)?.id !== language?.id) return;
+  if (!current?.editor || languageOf(current)?.id !== language?.id) return;
 
   const effects = languageCompartment.reconfigure(support);
   const view = editorView();
@@ -406,22 +449,22 @@ async function applyLanguage(id: number): Promise<void> {
   // ниже присваивала новой вкладке чужое состояние, и её содержимое пропадало
   // ещё до первой отрисовки. Нашлось переделкой стенда на настоящую вкладку
   // (задача 30): вкладка с документом в мегабайт оказывалась пустой.
-  if (tabs.activeId === id && view && view.state === current.editor) {
+  if (tabs.activeId === id && view && view.state === current.editor.state) {
     // Вкладка на экране: правим живое представление, иначе оно осталось бы
     // со старым состоянием, а прокрутка отскочила бы к сохранённой.
     view.dispatch({ effects });
-    current.editor = view.state;
+    current.editor.state = view.state;
   } else {
-    current.editor = current.editor.update({ effects }).state;
+    current.editor.state = current.editor.state.update({ effects }).state;
   }
 }
 
 /** Выбрать язык подсветки вручную. `null` — снова определять по имени. */
 export function setLanguage(id: number, language: string | null): void {
   const tab = tabById(id);
-  if (!tab) return;
+  if (!tab?.editor) return;
 
-  tab.language = language;
+  tab.editor.language = language;
   void applyLanguage(id);
   // Язык сменился — вместе с ним меняется и то, что зависит от «это markdown»:
   // колонка с переносом (Р-156) и живое превью (Р-159). Без этого выбор
@@ -444,8 +487,8 @@ export function applyMeta(meta: Buffer): void {
 /** Считать текущий текст исходным: буфер стал чистым. */
 export function resetBaseline(id: number): void {
   const tab = tabById(id);
-  if (tab) {
-    baselines.set(id, tab.editor.doc);
+  if (tab?.editor) {
+    baselines.set(id, tab.editor.state.doc);
     // Буфер сохранён — теперь есть с чем сравнивать, подпорка не нужна.
     restoredDirty.delete(id);
   }
@@ -512,14 +555,25 @@ async function restoreInner(): Promise<string[]> {
 
   for (const item of session.buffers) {
     const { text, cursor, scrollTop, language, bookmarks, ...meta } = item;
+
+    // Вкладка, которая не текст, приезжает одним своим видом: ни состояния
+    // редактора, ни языка, ни отступа у неё нет и быть не может.
+    if (meta.kind !== 'text') {
+      tabs.items.push({ meta, editor: null });
+      continue;
+    }
+
     const indent = resolveIndent(text, indentSettings());
-    const editor = makeState(meta, text, cursor, indent, bookmarks ?? []);
+    const state = makeState(meta, text, cursor, indent, bookmarks ?? []);
 
     if (meta.modified) {
       restoredDirty.add(meta.id);
     }
-    baselines.set(meta.id, editor.doc);
-    tabs.items.push({ meta, editor, scrollTop, language: language ?? null, indent });
+    baselines.set(meta.id, state.doc);
+    tabs.items.push({
+      meta,
+      editor: { state, scrollTop, language: language ?? null, indent },
+    });
     // Язык подтягивается в фоне: старт не должен ждать разбора парсеров.
     void applyLanguage(meta.id);
   }
@@ -547,6 +601,28 @@ export async function createEmpty(text = ''): Promise<void> {
     void ipc.setModified(meta.id, true);
     noteEdit();
   }
+}
+
+/**
+ * Открыть параметры вкладкой.
+ *
+ * Вторая точка входа в список вкладок после файла — и обе ведут в ядро.
+ * Вкладка параметров там одна, поэтому повторный вызов не заводит вторую,
+ * а показывает открытую: закрывается она крестиком, как всякая вкладка,
+ * а не тем же нажатием, которым открылась (замечание владельца).
+ */
+export async function openSettings(): Promise<void> {
+  const meta = await ipc.openSettingsTab();
+
+  const existing = tabById(meta.id);
+  if (existing) {
+    existing.meta = meta;
+  } else {
+    tabs.items.push({ meta, editor: null });
+  }
+
+  tabs.activeId = meta.id;
+  noteStructureChange();
 }
 
 export async function openPath(path: string): Promise<void> {

@@ -27,17 +27,28 @@
   const tab = $derived(activeTab());
 
   /**
+   * Редактор активной вкладки. `null` — вкладка не текст (Р-180).
+   *
+   * Правая половина строки состояния — это свойства текста: позиция курсора,
+   * перенос, превью, отступ, язык, переносы строк, кодировка. У вкладки
+   * параметров нет ни одного из них, и «UTF-8 · CRLF» над ней было бы тихой
+   * неправдой — той же породы, что «без переноса» над переносящимся текстом
+   * (Р-156).
+   */
+  const ed = $derived(tab?.editor ?? null);
+
+  /**
    * Сколько курсоров в активной вкладке.
    *
    * Читается прямо из состояния редактора: оно и так обновляется на каждое
    * изменение выделения, второго источника заводить незачем. Показывается
    * только когда курсоров больше одного — иначе это шум в каждом кадре.
    */
-  const cursors = $derived(tab?.editor.selection.ranges.length ?? 1);
+  const cursors = $derived(ed?.state.selection.ranges.length ?? 1);
 
   /** Строка, столбец и размер выделения. Считается там же и по той же причине. */
-  const position = $derived(tab ? positionOf(tab.editor) : null);
-  const lines = $derived(tab?.editor.doc.lines ?? 0);
+  const position = $derived(ed ? positionOf(ed.state) : null);
+  const lines = $derived(ed?.state.doc.lines ?? 0);
 
   /**
    * Сочетание берётся из раскладки, а не пишется в разметку: его могли
@@ -163,8 +174,8 @@
   const WIDTHS = [2, 4, 8];
 
   const indentItems = $derived.by((): PopupItem[] => {
-    if (!tab) return [];
-    const current = tab.indent;
+    if (!ed) return [];
+    const current = ed.indent;
 
     return [
       {
@@ -190,10 +201,10 @@
    */
   function pickIndent(id: string): void {
     openMenu = null;
-    if (!tab) return;
+    if (!tab || !ed) return;
 
     const [what, value] = id.split(':');
-    const current = tab.indent;
+    const current = ed.indent;
 
     if (what === 'style') {
       setIndent(tab.meta.id, { style: value as 'tabs' | 'spaces', width: current.width });
@@ -209,26 +220,26 @@
   );
 
   const languageItems = $derived.by((): PopupItem[] => {
-    if (!tab) return [];
+    if (!tab || !ed) return [];
 
     return [
       {
         id: 'auto',
         label: autoLanguage ? `По имени файла (${autoLanguage.label})` : 'По имени файла',
         section: 'Подсветка',
-        checked: tab.language === null,
+        checked: ed.language === null,
         hint: 'Определять язык по расширению. Незнакомое — обычный текст.',
       },
       {
         id: 'none',
         label: 'Без подсветки',
-        checked: tab.language === 'none',
+        checked: ed.language === 'none',
       },
       ...LANGUAGES.map((lang, index) => ({
         id: lang.id,
         label: lang.label,
         section: index === 0 ? 'Выбрать язык' : undefined,
-        checked: tab.language === lang.id,
+        checked: ed.language === lang.id,
       })),
     ];
   });
@@ -288,7 +299,12 @@
     </span>
   {/if}
 
-  {#if tab}
+  <!--
+    Всё, что ниже, — свойства текста, и показывается оно только над текстом.
+    У вкладки параметров ни кодировки, ни переносов, ни отступа нет: строка
+    состояния зависит от вида вкладки (Р-180).
+  -->
+  {#if tab && ed}
     <!--
       Показывается перенос **этой вкладки**, а не общая настройка: у markdown
       его включает читаемая ширина (Р-156), и надпись «без переноса» над
@@ -346,16 +362,16 @@
     <button
       class="item action"
       type="button"
-      title="{indentSource(tab.indent)}. Смена меняет только то, чем набирается новый отступ; уже набранное в файле остаётся как есть."
+      title="{indentSource(ed.indent)}. Смена меняет только то, чем набирается новый отступ; уже набранное в файле остаётся как есть."
       onclick={(e) => toggle('indent', e)}
     >
-      {indentLabel(tab.indent)}
+      {indentLabel(ed.indent)}
     </button>
 
     <button
       class="item action"
       type="button"
-      title={tab.language === null
+      title={ed.language === null
         ? 'Язык подсветки определён по имени файла — нажмите, чтобы сменить'
         : 'Язык подсветки выбран вручную — нажмите, чтобы сменить'}
       onclick={(e) => toggle('language', e)}

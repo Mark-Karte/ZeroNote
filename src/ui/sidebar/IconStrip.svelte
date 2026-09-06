@@ -3,7 +3,8 @@
   import type { IconName } from '../../icons/registry';
   import { roots, showPanel, type PanelId } from '../../state/roots.svelte';
   import { noteStructureChange } from '../../state/persist.svelte';
-  import { settings, toggle as toggleSettings } from '../../state/settings.svelte';
+  import { activeTab } from '../../state/tabs.svelte';
+  import { showSettings } from '../../actions/project';
 
   /**
    * Полоса значков слева (Р-044).
@@ -28,6 +29,14 @@
     // и команда — про одно и то же (Р-148).
     { id: 'bookmarks', icon: 'cmd.bookmark', title: 'Закладки' },
   ];
+
+  /**
+   * Параметры показаны — значит, активна их вкладка.
+   *
+   * Отдельного признака нет намеренно (Р-185): он разошёлся бы с полосой
+   * вкладок в тот день, когда вкладку закроют не отсюда.
+   */
+  const settingsShown = $derived(activeTab()?.meta.kind === 'settings');
 
   function pick(id: PanelId): void {
     if (roots.sidebar && roots.panel === id) {
@@ -55,15 +64,19 @@
   {/each}
 
   <!-- Параметры внизу полосы, как в референсе: это не панель проекта,
-       и в общем ряду им не место. -->
+       и в общем ряду им не место.
+
+       Кнопка открывает и показывает, но не закрывает: с задачи 68 параметры
+       живут вкладкой, а вкладку закрывают крестиком. Поэтому здесь
+       `aria-current`, а не `aria-pressed`: это переход, а не переключатель. -->
   <button
     class="tab bottom"
-    class:active={settings.open}
+    class:active={settingsShown}
     type="button"
-    onclick={toggleSettings}
+    onclick={() => void showSettings()}
     title="Параметры (Ctrl+,)"
     aria-label="Параметры"
-    aria-pressed={settings.open}
+    aria-current={settingsShown ? 'page' : undefined}
   >
     <Icon name="panel.settings" />
   </button>

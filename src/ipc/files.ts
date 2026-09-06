@@ -11,9 +11,22 @@ export type EncodingId =
 
 export type LineEnding = 'lf' | 'cr-lf' | 'cr';
 
+/**
+ * Вид вкладки (Р-180).
+ *
+ * Приходит из ядра: там же лежат порядок вкладок и активная, и вторым списком
+ * во фронтенде это держать нельзя — два списка разъехались бы на первом же
+ * перетаскивании вкладки, и разъехались бы молча.
+ *
+ * Видов пока два. `image` и `pdf` появятся в задачах 70 и 71 вместе со своим
+ * кодом: вид, которого никто не создаёт, — это ветка, которую нечем проверить.
+ */
+export type TabKind = 'text' | 'settings';
+
 /** Сведения о буфере, которыми владеет ядро. Содержимого здесь нет — см. Р-002. */
 export interface Buffer {
   id: number;
+  kind: TabKind;
   path: string | null;
   title: string;
   encoding: EncodingId;
@@ -42,6 +55,9 @@ export const startupPaths = (): Promise<string[]> => invoke('startup_paths');
 export const listBuffers = (): Promise<Buffer[]> => invoke('list_buffers');
 
 export const newBuffer = (): Promise<Buffer> => invoke('new_buffer');
+
+/** Вкладка параметров. Одна на окно: повторный вызов вернёт ту же. */
+export const openSettingsTab = (): Promise<Buffer> => invoke('open_settings');
 
 export const openFile = (path: string): Promise<BufferWithText> =>
   invoke('open_file', { path });

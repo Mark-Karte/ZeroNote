@@ -23,13 +23,21 @@
 
   const groups = $derived(
     bookmarkGroups(
-      tabs.items.map((tab) => ({
-        id: tab.meta.id,
-        title: tab.meta.title,
-        lines: bookmarkLines(tab.editor),
-        lineCount: tab.editor.doc.lines,
-        lineText: (line: number) => tab.editor.doc.line(line).text,
-      })),
+      tabs.items.flatMap((tab) => {
+        const editor = tab.editor;
+        // Закладка — это строка, а строк у вкладки, которая не текст, нет.
+        if (!editor) return [];
+
+        return [
+          {
+            id: tab.meta.id,
+            title: tab.meta.title,
+            lines: bookmarkLines(editor.state),
+            lineCount: editor.state.doc.lines,
+            lineText: (line: number) => editor.state.doc.line(line).text,
+          },
+        ];
+      }),
     ),
   );
 

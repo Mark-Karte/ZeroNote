@@ -150,14 +150,27 @@ export interface TabMenuContext {
   modified: boolean;
   /** Буфер без файла на диске: копировать и показывать нечего. */
   hasFile: boolean;
+  /**
+   * Вкладка с текстом. У прочих видов (Р-180) сохранять нечего: содержимого,
+   * которое ложится в файл, у них нет вовсе.
+   */
+  text: boolean;
   /** Сколько вкладок кроме этой. */
   others: number;
 }
 
 export function tabMenu(ctx: TabMenuContext, commands: Command[]): PopupItem[] {
+  // Сохранение показывается недоступным, а не исчезает: пункт, пропавший
+  // из середины знакомого меню, читается как поломка, а недоступный с
+  // подсказкой отвечает на вопрос «почему нельзя» (Р-180).
+  const nothingToSave = ctx.text ? undefined : 'У этой вкладки нет файла: сохранять нечего';
+
   return tidy([
-    fromCommand(commands, 'file.save', { disabled: !ctx.modified }),
-    fromCommand(commands, 'file.save-as'),
+    fromCommand(commands, 'file.save', {
+      disabled: !ctx.text || !ctx.modified,
+      hint: nothingToSave,
+    }),
+    fromCommand(commands, 'file.save-as', { disabled: !ctx.text, hint: nothingToSave }),
 
     fromCommand(commands, 'file.close-tab', { divider: true }),
     {

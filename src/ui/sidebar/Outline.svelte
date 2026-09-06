@@ -20,9 +20,10 @@
   $effect(() => {
     const current = tab;
     // Зависимость от самого состояния, а не только от вкладки: правка
-    // подменяет `tab.editor`, и без этого список замер бы на том, каким был
-    // при открытии панели.
-    const state = current?.editor ?? null;
+    // подменяет состояние редактора, и без этого список замер бы на том,
+    // каким был при открытии панели. У вкладки, которая не текст, состояния
+    // нет вовсе — оглавлению неоткуда взяться.
+    const state = current?.editor?.state ?? null;
     const markdown = current ? languageOf(current)?.id === 'markdown' : false;
     update(current?.meta.id ?? null, state, markdown);
   });

@@ -215,7 +215,7 @@ async function openRealTab(
   await createEmpty(doc);
 
   const tab = activeTab();
-  if (!tab) throw new Error('вкладка не открылась');
+  if (!tab?.editor) throw new Error('вкладка не открылась');
   const id = tab.meta.id;
   // Номер сообщаем первым делом, до всех проверок: вкладка уже существует,
   // и закрыть её надо в любом случае. Пока это стояло ниже, сорвавшиеся
@@ -224,12 +224,16 @@ async function openRealTab(
 
   // Проверка условий, а не веры: дальше идёт ожидание, и если текст потерялся
   // уже здесь, ждать его бессмысленно, а сообщение будет не про то.
-  if (tab.editor.doc.length !== doc.length) {
+  if (tab.editor.state.doc.length !== doc.length) {
     const all = tabs.items
-      .map((t) => `${t.meta.id}${before.has(t.meta.id) ? '' : '(новая)'}:${t.editor.doc.length}`)
+      .map(
+        (t) =>
+          `${t.meta.id}${before.has(t.meta.id) ? '' : '(новая)'}:` +
+          `${t.editor ? t.editor.state.doc.length : 'не текст'}`,
+      )
       .join(', ');
     throw new Error(
-      `вкладка создана пустой: в активной ${tab.editor.doc.length} знаков вместо ${doc.length};` +
+      `вкладка создана пустой: в активной ${tab.editor.state.doc.length} знаков вместо ${doc.length};` +
         ` активная ${tabs.activeId}; все вкладки — ${all}`,
     );
   }
@@ -261,7 +265,7 @@ async function openRealTab(
   const seen = view
     ? `в представлении ${view.state.doc.length} знаков, дерево ${syntaxTree(view.state).length}`
     : 'представления нет вовсе';
-  const inTab = activeTab()?.editor.doc.length ?? -1;
+  const inTab = activeTab()?.editor?.state.doc.length ?? -1;
   throw new Error(
     `редактор не принял документ вкладки: ожидали ${doc.length} знаков, ${seen};` +
       ` в состоянии вкладки ${inTab};` +

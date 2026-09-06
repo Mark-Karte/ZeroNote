@@ -1,7 +1,7 @@
 import { message } from '@tauri-apps/plugin-dialog';
 import * as ipc from '../ipc/files';
 import type { EncodingId, LineEnding } from '../ipc/files';
-import { applyMeta, replaceContent, tabById, textOf } from '../state/tabs.svelte';
+import { applyMeta, replaceContent, tabById, contentOf } from '../state/tabs.svelte';
 import { askChoice } from '../state/modal.svelte';
 
 /**
@@ -49,12 +49,12 @@ export async function reinterpretAs(id: number, encoding: EncodingId): Promise<v
 
 export async function convertTo(id: number, encoding: EncodingId): Promise<void> {
   const tab = tabById(id);
-  if (!tab) return;
+  if (!tab?.editor) return;
 
   try {
     // Ядро проверяет переводимость текста до того, как что-либо менять:
     // узнать о непереводимом символе при сохранении было бы поздно.
-    applyMeta(await ipc.convertEncoding(id, encoding, textOf(tab)));
+    applyMeta(await ipc.convertEncoding(id, encoding, contentOf(tab.editor)));
   } catch (error) {
     await report(error);
   }

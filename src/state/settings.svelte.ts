@@ -12,13 +12,16 @@ import type { SettingsState } from '../ipc/settings';
  * ни «применить», ни «отменить»: файл и есть состояние.
  */
 
+/**
+ * Признака «параметры открыты» здесь нет с задачи 68: параметры стали
+ * вкладкой, и открыты они ровно тогда, когда такая вкладка есть в списке.
+ * Второй признак рядом со списком вкладок разошёлся бы с ним молча.
+ */
 export const settings = $state<{
-  open: boolean;
   state: SettingsState | null;
   /** Что пошло не так при последней записи. Пусто — всё в порядке. */
   problem: string | null;
 }>({
-  open: false,
   state: null,
   problem: null,
 });
@@ -131,22 +134,16 @@ export function autoCloseEnabled(): boolean {
   return settings.state?.settings.editor.auto_close ?? true;
 }
 
-export function open(): void {
-  settings.open = true;
+/**
+ * Перечитать настройки: вкладку параметров открыли или показали снова.
+ *
+ * Файл могли поправить руками, пока её не было на экране, — а окно
+ * параметров это надстройка над файлом (Р-077), и показывать оно обязано
+ * то, что лежит на диске сейчас.
+ */
+export function refresh(): void {
   settings.problem = null;
   void load();
-}
-
-export function close(): void {
-  settings.open = false;
-}
-
-export function toggle(): void {
-  if (settings.open) {
-    close();
-  } else {
-    open();
-  }
 }
 
 /**

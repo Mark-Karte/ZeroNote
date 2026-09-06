@@ -14,7 +14,8 @@ import { createEmpty } from '../state/tabs.svelte';
 import { noteStructureChange } from '../state/persist.svelte';
 import { askChoice } from '../state/modal.svelte';
 import { open as openPalette } from '../state/palette.svelte';
-import { toggle as toggleSettings } from '../state/settings.svelte';
+import { refresh as refreshSettings } from '../state/settings.svelte';
+import { openSettings } from '../state/tabs.svelte';
 import { focusSearch } from '../state/project-search.svelte';
 
 /**
@@ -98,9 +99,18 @@ export function tagPalette(): void {
   openPalette('tags');
 }
 
-/** Параметры: экран поверх рабочей области, а не вкладка (Р-074). */
-export function showSettings(): void {
-  toggleSettings();
+/**
+ * Параметры: вкладка, а не режим окна (Р-185).
+ *
+ * Повторный вызов не закрывает их, а показывает открытую вкладку: закрыть
+ * её можно крестиком, как всякую другую. Прежнее поведение — «та же кнопка
+ * открывает и закрывает» — владелец назвал неудобным первым же пунктом
+ * замечаний из работы.
+ */
+export async function showSettings(): Promise<void> {
+  await openSettings();
+  // Файл могли поправить руками, пока вкладки не было на экране.
+  refreshSettings();
 }
 
 /**

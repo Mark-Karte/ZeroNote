@@ -21,6 +21,7 @@ import type { EditorView } from '@codemirror/view';
 vi.mock('../src/ipc/files', () => ({
   newBuffer: vi.fn(async () => ({
     id: 7,
+    kind: 'text',
     path: null,
     title: 'Без имени 7',
     encoding: 'utf8',
@@ -95,7 +96,7 @@ describe('содержимое новой вкладки', () => {
   it('сохраняется, когда представления ещё нет', async () => {
     await createEmpty('текст вкладки');
 
-    expect(activeTab()?.editor.doc.toString()).toBe('текст вкладки');
+    expect(activeTab()?.editor?.state.doc.toString()).toBe('текст вкладки');
   });
 
   it('сохраняется, когда в представлении лежит другая вкладка', async () => {
@@ -103,7 +104,7 @@ describe('содержимое новой вкладки', () => {
 
     await createEmpty('текст вкладки');
 
-    expect(activeTab()?.editor.doc.toString()).toBe('текст вкладки');
+    expect(activeTab()?.editor?.state.doc.toString()).toBe('текст вкладки');
   });
 
   it('вкладка помечается изменённой: содержимое есть только в памяти', async () => {

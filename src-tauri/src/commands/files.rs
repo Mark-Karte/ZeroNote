@@ -51,6 +51,19 @@ pub fn new_buffer(state: tauri::State<'_, AppState>) -> Buffer {
     buffers.create_untitled(eol::DEFAULT).clone()
 }
 
+/// Открыть параметры.
+///
+/// Вкладкой, а не режимом окна: до задачи 68 параметры занимали рабочую
+/// область и закрывались повторным нажатием той же кнопки — так их и просил
+/// переделать владелец, работающий в программе каждый день.
+///
+/// Вкладка одна на окно: если она уже открыта, возвращается та же.
+#[tauri::command]
+pub fn open_settings(state: tauri::State<'_, AppState>) -> Buffer {
+    let mut buffers = state.buffers.lock().expect("реестр буферов повреждён");
+    buffers.create_settings().clone()
+}
+
 /// Открыть файл.
 ///
 /// Если файл уже открыт, новая вкладка не заводится — возвращается та же.
