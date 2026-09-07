@@ -3,6 +3,7 @@ import { listen } from '@tauri-apps/api/event';
 import * as ipc from '../ipc/settings';
 import type { SettingsState } from '../ipc/settings';
 import { lineNumbersSettingOf, type LineNumbersSetting } from '../editor/line-numbers';
+import { markdownBarWidthOf, type MarkdownBarWidth } from '../editor/readable';
 
 /**
  * Окно параметров — надстройка над `settings.toml` (Р-077).
@@ -87,6 +88,16 @@ export async function toggleInvisibles(): Promise<void> {
  */
 export function markdownBarEnabled(): boolean {
   return settings.state?.settings.editor.markdown_bar ?? true;
+}
+
+/**
+ * Чем меряется ширина панели разметки: колонкой или всей областью (Р-215).
+ *
+ * Умолчание `column` повторяет умолчание ядра — иначе панель первые
+ * полсекунды после запуска стояла бы во всю ширину и потом съезжала.
+ */
+export function markdownBarWidth(): MarkdownBarWidth {
+  return markdownBarWidthOf(settings.state?.settings.editor.markdown_bar_width);
 }
 
 /** Подсказывать ли имена заметок после `[[` в markdown (Р-132). */

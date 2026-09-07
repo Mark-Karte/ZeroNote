@@ -8,7 +8,12 @@
   import type { PaneNode } from '../ipc/layout';
   import { layout, setActivePane } from '../state/panes.svelte';
   import { tabById, languageOf } from '../state/tabs.svelte';
-  import { markdownBarEnabled } from '../state/settings.svelte';
+  import {
+    markdownBarEnabled,
+    markdownBarWidth,
+    readableWidthEnabled,
+  } from '../state/settings.svelte';
+  import { markdownBarColumn } from '../editor/readable';
   import { dropTarget } from '../state/tab-drag.svelte';
 
   /**
@@ -31,6 +36,21 @@
    */
   const showMarkdownBar = $derived(
     markdownBarEnabled() && tab !== null && languageOf(tab)?.id === 'markdown',
+  );
+
+  /**
+   * Панель встаёт над колонкой читаемой ширины, а не во всю область
+   * (задача 81, Р-215). Считается там же, где решается показ: панель
+   * не должна знать ни про настройки, ни про язык вкладки — она рисует
+   * кнопки.
+   */
+  const barColumn = $derived(
+    markdownBarColumn({
+      wrap: false,
+      readableWidth: readableWidthEnabled(),
+      markdown: true,
+      barWidth: markdownBarWidth(),
+    }),
   );
 
   /**
@@ -78,7 +98,7 @@
       <SearchPanel />
     {/if}
     {#if showMarkdownBar}
-      <MarkdownBar />
+      <MarkdownBar column={barColumn} />
     {/if}
     <EditorHost pane={pane.id} />
   {/if}

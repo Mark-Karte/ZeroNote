@@ -327,6 +327,26 @@
 
         <div class="row">
           <div class="what">
+            <span class="name">Ширина панели разметки</span>
+            <span class="note">
+              Над колонкой — кнопки стоят над текстом заметки, а не в левом
+              углу. Действует, только когда включена читаемая ширина: без
+              колонки панель во всю ширину при любом значении.
+            </span>
+          </div>
+          <select
+            class="control"
+            disabled={broken !== null}
+            value={values.editor.markdown_bar_width}
+            onchange={(e) => put(['editor', 'markdown_bar_width'], e.currentTarget.value)}
+          >
+            <option value="column">Над колонкой</option>
+            <option value="full">Во всю ширину</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <div class="what">
             <span class="name">Подсказка имён при [[</span>
             <span class="note">
               Список заметок проекта после двух скобок в markdown. Автодополнением

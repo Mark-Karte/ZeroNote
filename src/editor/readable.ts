@@ -39,3 +39,34 @@ export function readableColumn(ctx: ReadableContext): boolean {
 export function wrapFor(ctx: ReadableContext): boolean {
   return ctx.wrap || readableColumn(ctx);
 }
+
+/** Значение настройки `[editor] markdown_bar_width`. */
+export type MarkdownBarWidth = 'column' | 'full';
+
+export interface MarkdownBarContext extends ReadableContext {
+  barWidth: MarkdownBarWidth;
+}
+
+/**
+ * Ставить ли панель разметки над колонкой, а не во всю ширину области
+ * (задача 81, Р-215).
+ *
+ * **Колонка сильнее настройки, а не наоборот.** «Над колонкой» там, где
+ * колонки нет, — это не «над колонкой», а панель случайной ширины посреди
+ * области: текст начинается у левого края, а кнопки к нему стоят
+ * посередине. Поэтому настройка спрашивается второй, после `readableColumn`.
+ *
+ * Само значение при этом не сбрасывается: выключили читаемую ширину,
+ * включили обратно — панель вернулась к колонке.
+ */
+export function markdownBarColumn(ctx: MarkdownBarContext): boolean {
+  return readableColumn(ctx) && ctx.barWidth === 'column';
+}
+
+/**
+ * Значение настройки из файла — в то, что понимает правило. Незнакомое
+ * берёт умолчание молча: громко о нём уже сказало ядро при разборе файла.
+ */
+export function markdownBarWidthOf(value: string | undefined): MarkdownBarWidth {
+  return value === 'full' ? 'full' : 'column';
+}

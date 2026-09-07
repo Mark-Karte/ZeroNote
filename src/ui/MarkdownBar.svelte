@@ -20,6 +20,15 @@
    * «Клавиши».
    */
 
+  /**
+   * Стоять ли кнопкам над колонкой читаемой ширины (задача 81).
+   *
+   * Пропом, а не своим чтением настройки: панель рисует кнопки и больше
+   * ничего не знает — ни про язык вкладки, ни про то, есть ли у неё
+   * колонка. Решает это область (`PaneView`), там же, где решается показ.
+   */
+  let { column = false }: { column?: boolean } = $props();
+
   interface Button {
     command: string;
     icon?: IconName;
@@ -78,36 +87,38 @@
   }
 </script>
 
-<div class="bar panel" role="toolbar" aria-label="Разметка markdown">
-  {#each BUTTONS as button (button.command)}
-    <button
-      class="key"
-      class:group={button.group}
-      class:text={button.text !== undefined}
-      type="button"
-      title={hint(button.command)}
-      aria-label={hint(button.command)}
-      onmousedown={keepFocus}
-      onclick={() => runCommand(button.command)}
-    >
-      {#if button.icon}
-        <Icon name={button.icon} />
-      {:else}
-        {button.text}
-      {/if}
-    </button>
-  {/each}
+<div class="bar panel">
+  <div class="keys" class:column role="toolbar" aria-label="Разметка markdown">
+    {#each BUTTONS as button (button.command)}
+      <button
+        class="key"
+        class:group={button.group}
+        class:text={button.text !== undefined}
+        type="button"
+        title={hint(button.command)}
+        aria-label={hint(button.command)}
+        onmousedown={keepFocus}
+        onclick={() => runCommand(button.command)}
+      >
+        {#if button.icon}
+          <Icon name={button.icon} />
+        {:else}
+          {button.text}
+        {/if}
+      </button>
+    {/each}
 
-  <button
-    class="key group"
-    type="button"
-    title="Заготовки: таблица, блок кода, разделитель"
-    aria-label="Заготовки"
-    onmousedown={keepFocus}
-    onclick={snippets}
-  >
-    <Icon name="md.snippets" />
-  </button>
+    <button
+      class="key group"
+      type="button"
+      title="Заготовки: таблица, блок кода, разделитель"
+      aria-label="Заготовки"
+      onmousedown={keepFocus}
+      onclick={snippets}
+    >
+      <Icon name="md.snippets" />
+    </button>
+  </div>
 </div>
 
 <style>
@@ -116,13 +127,23 @@
      и есть правда. */
   .bar {
     display: flex;
-    align-items: center;
-    gap: var(--zn-space-1);
     flex: none;
     /* Высота в один ряд — общая для всех полос инструментов в окне: столько же
-       у заголовка боковой панели и у поля поиска в ней.
+       у заголовка боковой панели и у поля поиска в ней. */
+    min-height: var(--zn-control-toolbar-height);
+    border-bottom: var(--zn-border-width) solid var(--zn-color-border-subtle);
+  }
 
-       Полоса растёт вниз, а не обрезается: шестнадцать кнопок
+  /* Кнопки лежат отдельным слоем внутри полосы: над колонкой едут они,
+     а полоса с чертой остаётся во всю ширину области (задача 81). Черта
+     отделяет панель от текста — это граница области, а не колонки, и рвать
+     её посередине значило бы сказать, что справа от колонки другая полоса. */
+  .keys {
+    display: flex;
+    align-items: center;
+    gap: var(--zn-space-1);
+    width: 100%;
+    /* Полоса растёт вниз, а не обрезается: шестнадцать кнопок
        с разделителями — около 430 px, и в узком окне последние молча уезжали
        за правый край. Нашёл владелец, работая в программе каждый день.
 
@@ -133,12 +154,25 @@
        горизонтальную полосу не двигает, проверено на живом окне: нужен
        либо горизонтальный ролик, либо свой обработчик. Панель для того
        и панель, чтобы кнопки было видно. */
-    min-height: var(--zn-control-toolbar-height);
     flex-wrap: wrap;
     row-gap: var(--zn-space-1);
     padding-block: var(--zn-space-1);
     padding-inline: var(--zn-space-3);
-    border-bottom: var(--zn-border-width) solid var(--zn-color-border-subtle);
+  }
+
+  /* Над колонкой читаемой ширины (Р-215).
+
+     Шрифт редактора здесь стоит ради единицы измерения, а не ради вида:
+     колонка задана в знаках (`82ch`, Р-156), а знак — это знак того шрифта,
+     на котором посчитан `ch`. Возьми панель свой интерфейсный шрифт —
+     и «та же ширина» разошлась бы с колонкой на десятки пикселей, тем
+     сильнее, чем крупнее кегль. Кнопкам шрифт при этом не достаётся:
+     ниже он задан явным токеном, а не `inherit`. */
+  .keys.column {
+    font-family: var(--zn-font-family-editor);
+    font-size: var(--zn-font-size-editor);
+    max-width: var(--zn-control-editor-width);
+    margin-inline: auto;
   }
 
   .key {
@@ -154,7 +188,10 @@
     border-radius: var(--zn-radius-md);
     background: none;
     color: var(--zn-color-fg-muted);
-    font-family: inherit;
+    /* Явным токеном, а не `inherit`: у колонки контейнер носит шрифт
+       редактора ради единицы `ch`, и наследование утащило бы его в подписи
+       кнопок — они менялись бы от настройки ширины панели. */
+    font-family: var(--zn-font-family-ui);
     font-size: var(--zn-font-size-ui-small);
     cursor: default;
   }

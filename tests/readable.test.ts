@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { readableColumn, wrapFor } from '../src/editor/readable';
+import {
+  markdownBarColumn,
+  markdownBarWidthOf,
+  readableColumn,
+  wrapFor,
+} from '../src/editor/readable';
 
 /**
  * Читаемая ширина (задача 58, Р-156).
@@ -49,5 +54,55 @@ describe('перенос', () => {
   it('у markdown без колонки остаётся за настройкой', () => {
     expect(wrapFor({ wrap: false, readableWidth: false, ...md })).toBe(false);
     expect(wrapFor({ wrap: true, readableWidth: false, ...md })).toBe(true);
+  });
+});
+
+/**
+ * Панель разметки над колонкой (задача 81, Р-215). Правило одно, и всё
+ * оно про порядок вопросов: сначала «есть ли колонка», потом «что просили».
+ */
+describe('ширина панели разметки', () => {
+  const bar = (readableWidth: boolean, barWidth: 'column' | 'full') =>
+    markdownBarColumn({ wrap: false, readableWidth, barWidth, ...md });
+
+  it('над колонкой, когда так велит настройка', () => {
+    expect(bar(true, 'column')).toBe(true);
+  });
+
+  it('во всю ширину, когда так велит настройка', () => {
+    expect(bar(true, 'full')).toBe(false);
+  });
+
+  /**
+   * Главное: колонки нет — и «над колонкой» означает панель случайной
+   * ширины посреди области, тогда как текст начинается у левого края.
+   */
+  it('без читаемой ширины — во всю ширину при любой настройке', () => {
+    expect(bar(false, 'column')).toBe(false);
+    expect(bar(false, 'full')).toBe(false);
+  });
+
+  /** Колонки не бывает у кода — но панели разметки там не бывает тоже. */
+  it('у кода колонки нет', () => {
+    expect(
+      markdownBarColumn({
+        wrap: false,
+        readableWidth: true,
+        barWidth: 'column',
+        ...code,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe('значение ширины панели из файла', () => {
+  it('читается как есть', () => {
+    expect(markdownBarWidthOf('column')).toBe('column');
+    expect(markdownBarWidthOf('full')).toBe('full');
+  });
+
+  it('без значения и на незнакомом даёт «над колонкой»', () => {
+    expect(markdownBarWidthOf(undefined)).toBe('column');
+    expect(markdownBarWidthOf('посередине')).toBe('column');
   });
 });

@@ -30,6 +30,7 @@ export interface Settings {
     invisibles: boolean;
     line_numbers: 'always' | 'never' | 'code';
     markdown_bar: boolean;
+    markdown_bar_width: 'column' | 'full';
     readable_width: boolean;
     live_preview: boolean;
     link_suggest: boolean;
