@@ -17,12 +17,29 @@ const BINARY_PROBE: usize = 8 * 1024;
 /// Что стало с файлом при попытке его проиндексировать.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Indexed {
-    /// Содержимое записано в индекс.
+    /// Имя записано, содержимое прочитано.
     Stored,
+    /// Записано только имя: двоичный, слишком большой или нечитаемый.
+    ///
+    /// До задачи 82 такой файл в индекс не попадал вовсе, и оттого быстрое
+    /// открытие не находило ни картинок, ни PDF. Теперь имя знает индекс,
+    /// а содержимое по-прежнему не читается: у картинки его нет, у PDF
+    /// оно недоступно без разбора формата.
+    Listed,
     /// Файл не изменился с прошлого раза — перечитывать было незачем.
     Unchanged,
-    /// Двоичный, слишком большой или нечитаемый: в индекс не попадает.
-    Skipped,
+}
+
+/// Строка индекса для тех, кто перебирает файлы: быстрое открытие
+/// и подсказка имён при `[[`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileRow {
+    pub root_id: RootId,
+    pub path: String,
+    pub name: String,
+    /// Прочитано ли содержимое. У картинки, PDF и слишком большого файла
+    /// в индексе есть только имя.
+    pub has_text: bool,
 }
 
 #[derive(Debug)]
@@ -54,6 +71,43 @@ impl From<rusqlite::Error> for IndexError {
 /// дополнять, и он молча терял бы чужие текстовые форматы.
 pub fn looks_binary(bytes: &[u8]) -> bool {
     bytes[..bytes.len().min(BINARY_PROBE)].contains(&0)
+}
+
+/// Прочитать текст файла — если это текст, и если он не слишком велик.
+///
+/// **Двоичный распознаётся по первым восьми килобайтам, и остальное
+/// не читается вовсе.** До задачи 82 файл читался целиком и только потом
+/// отбрасывался: пока картинки в индекс не попадали, их всё равно приходилось
+/// поднимать в память по одной. Теперь, когда обход обязан дойти до каждой
+/// картинки и каждого PDF, эта цена стала заметной.
+///
+/// `None` означает «содержимого не будет»: слишком велик, двоичный,
+/// не открылся или не раскодировался. Имя файла это не отменяет — строку
+/// в `files` получает и такой файл.
+fn read_text(path: &Path, size: u64, max_size: u64) -> Option<String> {
+    use std::io::Read;
+
+    if size > max_size {
+        return None;
+    }
+
+    let mut file = std::fs::File::open(path).ok()?;
+    let mut bytes = Vec::with_capacity(size.min(BINARY_PROBE as u64) as usize);
+    // `by_ref` обязателен: `take` забирает владение, а файл нужен дальше,
+    // чтобы дочитать остаток тем же чтением, без второго открытия.
+    file.by_ref()
+        .take(BINARY_PROBE as u64)
+        .read_to_end(&mut bytes)
+        .ok()?;
+
+    if looks_binary(&bytes) {
+        return None;
+    }
+
+    file.read_to_end(&mut bytes).ok()?;
+    // Кодировку определяем тем же кодом, что и при открытии файла: индекс
+    // и редактор обязаны видеть один и тот же текст.
+    document::read(&bytes).ok().map(|document| document.text)
 }
 
 fn millis(time: std::time::SystemTime) -> Option<i64> {
@@ -141,23 +195,9 @@ pub fn index_file(
         return Ok(Indexed::Unchanged);
     }
 
-    if size > max_size {
-        forget_file(connection, path)?;
-        return Ok(Indexed::Skipped);
-    }
-
-    let bytes = std::fs::read(path).map_err(IndexError::Io)?;
-    if looks_binary(&bytes) {
-        forget_file(connection, path)?;
-        return Ok(Indexed::Skipped);
-    }
-
-    // Кодировку определяем тем же кодом, что и при открытии файла: индекс
-    // и редактор обязаны видеть один и тот же текст.
-    let Ok(document) = document::read(&bytes) else {
-        forget_file(connection, path)?;
-        return Ok(Indexed::Skipped);
-    };
+    // Содержимое читается до записи: от того, вышло ли оно, зависит признак
+    // `has_text` в самой строке.
+    let text = read_text(path, size, max_size);
 
     let name = path
         .file_name()
@@ -172,13 +212,15 @@ pub fn index_file(
 
     connection.execute(
         "INSERT INTO files
-            (root_id, path, path_key, name, rel_key, name_key, mtime_ms, size, indexed_ms)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            (root_id, path, path_key, name, has_text, rel_key, name_key,
+             mtime_ms, size, indexed_ms)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         rusqlite::params![
             root_id as i64,
             text_path.as_ref(),
             path_key(path),
             name,
+            text.is_some() as i64,
             rel_key,
             name_key,
             mtime,
@@ -187,14 +229,20 @@ pub fn index_file(
         ],
     )?;
 
+    // Имя записано — этого довольно, чтобы файл нашло быстрое открытие
+    // (задача 82). Дальше идёт только содержимое, и его может не быть.
+    let Some(text) = text else {
+        return Ok(Indexed::Listed);
+    };
+
     let id = connection.last_insert_rowid();
     connection.execute(
         "INSERT INTO content (rowid, text) VALUES (?1, ?2)",
-        rusqlite::params![id, document.text],
+        rusqlite::params![id, text],
     )?;
 
     if is_markdown(path) {
-        store_links(connection, id, &document.text)?;
+        store_links(connection, id, &text)?;
     }
 
     Ok(Indexed::Stored)
@@ -302,21 +350,47 @@ pub fn known_paths(
     Ok(out)
 }
 
-/// Все файлы в индексе: номер корня, путь, имя.
+/// Все файлы в индексе — включая те, у которых прочитано только имя.
 ///
-/// Нужно быстрому открытию. Отдельного списка имён специально для него нет
-/// намеренно: второй список пришлось бы согласовывать с индексом, а проход
-/// по десяти тысячам строк стоит доли миллисекунды.
-pub fn all_files(
-    connection: &Connection,
-) -> Result<Vec<(RootId, String, String)>, IndexError> {
-    let mut statement = connection.prepare("SELECT root_id, path, name FROM files")?;
+/// Нужно быстрому открытию и подсказке имён. Отдельного списка имён специально
+/// для них нет намеренно: второй список пришлось бы согласовывать с индексом,
+/// а проход по десяти тысячам строк стоит доли миллисекунды.
+pub fn all_files(connection: &Connection) -> Result<Vec<FileRow>, IndexError> {
+    let mut statement =
+        connection.prepare("SELECT root_id, path, name, has_text FROM files")?;
     let rows = statement.query_map([], |row| {
-        Ok((
-            row.get::<_, i64>(0)? as RootId,
-            row.get::<_, String>(1)?,
-            row.get::<_, String>(2)?,
-        ))
+        Ok(FileRow {
+            root_id: row.get::<_, i64>(0)? as RootId,
+            path: row.get(1)?,
+            name: row.get(2)?,
+            has_text: row.get::<_, i64>(3)? != 0,
+        })
+    })?;
+
+    let mut out = Vec::new();
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(out)
+}
+
+/// Файлы, содержимое которых индекс прочитал.
+///
+/// Нужно подсказке имён при `[[`: она предлагает то, на что ссылка и правда
+/// наведёт, а `![[рисунок.png]]` — задача 83. Отдельным запросом, а не
+/// отбором в памяти: с задачи 82 в `files` лежит и всё, что содержимого
+/// не имеет, и тащить его через границу IPC ради того, чтобы тут же
+/// отбросить, незачем.
+pub fn text_files(connection: &Connection) -> Result<Vec<FileRow>, IndexError> {
+    let mut statement = connection
+        .prepare("SELECT root_id, path, name FROM files WHERE has_text = 1")?;
+    let rows = statement.query_map([], |row| {
+        Ok(FileRow {
+            root_id: row.get::<_, i64>(0)? as RootId,
+            path: row.get(1)?,
+            name: row.get(2)?,
+            has_text: true,
+        })
     })?;
 
     let mut out = Vec::new();
@@ -412,33 +486,54 @@ mod tests {
     }
 
     #[test]
-    fn binary_file_is_skipped() {
+    /// Главное свойство задачи 82: у двоичного файла остаётся имя.
+    ///
+    /// До неё картинка выпадала из индекса целиком, и быстрое открытие
+    /// её не находило — притом что открыть её ZeroNote умеет с этапа 10.
+    fn binary_file_keeps_its_name() {
         let dir = temp_dir("binary");
         let path = dir.join("картинка.png");
         std::fs::write(&path, [0x89, b'P', b'N', b'G', 0x00, 0x1A, 0x0A]).unwrap();
         let db = connection(&dir);
 
-        assert_eq!(index_file(&db, 1, &dir, &path, BIG).unwrap(), Indexed::Skipped);
-        assert_eq!(count(&db, 1).unwrap(), 0);
+        assert_eq!(index_file(&db, 1, &dir, &path, BIG).unwrap(), Indexed::Listed);
+
+        let files = all_files(&db).unwrap();
+        assert_eq!(files.len(), 1, "имя картинки должно быть в индексе");
+        assert_eq!(files[0].name, "картинка.png");
+        assert!(!files[0].has_text, "содержимого у картинки нет");
+
+        let stored: i64 = db
+            .query_row("SELECT count(*) FROM content", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(stored, 0, "двоичное содержимое в индекс не попадает");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
-    fn oversized_file_is_skipped() {
+    /// Предел размера — предел на **содержимое**, а не на присутствие
+    /// в индексе. Иначе PDF на восемь мегабайт не нашёлся бы по имени,
+    /// хотя показать его мы умеем.
+    fn oversized_file_keeps_its_name() {
         let dir = temp_dir("big");
         let path = dir.join("журнал.log");
         std::fs::write(&path, "строка\n".repeat(1000)).unwrap();
         let db = connection(&dir);
 
-        assert_eq!(index_file(&db, 1, &dir, &path, 100).unwrap(), Indexed::Skipped);
-        assert_eq!(count(&db, 1).unwrap(), 0);
+        assert_eq!(index_file(&db, 1, &dir, &path, 100).unwrap(), Indexed::Listed);
+
+        let files = all_files(&db).unwrap();
+        assert_eq!(files.len(), 1);
+        assert!(!files[0].has_text, "содержимого у слишком большого нет");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// Файл, переросший предел, обязан уйти из индекса, а не остаться
-    /// в нём со старым содержимым.
+    /// Файл, переросший предел, теряет содержимое, но остаётся именем.
+    ///
+    /// Старое содержимое обязано уйти: список совпадений, показывающий
+    /// вчерашний текст, хуже отсутствия совпадения.
     #[test]
-    fn file_that_outgrew_the_limit_leaves_the_index() {
+    fn file_that_outgrew_the_limit_loses_its_content() {
         let dir = temp_dir("outgrew");
         let path = dir.join("растущий.md");
         std::fs::write(&path, "коротко").unwrap();
@@ -449,8 +544,34 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_millis(30));
         std::fs::write(&path, "длинно ".repeat(1000)).unwrap();
 
-        assert_eq!(index_file(&db, 1, &dir, &path, 1000).unwrap(), Indexed::Skipped);
-        assert_eq!(count(&db, 1).unwrap(), 0);
+        assert_eq!(index_file(&db, 1, &dir, &path, 1000).unwrap(), Indexed::Listed);
+        assert_eq!(count(&db, 1).unwrap(), 1, "имя остаётся");
+
+        let stale: i64 = db
+            .query_row(
+                "SELECT count(*) FROM content WHERE content MATCH 'коротко'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(stale, 0, "старое содержимое должно уйти вместе с пределом");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Неизменившийся файл узнаётся по времени и размеру и для не-текста:
+    /// иначе каждая индексация переписывала бы строку каждой картинки.
+    #[test]
+    fn unchanged_binary_is_not_rewritten() {
+        let dir = temp_dir("binary-unchanged");
+        let path = dir.join("рисунок.png");
+        std::fs::write(&path, [0x89, b'P', b'N', b'G', 0x00]).unwrap();
+        let db = connection(&dir);
+
+        assert_eq!(index_file(&db, 1, &dir, &path, BIG).unwrap(), Indexed::Listed);
+        assert_eq!(
+            index_file(&db, 1, &dir, &path, BIG).unwrap(),
+            Indexed::Unchanged
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 

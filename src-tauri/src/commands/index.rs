@@ -211,6 +211,11 @@ pub fn find_tags(
 ///
 /// Пустой запрос выдаёт список файлов, а не пустоту: палитра при открытии
 /// должна что-то показывать.
+///
+/// **Ищет по всем файлам проекта, а не только по текстовым** (задача 82).
+/// Картинку и PDF ZeroNote открывает с этапа 10, и не находить их поиском
+/// по имени было чистым следствием того, что палитра брала список из индекса,
+/// а индекс знал только текст.
 #[tauri::command]
 pub fn find_files(
     state: tauri::State<'_, AppState>,
@@ -232,14 +237,14 @@ pub fn find_files(
             .collect()
     };
 
-    let relative = files.into_iter().map(|(root_id, path, name)| {
+    let relative = files.into_iter().map(|file| {
         let inside = prefixes
             .iter()
-            .find(|(id, _)| *id == root_id)
-            .and_then(|(_, prefix)| path.get(prefix.len()..))
+            .find(|(id, _)| *id == file.root_id)
+            .and_then(|(_, prefix)| file.path.get(prefix.len()..))
             .map(|tail| tail.trim_start_matches(['\\', '/']).to_owned())
-            .unwrap_or_else(|| path.clone());
-        (root_id, path, name, inside)
+            .unwrap_or_else(|| file.path.clone());
+        (file.root_id, file.path, file.name, inside)
     });
 
     crate::index::names::best(&query, relative, limit.unwrap_or(50) as usize)
@@ -292,15 +297,22 @@ pub fn find_notes(
         return Vec::new();
     };
 
-    let files = state.index.lock().expect("индекс повреждён").files();
+    // Только те файлы, у которых индекс прочитал содержимое: подсказка
+    // предлагает то, на что ссылка и правда наведёт. Картинки и PDF попали
+    // в индекс задачей 82, но `[[рисунок.png]]` пока не разрешается — это
+    // задача 83, и предлагать раньше значило бы подсказывать ссылку,
+    // которая выйдет висячей.
+    let files = state.index.lock().expect("индекс повреждён").text_files();
     let limit = limit.unwrap_or(20) as usize;
 
-    let relative = files.into_iter().filter(|(id, _, _)| *id == root_id).map(
-        |(root_id, path, name)| {
-            let inside = inside_root(&path, &root_path).unwrap_or_else(|| path.clone());
-            (root_id, path, name, inside)
-        },
-    );
+    let relative = files
+        .into_iter()
+        .filter(|file| file.root_id == root_id)
+        .map(|file| {
+            let inside =
+                inside_root(&file.path, &root_path).unwrap_or_else(|| file.path.clone());
+            (file.root_id, file.path, file.name, inside)
+        });
 
     // Себя отсеиваем после отбора, а не до: приведение пути к общему виду
     // стоит одной строки на файл, и платить эту цену за все десять тысяч имён

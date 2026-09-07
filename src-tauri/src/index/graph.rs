@@ -123,11 +123,20 @@ fn resolve_id(
         return Ok(None);
     }
 
-    // Путь от корня — если в цели есть косая черта, имя файла тут ни при чём.
+    // `has_text = 1` — только файлы, содержимое которых индекс прочитал.
+    // С задачи 82 в `files` лежат и картинки, и PDF, но ссылка на них пока
+    // не наводится: `![[рисунок.png]]` — задача 83, и там же решается,
+    // что делать, когда рядом лежат `Планы.md` и `Планы.png`. До тех пор
+    // ссылки ведут ровно туда же, куда вели, — иначе задача 82 незаметно
+    // сделала бы половину чужой работы.
+    //
+    // Заодно этим отсекается большой текстовый файл: его содержимого в индексе
+    // нет, и ссылка на него была висячей и раньше.
     if key.contains('/') {
         let by_path = query_candidates(
             connection,
-            "SELECT id, path FROM files WHERE rel_key = ?1 AND root_id = ?2",
+            "SELECT id, path FROM files
+             WHERE rel_key = ?1 AND root_id = ?2 AND has_text = 1",
             &key,
             root_id,
         )?;
@@ -136,7 +145,8 @@ fn resolve_id(
 
     let by_name = query_candidates(
         connection,
-        "SELECT id, path FROM files WHERE name_key = ?1 AND root_id = ?2",
+        "SELECT id, path FROM files
+         WHERE name_key = ?1 AND root_id = ?2 AND has_text = 1",
         &key,
         root_id,
     )?;

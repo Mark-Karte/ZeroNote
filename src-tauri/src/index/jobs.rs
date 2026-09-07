@@ -259,13 +259,24 @@ impl Index {
         super::graph::find_tags(&connection, query, limit).unwrap_or_default()
     }
 
-    /// Все файлы индекса: номер корня, путь, имя. Нужно быстрому открытию.
-    pub fn files(&self) -> Vec<(RootId, String, String)> {
+    /// Все файлы индекса, включая те, у которых прочитано только имя
+    /// (задача 82). Нужно быстрому открытию и подсказке имён.
+    pub fn files(&self) -> Vec<writer::FileRow> {
         let Some(connection) = &self.connection else {
             return Vec::new();
         };
         let connection = connection.lock().expect("соединение с индексом повреждено");
         writer::all_files(&connection).unwrap_or_default()
+    }
+
+    /// Только те файлы, содержимое которых прочитано. Нужно подсказке
+    /// имён при `[[`: ссылка на вложение — задача 83.
+    pub fn text_files(&self) -> Vec<writer::FileRow> {
+        let Some(connection) = &self.connection else {
+            return Vec::new();
+        };
+        let connection = connection.lock().expect("соединение с индексом повреждено");
+        writer::text_files(&connection).unwrap_or_default()
     }
 
     /// Сколько файлов корня лежит в индексе. Нужно строке состояния.
