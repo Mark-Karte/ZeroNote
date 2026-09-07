@@ -19,6 +19,8 @@ import {
   indentExtension,
   invisiblesCompartment,
   invisiblesExtension,
+  lineNumbersCompartment,
+  lineNumbersExtension,
   livePreviewCompartment,
   livePreviewExtension,
   languageCompartment,
@@ -28,6 +30,7 @@ import { resolveIndent, type Indent } from '../editor/indent';
 import type { Scale } from '../ui/zoom';
 import { wrapFor } from '../editor/readable';
 import { livePreviewOn } from '../editor/live-preview';
+import { lineNumbersOn } from '../editor/line-numbers';
 import { bookmarkLines } from '../editor/bookmarks';
 import { editorView, editorViewOf } from '../editor/current';
 import {
@@ -45,6 +48,7 @@ import {
   livePreviewEnabled,
   wrapEnabled,
   readableWidthEnabled,
+  lineNumbersSetting,
 } from './settings.svelte';
 import { restoreFromSession } from './roots.svelte';
 import { scheduleAutosave } from './autosave.svelte';
@@ -438,6 +442,7 @@ const COMPARTMENTS = [
   indentCompartment,
   invisiblesCompartment,
   livePreviewCompartment,
+  lineNumbersCompartment,
   autoCloseCompartment,
 ];
 
@@ -655,6 +660,7 @@ function optionsFor(
     indent,
     invisibles: invisiblesEnabled(),
     livePreview: livePreviewOn({ livePreview: livePreviewEnabled(), markdown }),
+    lineNumbers: lineNumbersOn({ setting: lineNumbersSetting(), markdown }),
     bookmarks,
   };
 }
@@ -730,6 +736,21 @@ export function applyLivePreview(): void {
     if (!tab.editor) continue;
     const extension = livePreviewExtension(livePreviewOf(tab), () => tab.meta.path);
     reconfigure(tab, livePreviewCompartment.reconfigure(extension));
+  }
+}
+
+/**
+ * Применить настройку номеров строк ко всем вкладкам.
+ *
+ * По вкладке, а не одним значением на всех: при `code` ответ зависит
+ * от языка, и у соседней вкладки с кодом номера обязаны остаться. Тот же
+ * ход, что у живого превью.
+ */
+export function applyLineNumbers(): void {
+  for (const tab of tabs.items) {
+    if (!tab.editor) continue;
+    const extension = lineNumbersExtension(lineNumbersOf(tab));
+    reconfigure(tab, lineNumbersCompartment.reconfigure(extension));
   }
 }
 
@@ -847,6 +868,14 @@ export function livePreviewOf(tab: Tab): boolean {
   });
 }
 
+export function lineNumbersOf(tab: Tab): boolean {
+  if (!tab.editor) return false;
+  return lineNumbersOn({
+    setting: lineNumbersSetting(),
+    markdown: languageOf(tab)?.id === 'markdown',
+  });
+}
+
 export function wrapOf(tab: Tab): boolean {
   if (!tab.editor) return false;
   return wrapFor({
@@ -910,6 +939,8 @@ export function setLanguage(id: number, language: string | null): void {
   // правки настроек.
   applyWrap();
   applyLivePreview();
+  // И номера строк: у заметки их нет, у кода есть (Р-213).
+  applyLineNumbers();
   // Выбор — часть сессии: он не должен теряться при перезапуске.
   noteStructureChange();
 }

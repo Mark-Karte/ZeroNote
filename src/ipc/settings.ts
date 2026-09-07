@@ -28,6 +28,7 @@ export interface Settings {
     indent_style: 'spaces' | 'tabs';
     indent_width: number;
     invisibles: boolean;
+    line_numbers: 'always' | 'never' | 'code';
     markdown_bar: boolean;
     readable_width: boolean;
     live_preview: boolean;

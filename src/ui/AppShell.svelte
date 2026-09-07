@@ -22,6 +22,7 @@
     startSettings,
     wrapEnabled,
     readableWidthEnabled,
+    lineNumbersSetting,
   } from '../state/settings.svelte';
   import { searchFocusRequest } from '../state/project-search.svelte';
   import { notices } from '../state/notices.svelte';
@@ -33,6 +34,7 @@
     applyIndentSettings,
     applyInvisibles,
     applyLivePreview,
+    applyLineNumbers,
   } from '../state/tabs.svelte';
   import { flushNow } from '../state/persist.svelte';
   import { layout, activeTabId } from '../state/panes.svelte';
@@ -106,6 +108,14 @@
     const preview = livePreviewEnabled();
     void preview;
     untrack(() => applyLivePreview());
+  });
+
+  // Номера строк — та же настройка того же рода и тем же способом. При `code`
+  // ответ зависит от языка вкладки, поэтому применяется она по вкладке.
+  $effect(() => {
+    const where = lineNumbersSetting();
+    void where;
+    untrack(() => applyLineNumbers());
   });
 
   // Невидимые символы — та же настройка того же рода и тем же способом.

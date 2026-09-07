@@ -146,6 +146,39 @@ export function invisiblesExtension(enabled: boolean): Extension {
 }
 
 /**
+ * Отсек номеров строк.
+ *
+ * Настройка общая, но решение принимается по вкладке: у markdown номеров
+ * нет, у соседнего кода они остаются (Р-213). Тот же ход, что у живого
+ * превью, и по той же причине — отсек, а не пересоздание состояния:
+ * переключение настройки не должно стирать историю отмены.
+ */
+export const lineNumbersCompartment = new Compartment();
+
+/**
+ * Что кладётся в отсек номеров строк.
+ *
+ * **Прячется число, а не поле.** `lineNumbers()` остаётся на месте всегда,
+ * меняется только то, что он печатает: закладки помечают ячейку этого поля
+ * (`lineNumberMarkers`), и убрав поле, пришлось бы заново решать, где им
+ * жить. Пустая подпись заодно сужает поле само — ширину поля задаёт самый
+ * длинный номер, а его больше нет.
+ *
+ * Класс на редакторе — для закладки: акцентным числом её больше не видно,
+ * и вместо числа рисуется знак. Через `editorAttributes`, а не пропом
+ * компонента: состояние вкладки знает про себя всё само, и при подмене
+ * состояния в одном представлении класс меняется вместе с ним.
+ */
+export function lineNumbersExtension(show: boolean): Extension {
+  return show
+    ? lineNumbers()
+    : [
+        lineNumbers({ formatNumber: () => '' }),
+        EditorView.editorAttributes.of({ class: 'zn-no-line-numbers' }),
+      ];
+}
+
+/**
  * Отсек живого превью markdown.
  *
  * Настройка общая, как перенос и невидимые, но включается только там, где
@@ -222,6 +255,8 @@ export interface EditorOptions {
   invisibles: boolean;
   /** Прятать ли знаки разметки: markdown и включённая настройка. */
   livePreview: boolean;
+  /** Показывать ли номера строк: решает настройка и язык вкладки (Р-213). */
+  lineNumbers: boolean;
   /** Номера строк с закладками — из сессии. Для нового буфера пусто. */
   bookmarks: number[];
 }
@@ -246,7 +281,7 @@ export function extensionsFor(meta: Buffer, options: EditorOptions): Extension[]
     languageCompartment.of([]),
     syntaxColors,
 
-    lineNumbers(),
+    lineNumbersCompartment.of(lineNumbersExtension(options.lineNumbers)),
     // Закладки помечают ячейку с номером строки — своего поля им не надо.
     bookmarks(options.bookmarks),
     lineNumberMarkers.compute([bookmarkField], (state) => bookmarkMarkers(state)),

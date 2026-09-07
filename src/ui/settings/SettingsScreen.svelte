@@ -249,6 +249,26 @@
 
         <div class="row">
           <div class="what">
+            <span class="name">Номера строк</span>
+            <span class="note">
+              «Только в коде» прячет номера в заметках markdown: там номер
+              строки ничего не сообщает. Закладки и свёртка остаются на месте.
+            </span>
+          </div>
+          <select
+            class="control"
+            disabled={broken !== null}
+            value={values.editor.line_numbers}
+            onchange={(e) => put(['editor', 'line_numbers'], e.currentTarget.value)}
+          >
+            <option value="always">Всегда</option>
+            <option value="code">Только в коде</option>
+            <option value="never">Никогда</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <div class="what">
             <span class="name">Живое превью markdown</span>
             <span class="note">
               Знаки разметки не показываются, а действуют: `**жирный**` виден

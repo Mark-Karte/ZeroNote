@@ -2,6 +2,7 @@ import { listen } from '@tauri-apps/api/event';
 
 import * as ipc from '../ipc/settings';
 import type { SettingsState } from '../ipc/settings';
+import { lineNumbersSettingOf, type LineNumbersSetting } from '../editor/line-numbers';
 
 /**
  * Окно параметров — надстройка над `settings.toml` (Р-077).
@@ -102,6 +103,17 @@ export function linkSuggestEnabled(): boolean {
  */
 export function readableWidthEnabled(): boolean {
   return settings.state?.settings.editor.readable_width ?? true;
+}
+
+/**
+ * Где показывать номера строк (Р-213).
+ *
+ * Умолчание `code` повторяет умолчание ядра — по той же причине, что
+ * у соседей: иначе заметка первые полсекунды после запуска стояла бы
+ * с номерами, а потом они бы исчезали.
+ */
+export function lineNumbersSetting(): LineNumbersSetting {
+  return lineNumbersSettingOf(settings.state?.settings.editor.line_numbers);
 }
 
 /**

@@ -532,3 +532,17 @@
   color: var(--zn-color-accent);
   font-weight: var(--zn-font-weight-strong);
 }
+
+/* Номера спрятаны (Р-213): поле остаётся, но сужается — его ширину задавал
+   самый длинный номер, а его больше нет. Ширина та же, что у поля свёртки:
+   рядом стоят два узких поля, а не одно узкое и одно случайной ширины. */
+.cm-editor.zn-no-line-numbers .cm-lineNumbers .cm-gutterElement {
+  min-width: var(--zn-control-icon-size);
+}
+
+/* Закладку показывало само число, покрашенное акцентом, — теперь показывать
+   нечего. Знаком, а не фигурой из размеров: он едет за кеглем редактора
+   и слушается `color`, как стрелка табуляции выше. */
+.cm-editor.zn-no-line-numbers .cm-lineNumbers .zn-bookmark::after {
+  content: '•';
+}

@@ -79,6 +79,7 @@ vi.mock('../src/state/settings.svelte', () => ({
   invisiblesEnabled: () => false,
   readableWidthEnabled: () => true,
   livePreviewEnabled: () => true,
+  lineNumbersSetting: () => 'code',
 }));
 
 vi.mock('../src/state/roots.svelte', () => ({
