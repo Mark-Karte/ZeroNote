@@ -192,6 +192,7 @@ export function tabMenu(ctx: TabMenuContext, commands: Command[]): PopupItem[] {
       disabled: ctx.others === 0,
     },
     fromCommand(commands, 'file.close-all'),
+    fromCommand(commands, 'view.close-pane'),
 
     {
       id: MENU.copyPath,

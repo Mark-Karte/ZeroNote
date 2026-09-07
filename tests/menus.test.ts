@@ -22,6 +22,7 @@ const COMMANDS: Command[] = [
   { id: 'file.save-as', title: 'Сохранить как', binding: 'ctrl+alt+s' },
   { id: 'file.close-tab', title: 'Закрыть вкладку', binding: 'ctrl+w' },
   { id: 'file.close-all', title: 'Закрыть все вкладки', binding: 'ctrl+shift+w' },
+  { id: 'view.close-pane', title: 'Закрыть область', binding: null },
   { id: 'edit.undo', title: 'Отменить', binding: 'ctrl+z' },
   { id: 'edit.redo', title: 'Повторить', binding: 'ctrl+y' },
   { id: 'edit.cut', title: 'Вырезать', binding: 'ctrl+x' },

@@ -5,6 +5,7 @@
   import { appearance } from '../theme/store.svelte';
   import {
     activeTab,
+    visibleState,
     languageOf,
     livePreviewOf,
     setIndent,
@@ -60,11 +61,16 @@
    * изменение выделения, второго источника заводить незачем. Показывается
    * только когда курсоров больше одного — иначе это шум в каждом кадре.
    */
-  const cursors = $derived(ed?.state.selection.ranges.length ?? 1);
+  /**
+   * Состояние, которое видно в активной области: у зеркала (Р-209) курсор
+   * свой, и главное здесь показало бы чужую строку и столбец.
+   */
+  const shown = $derived(tab ? visibleState(tab) : null);
+  const cursors = $derived(shown?.selection.ranges.length ?? 1);
 
   /** Строка, столбец и размер выделения. Считается там же и по той же причине. */
-  const position = $derived(ed ? positionOf(ed.state) : null);
-  const lines = $derived(ed?.state.doc.lines ?? 0);
+  const position = $derived(shown ? positionOf(shown) : null);
+  const lines = $derived(shown?.doc.lines ?? 0);
 
   /**
    * Сочетание берётся из раскладки, а не пишется в разметку: его могли

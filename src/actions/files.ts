@@ -16,6 +16,7 @@ import {
   closePane,
   layout,
   paneById,
+  panes,
   paneShowing,
   panesWith,
   removeTab,
@@ -321,11 +322,34 @@ export async function closeAllTabs(): Promise<boolean> {
  * `tabs.items` прямо во время работы. Отказ на любом вопросе останавливает
  * закрытие целиком — как и в «закрыть все».
  */
-export async function closeOtherTabs(keep: number): Promise<boolean> {
-  const ids = tabs.items.map((t) => t.meta.id).filter((id) => id !== keep);
+export async function closeOtherTabs(keep: number, pane?: number): Promise<boolean> {
+  // В своей области, а не во всём окне — как «Close Others» в VS Code:
+  // соседняя область показывает своё, и её вкладки тут ни при чём.
+  const target = paneById(pane ?? paneShowing(keep)?.id ?? layout.activePane);
+  if (!target) return true;
+  const ids = target.tabs.filter((id) => id !== keep);
 
   for (const id of ids) {
-    if (!(await closeTab(id))) return false;
+    if (!(await closeTab(id, target.id))) return false;
+  }
+  return true;
+}
+
+/**
+ * Закрыть активную область со всеми её вкладками.
+ *
+ * Вкладка за вкладкой через `closeTab`: зеркало уходит молча, последний
+ * показ буфера спрашивает про несохранённое, и отказ останавливает всё.
+ * Область схлопывается сама, когда пустеет (Р-211); последнюю в окне
+ * закрыть нельзя — у неё закрываются только вкладки.
+ */
+export async function closeActivePane(): Promise<boolean> {
+  const pane = activePane();
+  for (const id of [...pane.tabs]) {
+    if (!(await closeTab(id, pane.id))) return false;
+  }
+  if (paneById(pane.id) && panes().length > 1) {
+    await closePane(pane.id);
   }
   return true;
 }

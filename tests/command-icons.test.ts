@@ -87,6 +87,8 @@ describe('значки команд', () => {
       ['edit.move-line-up', 'edit.move-line-down'],
       ['edit.upper-case', 'edit.lower-case'],
       ['file.close-tab', 'file.close-all'],
+      ['view.move-tab-next-pane', 'view.move-tab-previous-pane'],
+      ['view.split-right', 'view.split-down'],
     ];
 
     for (const [first, second] of pairs) {

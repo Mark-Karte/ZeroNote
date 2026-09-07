@@ -18,6 +18,7 @@ import {
   saveAll,
   closeActiveTab,
   closeAllTabs,
+  closeActivePane,
 } from '../actions/files';
 import { showAbout } from '../actions/about';
 import { checkForUpdates } from '../state/updates.svelte';
@@ -39,7 +40,14 @@ import {
 } from '../actions/project';
 import { findNext, findPrevious } from '../state/search.svelte';
 import { toggleInvisibles, toggleLivePreview, toggleWrap } from '../state/settings.svelte';
-import { nextTab, previousTab, undoActive, redoActive } from '../state/tabs.svelte';
+import {
+  nextTab,
+  previousTab,
+  undoActive,
+  redoActive,
+  focusPane,
+  moveActiveTab,
+} from '../state/tabs.svelte';
 import { splitActive } from '../state/panes.svelte';
 import { canSplit } from '../ui/pane-size';
 
@@ -137,6 +145,18 @@ export const COMMANDS: Record<CommandId, () => void | Promise<unknown>> = {
   'view.split-down': () => {
     if (canSplit('column')) void splitActive('column');
   },
+  'view.pane-1': () => focusPane(1),
+  'view.pane-2': () => focusPane(2),
+  'view.pane-3': () => focusPane(3),
+  'view.pane-4': () => focusPane(4),
+  'view.pane-5': () => focusPane(5),
+  'view.pane-6': () => focusPane(6),
+  'view.pane-7': () => focusPane(7),
+  'view.pane-8': () => focusPane(8),
+  'view.pane-9': () => focusPane(9),
+  'view.move-tab-next-pane': () => moveActiveTab(1),
+  'view.move-tab-previous-pane': () => moveActiveTab(-1),
+  'view.close-pane': closeActivePane,
   'view.sidebar': toggleSidebarPanel,
   'view.settings': showSettings,
 

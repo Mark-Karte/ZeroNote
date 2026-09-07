@@ -53,10 +53,14 @@ import {
   activeTabId,
   applyLayout,
   layout,
+  moveTab,
+  moveToSplit,
   openLocal,
   paneById,
+  panes,
   paneShowing,
   registerLayoutListener,
+  setActivePane,
   setActiveTab,
 } from './panes.svelte';
 // Подсказка про вкладки ничего не знает — всё, что ей нужно, приходит
@@ -538,6 +542,48 @@ function runHistory(
 
 export const undoActive = (): void => runHistory(undo);
 export const redoActive = (): void => runHistory(redo);
+
+/**
+ * Состояние, которое видно в активной области у этой вкладки: зеркало,
+ * если там зеркало, иначе главное. Строка состояния и оглавление смотрят
+ * сюда, а не в главное: курсор в зеркале свой, и показывать чужой значило
+ * бы врать про строку и столбец.
+ */
+export function visibleState(tab: Tab): EditorState | null {
+  const editor = tab.editor;
+  if (!editor) return null;
+  const pane = layout.activePane;
+  if (editor.home === pane) return editor.state;
+  return editor.mirrors[pane]?.state ?? editor.state;
+}
+
+/** Область по номеру в порядке обхода (Р-210): `Ctrl+1…9`. Фокус — в её редактор. */
+export function focusPane(index: number): void {
+  const pane = panes()[index - 1];
+  if (!pane) return;
+  setActivePane(pane.id);
+  editorViewOf(pane.id)?.focus();
+}
+
+/**
+ * Перенести активную вкладку в соседнюю область — как `Ctrl+Alt+→` в VS Code.
+ * Соседней нет — новая область с краю; единственную вкладку области так
+ * не двигают: вышло бы то же окно (правило `move_to_split`).
+ */
+export function moveActiveTab(delta: 1 | -1): void {
+  const pane = activePane();
+  const id = pane.active;
+  if (id === null) return;
+
+  const order = panes();
+  const index = order.findIndex((item) => item.id === pane.id);
+  const neighbour = order[index + delta];
+  if (neighbour) {
+    void moveTab(id, pane.id, neighbour.id, null);
+    return;
+  }
+  void moveToSplit(id, pane.id, pane.id, 'row', delta < 0);
+}
 
 /**
  * Закладки переключили.

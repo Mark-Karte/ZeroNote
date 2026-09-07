@@ -105,6 +105,10 @@ export type IconName =
   | 'cmd.previous-tab'
   | 'cmd.split-right'
   | 'cmd.split-down'
+  | 'cmd.pane'
+  | 'cmd.move-tab-right'
+  | 'cmd.move-tab-left'
+  | 'cmd.close-pane'
   | 'cmd.sidebar'
   | 'cmd.follow-link'
   | 'cmd.quick-open'
@@ -396,6 +400,18 @@ const ICONS: Record<IconName, string> = {
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2.2" y="3" width="11.6" height="10" rx="1.5"/><path d="M8 3v10"/></svg>',
   'cmd.split-down':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2.2" y="3" width="11.6" height="10" rx="1.5"/><path d="M2.2 8h11.6"/></svg>',
+  // Область по номеру: разделённое окно с заполненной половиной — «эта».
+  // Один рисунок на девять команд: номер и так стоит в подписи.
+  'cmd.pane':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2.2" y="3" width="11.6" height="10" rx="1.5"/><path d="M8 3v10"/><path d="M4.4 6h1.6M4.4 8h1.6M4.4 10h1.6"/></svg>',
+  // Вкладка уезжает в соседнюю область: рамка и стрелка через границу.
+  'cmd.move-tab-right':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2.2" y="3" width="11.6" height="10" rx="1.5"/><path d="M8 3v2.2M8 10.8V13"/><path d="M4.6 8h6.2M8.8 6 10.8 8l-2 2"/></svg>',
+  'cmd.move-tab-left':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2.2" y="3" width="11.6" height="10" rx="1.5"/><path d="M8 3v2.2M8 10.8V13"/><path d="M11.4 8H5.2M7.2 6 5.2 8l2 2"/></svg>',
+  // Закрыть область: разделённое окно, во второй половине крест.
+  'cmd.close-pane':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2.2" y="3" width="11.6" height="10" rx="1.5"/><path d="M7 3v10"/><path d="M9.2 6.4l2.6 3.2M11.8 6.4 9.2 9.6"/></svg>',
   // Окно с колонкой слева — то, что и включается.
   'cmd.sidebar':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><rect x="2.4" y="3.4" width="11.2" height="9.2" rx="1.6"/><path d="M6.6 3.4v9.2"/></svg>',

@@ -1,3 +1,4 @@
+import type { EditorView } from '@codemirror/view';
 import { editorView } from '../editor/current';
 import * as engine from '../editor/search';
 
@@ -53,10 +54,24 @@ function scheduleRecount(): void {
   }, 150);
 }
 
-/** Запрос изменился: сообщить редактору и пересчитать счётчик. */
+/**
+ * Где сейчас стоят подсветки.
+ *
+ * Панель одна на окно и стоит над активной областью (Р-210); когда фокус
+ * уходит в соседнюю, запрос переезжает вместе с ней, а с прежнего
+ * представления подсветки снимаются — иначе две области подсвечивали бы
+ * одно и то же, и только в одной из них работали бы переходы.
+ */
+let applied: EditorView | null = null;
+
+/** Запрос изменился или сменилась область: сообщить редактору и пересчитать. */
 export function syncQuery(): void {
   const view = editorView();
+  if (applied && applied !== view) {
+    engine.apply(applied, { ...query(), term: '' });
+  }
   if (view) engine.apply(view, query());
+  applied = view;
   scheduleRecount();
 }
 

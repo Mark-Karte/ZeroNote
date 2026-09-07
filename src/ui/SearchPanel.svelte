@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import Icon from './Icon.svelte';
   import {
     search,
@@ -12,6 +13,12 @@
 
   let field = $state<HTMLInputElement | null>(null);
   let lastFocusRequest = 0;
+
+  // Панель живёт в активной области и монтируется заново, когда фокус
+  // переходит в соседнюю (Р-210): запрос переезжает вместе с ней.
+  onMount(() => {
+    if (search.open) syncQuery();
+  });
 
   // Панель просит фокус при открытии и при повторном Ctrl+F: счётчик растёт,
   // и поле забирает фокус, выделяя прежний запрос под замену.

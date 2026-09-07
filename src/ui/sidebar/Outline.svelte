@@ -1,6 +1,6 @@
 <script lang="ts">
   import { outline, update, forget } from '../../state/outline.svelte';
-  import { activeTab, languageOf } from '../../state/tabs.svelte';
+  import { activeTab, languageOf, visibleState } from '../../state/tabs.svelte';
   import { editorView } from '../../editor/current';
   import { goToLine } from '../../editor/commands';
 
@@ -23,7 +23,9 @@
     // подменяет состояние редактора, и без этого список замер бы на том,
     // каким был при открытии панели. У вкладки, которая не текст, состояния
     // нет вовсе — оглавлению неоткуда взяться.
-    const state = current?.editor?.state ?? null;
+    // Видимое в активной области состояние: у зеркала курсор свой (Р-209),
+    // и раздел под курсором должен быть тем, что перед глазами.
+    const state = current ? visibleState(current) : null;
     const markdown = current ? languageOf(current)?.id === 'markdown' : false;
     update(current?.meta.id ?? null, state, markdown);
   });

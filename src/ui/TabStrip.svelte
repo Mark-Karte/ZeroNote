@@ -3,7 +3,7 @@
   import { kindOf, iconForKind } from '../icons/files';
   import type { IconName } from '../icons/registry';
   import type { Buffer } from '../ipc/files';
-  import { tabs, tabById, type Tab } from '../state/tabs.svelte';
+  import { tabById, type Tab } from '../state/tabs.svelte';
   import {
     setActiveTab,
     reorderLocal,
@@ -218,7 +218,7 @@
           modified: meta.modified,
           hasFile: meta.path !== null,
           text: meta.kind === 'text',
-          others: tabs.items.length - 1,
+          others: pane.tabs.length - 1,
           canSplit: canSplitPane(pane.id, 'row'),
         },
         commandList(),
@@ -230,7 +230,7 @@
             void split(pane.id, 'row', id);
             return;
           case MENU.closeOthers:
-            void closeOtherTabs(id);
+            void closeOtherTabs(id, pane.id);
             return;
           case MENU.copyPath:
             if (meta.path) void copyText(meta.path);
