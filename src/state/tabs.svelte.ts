@@ -1,8 +1,17 @@
-import { EditorState, type Text } from '@codemirror/state';
+import {
+  EditorState,
+  Transaction,
+  type StateEffect,
+  type Text,
+  type TransactionSpec,
+} from '@codemirror/state';
+import { undo, redo } from '@codemirror/commands';
 import * as ipc from '../ipc/files';
 import type { Buffer, BufferWithText, ViewState } from '../ipc/files';
-import { EditorView } from '@codemirror/view';
+import { EditorView, type ViewUpdate } from '@codemirror/view';
+import { createMirror, replaySpec, sourceOf } from '../editor/mirror';
 import {
+  type EditorOptions,
   autoCloseCompartment,
   autoCloseExtension,
   extensionsFor,
@@ -20,7 +29,7 @@ import type { Scale } from '../ui/zoom';
 import { wrapFor } from '../editor/readable';
 import { livePreviewOn } from '../editor/live-preview';
 import { bookmarkLines } from '../editor/bookmarks';
-import { editorView } from '../editor/current';
+import { editorView, editorViewOf } from '../editor/current';
 import {
   languageById,
   languageForFile,
@@ -43,8 +52,11 @@ import {
   activePane,
   activeTabId,
   applyLayout,
+  layout,
   openLocal,
+  paneById,
   paneShowing,
+  registerLayoutListener,
   setActiveTab,
 } from './panes.svelte';
 // Подсказка про вкладки ничего не знает — всё, что ей нужно, приходит
@@ -96,6 +108,23 @@ export interface TabEditor {
    * (Р-106). У настройки роль умолчания — для файлов, где отступов нет.
    */
   indent: Indent;
+  /**
+   * Область, где показано главное состояние (Р-209). `null` — ещё нигде:
+   * первая область, которой достанется вкладка, заберёт его себе.
+   */
+  home: number | null;
+  /**
+   * Зеркала по областям: тот же текст, свои курсоры и прокрутка,
+   * история пуста. Обычный объект, а не `Map`: он живёт внутри руны,
+   * и замена состояния зеркала должна быть видна хосту той области.
+   */
+  mirrors: Record<number, MirrorState>;
+}
+
+/** Состояние одной области у вкладки: главное или зеркало. */
+export interface MirrorState {
+  state: EditorState;
+  scrollTop: number;
 }
 
 /**
@@ -232,19 +261,30 @@ export function viewStateOf(tab: Tab): ViewState {
 }
 
 /**
- * Реакция на каждое изменение в редакторе.
+ * Реакция на каждое изменение в главном состоянии вкладки.
  *
  * Состояние вкладки обновляется всегда, а ядру сообщается только о переходе
  * «чистый ↔ изменённый»: звать команду на каждое нажатие клавиши незачем.
+ * Изменения текста уезжают в зеркала (Р-209) — во все, кроме того, откуда
+ * они пришли.
  */
-function onEditorUpdate(id: number, view: EditorView): void {
+function onEditorUpdate(id: number, update: ViewUpdate): void {
   const tab = tabById(id);
   if (!tab?.editor) return;
 
-  tab.editor.state = view.state;
+  tab.editor.state = update.state;
+  afterPrimaryChange(tab);
+  fanOut(tab, update.transactions);
+}
+
+/** Что делается после любой правки главного состояния — из окна или без него. */
+function afterPrimaryChange(tab: Tab): void {
+  const editor = tab.editor;
+  if (!editor) return;
+  const id = tab.meta.id;
 
   const baseline = baselines.get(id);
-  const modified = restoredDirty.has(id) || (baseline ? !view.state.doc.eq(baseline) : false);
+  const modified = restoredDirty.has(id) || (baseline ? !editor.state.doc.eq(baseline) : false);
 
   if (modified !== tab.meta.modified) {
     tab.meta = { ...tab.meta, modified };
@@ -258,18 +298,319 @@ function onEditorUpdate(id: number, view: EditorView): void {
 }
 
 /**
+ * Разослать правки главного состояния зеркалам.
+ *
+ * Источник — область, из которой транзакция пришла; ей же обратно
+ * не шлётся. Прямой ввод в главное источника не имеет, и тогда получают все.
+ */
+function fanOut(tab: Tab, transactions: readonly Transaction[]): void {
+  const editor = tab.editor;
+  if (!editor) return;
+
+  for (const tr of transactions) {
+    const from = sourceOf(tr);
+    const spec = replaySpec(tr, from ?? editor.home ?? 0);
+    if (!spec) continue;
+
+    for (const key of Object.keys(editor.mirrors)) {
+      const pane = Number(key);
+      if (pane !== from) applyToSlot(tab, pane, spec);
+    }
+  }
+}
+
+/**
+ * Правка в зеркале: уезжает в главное, а уж оно рассылает остальным.
+ *
+ * Черновик, признак изменения и автосохранение здесь не трогаются: всё это
+ * случится в главном, когда правка туда доедет, — а доедет она сразу же,
+ * синхронно.
+ */
+function onMirrorUpdate(id: number, pane: number, update: ViewUpdate): void {
+  const tab = tabById(id);
+  const mirror = tab?.editor?.mirrors[pane];
+  if (!tab || !mirror) return;
+
+  mirror.state = update.state;
+
+  for (const tr of update.transactions) {
+    // Рассылка сюда и пришла — дальше не идёт, иначе правка ходила бы по кругу.
+    if (sourceOf(tr) !== null) continue;
+    const spec = replaySpec(tr, pane);
+    if (spec) applyToPrimary(tab, spec);
+  }
+}
+
+/**
+ * Применить транзакцию к состоянию, которое область показывает у вкладки.
+ *
+ * Если оно сейчас в представлении — через него, чтобы слушатель записал
+ * итог и прокрутка не отскочила; иначе прямо в запас. Это то же условие,
+ * что в Р-105: «в представлении лежит именно это состояние», и другого
+ * признака «на экране» нет.
+ *
+ * Зеркало, к которому правка не подошла, выбрасывается: его пересоздадут
+ * из главного при следующем показе. Такое означало бы, что тексты
+ * разошлись, а расхождение между состояниями одного буфера — дефект,
+ * и молча жить с ним нельзя.
+ */
+function applyToSlot(tab: Tab, pane: number, spec: TransactionSpec): void {
+  const editor = tab.editor;
+  if (!editor) return;
+  const slot = editor.home === pane ? editor : editor.mirrors[pane];
+  if (!slot) return;
+
+  const view = editorViewOf(pane);
+  if (view && view.state === slot.state) {
+    view.dispatch(spec);
+    // Переконфигурация отсека не меняет ни текста, ни выделения,
+    // и слушатель её не видит — итог записывается здесь.
+    slot.state = view.state;
+    return;
+  }
+
+  try {
+    slot.state = slot.state.update(spec).state;
+  } catch {
+    if (slot !== editor) delete editor.mirrors[pane];
+  }
+}
+
+/**
+ * Применить транзакцию к главному состоянию — откуда бы она ни пришла.
+ *
+ * Главное не обязано быть на экране: его область может показывать другую
+ * вкладку. Тогда правка считается на запасе, и всё, что сделал бы
+ * слушатель окна, делается здесь руками.
+ */
+function applyToPrimary(tab: Tab, spec: TransactionSpec | Transaction): void {
+  const editor = tab.editor;
+  if (!editor) return;
+
+  const view = editor.home === null ? null : editorViewOf(editor.home);
+  if (view && view.state === editor.state) {
+    if (spec instanceof Transaction) {
+      view.dispatch(spec);
+    } else {
+      view.dispatch(spec);
+    }
+    return;
+  }
+
+  const tr = spec instanceof Transaction ? spec : editor.state.update(spec);
+  editor.state = tr.state;
+  afterPrimaryChange(tab);
+  fanOut(tab, [tr]);
+}
+
+/**
+ * Состояние, которое область показывает у этой вкладки: главное или зеркало.
+ *
+ * Главное достаётся первой области, которая его спросила, и остаётся за ней,
+ * пока она показывает вкладку. Остальным — зеркало, создаваемое здесь же
+ * при первом обращении.
+ */
+export function slotFor(tab: Tab, pane: number): MirrorState | null {
+  const editor = tab.editor;
+  if (!editor) return null;
+
+  if (editor.home === null || editor.home === pane) {
+    editor.home = pane;
+    return editor;
+  }
+
+  let mirror = editor.mirrors[pane];
+  if (!mirror) {
+    mirror = { state: makeMirror(tab, editor, pane), scrollTop: editor.scrollTop };
+    editor.mirrors[pane] = mirror;
+  }
+  return mirror;
+}
+
+/** Отсеки, которые переконфигурируются на лету и потому копируются в зеркало. */
+const COMPARTMENTS = [
+  languageCompartment,
+  wrapCompartment,
+  indentCompartment,
+  invisiblesCompartment,
+  livePreviewCompartment,
+  autoCloseCompartment,
+];
+
+/**
+ * Зеркало из главного: те же расширения, те же отсеки.
+ *
+ * Отсеки копируются из главного состояния, а не пересчитываются: язык мог
+ * приехать асинхронно или быть выбран руками, и вычислять его заново
+ * значило бы держать два пути к одному ответу.
+ */
+function makeMirror(tab: Tab, editor: TabEditor, pane: number): EditorState {
+  const primary = editor.state;
+  const extensions = extensionsFor(
+    tab.meta,
+    optionsFor(tab.meta, pane, editor.indent, bookmarkLines(primary)),
+  );
+  const fresh = createMirror(primary, extensions);
+  const effects = COMPARTMENTS.map((compartment) =>
+    compartment.reconfigure(compartment.get(primary) ?? []),
+  );
+  return fresh.update({ effects }).state;
+}
+
+/**
+ * Раскладка изменилась: убрать зеркала без области, передать главное.
+ *
+ * Главное состояние, чья область больше не показывает вкладку, переезжает
+ * в первое из оставшихся зеркал: новое главное — прежнее с выделением
+ * зеркала, история и закладки целы (Р-209). Историю пересадить нельзя,
+ * поэтому не пересаживается ничего.
+ */
+function reconcileMirrors(): void {
+  for (const tab of tabs.items) {
+    const editor = tab.editor;
+    if (!editor) continue;
+    const id = tab.meta.id;
+    const shows = (pane: number): boolean => paneById(pane)?.tabs.includes(id) ?? false;
+
+    for (const key of Object.keys(editor.mirrors)) {
+      const pane = Number(key);
+      if (!shows(pane)) delete editor.mirrors[pane];
+    }
+
+    if (editor.home !== null && !shows(editor.home)) {
+      const heir = Object.keys(editor.mirrors).map(Number)[0];
+      if (heir === undefined) {
+        editor.home = null;
+        continue;
+      }
+      const mirror = editor.mirrors[heir]!;
+      editor.state = editor.state.update({ selection: mirror.state.selection }).state;
+      editor.scrollTop = mirror.scrollTop;
+      editor.home = heir;
+      delete editor.mirrors[heir];
+    }
+  }
+}
+
+/**
+ * Переконфигурировать отсек у всех состояний вкладки — главного и зеркал.
+ *
+ * Через отсек и обычную транзакцию, а не пересозданием состояния:
+ * пересоздание стёрло бы историю отмены. Состояние на экране получает
+ * транзакцию через представление, запасное — напрямую.
+ */
+function reconfigure(tab: Tab, effects: StateEffect<unknown> | StateEffect<unknown>[]): void {
+  const editor = tab.editor;
+  if (!editor) return;
+
+  const spec = { effects };
+  if (editor.home !== null) {
+    applyToSlot(tab, editor.home, spec);
+  } else {
+    editor.state = editor.state.update(spec).state;
+  }
+  for (const key of Object.keys(editor.mirrors)) {
+    applyToSlot(tab, Number(key), spec);
+  }
+}
+
+/**
+ * Отмена и возврат — всегда в главном состоянии (Р-209).
+ *
+ * В области с главным — обычная команда над представлением. В области
+ * с зеркалом история пуста, и команда считается на главном, где бы оно
+ * ни было; итог доезжает до зеркала как обычная правка.
+ */
+function runHistory(
+  command: (target: { state: EditorState; dispatch: (tr: Transaction) => void }) => boolean,
+): void {
+  const tab = activeTab();
+  const editor = tab?.editor;
+  const view = editorView();
+  if (!tab || !editor || !view) return;
+
+  if (editor.home === layout.activePane) {
+    command(view);
+    return;
+  }
+  command({ state: editor.state, dispatch: (tr) => applyToPrimary(tab, tr) });
+}
+
+export const undoActive = (): void => runHistory(undo);
+export const redoActive = (): void => runHistory(redo);
+
+/**
  * Закладки переключили.
  *
  * Ни текст, ни выделение при этом не менялись, поэтому обычный обработчик
  * правки сюда не заходит. Черновик писать незачем — содержимое то же;
  * а вот снимок сессии обновить надо, иначе закладки не переживут перезапуск.
+ * Зеркалам закладка уезжает как эффект: она свойство буфера (Р-116).
  */
-function onBookmarksChanged(id: number, view: EditorView): void {
+function onBookmarksChanged(id: number, update: ViewUpdate): void {
   const tab = tabById(id);
   if (!tab?.editor) return;
 
-  tab.editor.state = view.state;
+  tab.editor.state = update.state;
   noteStructureChange();
+  fanOut(tab, update.transactions);
+}
+
+/**
+ * Настройки расширений для вкладки — одни и для главного состояния,
+ * и для зеркала. Различаются только слушатели: зеркало сообщает о правке
+ * своей области, главное — о своей.
+ */
+function optionsFor(
+  meta: Buffer,
+  forPane: number | null,
+  indent: Indent,
+  bookmarks: number[],
+): EditorOptions {
+  // Язык здесь берётся из имени файла: при создании состояния другого
+  // ещё нет, а выбранный руками доедет отсеком.
+  const markdown = languageForFile(meta.path ?? meta.title)?.id === 'markdown';
+
+  return {
+    onChange: (update) =>
+      forPane === null
+        ? onEditorUpdate(meta.id, update)
+        : onMirrorUpdate(meta.id, forPane, update),
+    onBookmarks: (update) =>
+      forPane === null
+        ? onBookmarksChanged(meta.id, update)
+        : onMirrorUpdate(meta.id, forPane, update),
+    // Переход по ссылке живёт в `state/links`: редактор не должен знать
+    // про вкладки и панели. Импорт по требованию — иначе получится круг.
+    onFollow: (target) => void import('./links.svelte').then((m) => m.follow(target)),
+    // Подсказка имён при `[[` (Р-132). Язык и путь берутся у вкладки здесь,
+    // а не внутри подсказки: язык меняют руками в строке состояния,
+    // а путь — «сохранить как», и обе перемены должны действовать сразу.
+    onLinkContext: (context, view) => {
+      const tab = tabById(meta.id);
+      reportContext({
+        context,
+        path: tab?.meta.path ?? null,
+        markdown: tab ? languageOf(tab)?.id === 'markdown' : false,
+        view,
+      });
+    },
+    // Путь берётся каждый раз заново: «сохранить как» его меняет, а вместе
+    // с ним меняется и то, куда ведут ссылки из этого файла.
+    sourcePath: () => tabById(meta.id)?.meta.path ?? null,
+    // Перенос считается по вкладке, а не по одной настройке: у markdown
+    // его включает читаемая ширина (Р-156).
+    wrap: wrapFor({
+      wrap: wrapEnabled(),
+      readableWidth: readableWidthEnabled(),
+      markdown,
+    }),
+    autoClose: autoCloseEnabled(),
+    indent,
+    invisibles: invisiblesEnabled(),
+    livePreview: livePreviewOn({ livePreview: livePreviewEnabled(), markdown }),
+    bookmarks,
+  };
 }
 
 function makeState(
@@ -279,49 +620,13 @@ function makeState(
   indent?: Indent,
   bookmarks: number[] = [],
 ): EditorState {
+  const resolved = indent ?? resolveIndent(text, indentSettings());
   return EditorState.create({
     doc: text,
     // Курсор за пределами документа уронил бы создание состояния: снимок мог
     // относиться к более длинному тексту, чем оказался на диске.
     selection: { anchor: Math.min(cursor, text.length) },
-    extensions: extensionsFor(meta, {
-      onChange: (view) => onEditorUpdate(meta.id, view),
-      onBookmarks: (view) => onBookmarksChanged(meta.id, view),
-      // Переход по ссылке живёт в `state/links`: редактор не должен знать
-      // про вкладки и панели. Импорт по требованию — иначе получится круг.
-      onFollow: (target) => void import('./links.svelte').then((m) => m.follow(target)),
-      // Подсказка имён при `[[` (Р-132). Язык и путь берутся у вкладки здесь,
-      // а не внутри подсказки: язык меняют руками в строке состояния,
-      // а путь — «сохранить как», и обе перемены должны действовать сразу.
-      onLinkContext: (context, view) => {
-        const tab = tabById(meta.id);
-        reportContext({
-          context,
-          path: tab?.meta.path ?? null,
-          markdown: tab ? languageOf(tab)?.id === 'markdown' : false,
-          view,
-        });
-      },
-      // Путь берётся каждый раз заново: «сохранить как» его меняет, а вместе
-      // с ним меняется и то, куда ведут ссылки из этого файла.
-      sourcePath: () => tabById(meta.id)?.meta.path ?? null,
-      // Перенос считается по вкладке, а не по одной настройке: у markdown
-      // его включает читаемая ширина (Р-156). Язык здесь уже известен —
-      // он берётся из имени файла или выбран руками.
-      wrap: wrapFor({
-        wrap: wrapEnabled(),
-        readableWidth: readableWidthEnabled(),
-        markdown: languageForFile(meta.path ?? meta.title)?.id === 'markdown',
-      }),
-      autoClose: autoCloseEnabled(),
-      indent: indent ?? resolveIndent(text, indentSettings()),
-      invisibles: invisiblesEnabled(),
-      livePreview: livePreviewOn({
-        livePreview: livePreviewEnabled(),
-        markdown: languageForFile(meta.path ?? meta.title)?.id === 'markdown',
-      }),
-      bookmarks,
-    }),
+    extensions: extensionsFor(meta, optionsFor(meta, null, resolved, bookmarks)),
   });
 }
 
@@ -335,13 +640,9 @@ function makeState(
  */
 export function applyWrap(): void {
   for (const tab of tabs.items) {
-    const editor = tab.editor;
-    if (!editor) continue;
-
+    if (!tab.editor) continue;
     const extension = wrapOf(tab) ? EditorView.lineWrapping : [];
-    editor.state = editor.state.update({
-      effects: wrapCompartment.reconfigure(extension),
-    }).state;
+    reconfigure(tab, wrapCompartment.reconfigure(extension));
   }
 }
 
@@ -355,21 +656,20 @@ export function applyWrap(): void {
 export function applyIndentSettings(fallback: { style: Indent['style']; width: number }): void {
   for (const tab of tabs.items) {
     if (tab.editor === null || tab.editor.indent.source !== 'settings') continue;
-    setIndentOf(tab.editor, { ...fallback, source: 'settings' });
+    setIndentOf(tab, { ...fallback, source: 'settings' });
   }
 }
 
 /** Сменить отступ вкладки вручную — из строки состояния. */
 export function setIndent(id: number, indent: Omit<Indent, 'source'>): void {
-  const editor = tabById(id)?.editor;
-  if (editor) setIndentOf(editor, { ...indent, source: 'manual' });
+  const tab = tabById(id);
+  if (tab?.editor) setIndentOf(tab, { ...indent, source: 'manual' });
 }
 
-function setIndentOf(editor: TabEditor, indent: Indent): void {
-  editor.indent = indent;
-  editor.state = editor.state.update({
-    effects: indentCompartment.reconfigure(indentExtension(indent)),
-  }).state;
+function setIndentOf(tab: Tab, indent: Indent): void {
+  if (!tab.editor) return;
+  tab.editor.indent = indent;
+  reconfigure(tab, indentCompartment.reconfigure(indentExtension(indent)));
 }
 
 /**
@@ -381,41 +681,26 @@ function setIndentOf(editor: TabEditor, indent: Indent): void {
  */
 export function applyLivePreview(): void {
   for (const tab of tabs.items) {
-    const editor = tab.editor;
-    if (!editor) continue;
-
+    if (!tab.editor) continue;
     const extension = livePreviewExtension(livePreviewOf(tab), () => tab.meta.path);
-    editor.state = editor.state.update({
-      effects: livePreviewCompartment.reconfigure(extension),
-    }).state;
+    reconfigure(tab, livePreviewCompartment.reconfigure(extension));
   }
 }
 
 /** То же самое для невидимых символов. */
 export function applyInvisibles(show: boolean): void {
   const extension = invisiblesExtension(show);
-  for (const editor of editors()) {
-    editor.state = editor.state.update({
-      effects: invisiblesCompartment.reconfigure(extension),
-    }).state;
+  for (const tab of tabs.items) {
+    reconfigure(tab, invisiblesCompartment.reconfigure(extension));
   }
 }
 
 /** То же самое для автозакрытия скобок и по тем же причинам. */
 export function applyAutoClose(autoClose: boolean): void {
   const extension = autoCloseExtension(autoClose);
-  for (const editor of editors()) {
-    editor.state = editor.state.update({
-      effects: autoCloseCompartment.reconfigure(extension),
-    }).state;
+  for (const tab of tabs.items) {
+    reconfigure(tab, autoCloseCompartment.reconfigure(extension));
   }
-}
-
-/** Редакторы всех вкладок, у которых он есть. */
-function editors(): TabEditor[] {
-  return tabs.items
-    .map((tab) => tab.editor)
-    .filter((editor): editor is TabEditor => editor !== null);
 }
 
 /**
@@ -479,7 +764,7 @@ function put(
   const state = makeState(meta, text, cursor, indent);
   baselines.set(meta.id, state.doc);
 
-  const editor: TabEditor = { state, scrollTop, language, indent };
+  const editor: TabEditor = { state, scrollTop, language, indent, home: null, mirrors: {} };
 
   const existing = tabById(meta.id);
   if (existing) {
@@ -555,27 +840,15 @@ async function applyLanguage(id: number): Promise<void> {
   const current = tabById(id);
   if (!current?.editor || languageOf(current)?.id !== language?.id) return;
 
-  const effects = languageCompartment.reconfigure(support);
-  const view = editorView();
-
-  // Условие сильнее, чем «вкладка активна»: в представлении должно лежать
-  // именно её состояние.
-  //
-  // Проверять приходится потому, что сюда попадают и синхронно. У буфера
-  // без языка — новый файл, `.txt`, незнакомое расширение — ветка `support`
-  // не содержит `await` вовсе, и вся функция выполняется прямо внутри `put`,
-  // когда представление ещё показывает прошлую вкладку. Без проверки строка
-  // ниже присваивала новой вкладке чужое состояние, и её содержимое пропадало
-  // ещё до первой отрисовки. Нашлось переделкой стенда на настоящую вкладку
-  // (задача 30): вкладка с документом в мегабайт оказывалась пустой.
-  if (activeTabId() === id && view && view.state === current.editor.state) {
-    // Вкладка на экране: правим живое представление, иначе оно осталось бы
-    // со старым состоянием, а прокрутка отскочила бы к сохранённой.
-    view.dispatch({ effects });
-    current.editor.state = view.state;
-  } else {
-    current.editor.state = current.editor.state.update({ effects }).state;
-  }
+  // Живое представление правится, только если в нём лежит именно это
+  // состояние (Р-105) — проверку делает `applyToSlot`, и она обязательна:
+  // сюда попадают и синхронно. У буфера без языка — новый файл, `.txt`,
+  // незнакомое расширение — ветка `support` не содержит `await` вовсе,
+  // и вся функция выполняется прямо внутри `put`, когда представление ещё
+  // показывает прошлую вкладку. Без проверки новой вкладке доставалось
+  // чужое состояние, и её содержимое пропадало ещё до первой отрисовки
+  // (задача 30). Условия «вкладка активна» для этого мало.
+  reconfigure(current, languageCompartment.reconfigure(support));
 }
 
 /** Выбрать язык подсветки вручную. `null` — снова определять по имени. */
@@ -706,7 +979,7 @@ async function restoreInner(): Promise<string[]> {
     baselines.set(meta.id, state.doc);
     tabs.items.push({
       meta,
-      editor: { state, scrollTop, language: language ?? null, indent },
+      editor: { state, scrollTop, language: language ?? null, indent, home: null, mirrors: {} },
       image: null,
       pdf: null,
     });
@@ -798,3 +1071,8 @@ export async function close(id: number): Promise<void> {
 
   noteStructureChange();
 }
+
+// Раскладка меняется в `state/panes`, а состояния вкладок живут здесь:
+// после каждой замены дерева зеркала без области убираются, а главное
+// без области передаётся зеркалу (Р-209).
+registerLayoutListener(reconcileMirrors);

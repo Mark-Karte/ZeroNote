@@ -6,7 +6,8 @@
 
   import Icon from './Icon.svelte';
   import * as ipc from '../ipc/files';
-  import { activeTab, tabById, type PdfState } from '../state/tabs.svelte';
+  import { tabById, type PdfState } from '../state/tabs.svelte';
+  import { paneById } from '../state/panes.svelte';
   import { revealInExplorer } from '../actions/files';
   import { setPdfView } from '../pdf/current';
 
@@ -47,7 +48,11 @@
     return Number.parseFloat(value) || 0;
   }
 
-  const tab = $derived(activeTab());
+  // Активная вкладка своей области, а не окна (Р-210).
+  const tab = $derived.by(() => {
+    const id = paneById(pane)?.active ?? null;
+    return id === null ? null : tabById(id);
+  });
   const shown = $derived(tab?.pdf ?? null);
 
   let host = $state<HTMLDivElement | null>(null);

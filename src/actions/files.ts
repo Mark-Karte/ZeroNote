@@ -11,6 +11,7 @@ import {
   tabs,
   close as closeTabState,
 } from '../state/tabs.svelte';
+import { layout, paneShowing, panesWith, removeTab } from '../state/panes.svelte';
 import { FILE_FILTERS } from './file-types';
 import { askChoice } from '../state/modal.svelte';
 import { forgetDraft, noteStructureChange } from '../state/persist.svelte';
@@ -213,7 +214,7 @@ export async function saveAll(): Promise<boolean> {
 
 export async function closeActiveTab(): Promise<boolean> {
   const tab = activeTab();
-  return tab ? closeTab(tab.meta.id) : true;
+  return tab ? closeTab(tab.meta.id, layout.activePane) : true;
 }
 
 /**
@@ -221,10 +222,22 @@ export async function closeActiveTab(): Promise<boolean> {
  *
  * Возвращает `false`, если пользователь передумал: вызывающий код должен
  * на этом остановиться, а не закрывать остальные вкладки.
+ *
+ * `pane` — из какой области закрывают. Если буфер показан ещё где-то
+ * (зеркало, Р-209), вкладка просто уходит из этой области, а буфер живёт
+ * дальше — и спрашивать не о чем: терять нечего. Без области закрывается
+ * там, где вкладка показана; из последней области — совсем.
  */
-export async function closeTab(id: number): Promise<boolean> {
+export async function closeTab(id: number, pane: number | null = null): Promise<boolean> {
   const tab = tabById(id);
   if (!tab) return true;
+
+  const from = pane ?? paneShowing(id)?.id ?? null;
+  const holders = panesWith(id);
+  if (from !== null && holders.length > 1 && holders.some((holder) => holder.id === from)) {
+    await removeTab(from, id);
+    return true;
+  }
 
   if (tab.meta.modified) {
     // Три варианта, а не два: у системного диалога Tauri их только два, и

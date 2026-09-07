@@ -2,9 +2,13 @@
   import { untrack } from 'svelte';
   import Icon from './Icon.svelte';
   import * as ipc from '../ipc/files';
-  import { activeTab, tabById, type ImageState } from '../state/tabs.svelte';
+  import { tabById, type ImageState } from '../state/tabs.svelte';
+  import { paneById } from '../state/panes.svelte';
   import { revealInExplorer } from '../actions/files';
   import { effectiveScale, stepFrom } from './zoom';
+
+  /** В какой области живёт этот показ (Р-208). */
+  let { pane }: { pane: number } = $props();
 
   /**
    * Вкладка с картинкой.
@@ -15,7 +19,12 @@
    * картинку, если её подменили на диске.
    */
 
-  const tab = $derived(activeTab());
+  // Активная вкладка своей области, а не окна: соседняя область
+  // показывает своё.
+  const tab = $derived.by(() => {
+    const id = paneById(pane)?.active ?? null;
+    return id === null ? null : tabById(id);
+  });
   const image = $derived(tab?.image ?? null);
 
   let box = $state<HTMLDivElement | null>(null);

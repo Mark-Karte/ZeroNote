@@ -22,8 +22,11 @@
    * изображение, по-разному ведёт себя в разных движках и не даёт
    * отследить положение точно. Здесь же всё под контролем.
    */
-  /** Чья это полоса: у каждой области своя (Р-210). */
-  let { pane }: { pane: PaneNode } = $props();
+  /**
+   * Чья это полоса: у каждой области своя (Р-210). `focused` — область
+   * активна в окне: только у неё активная вкладка несёт акцентную черту.
+   */
+  let { pane, focused }: { pane: PaneNode; focused: boolean } = $props();
 
   /**
    * Вкладки области в её порядке. Порядок — свойство области, а список
@@ -66,7 +69,7 @@
     // Средняя кнопка закрывает вкладку — привычка из браузеров и Notepad++.
     if (event.button === 1) {
       event.preventDefault();
-      void closeTab(id);
+      void closeTab(id, pane.id);
       return;
     }
     if (event.button !== 0) return;
@@ -177,7 +180,7 @@
   }
 </script>
 
-<div class="strip" bind:this={strip} role="tablist">
+<div class="strip" class:focused bind:this={strip} role="tablist">
   {#each visible as tab (tab.meta.id)}
     <div
       class="tab"
@@ -205,7 +208,7 @@
         type="button"
         title={tab.meta.modified ? 'Закрыть (есть несохранённые правки)' : 'Закрыть'}
         onpointerdown={(e) => e.stopPropagation()}
-        onclick={() => closeTab(tab.meta.id)}
+        onclick={() => closeTab(tab.meta.id, pane.id)}
       >
         <Icon name={tab.meta.modified ? 'tab.modified' : 'tab.close'} />
       </button>
@@ -295,8 +298,14 @@
   .tab.active {
     background-color: var(--zn-color-bg-raised);
     border-color: var(--zn-color-border-subtle);
-    box-shadow: inset 0 var(--zn-border-width-thick) 0 var(--zn-color-accent);
     color: var(--zn-color-fg-default);
+  }
+
+  /* Акцент — только у активной области (Р-210). У соседней области своя
+     активная вкладка, и она остаётся карточкой, но без черты: черта говорит
+     «ты здесь», а здесь можно быть только в одном месте. */
+  .strip.focused .tab.active {
+    box-shadow: inset 0 var(--zn-border-width-thick) 0 var(--zn-color-accent);
   }
 
   .tab.dragging {

@@ -93,6 +93,9 @@ pub const METRICS_NORMAL: &[(&str, &str)] = &[
     ("control-tab-height", "38px"),
     ("control-tab-min-width", "110px"),
     ("control-tab-max-width", "220px"),
+    // Наименьшая ширина и высота области редактора (Р-212): разделение,
+    // при котором обе половины не помещаются, не выполняется.
+    ("control-pane-min-size", "200px"),
     ("control-window-button-width", "46px"),
     ("control-toolbar-height", "36px"),
     // Кнопка панели инструментов — своя роль, а не плитка боковой полосы.
@@ -167,6 +170,7 @@ pub const METRICS_COMPACT: &[(&str, &str)] = &[
     ("control-tab-height", "32px"),
     ("control-tab-min-width", "90px"),
     ("control-tab-max-width", "180px"),
+    ("control-pane-min-size", "160px"),
     ("control-window-button-width", "40px"),
     ("control-toolbar-height", "30px"),
     ("control-toolbar-button-size", "24px"),

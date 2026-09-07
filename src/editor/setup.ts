@@ -7,6 +7,7 @@ import {
 } from '@codemirror/state';
 import {
   EditorView,
+  type ViewUpdate,
   keymap,
   lineNumbers,
   highlightActiveLine,
@@ -190,7 +191,12 @@ export function autoCloseExtension(enabled: boolean): Extension {
  * только по странному поведению редактора.
  */
 export interface EditorOptions {
-  onChange: (view: EditorView) => void;
+  /**
+   * Текст или выделение изменились. Приходит обновление целиком, а не
+   * только представление: зеркалам (Р-209) нужны сами транзакции — что
+   * изменилось и откуда пришло.
+   */
+  onChange: (update: ViewUpdate) => void;
   /**
    * Закладки изменились.
    *
@@ -199,7 +205,7 @@ export interface EditorOptions {
    * состояние вкладки останется прежним, и в сессию уедут вчерашние
    * закладки. Дважды проверено — первая версия так и работала.
    */
-  onBookmarks: (view: EditorView) => void;
+  onBookmarks: (update: ViewUpdate) => void;
   onFollow: (target: Target) => void;
   /**
    * Вокруг курсора набирается `[[ссылка]]` — или больше не набирается.
@@ -297,9 +303,9 @@ export function extensionsFor(meta: Buffer, options: EditorOptions): Extension[]
 
     EditorView.updateListener.of((update) => {
       if (update.docChanged || update.selectionSet) {
-        options.onChange(update.view);
+        options.onChange(update);
       } else if (update.startState.field(bookmarkField) !== update.state.field(bookmarkField)) {
-        options.onBookmarks(update.view);
+        options.onBookmarks(update);
       }
     }),
   ];

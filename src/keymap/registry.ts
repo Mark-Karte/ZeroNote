@@ -39,7 +39,9 @@ import {
 } from '../actions/project';
 import { findNext, findPrevious } from '../state/search.svelte';
 import { toggleInvisibles, toggleLivePreview, toggleWrap } from '../state/settings.svelte';
-import { nextTab, previousTab } from '../state/tabs.svelte';
+import { nextTab, previousTab, undoActive, redoActive } from '../state/tabs.svelte';
+import { splitActive } from '../state/panes.svelte';
+import { canSplit } from '../ui/pane-size';
 
 /**
  * Реестр команд: идентификатор → действие.
@@ -78,8 +80,10 @@ export const COMMANDS: Record<CommandId, () => void | Promise<unknown>> = {
   'file.close-tab': closeActiveTab,
   'file.close-all': closeAllTabs,
 
-  'edit.undo': inEditor(edit.undo),
-  'edit.redo': inEditor(edit.redo),
+  // Не `inEditor`: в области с зеркалом история пуста, и отмена считается
+  // на главном состоянии буфера (Р-209).
+  'edit.undo': undoActive,
+  'edit.redo': redoActive,
 
   // Буфер обмена. Сочетания `Ctrl+X`, `Ctrl+C` и `Ctrl+V` до этих
   // обработчиков не доходят — их выполняет сам вебвью (Р-108). Сюда
@@ -125,6 +129,14 @@ export const COMMANDS: Record<CommandId, () => void | Promise<unknown>> = {
   'view.go-to-line': goToLineDialog,
   'view.next-tab': nextTab,
   'view.previous-tab': previousTab,
+  // Области (Р-210). Разделение, после которого обе половины уже предела,
+  // не выполняется (Р-212).
+  'view.split-right': () => {
+    if (canSplit('row')) void splitActive('row');
+  },
+  'view.split-down': () => {
+    if (canSplit('column')) void splitActive('column');
+  },
   'view.sidebar': toggleSidebarPanel,
   'view.settings': showSettings,
 

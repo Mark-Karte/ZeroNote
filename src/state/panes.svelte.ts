@@ -1,8 +1,17 @@
 import * as ipc from '../ipc/layout';
-import type { Direction, Layout, LayoutNode, PaneNode } from '../ipc/layout';
-// Взаимный импорт с persist: там только функции, и зовутся они в рантайме,
-// поэтому порядок загрузки модулей роли не играет.
-import { noteStructureChange } from './persist.svelte';
+import type { Direction, Layout, LayoutNode, PaneNode, SplitNode } from '../ipc/layout';
+
+/**
+ * Раскладка — часть сессии, и каждая её перемена просит снимок.
+ *
+ * Импорт по требованию, а не обычный: `persist` тянет `tabs`, `tabs` тянет
+ * этот модуль, а сюда ходит ещё и `editor/current`. Обычный импорт замыкал
+ * бы круг на уровне модулей, и чей файл выполнится первым — тот и упадёт
+ * на переменной, которая ещё не объявлена. Нашлось тестом, а не глазами.
+ */
+function noteStructureChange(): void {
+  void import('./persist.svelte').then((persist) => persist.noteStructureChange());
+}
 
 /**
  * Области редактора (Р-207).
@@ -23,10 +32,51 @@ export const layout = $state<Layout>({
   nextId: 2,
 });
 
+/**
+ * Кого звать после каждой замены дерева.
+ *
+ * Состояния вкладок живут в `state/tabs`, и им надо знать, что область
+ * исчезла или вкладка из неё ушла: зеркало без области — мусор, а главное
+ * состояние без области надо передать зеркалу (Р-209). Крючок, а не импорт:
+ * `tabs` уже импортирует этот модуль, и обратный импорт замкнул бы круг
+ * на уровне модулей.
+ */
+let afterApply: (() => void) | null = null;
+
+export function registerLayoutListener(listener: () => void): void {
+  afterApply = listener;
+}
+
 export function applyLayout(next: Layout): void {
   layout.root = next.root;
   layout.activePane = next.activePane;
   layout.nextId = next.nextId;
+  afterApply?.();
+}
+
+function findSplit(node: LayoutNode, id: number): SplitNode | null {
+  if (node.kind === 'pane') return null;
+  if (node.id === id) return node;
+  return findSplit(node.first, id) ?? findSplit(node.second, id);
+}
+
+/**
+ * Подвинуть границу только у себя: во время перетаскивания она едет много
+ * раз в секунду, и итог уходит в ядро один раз — см. `setRatio`.
+ */
+export function setRatioLocal(splitId: number, ratio: number): void {
+  const split = findSplit(layout.root, splitId);
+  if (split) split.ratio = ratio;
+}
+
+/**
+ * Разделить активную область: новая получает зеркало текущей вкладки,
+ * как `Ctrl+\` в VS Code (Р-210). Без вкладки делить нечего.
+ */
+export async function splitActive(direction: Direction): Promise<void> {
+  const pane = activePane();
+  if (pane.active === null) return;
+  await split(pane.id, direction, pane.active);
 }
 
 function collect(node: LayoutNode, out: PaneNode[]): void {

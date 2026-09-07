@@ -103,6 +103,8 @@ export type IconName =
   | 'cmd.live-preview'
   | 'cmd.next-tab'
   | 'cmd.previous-tab'
+  | 'cmd.split-right'
+  | 'cmd.split-down'
   | 'cmd.sidebar'
   | 'cmd.follow-link'
   | 'cmd.quick-open'
@@ -387,6 +389,13 @@ const ICONS: Record<IconName, string> = {
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"><path d="M5.4 3.4 10 8l-4.6 4.6"/><path d="M12.6 3.4v9.2"/></svg>',
   'cmd.previous-tab':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"><path d="M10.6 3.4 6 8l4.6 4.6"/><path d="M3.4 3.4v9.2"/></svg>',
+  // Окно, разделённое чертой: вертикальной — области рядом, горизонтальной —
+  // друг над другом. Та же рамка, что у боковой панели, чтобы читались
+  // как одна семья.
+  'cmd.split-right':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2.2" y="3" width="11.6" height="10" rx="1.5"/><path d="M8 3v10"/></svg>',
+  'cmd.split-down':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2.2" y="3" width="11.6" height="10" rx="1.5"/><path d="M2.2 8h11.6"/></svg>',
   // Окно с колонкой слева — то, что и включается.
   'cmd.sidebar':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><rect x="2.4" y="3.4" width="11.2" height="9.2" rx="1.6"/><path d="M6.6 3.4v9.2"/></svg>',

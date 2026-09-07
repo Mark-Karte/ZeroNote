@@ -3,8 +3,8 @@
   import { EditorView } from '@codemirror/view';
   import { EditorState } from '@codemirror/state';
   import { undoDepth, redoDepth } from '@codemirror/commands';
-  import { tabById, activeTab, languageOf } from '../state/tabs.svelte';
-  import { paneById } from '../state/panes.svelte';
+  import { tabById, activeTab, languageOf, slotFor } from '../state/tabs.svelte';
+  import { layout, paneById } from '../state/panes.svelte';
   import { setEditorView } from '../editor/current';
   import { canFold, canUnfold } from '../editor/folding';
   import { bookmarkedHere } from '../editor/bookmarks';
@@ -60,18 +60,29 @@
    * Подмена состояния ничего не теряет: курсоры, прокрутка и история отмены
    * входят в `EditorState`, а не в представление.
    */
-  function stash(id: number | null): void {
-    if (!view || id === null) return;
+  /**
+   * Куда эта область складывает состояние вкладки: в главное, если оно
+   * её, иначе в своё зеркало (Р-209).
+   */
+  function slotOf(id: number | null) {
+    if (id === null) return null;
     const editor = tabById(id)?.editor;
-    if (!editor) return;
+    if (!editor) return null;
+    return editor.home === pane ? editor : (editor.mirrors[pane] ?? null);
+  }
+
+  function stash(id: number | null): void {
+    if (!view) return;
+    const slot = slotOf(id);
+    if (!slot) return;
 
     const state = view.state;
     const scrollTop = view.scrollDOM.scrollTop;
     // Запись в уходящую вкладку не должна становиться зависимостью эффекта:
     // иначе он вызовет сам себя.
     untrack(() => {
-      editor.state = state;
-      editor.scrollTop = scrollTop;
+      slot.state = state;
+      slot.scrollTop = scrollTop;
     });
   }
 
@@ -103,12 +114,15 @@
 
     const state = view.state;
     const tab = activeTab();
+    // Глубина отмены — у главного состояния: у зеркала истории нет (Р-209),
+    // а отменять из него можно.
+    const history = tab?.editor?.state ?? state;
     showMenu(
       event,
       editorMenu(
         {
-          canUndo: undoDepth(state) > 0,
-          canRedo: redoDepth(state) > 0,
+          canUndo: undoDepth(history) > 0,
+          canRedo: redoDepth(history) > 0,
           readOnly: state.readOnly,
           markdown: tab ? languageOf(tab)?.id === 'markdown' : false,
           invisibles: invisiblesEnabled(),
@@ -144,10 +158,10 @@
   }
 
   function onScroll(): void {
-    if (!view || mounted === null) return;
-    const editor = tabById(mounted)?.editor;
-    if (editor) {
-      editor.scrollTop = view.scrollDOM.scrollTop;
+    if (!view) return;
+    const slot = slotOf(mounted);
+    if (slot) {
+      slot.scrollTop = view.scrollDOM.scrollTop;
     }
   }
 
@@ -181,6 +195,16 @@
     // над ней нет: рабочую область занимает её собственный экран.
     const editor = tab?.editor ?? null;
 
+    // Зависимости эффекта называются явно: главное состояние, чья область
+    // его держит, и зеркало этой области. Подмена любого из них обязана
+    // сюда привести — а `slotFor` ниже ещё и создаёт зеркало, и такую
+    // запись отслеживать нельзя, иначе эффект зовёт сам себя.
+    if (editor) {
+      void editor.state;
+      void editor.home;
+      void editor.mirrors[pane]?.state;
+    }
+
     if (!view) return;
 
     if (id !== mounted) {
@@ -188,17 +212,22 @@
       mounted = id;
     }
 
-    if (!editor) {
+    if (!tab || !editor) {
       view.setState(EditorState.create({ doc: '' }));
       return;
     }
 
-    if (view.state !== editor.state) {
-      view.setState(editor.state);
+    const slot = untrack(() => slotFor(tab, pane));
+    if (!slot) return;
+
+    if (view.state !== slot.state) {
+      view.setState(slot.state);
       // Прокрутка выставляется после смены состояния: до неё содержимого
       // нужной высоты в разметке ещё нет и прокручивать некуда.
-      view.scrollDOM.scrollTop = editor.scrollTop;
-      view.focus();
+      view.scrollDOM.scrollTop = slot.scrollTop;
+      // Фокус — только активной области: соседняя, получив вкладку,
+      // отняла бы клавиатуру у той, где человек печатает.
+      if (untrack(() => layout.activePane) === pane) view.focus();
     }
   });
 </script>

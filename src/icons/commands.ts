@@ -70,6 +70,8 @@ const ICON_FOR: Record<string, IconName> = {
   'view.go-to-bracket': 'cmd.bracket',
   'view.go-to-line': 'cmd.go-to-line',
   'view.next-tab': 'cmd.next-tab',
+  'view.split-right': 'cmd.split-right',
+  'view.split-down': 'cmd.split-down',
   'view.previous-tab': 'cmd.previous-tab',
   'view.sidebar': 'cmd.sidebar',
   'view.settings': 'panel.settings',

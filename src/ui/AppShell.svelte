@@ -4,10 +4,7 @@
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
   import TitleBar from './TitleBar.svelte';
-  import TabStrip from './TabStrip.svelte';
-  import EditorHost from './EditorHost.svelte';
-  import SearchPanel from './SearchPanel.svelte';
-  import MarkdownBar from './MarkdownBar.svelte';
+  import PaneTree from './PaneTree.svelte';
   import NoticeStrip from './NoticeStrip.svelte';
   import StatusBar from './StatusBar.svelte';
   import Modal from './Modal.svelte';
@@ -16,15 +13,12 @@
   import Palette from './palette/Palette.svelte';
   import Popup from './Popup.svelte';
   import Suggest from './Suggest.svelte';
-  import SettingsScreen from './settings/SettingsScreen.svelte';
-  import ImageView from './ImageView.svelte';
   import WelcomeScreen from './welcome/WelcomeScreen.svelte';
   import {
     autoCloseEnabled,
     indentSettings,
     invisiblesEnabled,
     livePreviewEnabled,
-    markdownBarEnabled,
     startSettings,
     wrapEnabled,
     readableWidthEnabled,
@@ -39,11 +33,9 @@
     applyIndentSettings,
     applyInvisibles,
     applyLivePreview,
-    activeTab,
-    languageOf,
   } from '../state/tabs.svelte';
   import { flushNow } from '../state/persist.svelte';
-  import { activePane, activeTabId } from '../state/panes.svelte';
+  import { layout, activeTabId } from '../state/panes.svelte';
   import { autosave, autosaveNow } from '../state/autosave.svelte';
   import { roots, refresh as refreshRoots, rootProblems } from '../state/roots.svelte';
   import { refreshDirs } from '../state/tree.svelte';
@@ -78,31 +70,8 @@
   let removeFollow: (() => void) | null = null;
   let dropActive = $state(false);
 
-  /**
-   * Показывать ли панель разметки.
-   *
-   * Только над markdown: в файле кода её кнопки поставили бы звёздочки
-   * посреди программы. Язык берётся у вкладки, а не по расширению файла:
-   * язык можно сменить руками в строке состояния, и панель обязана следовать
-   * за этим выбором.
-   */
-  const showMarkdownBar = $derived.by(() => {
-    if (!markdownBarEnabled()) return false;
-    const tab = activeTab();
-    return tab !== null && languageOf(tab)?.id === 'markdown';
-  });
-
   /** О чём не удалось восстановить — показывается той же полосой, что и прочее. */
   const restoreNotices = $state<string[]>([]);
-
-  /**
-   * Что показывать в рабочей области, решает вид активной вкладки (Р-185).
-   *
-   * Отдельного признака «открыты ли параметры» больше нет: он разошёлся бы
-   * с полосой вкладок молча, а вкладка и признак — это два места, где
-   * записано одно и то же.
-   */
-  const activeKind = $derived(activeTab()?.meta.kind ?? 'text');
 
   // Смена вкладки — второй повод записать (Р-141). Эффект здесь, а не
   // в `state/tabs`: состояние не должно звать действия, иначе получится круг.
@@ -345,12 +314,6 @@
     extra={[...restoreNotices, ...rootProblems(), ...autosave.problems, ...notices.items]}
   />
 
-  <!-- Вкладки на уровне окна, а не над одним редактором: так они идут
-       во всю ширину и не сдвигаются, когда открывается боковая панель. -->
-  {#if tabs.items.length > 0}
-    <TabStrip pane={activePane()} />
-  {/if}
-
   <div class="body">
     <!-- Полоса значков теперь показывается всегда. До задачи 20 она появлялась
          вместе с первой папкой (Р-044): полоса с одним значком занимала место
@@ -362,37 +325,17 @@
       <Sidebar searchFocus={searchFocusRequest.value} />
     {/if}
 
-    <div class="main panel">
-      {#if tabs.items.length === 0}
+    <!-- Рабочая область — дерево областей (Р-207): у каждой своя полоса
+         вкладок и своё содержимое, что показывать — решает вид её активной
+         вкладки. Вкладки ушли с уровня окна вместе с задачей 76: полоса
+         во всю ширину принадлежала бы всем областям сразу, то есть никакой. -->
+    {#if tabs.items.length === 0}
+      <div class="main panel">
         <WelcomeScreen />
-      {:else if activeKind === 'settings'}
-        <!-- Параметры — вкладка, а не режим окна: они стоят в общем ряду,
-             переживают перезапуск и закрываются крестиком (Р-185). -->
-        <SettingsScreen />
-      {:else if activeKind === 'image'}
-        <!-- Картинка: ни поиска, ни панели разметки, ни редактора над ней. -->
-        <ImageView />
-      {:else if activeKind === 'pdf'}
-        <!-- PDF: показ, и только показ (Р-181).
-             Показ грузится по требованию, а не вместе с окном: pdf.js —
-             самая большая зависимость проекта, и обычным импортом он попадал
-             в главный кусок сборки, то есть в путь запуска. Нашла приёмка
-             этапа 10: главный кусок был 566 КиБ вместо нынешних 142. -->
-        {#await import('./PdfView.svelte') then module}
-          {@const PdfView = module.default}
-          <PdfView pane={activePane().id} />
-        {/await}
-      {:else}
-        <SearchPanel />
-        <!-- Панель разметки — только над markdown и только если её не убрали
-             настройкой. В файле кода она показывала бы кнопки, которые
-             испортят текст. -->
-        {#if showMarkdownBar}
-          <MarkdownBar />
-        {/if}
-        <EditorHost pane={activePane().id} />
-      {/if}
-    </div>
+      </div>
+    {:else}
+      <PaneTree node={layout.root} />
+    {/if}
   </div>
 
   <StatusBar />
