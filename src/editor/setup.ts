@@ -37,6 +37,7 @@ import { columnAt, indentUnitOf, type Indent } from './indent';
 import { folding } from './folding';
 import { invisibles } from './invisibles';
 import { livePreview } from './live-preview';
+import { tablePreview } from './tables';
 import { wikilinks, type Target } from './wikilinks';
 import { linkSuggestions, type LinkContext } from './suggest';
 import type { Buffer } from '../ipc/files';
@@ -163,7 +164,10 @@ export function livePreviewExtension(
   enabled: boolean,
   sourcePath: () => string | null = () => null,
 ): Extension {
-  return enabled ? livePreview(sourcePath) : [];
+  // Две части, и разделены они не по вкусу: таблица заменяется через границу
+  // строк, а такое украшение меняет высоту документа. От плагина CodeMirror
+  // его не принимает — только от поля состояния (задача 73).
+  return enabled ? [livePreview(sourcePath), tablePreview()] : [];
 }
 
 /**

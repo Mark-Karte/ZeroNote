@@ -359,6 +359,40 @@
 }
 
 /*
+ * Таблица в живом превью (задача 73).
+ *
+ * Шрифт не задаётся: наследуется шрифт редактора, как и у всего остального
+ * в превью. Таблица шрифтом интерфейса выглядела бы вставкой из другого
+ * приложения посреди текста.
+ *
+ * Ширины считает сам браузер по содержимому — на то она и таблица. Слишком
+ * широкая прокручивается своей полосой, а не растягивает строку: иначе
+ * поехал бы весь текст вокруг.
+ */
+.cm-editor .zn-table {
+  padding-block: var(--zn-space-2);
+  overflow-x: auto;
+}
+
+.cm-editor .zn-table table {
+  border-collapse: collapse;
+}
+
+.cm-editor .zn-table th,
+.cm-editor .zn-table td {
+  padding: var(--zn-space-1) var(--zn-space-3);
+  border: var(--zn-border-width) solid var(--zn-color-border-subtle);
+  text-align: left;
+  vertical-align: top;
+}
+
+/* Заголовок — та же роль утопленного, что у блока кода (Р-083). */
+.cm-editor .zn-table th {
+  background-color: var(--zn-color-bg-canvas);
+  font-weight: var(--zn-font-weight-strong);
+}
+
+/*
  * Картинка в живом превью (задача 72).
  *
  * `inline-block`, а не `block`: картинка бывает и посреди абзаца, и одна

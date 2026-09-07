@@ -90,7 +90,7 @@ class CalloutIcon extends WidgetType {
 }
 
 /** Задевает ли строку курсор или выделение. */
-function touched(state: EditorState, line: Line): boolean {
+export function touched(state: EditorState, line: Line): boolean {
   // Перебором по выделениям, а не набором номеров строк: `Ctrl+A` в файле
   // на десять мегабайт дал бы набор в миллион чисел на каждое нажатие.
   // Выделений обычно одно, курсоров — единицы.
@@ -165,6 +165,13 @@ export function decorateLivePreview(
       to: range.to,
       enter(node) {
         const parent = node.node.parent;
+
+        // Таблицу этот плагин не трогает: она заменяется целиком, а замена
+        // через границу строк меняет высоту документа, и такие украшения
+        // CodeMirror от плагина не принимает вовсе — только от поля состояния.
+        // Её показ живёт в `tables.ts` (задача 73). Внутрь не спускаемся:
+        // украшать то, что закрыто сеткой, незачем.
+        if (node.name === 'Table') return false;
 
         // Знаки вокруг куска текста: `**`, `*`, `~~`, `==`, обратная кавычка.
         if (MARKS.has(node.name)) {
