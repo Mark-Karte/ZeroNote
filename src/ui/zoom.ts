@@ -65,6 +65,6 @@ export function effectiveScale(scale: Scale, natural: Size, available: Size): nu
  * при каждом перетаскивании края — читать такую подпись невозможно, и это
  * ровно тот довод, по которому не измеряется ширина панели поиска (Р-164).
  */
-export function scaleLabel(scale: Scale): string {
-  return scale === 'fit' ? 'по окну' : `${Math.round(scale * 100)} %`;
+export function scaleLabel(scale: Scale, fit = 'по окну'): string {
+  return scale === 'fit' ? fit : `${Math.round(scale * 100)} %`;
 }

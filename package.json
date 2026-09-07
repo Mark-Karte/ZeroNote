@@ -35,7 +35,8 @@
     "@lezer/markdown": "^1.7.2",
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-dialog": "^2.7.2",
-    "@tauri-apps/plugin-updater": "^2.11.0"
+    "@tauri-apps/plugin-updater": "^2.11.0",
+    "pdfjs-dist": "^6.3.289"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.3.0",

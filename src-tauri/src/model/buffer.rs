@@ -23,7 +23,7 @@ pub type BufferId = u64;
 /// вкладка и сессия обязаны лежать в одном месте. Два списка разъехались бы
 /// на первом же перетаскивании вкладки — и разъехались бы молча.
 ///
-/// Видов три. `pdf` появится в задаче 71 вместе со своим кодом: значение
+/// Видов четыре, и каждый пришёл вместе со своим кодом: значение
 /// перечисления, которого никто не создаёт, — это ветка `match`, которая
 /// никогда не выполняется, и проверить её нечем.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize)]
@@ -36,6 +36,8 @@ pub enum TabKind {
     Settings,
     /// Картинка: файл есть, а текста в нём нет.
     Image,
+    /// PDF: показываем, и только показываем (Р-181).
+    Pdf,
 }
 
 /// Что открывается картинкой, а не текстом.
@@ -72,6 +74,8 @@ impl TabKind {
 
         if IMAGE_EXTENSIONS.contains(&extension.as_str()) {
             TabKind::Image
+        } else if extension == "pdf" {
+            TabKind::Pdf
         } else {
             TabKind::Text
         }
@@ -107,6 +111,7 @@ impl TabKind {
             TabKind::Text => "text",
             TabKind::Settings => "settings",
             TabKind::Image => "image",
+            TabKind::Pdf => "pdf",
         }
     }
 
@@ -135,6 +140,7 @@ impl TabKind {
             "" | "text" => Some(TabKind::Text),
             "settings" => Some(TabKind::Settings),
             "image" => Some(TabKind::Image),
+            "pdf" => Some(TabKind::Pdf),
             _ => None,
         }
     }
@@ -211,18 +217,25 @@ impl Buffer {
         }
     }
 
-    /// Вкладка с картинкой.
+    /// Вкладка, которую только показывают: картинка или PDF.
     ///
     /// Файл у неё есть, а текста в нём нет: кодировка, переносы и признак
     /// изменения к ней не относятся так же, как к вкладке параметров.
     /// Состояние на диске хранится настоящее — из него берётся вес файла
     /// для строки состояния, и по нему же видно, что файл подменили.
-    pub fn image(id: BufferId, path: PathBuf, disk: DiskState) -> Buffer {
+    ///
+    /// Одна функция на два вида, а не две почти одинаковых: разойдись они,
+    /// разница вылезла бы через месяц и не там, где сделана.
+    pub fn viewed(id: BufferId, path: PathBuf, disk: DiskState, kind: TabKind) -> Buffer {
+        debug_assert!(
+            matches!(kind, TabKind::Image | TabKind::Pdf),
+            "показом открываются только картинка и PDF"
+        );
         let title = Buffer::title_for(&path);
 
         Buffer {
             id,
-            kind: TabKind::Image,
+            kind,
             path: Some(path),
             title,
             // Значения ниже нейтральные и ничего не значат: смотреть на них
@@ -232,7 +245,8 @@ impl Buffer {
             eol: Eol::Lf,
             eol_mixed: false,
             modified: false,
-            // Правка запрещена: править картинку мы не умеем и не собираемся.
+            // Правка запрещена: править картинку или PDF мы не умеем
+            // и не собираемся (Р-181).
             read_only: true,
             large: false,
             lossy: false,
@@ -372,10 +386,10 @@ impl Buffers {
         self.items.last().expect("буфер только что добавлен")
     }
 
-    /// Вкладка с картинкой.
-    pub fn create_image(&mut self, path: PathBuf, disk: DiskState) -> &Buffer {
+    /// Вкладка, которую только показывают: картинка или PDF.
+    pub fn create_viewed(&mut self, path: PathBuf, disk: DiskState, kind: TabKind) -> &Buffer {
         let id = self.take_id();
-        self.items.push(Buffer::image(id, path, disk));
+        self.items.push(Buffer::viewed(id, path, disk, kind));
         self.items.last().expect("буфер только что добавлен")
     }
 
@@ -639,6 +653,7 @@ mod tests {
         assert_eq!(TabKind::for_path(Path::new("без-расширения")), TabKind::Text);
         // Векторная графика — это разметка, и открывается она текстом (Р-192).
         assert_eq!(TabKind::for_path(Path::new("значок.svg")), TabKind::Text);
+        assert_eq!(TabKind::for_path(Path::new("книга.PDF")), TabKind::Pdf);
     }
 
     /// У каждого расширения из списка есть тип содержимого: адрес `data:`
@@ -660,7 +675,11 @@ mod tests {
     #[test]
     fn image_tab_has_a_file_but_no_edits() {
         let mut buffers = Buffers::new();
-        let buffer = buffers.create_image(PathBuf::from(r"C:\снимки\экран.png"), disk());
+        let buffer = buffers.create_viewed(
+            PathBuf::from(r"C:\снимки\экран.png"),
+            disk(),
+            TabKind::Image,
+        );
 
         assert_eq!(buffer.kind, TabKind::Image);
         assert_eq!(buffer.title, "экран.png");
@@ -669,11 +688,23 @@ mod tests {
         assert_eq!(buffer.disk.map(|d| d.size), Some(10));
     }
 
+    /// У PDF всё то же самое: показ, и только показ (Р-181).
+    #[test]
+    fn pdf_tab_is_read_only_too() {
+        let mut buffers = Buffers::new();
+        let buffer =
+            buffers.create_viewed(PathBuf::from(r"C:\книги\руководство.pdf"), disk(), TabKind::Pdf);
+
+        assert_eq!(buffer.kind, TabKind::Pdf);
+        assert_eq!(buffer.title, "руководство.pdf");
+        assert!(buffer.read_only);
+    }
+
     /// Вид переживает запись в снимок и чтение обратно. Пустая строка —
     /// снимок прошлой версии, незнакомая — вкладка из будущей.
     #[test]
     fn kind_survives_the_session_file() {
-        for kind in [TabKind::Text, TabKind::Settings, TabKind::Image] {
+        for kind in [TabKind::Text, TabKind::Settings, TabKind::Image, TabKind::Pdf] {
             assert_eq!(TabKind::parse(&kind.to_snapshot()), Some(kind));
         }
 
@@ -682,8 +713,7 @@ mod tests {
             "текст в снимок не пишется: иначе прошлая версия его не прочитает"
         );
         assert_eq!(TabKind::parse(""), Some(TabKind::Text));
-        // `pdf` появится в задаче 71 — пока это вид из будущей версии.
-        assert_eq!(TabKind::parse("pdf"), None, "вид из будущей версии");
+        assert_eq!(TabKind::parse("книга"), None, "вид из будущей версии");
     }
 
     #[test]

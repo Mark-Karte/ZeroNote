@@ -14,7 +14,7 @@ import type { IconName } from './registry';
  * двадцать языков и ни одного ответа на вопрос «а какого цвета `.log`».
  */
 
-export type FileKind = 'note' | 'code' | 'data' | 'image' | 'other';
+export type FileKind = 'note' | 'code' | 'data' | 'image' | 'pdf' | 'other';
 
 /** Заметки: то, ради чего в редакторе есть связи и обратные ссылки. */
 const NOTE = new Set(['md', 'markdown', 'mdx']);
@@ -66,6 +66,13 @@ const CODE = new Set([
  */
 const IMAGE = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'ico', 'avif']);
 
+/**
+ * PDF — единственный формат в своём роде, и роль ему нужна своя: показываем
+ * мы его, а не правим, и в списке он должен отличаться от текста с первого
+ * взгляда.
+ */
+const PDF = new Set(['pdf']);
+
 /** Данные и настройки: то, что читает программа, а не человек. */
 const DATA = new Set([
   'toml',
@@ -101,6 +108,7 @@ export function kindOf(name: string): FileKind {
   if (CODE.has(ext)) return 'code';
   if (DATA.has(ext)) return 'data';
   if (IMAGE.has(ext)) return 'image';
+  if (PDF.has(ext)) return 'pdf';
   return 'other';
 }
 
@@ -116,6 +124,8 @@ export function iconForKind(kind: FileKind): IconName {
       return 'file.markdown';
     case 'image':
       return 'file.image';
+    case 'pdf':
+      return 'file.pdf';
     case 'code':
     case 'data':
       return 'file.code';

@@ -87,15 +87,16 @@ pub fn open_file(state: tauri::State<'_, AppState>, path: String) -> Fallible<Bu
         return reload_buffer(state, id);
     }
 
-    // Картинка открывается вкладкой своего вида (Р-180). Файл на этом шаге
-    // не читается вовсе: текста в нём нет, а байты понадобятся только показу
-    // и только пока вкладка на экране (Р-193).
-    if TabKind::for_path(&path) == TabKind::Image {
+    // Картинка и PDF открываются вкладками своего вида (Р-180). Файл на этом
+    // шаге не читается вовсе: текста в нём нет, а байты понадобятся только
+    // показу и только пока вкладка на экране (Р-193).
+    let kind = TabKind::for_path(&path);
+    if kind != TabKind::Text {
         let disk = text_file::DiskState::of(&path)
             .map_err(|e| format!("не удалось открыть {}: {e}", path.display()))?;
 
         let mut buffers = state.buffers.lock().expect("реестр буферов повреждён");
-        let buffer = buffers.create_image(path.clone(), disk).clone();
+        let buffer = buffers.create_viewed(path.clone(), disk, kind).clone();
         drop(buffers);
 
         remember_recent(&state, &path);
@@ -187,10 +188,10 @@ pub fn reload_buffer(
         )
     };
 
-    // Картинку перечитывать нечем: текста в ней нет, а байты показ берёт сам
-    // и каждый раз заново. Обновляется только состояние на диске — из него
-    // берётся вес файла для строки состояния.
-    if kind == TabKind::Image {
+    // Картинку и PDF перечитывать нечем: текста в них нет, а байты показ
+    // берёт сам и каждый раз заново. Обновляется только состояние на диске —
+    // из него берётся вес файла для строки состояния.
+    if kind != TabKind::Text {
         let disk = text_file::DiskState::of(&path)
             .map_err(|e| format!("не удалось открыть {}: {e}", path.display()))?;
 
@@ -612,6 +613,61 @@ pub fn image_source(state: tauri::State<'_, AppState>, id: BufferId) -> Fallible
         "data:{mime};base64,{}",
         crate::text::base64::encode(&bytes)
     ))
+}
+
+/// Предел на размер PDF.
+///
+/// Больше, чем у картинки, и по понятной причине: PDF едет в окно двоичными
+/// байтами, а не строкой `data:`, — той трети сверху, из-за которой предел
+/// картинки такой строгий, здесь нет. Смысл предела остаётся тот же: не дать
+/// одному файлу утянуть за собой окно. Отсканированная книга на полгигабайта
+/// существует, и открывать её нам нечем.
+const PDF_LIMIT: u64 = 64 * 1024 * 1024;
+
+/// Байты PDF для показа.
+///
+/// Двоичным ответом, а не строкой: pdf.js принимает массив байтов, и гонять
+/// его через base64 значило бы платить треть объёма и два преобразования
+/// ни за что. Картинке строка нужна — она едет в адрес `data:`; здесь
+/// не нужна (Р-196).
+#[tauri::command]
+pub fn pdf_bytes(
+    state: tauri::State<'_, AppState>,
+    id: BufferId,
+) -> Result<tauri::ipc::Response, String> {
+    let path = {
+        let buffers = state.buffers.lock().expect("реестр буферов повреждён");
+        let buffer = buffers
+            .get(id)
+            .ok_or_else(|| format!("буфер {id} не найден"))?;
+
+        if buffer.kind != TabKind::Pdf {
+            return Err("это не PDF".to_owned());
+        }
+        buffer
+            .path
+            .clone()
+            .ok_or_else(|| "у вкладки нет файла на диске".to_owned())?
+    };
+
+    // Размер спрашивается до чтения: смысл предела в том, чтобы не прочитать
+    // в память то, что показать всё равно нельзя.
+    let size = std::fs::metadata(&path)
+        .map_err(|e| format!("не удалось прочитать {}: {e}", path.display()))?
+        .len();
+
+    if size > PDF_LIMIT {
+        return Err(format!(
+            "PDF весит {} МиБ, а показать можно до {} МиБ",
+            size.div_ceil(1024 * 1024),
+            PDF_LIMIT / (1024 * 1024)
+        ));
+    }
+
+    let bytes = std::fs::read(&path)
+        .map_err(|e| format!("не удалось прочитать {}: {e}", path.display()))?;
+
+    Ok(tauri::ipc::Response::new(bytes))
 }
 
 /// Показать путь в проводнике: папку — открыть, файл — выделить в его папке.

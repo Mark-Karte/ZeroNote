@@ -18,6 +18,7 @@
   import Suggest from './Suggest.svelte';
   import SettingsScreen from './settings/SettingsScreen.svelte';
   import ImageView from './ImageView.svelte';
+  import PdfView from './PdfView.svelte';
   import WelcomeScreen from './welcome/WelcomeScreen.svelte';
   import {
     autoCloseEnabled,
@@ -30,6 +31,7 @@
     readableWidthEnabled,
   } from '../state/settings.svelte';
   import { searchFocusRequest } from '../state/project-search.svelte';
+  import { notices } from '../state/notices.svelte';
   import {
     tabs,
     restore,
@@ -339,7 +341,9 @@
 
 <div class="shell" class:drop={dropActive}>
   <TitleBar />
-  <NoticeStrip extra={[...restoreNotices, ...rootProblems(), ...autosave.problems]} />
+  <NoticeStrip
+    extra={[...restoreNotices, ...rootProblems(), ...autosave.problems, ...notices.items]}
+  />
 
   <!-- Вкладки на уровне окна, а не над одним редактором: так они идут
        во всю ширину и не сдвигаются, когда открывается боковая панель. -->
@@ -368,6 +372,9 @@
       {:else if activeKind === 'image'}
         <!-- Картинка: ни поиска, ни панели разметки, ни редактора над ней. -->
         <ImageView />
+      {:else if activeKind === 'pdf'}
+        <!-- PDF: показ, и только показ (Р-181). -->
+        <PdfView />
       {:else}
         <SearchPanel />
         <!-- Панель разметки — только над markdown и только если её не убрали

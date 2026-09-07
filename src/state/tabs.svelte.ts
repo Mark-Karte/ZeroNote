@@ -111,18 +111,43 @@ export interface ImageState {
   scale: Scale;
 }
 
+/**
+ * Состояние показа PDF — только у вкладки с PDF.
+ *
+ * Байтов здесь нет намеренно: у документа их держит pdf.js, пока вкладка
+ * на экране, и отпускает вместе с ней (Р-193). Здесь остаётся то, что должно
+ * пережить уход на соседнюю вкладку и возврат: страница и масштаб.
+ */
+export interface PdfState {
+  /** Сколько всего страниц. Ноль — документ ещё не разобран. */
+  pages: number;
+  /** Какая страница перед глазами, с единицы. */
+  page: number;
+  /** Масштаб. `fit` — по ширине окна: у страницы важна ширина, а не высота. */
+  scale: Scale;
+  /** Почему показать нечего. `null` — всё в порядке. */
+  problem: string | null;
+}
+
 export interface Tab {
   /** Сведения из ядра, включая вид вкладки (Р-180). */
   meta: Buffer;
-  /** `null` у вкладки, которая не текст: параметры, картинка, дальше PDF. */
+  /** `null` у вкладки, которая не текст: параметры, картинка, PDF. */
   editor: TabEditor | null;
   /** `null` у вкладок всех прочих видов. */
   image: ImageState | null;
+  /** `null` у вкладок всех прочих видов. */
+  pdf: PdfState | null;
 }
 
 /** Свежее состояние показа: вписать в окно, байтов ещё нет. */
 export function freshImage(): ImageState {
   return { source: null, problem: null, width: 0, height: 0, scale: 'fit' };
+}
+
+/** Свежее состояние показа PDF: первая страница, по ширине окна. */
+export function freshPdf(): PdfState {
+  return { pages: 0, page: 1, scale: 'fit', problem: null };
 }
 
 /** Порядок в массиве — это порядок вкладок, такой же, как в ядре. */
@@ -379,26 +404,39 @@ function editors(): TabEditor[] {
 }
 
 /**
- * Вкладка с картинкой.
+ * Вкладка, которую только показывают: картинка или PDF.
  *
  * Байты здесь не появляются: их спросит показ, когда вкладка окажется
- * на экране. Масштаб у уже открытой вкладки сохраняется — повторное открытие
- * того же файла не повод сбрасывать то, что человек выбрал.
+ * на экране. Масштаб и страница у уже открытой вкладки сохраняются —
+ * повторное открытие того же файла не повод сбрасывать то, что человек
+ * выбрал; сбрасывается только жалоба, чтобы показ попробовал снова.
  */
-function putImage(meta: Buffer): void {
+function putViewed(meta: Buffer): void {
   const existing = tabById(meta.id);
 
   if (existing) {
     existing.meta = meta;
-    if (existing.image) {
-      // Файл могли подменить на диске — показ перечитает его заново.
-      existing.image.source = null;
-      existing.image.problem = null;
+
+    if (meta.kind === 'image') {
+      if (existing.image) {
+        // Файл могли подменить на диске — показ перечитает его заново.
+        existing.image.source = null;
+        existing.image.problem = null;
+      } else {
+        existing.image = freshImage();
+      }
+    } else if (existing.pdf) {
+      existing.pdf.problem = null;
     } else {
-      existing.image = freshImage();
+      existing.pdf = freshPdf();
     }
   } else {
-    tabs.items.push({ meta, editor: null, image: freshImage() });
+    tabs.items.push({
+      meta,
+      editor: null,
+      image: meta.kind === 'image' ? freshImage() : null,
+      pdf: meta.kind === 'pdf' ? freshPdf() : null,
+    });
   }
 
   tabs.activeId = meta.id;
@@ -412,10 +450,10 @@ function put(
   scrollTop = 0,
   language: string | null = null,
 ): void {
-  // Вид решает, чем вкладка станет. Текста у картинки нет — ядро и не читало
-  // файл, оно вернуло одни сведения о нём.
-  if (meta.kind === 'image') {
-    putImage(meta);
+  // Вид решает, чем вкладка станет. Текста у картинки и PDF нет — ядро
+  // и не читало файл, оно вернуло одни сведения о нём.
+  if (meta.kind === 'image' || meta.kind === 'pdf') {
+    putViewed(meta);
     return;
   }
 
@@ -432,7 +470,7 @@ function put(
     existing.meta = meta;
     existing.editor = editor;
   } else {
-    tabs.items.push({ meta, editor, image: null });
+    tabs.items.push({ meta, editor, image: null, pdf: null });
   }
   tabs.activeId = meta.id;
   // Язык грузится и встаёт на место сам: ждать его открытие файла не должно.
@@ -627,6 +665,7 @@ async function restoreInner(): Promise<string[]> {
         meta,
         editor: null,
         image: meta.kind === 'image' ? freshImage() : null,
+        pdf: meta.kind === 'pdf' ? freshPdf() : null,
       });
       continue;
     }
@@ -642,6 +681,7 @@ async function restoreInner(): Promise<string[]> {
       meta,
       editor: { state, scrollTop, language: language ?? null, indent },
       image: null,
+      pdf: null,
     });
     // Язык подтягивается в фоне: старт не должен ждать разбора парсеров.
     void applyLanguage(meta.id);
@@ -687,7 +727,7 @@ export async function openSettings(): Promise<void> {
   if (existing) {
     existing.meta = meta;
   } else {
-    tabs.items.push({ meta, editor: null, image: null });
+    tabs.items.push({ meta, editor: null, image: null, pdf: null });
   }
 
   tabs.activeId = meta.id;

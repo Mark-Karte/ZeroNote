@@ -47,5 +47,6 @@ export const IMAGE_EXTENSIONS = [
 export const FILE_FILTERS = [
   { name: 'Текст и заметки', extensions: TEXT_EXTENSIONS },
   { name: 'Картинки', extensions: IMAGE_EXTENSIONS },
+  { name: 'PDF', extensions: ['pdf'] },
   { name: 'Все файлы', extensions: ['*'] },
 ];

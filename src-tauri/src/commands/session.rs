@@ -276,10 +276,10 @@ pub fn restore_session(state: tauri::State<'_, AppState>) -> RestoredSession {
                 buffers.push(buffer);
                 continue;
             }
-            // У картинки файл есть, и состояние на диске берётся свежее:
-            // за время простоя её могли подменить. Байты не читаются —
+            // У картинки и PDF файл есть, и состояние на диске берётся свежее:
+            // за время простоя их могли подменить. Байты не читаются —
             // их возьмёт показ, когда вкладка окажется на экране.
-            TabKind::Image => {
+            TabKind::Image | TabKind::Pdf => {
                 let Some(path) = item.path.clone() else {
                     notices.push(format!("вкладка «{}» без файла пропущена", item.title));
                     continue;
@@ -287,7 +287,7 @@ pub fn restore_session(state: tauri::State<'_, AppState>) -> RestoredSession {
 
                 match text_file::DiskState::of(&path) {
                     Ok(disk) => {
-                        let buffer = Buffer::image(item.id, path, disk);
+                        let buffer = Buffer::viewed(item.id, path, disk, kind);
                         restored.push(RestoredBuffer {
                             buffer: BufferWithText {
                                 buffer: buffer.clone(),

@@ -22,7 +22,7 @@ import {
 import { showAbout } from '../actions/about';
 import { checkForUpdates } from '../state/updates.svelte';
 import { copySelection, cutSelection, pasteIntoEditor } from '../actions/clipboard';
-import { goToLineDialog } from '../actions/navigate';
+import { goToLineDialog, findInTab } from '../actions/navigate';
 import {
   addRootDialog,
   toggleSidebarPanel,
@@ -37,7 +37,7 @@ import {
   showTags,
   showBookmarks,
 } from '../actions/project';
-import { openSearch, findNext, findPrevious } from '../state/search.svelte';
+import { findNext, findPrevious } from '../state/search.svelte';
 import { toggleInvisibles, toggleLivePreview, toggleWrap } from '../state/settings.svelte';
 import { nextTab, previousTab } from '../state/tabs.svelte';
 
@@ -102,8 +102,10 @@ export const COMMANDS: Record<CommandId, () => void | Promise<unknown>> = {
   'edit.upper-case': inEditor(edit.upperCase),
   'edit.lower-case': inEditor(edit.lowerCase),
 
-  'search.find': () => openSearch('find'),
-  'search.replace': () => openSearch('replace'),
+  // Не `openSearch` напрямую: над вкладкой без текста поиск отвечает словами,
+  // а не молчанием — см. `findInTab`.
+  'search.find': () => findInTab('find'),
+  'search.replace': () => findInTab('replace'),
   'search.find-next': findNext,
   'search.find-previous': findPrevious,
 

@@ -260,7 +260,7 @@ pub const SEMANTIC_COLORS: &[(&str, &str)] = &[
     ("color-syntax-strong", "{palette.fg-0}"),
     ("color-syntax-quote", "{palette.fg-1}"),
     ("color-syntax-invalid", "{palette.danger}"),
-    // Цвет метки файла по виду содержимого. Ролей пять, а не двадцать:
+    // Цвет метки файла по виду содержимого. Ролей шесть, а не двадцать:
     // иначе автор темы обязан подобрать цвет каждому расширению, а добавление
     // языка означало бы правку всех тем. Какое расширение к какой роли
     // относится, решает реестр значков во фронтенде.
@@ -268,6 +268,10 @@ pub const SEMANTIC_COLORS: &[(&str, &str)] = &[
     ("color-file-code", "{palette.syn-function}"),
     ("color-file-data", "{palette.syn-number}"),
     ("color-file-image", "{palette.syn-string}"),
+    // Не `danger`, хотя красный к PDF и просится: `danger` означает
+    // «необратимое действие», и одалживать его виду файла — значит размывать
+    // единственное место, где цвет обязан читаться как предупреждение.
+    ("color-file-pdf", "{palette.syn-keyword}"),
     ("color-file-other", "{palette.fg-2}"),
 ];
 

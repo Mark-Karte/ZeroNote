@@ -383,6 +383,10 @@
     color: var(--zn-color-file-data);
   }
 
+  .glyph[data-kind='pdf'] {
+    color: var(--zn-color-file-pdf);
+  }
+
   .glyph[data-kind='image'] {
     color: var(--zn-color-file-image);
   }

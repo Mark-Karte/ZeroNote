@@ -46,6 +46,7 @@ export type IconName =
   | 'file.text'
   | 'file.code'
   | 'file.image'
+  | 'file.pdf'
   | 'md.bold'
   | 'md.italic'
   | 'md.strikethrough'
@@ -253,6 +254,8 @@ const ICONS: Record<IconName, string> = {
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"><path d="M9 1.6H4a1.4 1.4 0 0 0-1.4 1.4v10a1.4 1.4 0 0 0 1.4 1.4h8a1.4 1.4 0 0 0 1.4-1.4V6z"/><path d="M9 1.6V6h4.4"/><path d="M5.2 11.6V8.4l1.5 1.8 1.5-1.8v3.2" stroke-linecap="round"/></svg>',
   'file.text':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"><path d="M9 1.6H4a1.4 1.4 0 0 0-1.4 1.4v10a1.4 1.4 0 0 0 1.4 1.4h8a1.4 1.4 0 0 0 1.4-1.4V6z"/><path d="M9 1.6V6h4.4"/><path d="M5.4 9h5.2M5.4 11.4h3.4" stroke-linecap="round"/></svg>',
+  'file.pdf':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"><path d="M9 1.6H4a1.4 1.4 0 0 0-1.4 1.4v10a1.4 1.4 0 0 0 1.4 1.4h8a1.4 1.4 0 0 0 1.4-1.4V6z"/><path d="M9 1.6V6h4.4"/><rect x="4.4" y="9" width="7.2" height="3.4" rx=".7" fill="currentColor" stroke="none"/></svg>',
   'file.image':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"><path d="M9 1.6H4a1.4 1.4 0 0 0-1.4 1.4v10a1.4 1.4 0 0 0 1.4 1.4h8a1.4 1.4 0 0 0 1.4-1.4V6z"/><path d="M9 1.6V6h4.4"/><circle cx="6.1" cy="8.7" r=".85"/><path d="M4.4 12.5l2.3-2.1 1.4 1.2 1.3-1.4 2.2 2.3" stroke-linecap="round"/></svg>',
   'file.code':

@@ -309,6 +309,10 @@
     color: var(--zn-color-file-data);
   }
 
+  .kind[data-kind='pdf'] {
+    color: var(--zn-color-file-pdf);
+  }
+
   .kind[data-kind='image'] {
     color: var(--zn-color-file-image);
   }

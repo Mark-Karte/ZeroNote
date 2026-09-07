@@ -21,7 +21,7 @@
   import { scaleLabel, ZOOM_STEPS, type Scale } from './zoom';
   import { commandList } from '../keymap/global.svelte';
   import { labelOf } from '../keymap/binding';
-  import { goToLineDialog } from '../actions/navigate';
+  import { goToLineDialog, goToPageDialog } from '../actions/navigate';
   import type { EncodingId, LineEnding } from '../ipc/files';
   import { convertTo, reinterpretAs, setBom, setLineEnding } from '../actions/encoding';
 
@@ -41,6 +41,17 @@
 
   /** Состояние показа картинки. `null` — вкладка не картинка. */
   const img = $derived(tab?.image ?? null);
+
+  /** Состояние показа PDF. `null` — вкладка не PDF. */
+  const doc = $derived(tab?.pdf ?? null);
+
+  /**
+   * То, что показывают, а не правят: картинка или PDF.
+   *
+   * У обоих один и тот же масштаб и один и тот же список ступеней —
+   * и меню масштаба поэтому одно на двоих.
+   */
+  const viewed = $derived(img ?? doc);
 
   /**
    * Сколько курсоров в активной вкладке.
@@ -225,28 +236,30 @@
    * и менялось бы при каждом перетаскивании края.
    */
   const scaleItems = $derived.by((): PopupItem[] => {
-    if (!img) return [];
+    if (!viewed) return [];
 
     return [
       {
         id: 'fit',
-        label: 'Вписать в окно',
+        label: doc ? 'По ширине окна' : 'Вписать в окно',
         section: 'Масштаб',
-        checked: img.scale === 'fit',
-        hint: 'Уменьшить до размеров окна. Маленькая картинка не растягивается.',
+        checked: viewed.scale === 'fit',
+        hint: doc
+          ? 'Растянуть страницу на всю ширину области показа.'
+          : 'Уменьшить до размеров окна. Маленькая картинка не растягивается.',
       },
       ...ZOOM_STEPS.map((step) => ({
         id: String(step),
         label: `${Math.round(step * 100)} %`,
-        checked: img.scale === step,
+        checked: viewed.scale === step,
       })),
     ];
   });
 
   function pickScale(id: string): void {
     openMenu = null;
-    if (!img) return;
-    img.scale = (id === 'fit' ? 'fit' : Number(id)) as Scale;
+    if (!viewed) return;
+    viewed.scale = (id === 'fit' ? 'fit' : Number(id)) as Scale;
   }
 
   /** Язык, действующий сейчас, и признак «выбран вручную». */
@@ -357,6 +370,34 @@
       onclick={(e) => toggle('scale', e)}
     >
       {scaleLabel(img.scale)}
+    </button>
+  {/if}
+
+  <!--
+    У PDF свои три места: страница, вес файла и масштаб. Поиска среди них нет,
+    и это решение владельца (Р-181): ZeroNote документ показывает, но не читает.
+  -->
+  {#if tab && doc}
+    <button
+      class="item action"
+      type="button"
+      title="Перейти к странице{goToLineKey ? ` (${labelOf(goToLineKey)})` : ''}"
+      onclick={() => void goToPageDialog(doc)}
+    >
+      {doc.pages > 0 ? `стр ${doc.page} из ${doc.pages}` : 'открываю…'}
+    </button>
+
+    {#if tab.meta.disk}
+      <span class="item" title="Вес файла на диске">{fileSize(tab.meta.disk.size)}</span>
+    {/if}
+
+    <button
+      class="item action"
+      type="button"
+      title="Масштаб показа"
+      onclick={(e) => toggle('scale', e)}
+    >
+      {scaleLabel(doc.scale, 'по ширине')}
     </button>
   {/if}
 
