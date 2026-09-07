@@ -1,6 +1,7 @@
 <script lang="ts">
   import Icon from '../Icon.svelte';
   import { settings, put } from '../../state/settings.svelte';
+  import * as ipc from '../../ipc/files';
   import { openDropped } from '../../actions/files';
   import { showAbout } from '../../actions/about';
   import { version } from '../../version';
@@ -56,6 +57,23 @@
 
   async function openFile(): Promise<void> {
     if (file) await openDropped([file.path]);
+  }
+
+  /**
+   * Назначить ZeroNote умолчанием.
+   *
+   * Кнопка ведёт на страницу параметров Windows, а не назначает сама: с
+   * Windows 10 умолчание защищено, и программа его не забирает (Р-190).
+   * Установщик регистрирует нас как приложение — эта страница и есть то место,
+   * где человек одним нажатием делает нас умолчанием для `.md`.
+   */
+  async function chooseDefaults(): Promise<void> {
+    try {
+      await ipc.openDefaultApps();
+      settings.problem = null;
+    } catch (error) {
+      settings.problem = String(error);
+    }
   }
 </script>
 
@@ -370,6 +388,21 @@
           <span class="note path">{file?.path}</span>
         </div>
         <button class="button" type="button" onclick={openFile}>Открыть</button>
+      </div>
+
+      <!-- Умолчание для типа файла назначает человек, и назначает в системе:
+           Windows не даёт программе забрать тип себе (Р-190). Наше дело —
+           довести до нужной страницы одним нажатием. -->
+      <div class="card">
+        <span class="card-icon"><Icon name="file.markdown" /></span>
+        <div class="what">
+          <span class="name">Открывать .md двойным щелчком</span>
+          <span class="note">
+            «Открыть в ZeroNote» в проводнике уже есть. Умолчание для типа файла
+            Windows назначает сама — по вашему выбору в параметрах системы.
+          </span>
+        </div>
+        <button class="button" type="button" onclick={chooseDefaults}>Настроить</button>
       </div>
 
       <p class="footer">

@@ -19,7 +19,7 @@ import type { SettingsState } from '../ipc/settings';
  */
 export const settings = $state<{
   state: SettingsState | null;
-  /** Что пошло не так при последней записи. Пусто — всё в порядке. */
+  /** Что пошло не так при последнем действии. Пусто — всё в порядке. */
   problem: string | null;
 }>({
   state: null,

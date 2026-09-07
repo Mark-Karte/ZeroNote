@@ -14,7 +14,7 @@ import type { IconName } from './registry';
  * двадцать языков и ни одного ответа на вопрос «а какого цвета `.log`».
  */
 
-export type FileKind = 'note' | 'code' | 'data' | 'other';
+export type FileKind = 'note' | 'code' | 'data' | 'image' | 'other';
 
 /** Заметки: то, ради чего в редакторе есть связи и обратные ссылки. */
 const NOTE = new Set(['md', 'markdown', 'mdx']);
@@ -60,6 +60,12 @@ const CODE = new Set([
   'sql',
 ]);
 
+/**
+ * Картинки. Список тот же, что решает вид вкладки в ядре (`IMAGE_EXTENSIONS`):
+ * файл, который открывается картинкой, обязан и в списке выглядеть картинкой.
+ */
+const IMAGE = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'ico', 'avif']);
+
 /** Данные и настройки: то, что читает программа, а не человек. */
 const DATA = new Set([
   'toml',
@@ -94,6 +100,7 @@ export function kindOf(name: string): FileKind {
   if (NOTE.has(ext)) return 'note';
   if (CODE.has(ext)) return 'code';
   if (DATA.has(ext)) return 'data';
+  if (IMAGE.has(ext)) return 'image';
   return 'other';
 }
 
@@ -107,6 +114,8 @@ export function iconForKind(kind: FileKind): IconName {
   switch (kind) {
     case 'note':
       return 'file.markdown';
+    case 'image':
+      return 'file.image';
     case 'code':
     case 'data':
       return 'file.code';

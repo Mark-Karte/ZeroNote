@@ -17,6 +17,7 @@
   import Popup from './Popup.svelte';
   import Suggest from './Suggest.svelte';
   import SettingsScreen from './settings/SettingsScreen.svelte';
+  import ImageView from './ImageView.svelte';
   import WelcomeScreen from './welcome/WelcomeScreen.svelte';
   import {
     autoCloseEnabled,
@@ -364,6 +365,9 @@
         <!-- Параметры — вкладка, а не режим окна: они стоят в общем ряду,
              переживают перезапуск и закрываются крестиком (Р-185). -->
         <SettingsScreen />
+      {:else if activeKind === 'image'}
+        <!-- Картинка: ни поиска, ни панели разметки, ни редактора над ней. -->
+        <ImageView />
       {:else}
         <SearchPanel />
         <!-- Панель разметки — только над markdown и только если её не убрали

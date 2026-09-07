@@ -4,6 +4,7 @@
 //! файловую систему — только байты и строки. Поэтому всё проверяется
 //! обычным `cargo test` без временных файлов и без запуска приложения.
 
+pub mod base64;
 pub mod detect;
 pub mod document;
 pub mod encoding;

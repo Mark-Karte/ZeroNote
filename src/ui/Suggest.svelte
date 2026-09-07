@@ -235,6 +235,10 @@
     color: var(--zn-color-file-data);
   }
 
+  .glyph[data-kind='image'] {
+    color: var(--zn-color-file-image);
+  }
+
   .glyph[data-kind='other'] {
     color: var(--zn-color-file-other);
   }

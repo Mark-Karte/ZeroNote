@@ -18,10 +18,10 @@ export type LineEnding = 'lf' | 'cr-lf' | 'cr';
  * во фронтенде это держать нельзя — два списка разъехались бы на первом же
  * перетаскивании вкладки, и разъехались бы молча.
  *
- * Видов пока два. `image` и `pdf` появятся в задачах 70 и 71 вместе со своим
- * кодом: вид, которого никто не создаёт, — это ветка, которую нечем проверить.
+ * Видов три. `pdf` появится в задаче 71 вместе со своим кодом: вид,
+ * которого никто не создаёт, — это ветка, которую нечем проверить.
  */
-export type TabKind = 'text' | 'settings';
+export type TabKind = 'text' | 'settings' | 'image';
 
 /** Сведения о буфере, которыми владеет ядро. Содержимого здесь нет — см. Р-002. */
 export interface Buffer {
@@ -66,6 +66,23 @@ export const newBuffer = (): Promise<Buffer> => invoke('new_buffer');
 
 /** Вкладка параметров. Одна на окно: повторный вызов вернёт ту же. */
 export const openSettingsTab = (): Promise<Buffer> => invoke('open_settings');
+
+/**
+ * Картинка вкладки адресом `data:`.
+ *
+ * Спрашивается показом, когда вкладка появляется на экране, и не хранится
+ * нигде дольше этого (Р-193). Отказ — человеческое объяснение: файл велик,
+ * не читается или не картинка вовсе.
+ */
+export const imageSource = (id: number): Promise<string> => invoke('image_source', { id });
+
+/**
+ * Открыть страницу «Приложения по умолчанию» на карточке ZeroNote.
+ *
+ * Умолчание назначает человек (Р-190) — кнопка лишь доводит до нужной
+ * страницы Windows.
+ */
+export const openDefaultApps = (): Promise<void> => invoke('open_default_apps');
 
 export const openFile = (path: string): Promise<BufferWithText> =>
   invoke('open_file', { path });

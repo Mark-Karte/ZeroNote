@@ -309,6 +309,10 @@
     color: var(--zn-color-file-data);
   }
 
+  .kind[data-kind='image'] {
+    color: var(--zn-color-file-image);
+  }
+
   .kind[data-kind='other'] {
     color: var(--zn-color-file-other);
   }

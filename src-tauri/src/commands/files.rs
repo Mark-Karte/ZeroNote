@@ -7,7 +7,7 @@
 use std::path::PathBuf;
 
 use crate::fsx::text_file;
-use crate::model::buffer::{Buffer, BufferId};
+use crate::model::buffer::{Buffer, BufferId, TabKind};
 use crate::session;
 use crate::state::AppState;
 use crate::text::encoding::Encoding;
@@ -87,6 +87,24 @@ pub fn open_file(state: tauri::State<'_, AppState>, path: String) -> Fallible<Bu
         return reload_buffer(state, id);
     }
 
+    // Картинка открывается вкладкой своего вида (Р-180). Файл на этом шаге
+    // не читается вовсе: текста в нём нет, а байты понадобятся только показу
+    // и только пока вкладка на экране (Р-193).
+    if TabKind::for_path(&path) == TabKind::Image {
+        let disk = text_file::DiskState::of(&path)
+            .map_err(|e| format!("не удалось открыть {}: {e}", path.display()))?;
+
+        let mut buffers = state.buffers.lock().expect("реестр буферов повреждён");
+        let buffer = buffers.create_image(path.clone(), disk).clone();
+        drop(buffers);
+
+        remember_recent(&state, &path);
+        return Ok(BufferWithText {
+            buffer,
+            text: String::new(),
+        });
+    }
+
     // Проект, которому файл принадлежит, может знать его кодировку лучше
     // эвристики. Подсказка берётся до чтения и только помогает угадать —
     // см. `document::read_with_hint`.
@@ -155,15 +173,38 @@ pub fn reload_buffer(
     state: tauri::State<'_, AppState>,
     id: BufferId,
 ) -> Fallible<BufferWithText> {
-    let path = {
+    let (path, kind) = {
         let buffers = state.buffers.lock().expect("реестр буферов повреждён");
-        buffers
+        let buffer = buffers
             .get(id)
-            .ok_or_else(|| format!("буфер {id} не найден"))?
-            .path
-            .clone()
-            .ok_or_else(|| "у буфера нет файла на диске".to_owned())?
+            .ok_or_else(|| format!("буфер {id} не найден"))?;
+        (
+            buffer
+                .path
+                .clone()
+                .ok_or_else(|| "у буфера нет файла на диске".to_owned())?,
+            buffer.kind,
+        )
     };
+
+    // Картинку перечитывать нечем: текста в ней нет, а байты показ берёт сам
+    // и каждый раз заново. Обновляется только состояние на диске — из него
+    // берётся вес файла для строки состояния.
+    if kind == TabKind::Image {
+        let disk = text_file::DiskState::of(&path)
+            .map_err(|e| format!("не удалось открыть {}: {e}", path.display()))?;
+
+        let mut buffers = state.buffers.lock().expect("реестр буферов повреждён");
+        let buffer = buffers
+            .get_mut(id)
+            .ok_or_else(|| format!("буфер {id} не найден"))?;
+        buffer.disk = Some(disk);
+
+        return Ok(BufferWithText {
+            buffer: buffer.clone(),
+            text: String::new(),
+        });
+    }
 
     let opened = text_file::open_with_hint(&path, state.encoding_hint(&path))
         .map_err(|e| e.to_string())?;
@@ -512,6 +553,65 @@ pub fn list_encodings() -> Vec<EncodingOption> {
             supports_bom: !encoding.bom_bytes().is_empty(),
         })
         .collect()
+}
+
+/// Предел на размер картинки — Р-193.
+///
+/// Картинка едет в окно строкой `data:`, а та на треть длиннее файла:
+/// шестнадцать мегабайт превращаются в двадцать два миллиона знаков.
+/// Настоящая цена ещё выше — в памяти окна лежит не файл, а разобранная
+/// картинка, по четыре байта на точку, и её размер зависит от числа точек,
+/// а не от веса файла. Предел поэтому приблизительный: он отсекает заведомо
+/// неподъёмное, а не считает память.
+const IMAGE_LIMIT: u64 = 16 * 1024 * 1024;
+
+/// Картинка вкладки адресом `data:`.
+///
+/// Спрашивается показом при появлении вкладки на экране и не хранится в ядре:
+/// байты живут ровно столько, сколько видна вкладка (Р-193). Политика
+/// безопасности окна при этом не меняется — `img-src` разрешает `data:`
+/// с третьего этапа (Р-182).
+#[tauri::command]
+pub fn image_source(state: tauri::State<'_, AppState>, id: BufferId) -> Fallible<String> {
+    let path = {
+        let buffers = state.buffers.lock().expect("реестр буферов повреждён");
+        let buffer = buffers
+            .get(id)
+            .ok_or_else(|| format!("буфер {id} не найден"))?;
+
+        if buffer.kind != TabKind::Image {
+            return Err("это не картинка".to_owned());
+        }
+        buffer
+            .path
+            .clone()
+            .ok_or_else(|| "у вкладки нет файла на диске".to_owned())?
+    };
+
+    let mime = TabKind::image_mime(&path)
+        .ok_or_else(|| "неизвестный вид картинки".to_owned())?;
+
+    // Размер спрашивается до чтения: смысл предела в том, чтобы не прочитать
+    // в память то, что показать всё равно нельзя.
+    let size = std::fs::metadata(&path)
+        .map_err(|e| format!("не удалось прочитать {}: {e}", path.display()))?
+        .len();
+
+    if size > IMAGE_LIMIT {
+        return Err(format!(
+            "картинка весит {} МиБ, а показать можно до {} МиБ",
+            size.div_ceil(1024 * 1024),
+            IMAGE_LIMIT / (1024 * 1024)
+        ));
+    }
+
+    let bytes = std::fs::read(&path)
+        .map_err(|e| format!("не удалось прочитать {}: {e}", path.display()))?;
+
+    Ok(format!(
+        "data:{mime};base64,{}",
+        crate::text::base64::encode(&bytes)
+    ))
 }
 
 /// Показать путь в проводнике: папку — открыть, файл — выделить в его папке.

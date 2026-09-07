@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { TEXT_EXTENSIONS, FILE_FILTERS } from '../src/actions/file-types';
+import { TEXT_EXTENSIONS, IMAGE_EXTENSIONS, FILE_FILTERS } from '../src/actions/file-types';
 
 /**
  * Один список типов файлов на два места.
@@ -14,6 +14,7 @@ import { TEXT_EXTENSIONS, FILE_FILTERS } from '../src/actions/file-types';
  * список в одном месте, потребитель в другом, тест сверяет.
  */
 const NSH = readFileSync('src-tauri/installer/associations.nsh', 'utf8');
+const CORE = readFileSync('src-tauri/src/model/buffer.rs', 'utf8');
 
 function extensionsInInstaller(): string[] {
   return [...NSH.matchAll(/!insertmacro \$\{ACTION\} "([^"]+)"/g)].map((m) => m[1]!);
@@ -35,6 +36,29 @@ describe('типы файлов', () => {
       expect(ext).toBe(ext.toLowerCase());
       expect(ext.startsWith('.')).toBe(false);
     }
+  });
+
+  /**
+   * Картинки: канонический список — в ядре, здесь копия для фильтра
+   * в окне выбора файла. Вид вкладки решает ядро (Р-180), и если списки
+   * разойдутся, окно будет предлагать открыть то, что откроется текстом.
+   */
+  it('картинки совпадают со списком в ядре', () => {
+    const declaration = /pub const IMAGE_EXTENSIONS[^=]*=\s*\[([^\]]*)\]/.exec(CORE);
+    expect(declaration, 'список картинок не найден в model/buffer.rs').not.toBeNull();
+
+    const core = [...declaration![1]!.matchAll(/"([^"]+)"/g)].map((m) => m[1]!);
+
+    expect(core.length).toBeGreaterThan(0);
+    expect([...core].sort()).toEqual([...IMAGE_EXTENSIONS].sort());
+  });
+
+  /**
+   * Векторная графика открывается текстом, и это решение (Р-192): показать
+   * её картинкой значит отнять возможность её править.
+   */
+  it('не считают картинкой векторную графику', () => {
+    expect(IMAGE_EXTENSIONS).not.toContain('svg');
   });
 
   /** «Все файлы» обязаны остаться: открывать мы умеем любой текст. */

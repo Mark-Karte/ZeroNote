@@ -23,9 +23,9 @@ pub type BufferId = u64;
 /// вкладка и сессия обязаны лежать в одном месте. Два списка разъехались бы
 /// на первом же перетаскивании вкладки — и разъехались бы молча.
 ///
-/// Видов пока два. `image` и `pdf` появятся в задачах 70 и 71 вместе со своим
-/// кодом: значение перечисления, которого никто не создаёт, — это ветка
-/// `match`, которая никогда не выполняется, и проверить её нечем.
+/// Видов три. `pdf` появится в задаче 71 вместе со своим кодом: значение
+/// перечисления, которого никто не создаёт, — это ветка `match`, которая
+/// никогда не выполняется, и проверить её нечем.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TabKind {
@@ -34,14 +34,79 @@ pub enum TabKind {
     Text,
     /// Параметры приложения. Ни файла, ни байтов, ни кодировки.
     Settings,
+    /// Картинка: файл есть, а текста в нём нет.
+    Image,
 }
 
+/// Что открывается картинкой, а не текстом.
+///
+/// Список канонический: по нему ядро решает вид вкладки, и он же зеркалится
+/// во фронтенд для фильтра в окне выбора файла. Сверяет их
+/// `tests/file-types.test.ts`.
+///
+/// **`svg` сюда не входит, и это решение** (Р-192). Формат векторной графики —
+/// это разметка, то есть текст; показать его картинкой значит отнять
+/// возможность его править, а мы редактор текста. Посмотреть на него можно
+/// в браузере, поправить — больше нигде.
+///
+/// `tif` и `tiff` не входят по другой причине: их не показывает сам движок
+/// окна, и вкладка вышла бы пустой.
+pub const IMAGE_EXTENSIONS: [&str; 8] = [
+    "png", "jpg", "jpeg", "gif", "webp", "bmp", "ico", "avif",
+];
+
 impl TabKind {
+    /// Каким видом открывать этот путь.
+    ///
+    /// По расширению, а не по содержимому файла: заглядывать внутрь пришлось бы
+    /// перед каждым открытием, а ошибиться подписью файла человек может ровно
+    /// так же, как ошибается расширением. Что делать с файлом, который назвался
+    /// картинкой, но ею не является, решает показ: он честно скажет, что
+    /// показать нечего.
+    pub fn for_path(path: &std::path::Path) -> TabKind {
+        let extension = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+
+        if IMAGE_EXTENSIONS.contains(&extension.as_str()) {
+            TabKind::Image
+        } else {
+            TabKind::Text
+        }
+    }
+
+    /// Тип содержимого для адреса `data:`.
+    ///
+    /// `None` — расширение не наше. Своя таблица, а не угадывание по байтам:
+    /// движок окна всё равно смотрит на содержимое сам, а тип в адресе нужен
+    /// ему лишь как подсказка.
+    pub fn image_mime(path: &std::path::Path) -> Option<&'static str> {
+        let extension = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+
+        Some(match extension.as_str() {
+            "png" => "image/png",
+            "jpg" | "jpeg" => "image/jpeg",
+            "gif" => "image/gif",
+            "webp" => "image/webp",
+            "bmp" => "image/bmp",
+            "ico" => "image/x-icon",
+            "avif" => "image/avif",
+            _ => return None,
+        })
+    }
+
     /// Как вид записывается в снимок сессии.
     pub fn as_str(self) -> &'static str {
         match self {
             TabKind::Text => "text",
             TabKind::Settings => "settings",
+            TabKind::Image => "image",
         }
     }
 
@@ -69,6 +134,7 @@ impl TabKind {
             // Пусто — снимок от версии, которая видов не знала: там всё текст.
             "" | "text" => Some(TabKind::Text),
             "settings" => Some(TabKind::Settings),
+            "image" => Some(TabKind::Image),
             _ => None,
         }
     }
@@ -142,6 +208,36 @@ impl Buffer {
             lossy: false,
             encoding_confident: true,
             disk: None,
+        }
+    }
+
+    /// Вкладка с картинкой.
+    ///
+    /// Файл у неё есть, а текста в нём нет: кодировка, переносы и признак
+    /// изменения к ней не относятся так же, как к вкладке параметров.
+    /// Состояние на диске хранится настоящее — из него берётся вес файла
+    /// для строки состояния, и по нему же видно, что файл подменили.
+    pub fn image(id: BufferId, path: PathBuf, disk: DiskState) -> Buffer {
+        let title = Buffer::title_for(&path);
+
+        Buffer {
+            id,
+            kind: TabKind::Image,
+            path: Some(path),
+            title,
+            // Значения ниже нейтральные и ничего не значат: смотреть на них
+            // может только тот, кто сначала проверил вид вкладки.
+            encoding: Encoding::Utf8,
+            bom: false,
+            eol: Eol::Lf,
+            eol_mixed: false,
+            modified: false,
+            // Правка запрещена: править картинку мы не умеем и не собираемся.
+            read_only: true,
+            large: false,
+            lossy: false,
+            encoding_confident: true,
+            disk: Some(disk),
         }
     }
 
@@ -273,6 +369,13 @@ impl Buffers {
 
         let id = self.take_id();
         self.items.push(Buffer::settings(id));
+        self.items.last().expect("буфер только что добавлен")
+    }
+
+    /// Вкладка с картинкой.
+    pub fn create_image(&mut self, path: PathBuf, disk: DiskState) -> &Buffer {
+        let id = self.take_id();
+        self.items.push(Buffer::image(id, path, disk));
         self.items.last().expect("буфер только что добавлен")
     }
 
@@ -523,11 +626,54 @@ mod tests {
         assert!(buffer.read_only);
     }
 
+    /// Картинка узнаётся по расширению, и регистр значения не имеет:
+    /// `СНИМОК.PNG` из проводника приходит ровно так.
+    #[test]
+    fn images_are_recognised_by_extension() {
+        use std::path::Path;
+
+        assert_eq!(TabKind::for_path(Path::new(r"C:\снимок.png")), TabKind::Image);
+        assert_eq!(TabKind::for_path(Path::new(r"C:\СНИМОК.PNG")), TabKind::Image);
+        assert_eq!(TabKind::for_path(Path::new("фото.JPEG")), TabKind::Image);
+        assert_eq!(TabKind::for_path(Path::new("заметка.md")), TabKind::Text);
+        assert_eq!(TabKind::for_path(Path::new("без-расширения")), TabKind::Text);
+        // Векторная графика — это разметка, и открывается она текстом (Р-192).
+        assert_eq!(TabKind::for_path(Path::new("значок.svg")), TabKind::Text);
+    }
+
+    /// У каждого расширения из списка есть тип содержимого: адрес `data:`
+    /// без него собрать нельзя.
+    #[test]
+    fn every_image_extension_has_a_mime_type() {
+        for extension in IMAGE_EXTENSIONS {
+            let path = std::path::PathBuf::from(format!("файл.{extension}"));
+            assert!(
+                TabKind::image_mime(&path).is_some(),
+                "нет типа содержимого для .{extension}"
+            );
+        }
+        assert_eq!(TabKind::image_mime(std::path::Path::new("a.md")), None);
+    }
+
+    /// У вкладки с картинкой есть файл и его вес, но нет ни правки,
+    /// ни содержимого для записи.
+    #[test]
+    fn image_tab_has_a_file_but_no_edits() {
+        let mut buffers = Buffers::new();
+        let buffer = buffers.create_image(PathBuf::from(r"C:\снимки\экран.png"), disk());
+
+        assert_eq!(buffer.kind, TabKind::Image);
+        assert_eq!(buffer.title, "экран.png");
+        assert!(!buffer.modified);
+        assert!(buffer.read_only);
+        assert_eq!(buffer.disk.map(|d| d.size), Some(10));
+    }
+
     /// Вид переживает запись в снимок и чтение обратно. Пустая строка —
     /// снимок прошлой версии, незнакомая — вкладка из будущей.
     #[test]
     fn kind_survives_the_session_file() {
-        for kind in [TabKind::Text, TabKind::Settings] {
+        for kind in [TabKind::Text, TabKind::Settings, TabKind::Image] {
             assert_eq!(TabKind::parse(&kind.to_snapshot()), Some(kind));
         }
 
@@ -536,7 +682,8 @@ mod tests {
             "текст в снимок не пишется: иначе прошлая версия его не прочитает"
         );
         assert_eq!(TabKind::parse(""), Some(TabKind::Text));
-        assert_eq!(TabKind::parse("image"), None, "вид из будущей версии");
+        // `pdf` появится в задаче 71 — пока это вид из будущей версии.
+        assert_eq!(TabKind::parse("pdf"), None, "вид из будущей версии");
     }
 
     #[test]

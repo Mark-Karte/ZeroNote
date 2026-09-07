@@ -8,6 +8,15 @@ use crate::fsx::atomic_save;
 use crate::settings::{self, Settings, edit};
 use crate::state::AppState;
 
+/// Открыть страницу «Приложения по умолчанию» на карточке ZeroNote.
+///
+/// Умолчание для `.md` назначает человек (Р-190); кнопка в параметрах лишь
+/// доводит его до нужной страницы, чтобы не искать её в системе руками.
+#[tauri::command]
+pub fn open_default_apps() -> Result<(), String> {
+    crate::fsx::reveal::default_apps()
+}
+
 /// Всё, что нужно окну параметров.
 #[derive(Debug, serde::Serialize)]
 #[serde(rename_all = "camelCase")]

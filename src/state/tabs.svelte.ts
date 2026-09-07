@@ -16,6 +16,7 @@ import {
   wrapCompartment,
 } from '../editor/setup';
 import { resolveIndent, type Indent } from '../editor/indent';
+import type { Scale } from '../ui/zoom';
 import { wrapFor } from '../editor/readable';
 import { livePreviewOn } from '../editor/live-preview';
 import { bookmarkLines } from '../editor/bookmarks';
@@ -89,11 +90,39 @@ export interface TabEditor {
   indent: Indent;
 }
 
+/**
+ * Состояние показа картинки — только у вкладки с картинкой.
+ *
+ * Байты здесь появляются, когда вкладка на экране, и исчезают, когда она
+ * с экрана уходит (Р-193): десять вкладок с картинками не должны означать
+ * десять картинок в памяти окна.
+ */
+export interface ImageState {
+  /**
+   * Адрес `data:`. `null` — байты ещё не спрошены или вкладки нет на экране.
+   */
+  source: string | null;
+  /** Почему показать нечего. `null` — всё в порядке. */
+  problem: string | null;
+  /** Настоящий размер в точках. Ноль — картинку ещё не разобрали. */
+  width: number;
+  height: number;
+  /** Масштаб показа. Переживает переключение вкладок — он свойство вкладки. */
+  scale: Scale;
+}
+
 export interface Tab {
   /** Сведения из ядра, включая вид вкладки (Р-180). */
   meta: Buffer;
-  /** `null` у вкладки, которая не текст: параметры, а дальше картинка и PDF. */
+  /** `null` у вкладки, которая не текст: параметры, картинка, дальше PDF. */
   editor: TabEditor | null;
+  /** `null` у вкладок всех прочих видов. */
+  image: ImageState | null;
+}
+
+/** Свежее состояние показа: вписать в окно, байтов ещё нет. */
+export function freshImage(): ImageState {
+  return { source: null, problem: null, width: 0, height: 0, scale: 'fit' };
 }
 
 /** Порядок в массиве — это порядок вкладок, такой же, как в ядре. */
@@ -349,6 +378,33 @@ function editors(): TabEditor[] {
     .filter((editor): editor is TabEditor => editor !== null);
 }
 
+/**
+ * Вкладка с картинкой.
+ *
+ * Байты здесь не появляются: их спросит показ, когда вкладка окажется
+ * на экране. Масштаб у уже открытой вкладки сохраняется — повторное открытие
+ * того же файла не повод сбрасывать то, что человек выбрал.
+ */
+function putImage(meta: Buffer): void {
+  const existing = tabById(meta.id);
+
+  if (existing) {
+    existing.meta = meta;
+    if (existing.image) {
+      // Файл могли подменить на диске — показ перечитает его заново.
+      existing.image.source = null;
+      existing.image.problem = null;
+    } else {
+      existing.image = freshImage();
+    }
+  } else {
+    tabs.items.push({ meta, editor: null, image: freshImage() });
+  }
+
+  tabs.activeId = meta.id;
+  noteStructureChange();
+}
+
 function put(
   meta: Buffer,
   text: string,
@@ -356,6 +412,13 @@ function put(
   scrollTop = 0,
   language: string | null = null,
 ): void {
+  // Вид решает, чем вкладка станет. Текста у картинки нет — ядро и не читало
+  // файл, оно вернуло одни сведения о нём.
+  if (meta.kind === 'image') {
+    putImage(meta);
+    return;
+  }
+
   // Отступ определяется один раз, по содержимому: перечитывать его на каждой
   // правке значило бы менять поведение `Tab` посреди набора.
   const indent = resolveIndent(text, indentSettings());
@@ -369,7 +432,7 @@ function put(
     existing.meta = meta;
     existing.editor = editor;
   } else {
-    tabs.items.push({ meta, editor });
+    tabs.items.push({ meta, editor, image: null });
   }
   tabs.activeId = meta.id;
   // Язык грузится и встаёт на место сам: ждать его открытие файла не должно.
@@ -557,9 +620,14 @@ async function restoreInner(): Promise<string[]> {
     const { text, cursor, scrollTop, language, bookmarks, ...meta } = item;
 
     // Вкладка, которая не текст, приезжает одним своим видом: ни состояния
-    // редактора, ни языка, ни отступа у неё нет и быть не может.
+    // редактора, ни языка, ни отступа у неё нет и быть не может. Картинке
+    // заводится состояние показа — пустое: байты возьмёт показ.
     if (meta.kind !== 'text') {
-      tabs.items.push({ meta, editor: null });
+      tabs.items.push({
+        meta,
+        editor: null,
+        image: meta.kind === 'image' ? freshImage() : null,
+      });
       continue;
     }
 
@@ -573,6 +641,7 @@ async function restoreInner(): Promise<string[]> {
     tabs.items.push({
       meta,
       editor: { state, scrollTop, language: language ?? null, indent },
+      image: null,
     });
     // Язык подтягивается в фоне: старт не должен ждать разбора парсеров.
     void applyLanguage(meta.id);
@@ -618,7 +687,7 @@ export async function openSettings(): Promise<void> {
   if (existing) {
     existing.meta = meta;
   } else {
-    tabs.items.push({ meta, editor: null });
+    tabs.items.push({ meta, editor: null, image: null });
   }
 
   tabs.activeId = meta.id;

@@ -17,6 +17,8 @@
   import { plural } from './plural';
   import { positionOf, positionLabel } from './position';
   import { indentLabel, indentSource } from '../editor/indent';
+  import { fileSize } from './size';
+  import { scaleLabel, ZOOM_STEPS, type Scale } from './zoom';
   import { commandList } from '../keymap/global.svelte';
   import { labelOf } from '../keymap/binding';
   import { goToLineDialog } from '../actions/navigate';
@@ -36,6 +38,9 @@
    * (Р-156).
    */
   const ed = $derived(tab?.editor ?? null);
+
+  /** Состояние показа картинки. `null` — вкладка не картинка. */
+  const img = $derived(tab?.image ?? null);
 
   /**
    * Сколько курсоров в активной вкладке.
@@ -83,7 +88,7 @@
 
   const ENCODING_LABEL = Object.fromEntries(ENCODINGS.map((e) => [e.id, e.label]));
 
-  type Menu = 'encoding' | 'eol' | 'language' | 'indent';
+  type Menu = 'encoding' | 'eol' | 'language' | 'indent' | 'scale';
 
   let openMenu = $state<Menu | null>(null);
   let anchorRect = $state<DOMRect | null>(null);
@@ -213,6 +218,37 @@
     }
   }
 
+  /**
+   * Масштаб картинки.
+   *
+   * «Вписать» стоит первым и без числа: оно зависит от размера окна
+   * и менялось бы при каждом перетаскивании края.
+   */
+  const scaleItems = $derived.by((): PopupItem[] => {
+    if (!img) return [];
+
+    return [
+      {
+        id: 'fit',
+        label: 'Вписать в окно',
+        section: 'Масштаб',
+        checked: img.scale === 'fit',
+        hint: 'Уменьшить до размеров окна. Маленькая картинка не растягивается.',
+      },
+      ...ZOOM_STEPS.map((step) => ({
+        id: String(step),
+        label: `${Math.round(step * 100)} %`,
+        checked: img.scale === step,
+      })),
+    ];
+  });
+
+  function pickScale(id: string): void {
+    openMenu = null;
+    if (!img) return;
+    img.scale = (id === 'fit' ? 'fit' : Number(id)) as Scale;
+  }
+
   /** Язык, действующий сейчас, и признак «выбран вручную». */
   const language = $derived(tab ? languageOf(tab) : null);
   const autoLanguage = $derived(
@@ -297,6 +333,31 @@
     <span class="item accent" title="Escape — вернуться к одному курсору">
       {cursors} {plural(cursors, 'курсор', 'курсора', 'курсоров')}
     </span>
+  {/if}
+
+  <!--
+    У картинки свои свойства и свои же три места в строке: настоящий размер,
+    вес файла и масштаб показа. Кодировки и переносов у неё нет (Р-180).
+  -->
+  {#if tab && img}
+    {#if img.width > 0}
+      <span class="item" title="Настоящий размер картинки в точках">
+        {img.width} × {img.height}
+      </span>
+    {/if}
+
+    {#if tab.meta.disk}
+      <span class="item" title="Вес файла на диске">{fileSize(tab.meta.disk.size)}</span>
+    {/if}
+
+    <button
+      class="item action"
+      type="button"
+      title="Масштаб показа. Щелчок по картинке переключает «по окну» и настоящий размер, Ctrl с колесом меняет ступенями."
+      onclick={(e) => toggle('scale', e)}
+    >
+      {scaleLabel(img.scale)}
+    </button>
   {/if}
 
   <!--
@@ -442,6 +503,15 @@
     items={indentItems}
     anchor={anchorRect}
     onpick={pickIndent}
+    onclose={() => (openMenu = null)}
+  />
+{/if}
+
+{#if openMenu === 'scale' && anchorRect}
+  <Popup
+    items={scaleItems}
+    anchor={anchorRect}
+    onpick={pickScale}
     onclose={() => (openMenu = null)}
   />
 {/if}
