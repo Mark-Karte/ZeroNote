@@ -11,7 +11,7 @@
 # Замеры на отладочной сборке бессмысленны и скриптом не поддерживаются.
 
 param(
-    [ValidateSet('all', 'startup', 'ipc', 'open', 'tree', 'index', 'highlight', 'live', 'media')]
+    [ValidateSet('all', 'startup', 'startup-session', 'ipc', 'open', 'tree', 'index', 'highlight', 'live', 'media')]
     [string]$Only = 'all',
 
     [int]$Runs = 9
@@ -134,6 +134,116 @@ function Measure-Startup {
     if ($warmMedian -gt 800) { Write-Host 'ПРЕВЫШЕНА цель тёплого старта' -ForegroundColor Red }
 }
 
+# Тёплый старт с заданной сессией: одна область против двух (этап 11).
+#
+# Обычный замер идёт с пустой сессией, и второе представление в него
+# не попадает вовсе. Здесь сессия подставляется своя, с двумя одинаковыми
+# файлами, в двух вариантах — обе вкладки в одной области и по вкладке
+# в каждой из двух. Разница между вариантами — цена второго представления
+# на старте; сравнивать эти числа с обычным тёплым стартом нельзя,
+# у них другая сессия.
+function Measure-StartupSession {
+    $reportPath = Join-Path $outDir 'startup-session.txt'
+    $fixtures = Join-Path $outDir 'session'
+    New-Item -ItemType Directory -Force -Path $fixtures | Out-Null
+
+    $utf8 = New-Object System.Text.UTF8Encoding($false)
+    $sample = "# Заметка`n`nАбзац с **жирным** и *курсивом*, ссылка [[Другая]].`n`n| а | б |`n|---|---|`n| 1 | 2 |`n`n"
+    $text = $sample * 200
+    $one = Join-Path $fixtures 'one.md'
+    $two = Join-Path $fixtures 'two.md'
+    [System.IO.File]::WriteAllText($one, $text, $utf8)
+    [System.IO.File]::WriteAllText($two, $text, $utf8)
+
+    $buffers = @"
+
+[[workspaces.buffers]]
+id = 1
+path = '$one'
+title = "one.md"
+encoding = "utf8"
+eol = "lf"
+
+[[workspaces.buffers]]
+id = 2
+path = '$two'
+title = "two.md"
+encoding = "utf8"
+eol = "lf"
+"@
+
+    $head = @"
+schema = 1
+
+[[workspaces]]
+active = 1
+next-id = 3
+next-untitled = 1
+next-root-id = 1
+sidebar = false
+sidebar-width = 0
+sidebar-panel = ""
+"@
+
+    $layout = @"
+
+[workspaces.layout]
+active-pane = 2
+next-id = 4
+
+[workspaces.layout.root.split]
+id = 3
+direction = "row"
+ratio = 0.5
+
+[workspaces.layout.root.split.first.pane]
+id = 1
+tabs = [1]
+active = 1
+
+[workspaces.layout.root.split.second.pane]
+id = 2
+tabs = [2]
+active = 2
+"@
+
+    $variants = @(
+        @{ Name = 'одна область, две вкладки'; Toml = $head + $buffers },
+        @{ Name = 'две области, по вкладке   '; Toml = $head + $layout + $buffers }
+    )
+
+    Write-Host ''
+    Write-Host '=== Тёплый старт с сессией: одна область против двух ===' -ForegroundColor Cyan
+    Write-Host ''
+    Write-Host 'Сессия подставляется своя, с двумя одинаковыми файлами markdown.' -ForegroundColor DarkGray
+    Write-Host 'С обычным тёплым стартом эти числа не сравниваются: сессия другая.' -ForegroundColor DarkGray
+    Write-Host ''
+
+    $session = Join-Path $dataDir 'session.toml'
+    $stashed = "$session.bench"
+    $hadSession = Test-Path $session
+    if ($hadSession) { Move-Item $session $stashed -Force }
+
+    try {
+        foreach ($variant in $variants) {
+            [System.IO.File]::WriteAllText($session, $variant.Toml, $utf8)
+
+            # Первый запуск после подмены сессии — разогрев, в медиану не идёт.
+            Invoke-StartupRun -ReportPath $reportPath | Out-Null
+            $wall = @()
+            for ($i = 1; $i -lt $Runs; $i++) {
+                $r = Invoke-StartupRun -ReportPath $reportPath
+                $wall += $r.WallMs
+            }
+            Write-Host ('{0}: {1,7:N0} мс (медиана), {2,7:N0} мс (мин)' -f $variant.Name, (Get-Median $wall), ($wall | Measure-Object -Minimum).Minimum)
+        }
+    }
+    finally {
+        Remove-Item $session -Force -ErrorAction SilentlyContinue
+        if ($hadSession) { Move-Item $stashed $session -Force }
+    }
+}
+
 function Measure-InApp {
     param([string]$Mode, [string]$Title, [string]$FileName)
 
@@ -159,6 +269,7 @@ function Measure-InApp {
 }
 
 if ($Only -eq 'all' -or $Only -eq 'startup') { Measure-Startup }
+if ($Only -eq 'all' -or $Only -eq 'startup-session') { Measure-StartupSession }
 if ($Only -eq 'all' -or $Only -eq 'open') {
     Measure-InApp -Mode 'open' -Title 'Открытие файла: диск, кодировка, раскодирование' -FileName 'open.md'
     Write-Host 'Цель: файл 5 МБ <= 500 мс' -ForegroundColor DarkGray

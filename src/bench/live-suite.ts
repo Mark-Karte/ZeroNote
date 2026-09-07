@@ -4,8 +4,15 @@ import { EditorView } from '@codemirror/view';
 import { syntaxTree, type LanguageSupport } from '@codemirror/language';
 
 import { languageById } from '../editor/langs';
-import { editorView } from '../editor/current';
-import { activeTabId } from '../state/panes.svelte';
+import { editorView, editorViewOf } from '../editor/current';
+import {
+  activePane,
+  activeTabId,
+  closePane,
+  paneById,
+  setActivePane,
+  split,
+} from '../state/panes.svelte';
 import { syntaxColors } from '../theme/syntax';
 import { benchStartIndex, benchStopIndex } from '../ipc/bench';
 import { indexProgress } from '../ipc/index';
@@ -274,6 +281,85 @@ async function openRealTab(
   );
 }
 
+const MARKDOWN_SAMPLE = `# Заметка рядом
+
+Текст с **жирным**, *курсивом* и \`кодом\`. Ссылка [[Другая заметка]].
+
+| Столбец | Ещё |
+|---|---|
+| раз | два |
+
+> [!tip] Совет
+> Превью включено, и таблица показывается сеткой.
+
+`;
+
+/**
+ * Ввод в вкладку, когда рядом открыта вторая область с markdown и превью.
+ *
+ * Вторая область создаётся разделением, файл в ней — новый буфер
+ * с языком markdown; печать идёт в исходную вкладку, вторая только видна.
+ * По окончании область закрывается, а её буфер — вместе с ней.
+ */
+async function measureBeside(real: { id: number; view: EditorView }): Promise<Samples> {
+  const home = activePane().id;
+  const beside = await split(home, 'row', null);
+  await createEmpty(MARKDOWN_SAMPLE.repeat(200));
+  const besideTab = activeTab();
+  if (!besideTab?.editor) throw new Error('вкладка markdown не открылась');
+  setLanguage(besideTab.meta.id, 'markdown');
+  setActivePane(home);
+  await tick();
+  await nextFrame();
+
+  try {
+    // Своё представление берётся заново: разделение пересоздало область.
+    const view = editorViewOf(home);
+    if (!view || view.state.doc.length < real.view.state.doc.length) {
+      throw new Error('после разделения представление вкладки не на месте');
+    }
+    return await typeInto(view);
+  } finally {
+    // Буфер соседней области закрывается совсем: он только в ней, и закрыть
+    // его — значит и убрать область (Р-211).
+    await close(besideTab.meta.id);
+    if (paneById(beside)) await closePane(beside);
+    setActivePane(home);
+  }
+}
+
+/**
+ * Ввод в зеркало той же вкладки (Р-209): правка едет в главное состояние
+ * и оттуда обратно — это и меряется. Главное при этом на экране в соседней
+ * области, то есть перерисовываются оба представления.
+ */
+async function measureMirror(real: { id: number; view: EditorView }): Promise<Samples> {
+  const home = activePane().id;
+  const mirrorPane = await split(home, 'row', real.id);
+
+  try {
+    // Длина сверяется с живым главным, а не с прежней ссылкой: та могла
+    // остаться от представления, пересозданного при прошлом разделении,
+    // и отставать от документа на всё, что напечатали после.
+    let view: EditorView | null = null;
+    for (let attempt = 0; attempt < 600; attempt += 1) {
+      const candidate = editorViewOf(mirrorPane);
+      const primary = editorViewOf(home);
+      if (candidate && primary && candidate.state.doc.length === primary.state.doc.length) {
+        view = candidate;
+        break;
+      }
+      await nextFrame();
+    }
+    if (!view) throw new Error('зеркало не смонтировалось');
+    await toMiddle(view);
+    return await typeInto(view);
+  } finally {
+    if (paneById(mirrorPane)) await closePane(mirrorPane);
+    setActivePane(home);
+  }
+}
+
 export async function runLiveSuite(): Promise<Result> {
   const language = languageById('cpp');
   if (!language) throw new Error('в реестре нет языка cpp');
@@ -298,6 +384,25 @@ export async function runLiveSuite(): Promise<Result> {
     await toMiddle(real.view);
 
     rows.push(row('через вкладку, в покое', await typeInto(real.view)));
+
+    // Области (этап 11). Две строки: соседняя область показывает другой
+    // файл — markdown с превью, — и соседняя область показывает зеркало
+    // этой же вкладки (Р-209). Первая отвечает на вопрос «стоит ли второе
+    // представление чего-нибудь, когда в него не печатают», вторая —
+    // «сколько стоит рассылка правки в зеркало».
+    rows.push(row('через вкладку, рядом область с markdown', await measureBeside(real)));
+    rows.push(row('в зеркале той же вкладки', await measureMirror(real)));
+
+    // Разделение и схлопывание пересоздают область вместе с её
+    // представлением: дерево рисуется так, как хранится, и узел «область»
+    // на месте узла «разделение» — новый компонент. Прежняя ссылка ведёт
+    // в уничтоженное представление, и печатать в него — мерить пустоту.
+    // Нашлось первым прогоном стенда: зеркало «не монтировалось».
+    const fresh = editorViewOf(activePane().id);
+    if (!fresh || fresh.state.doc.length < doc.length) {
+      throw new Error('после областей представление вкладки не на месте');
+    }
+    real.view = fresh;
 
     fixture = await benchStartIndex();
 

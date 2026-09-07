@@ -9,9 +9,12 @@
 # Сценарий:
 #   1. Запустить с файлом на диске, дописать в него текст (не сохраняя).
 #   2. Создать буфер без файла и напечатать в него текст.
+#   2а. Разделить область (этап 11): раскладка — часть сессии, и после
+#       аварии обязана вернуться вместе с вкладками.
 #   3. Подождать сброса черновиков.
 #   4. Убить процесс — Stop-Process -Force, то есть TerminateProcess.
-#   5. Запустить снова и убедиться, что обе вкладки на месте с их текстом.
+#   5. Запустить снова и убедиться, что обе вкладки на месте с их текстом,
+#      а областей в снимке две.
 #
 # Требует собранного релизного бинарника: npm run tauri build
 
@@ -81,6 +84,14 @@ Write-Host 'Новый буфер без файла...' -ForegroundColor Cyan
 Send-Keys '^n'
 Send-Keys $MARK_NEW
 
+# --- Шаг 2а: делим область --------------------------------------------------
+
+# Сочетание — через стенд, а не через SendKeys: тот шлёт нажатие без
+# скан-кода, а раскладка приложения держится на `event.code`.
+Write-Host 'Разделение области (Ctrl+\)...' -ForegroundColor Cyan
+& powershell -File (Join-Path $PSScriptRoot 'ui\keys.ps1') -At '600,400' -Chord 'ctrl+backslash' | Out-Null
+Start-Sleep -Milliseconds 800
+
 # --- Шаг 3: ждём сброса черновиков ------------------------------------------
 
 Write-Host 'Ожидание сброса черновиков (задержка 2 с)...' -ForegroundColor Cyan
@@ -114,14 +125,20 @@ $hasNewBuffer = @($texts | Where-Object { $_ -like "*$MARK_NEW*" }).Count -gt 0
 
 $session = Get-Content (Join-Path $data 'session.toml') -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
 
+# Раскладка: после перезапуска снимок переписан заново из восстановленного
+# состояния, и число областей в нём — то, что вернулось (Р-207).
+$panes = ([regex]::Matches($session, '\.pane\]')).Count
+$layoutRestored = $panes -eq 2
+
 Write-Host ''
 Write-Host '=== Итог ===' -ForegroundColor Cyan
 Write-Host ("Правка в файле восстановлена   : {0}" -f $hasFileEdit)
 Write-Host ("Буфер без файла восстановлен   : {0}" -f $hasNewBuffer)
 Write-Host ("Файл на диске остался нетронут : {0}" -f $fileUntouched)
 Write-Host ("Вкладок в снимке сессии        : {0}" -f ([regex]::Matches($session, '\[\[workspaces\.buffers\]\]')).Count)
+Write-Host ("Областей в снимке сессии       : {0}" -f $panes)
 
-if ($hasFileEdit -and $hasNewBuffer -and $fileUntouched) {
+if ($hasFileEdit -and $hasNewBuffer -and $fileUntouched -and $layoutRestored) {
     Write-Host 'ИНВАРИАНТ 4 ВЫПОЛНЕН' -ForegroundColor Green
 } else {
     Write-Host 'ИНВАРИАНТ 4 НАРУШЕН' -ForegroundColor Red
