@@ -589,12 +589,42 @@ pub fn image_source(state: tauri::State<'_, AppState>, id: BufferId) -> Fallible
             .ok_or_else(|| "у вкладки нет файла на диске".to_owned())?
     };
 
-    let mime = TabKind::image_mime(&path)
-        .ok_or_else(|| "неизвестный вид картинки".to_owned())?;
+    image_data_url(&path)
+}
+
+/// Картинка из заметки — для живого превью markdown (задача 72).
+///
+/// Путь приходит таким, каким его написали в `![подпись](рисунок.png)`, и всё
+/// про него решает ядро: относительный считается от папки заметки, абсолютный
+/// берётся как есть. Гадать об этом во фронтенде нельзя — там нет ни файловой
+/// системы, ни правил разбора путей Windows.
+///
+/// Читается тем же путём, что и вкладка с картинкой: один предел, один список
+/// видов, один способ отдать байты (Р-201).
+#[tauri::command]
+pub fn preview_image(link: String, base: Option<String>) -> Fallible<String> {
+    let link = PathBuf::from(link);
+
+    let path = if link.is_absolute() {
+        link
+    } else {
+        let note = base.ok_or_else(|| "заметка ещё не сохранена на диск".to_owned())?;
+        PathBuf::from(note)
+            .parent()
+            .ok_or_else(|| "у заметки нет папки".to_owned())?
+            .join(link)
+    };
+
+    image_data_url(&path)
+}
+
+/// Байты картинки адресом `data:` — общая часть вкладки и превью.
+fn image_data_url(path: &std::path::Path) -> Fallible<String> {
+    let mime = TabKind::image_mime(path).ok_or_else(|| "неизвестный вид картинки".to_owned())?;
 
     // Размер спрашивается до чтения: смысл предела в том, чтобы не прочитать
     // в память то, что показать всё равно нельзя.
-    let size = std::fs::metadata(&path)
+    let size = std::fs::metadata(path)
         .map_err(|e| format!("не удалось прочитать {}: {e}", path.display()))?
         .len();
 
@@ -606,7 +636,7 @@ pub fn image_source(state: tauri::State<'_, AppState>, id: BufferId) -> Fallible
         ));
     }
 
-    let bytes = std::fs::read(&path)
+    let bytes = std::fs::read(path)
         .map_err(|e| format!("не удалось прочитать {}: {e}", path.display()))?;
 
     Ok(format!(

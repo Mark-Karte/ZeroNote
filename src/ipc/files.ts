@@ -86,6 +86,16 @@ export const imageSource = (id: number): Promise<string> => invoke('image_source
 export const pdfBytes = (id: number): Promise<ArrayBuffer> => invoke('pdf_bytes', { id });
 
 /**
+ * Картинка из заметки адресом `data:` — для живого превью markdown.
+ *
+ * `link` — путь, как его написали в разметке; `base` — путь к самой заметке,
+ * от папки которой считается относительный. Разбирает путь ядро: в окне нет
+ * ни файловой системы, ни правил разбора путей Windows.
+ */
+export const previewImage = (link: string, base: string | null): Promise<string> =>
+  invoke('preview_image', { link, base });
+
+/**
  * Открыть страницу «Приложения по умолчанию» на карточке ZeroNote.
  *
  * Умолчание назначает человек (Р-190) — кнопка лишь доводит до нужной

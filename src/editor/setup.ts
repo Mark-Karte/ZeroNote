@@ -152,9 +152,18 @@ export function invisiblesExtension(enabled: boolean): Extension {
  */
 export const livePreviewCompartment = new Compartment();
 
-/** Что кладётся в отсек живого превью. */
-export function livePreviewExtension(enabled: boolean): Extension {
-  return enabled ? livePreview() : [];
+/**
+ * Что кладётся в отсек живого превью.
+ *
+ * Путь к заметке нужен картинкам: от её папки считается относительный путь
+ * в `![подпись](рисунок.png)`. Функцией, а не значением, — «сохранить как»
+ * меняет путь, и превью обязано следовать за ним без пересоздания состояния.
+ */
+export function livePreviewExtension(
+  enabled: boolean,
+  sourcePath: () => string | null = () => null,
+): Extension {
+  return enabled ? livePreview(sourcePath) : [];
 }
 
 /**
@@ -245,7 +254,7 @@ export function extensionsFor(meta: Buffer, options: EditorOptions): Extension[]
     // верное умолчание. Значение приходит из настроек, переключается на лету.
     wrapCompartment.of(options.wrap ? EditorView.lineWrapping : []),
     invisiblesCompartment.of(invisiblesExtension(options.invisibles)),
-    livePreviewCompartment.of(livePreviewExtension(options.livePreview)),
+    livePreviewCompartment.of(livePreviewExtension(options.livePreview, options.sourcePath)),
 
     // Подсветка парной скобки. Пару ищет разбор языка: скобка внутри строки
     // или комментария парой не считается. Где дерева нет — простым просмотром

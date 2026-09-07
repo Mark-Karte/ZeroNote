@@ -369,7 +369,7 @@ export function applyLivePreview(): void {
     const editor = tab.editor;
     if (!editor) continue;
 
-    const extension = livePreviewExtension(livePreviewOf(tab));
+    const extension = livePreviewExtension(livePreviewOf(tab), () => tab.meta.path);
     editor.state = editor.state.update({
       effects: livePreviewCompartment.reconfigure(extension),
     }).state;

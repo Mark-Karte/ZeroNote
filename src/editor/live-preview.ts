@@ -11,6 +11,7 @@ import {
 
 import { icon } from '../icons/registry';
 import { CALLOUT_ICON, parseCallout, type CalloutKind } from './callouts';
+import { ImageWidget, localTarget } from './images';
 import { wikilinkSpans } from './wikilinks';
 
 /**
@@ -113,6 +114,11 @@ function spacesAfter(state: EditorState, at: number, limit: number): number {
 export function decorateLivePreview(
   state: EditorState,
   ranges: readonly { from: number; to: number }[],
+  /**
+   * Путь к самой заметке: от её папки считается относительный путь картинки.
+   * `null` — заметку ещё не сохранили, и считать не от чего.
+   */
+  sourcePath: () => string | null = () => null,
 ): DecorationSet {
   const found: Range<Decoration>[] = [];
   const tree = syntaxTree(state);
@@ -189,11 +195,45 @@ export function decorateLivePreview(
           return;
         }
 
+        // Картинка показывается картинкой: вся запись `![подпись](файл.png)`
+        // заменяется рисунком (задача 72).
+        //
+        // Единица раскрытия здесь — вся запись, а не знак (Р-184): курсор
+        // на строке возвращает исходник целиком, и этим же ответом закрыт
+        // вопрос «как удалить картинку» — стереть строку.
+        if (node.name === 'Image') {
+          const line = doc.lineAt(node.from);
+          if (touched(state, line)) return false;
+
+          const url = node.node.getChild('URL');
+          if (!url) return false;
+
+          // Сетевой адрес не загружается никогда (Р-202): открыв чужую
+          // заметку, человек не просил ходить в сеть. Такая запись остаётся
+          // исходником — по нему сразу видно, почему картинки нет.
+          const link = localTarget(doc.sliceString(url.from, url.to));
+          if (link === null) return false;
+
+          // Подпись — то, что между `![` и `]`. Границы берутся у знаков,
+          // а не отсчитываются от края: `![` это два знака, а `]` может быть
+          // где угодно.
+          const marks = node.node.getChildren('LinkMark');
+          const alt =
+            marks.length >= 2 ? doc.sliceString(marks[0]!.to, marks[1]!.from) : '';
+
+          found.push(
+            Decoration.replace({
+              widget: new ImageWidget(link, sourcePath(), alt),
+            }).range(node.from, node.to),
+          );
+          // Внутрь не спускаемся: знаки и адрес уже заменены целиком.
+          return false;
+        }
+
         // Ссылка показывается своим текстом: скобки и адрес прячутся.
         //
-        // Только `Link`. У картинки узлы те же, но прятать у неё нечего:
-        // без адреса от `![подпись](файл.png)` осталась бы подпись, ведущая
-        // в никуда. Картинки — этап 10, вместе со вкладкой для них.
+        // Только `Link`. У картинки узлы те же, и разбирается она выше —
+        // целиком, а не по знакам.
         if ((node.name === 'LinkMark' || node.name === 'URL') && parent?.name === 'Link') {
           if (!insideWiki(node.from)) hide(node.from, node.to);
           return;
@@ -263,13 +303,13 @@ export function decorateLivePreview(
  * Пересборка идёт и на смену выделения — без этого правило строки под
  * курсором не работает вовсе.
  */
-export function livePreview() {
+export function livePreview(sourcePath: () => string | null = () => null) {
   return ViewPlugin.fromClass(
     class {
       decorations: DecorationSet;
 
       constructor(view: EditorView) {
-        this.decorations = decorateLivePreview(view.state, view.visibleRanges);
+        this.decorations = decorateLivePreview(view.state, view.visibleRanges, sourcePath);
       }
 
       update(update: ViewUpdate) {
@@ -285,7 +325,11 @@ export function livePreview() {
           update.selectionSet ||
           syntaxTree(update.startState) !== syntaxTree(update.state)
         ) {
-          this.decorations = decorateLivePreview(update.view.state, update.view.visibleRanges);
+          this.decorations = decorateLivePreview(
+            update.view.state,
+            update.view.visibleRanges,
+            sourcePath,
+          );
         }
       }
     },

@@ -186,6 +186,7 @@ pub fn run() {
             commands::files::reveal_path,
             commands::files::split_paths,
             commands::files::image_source,
+            commands::files::preview_image,
             commands::files::pdf_bytes,
             commands::files::clipboard_text,
             commands::entries::create_entry,
