@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import type { Layout } from './layout';
 
 export type EncodingId =
   | 'utf8'
@@ -162,11 +163,11 @@ export const acceptExternal = (id: number): Promise<Buffer> =>
 export const markDetached = (id: number): Promise<Buffer> =>
   invoke('mark_detached', { id });
 
-export const closeBuffer = (id: number): Promise<boolean> =>
-  invoke('close_buffer', { id });
-
-export const reorderBuffer = (id: number, to: number): Promise<Buffer[]> =>
-  invoke('reorder_buffer', { id, to });
+/**
+ * Закрыть буфер совсем. Возвращает раскладку: закрытие могло схлопнуть
+ * область (Р-211), и фронтенду нужна новая форма окна.
+ */
+export const closeBuffer = (id: number): Promise<Layout> => invoke('close_buffer', { id });
 
 export const listEncodings = (): Promise<EncodingOption[]> => invoke('list_encodings');
 
@@ -191,7 +192,8 @@ export interface RestoredBuffer extends BufferWithText {
 
 export interface RestoredSession {
   buffers: RestoredBuffer[];
-  active: number | null;
+  /** Дерево областей с порядком вкладок и активной вкладкой (Р-207). */
+  layout: Layout;
   roots: import('./roots').Root[];
   sidebar: boolean;
   /** Ноль — ширина не подгонялась, действует значение из темы. */
@@ -201,14 +203,16 @@ export interface RestoredSession {
   notices: string[];
 }
 
+/**
+ * Записать снимок сессии. Активная вкладка и порядок вкладок не передаются:
+ * ими владеет раскладка в ядре (Р-207).
+ */
 export const saveSession = (
   views: ViewState[],
-  active: number | null,
   sidebar: boolean,
   sidebarWidth: number,
   sidebarPanel: string,
-): Promise<void> =>
-  invoke('save_session', { views, active, sidebar, sidebarWidth, sidebarPanel });
+): Promise<void> => invoke('save_session', { views, sidebar, sidebarWidth, sidebarPanel });
 
 export const flushDrafts = (entries: { id: number; text: string }[]): Promise<void> =>
   invoke('flush_drafts', { entries });

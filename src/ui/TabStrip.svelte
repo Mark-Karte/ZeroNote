@@ -3,7 +3,9 @@
   import { kindOf, iconForKind } from '../icons/files';
   import type { IconName } from '../icons/registry';
   import type { Buffer } from '../ipc/files';
-  import { tabs, setActive, moveLocal, commitOrder, tabById } from '../state/tabs.svelte';
+  import { tabs, tabById, type Tab } from '../state/tabs.svelte';
+  import { setActiveTab, reorderLocal, commitReorder } from '../state/panes.svelte';
+  import type { PaneNode } from '../ipc/layout';
   // Закрытие идёт через действие, а не напрямую через состояние: только там
   // спрашивают про несохранённые правки.
   import { closeTab, closeOtherTabs, revealInExplorer } from '../actions/files';
@@ -20,6 +22,18 @@
    * изображение, по-разному ведёт себя в разных движках и не даёт
    * отследить положение точно. Здесь же всё под контролем.
    */
+  /** Чья это полоса: у каждой области своя (Р-210). */
+  let { pane }: { pane: PaneNode } = $props();
+
+  /**
+   * Вкладки области в её порядке. Порядок — свойство области, а список
+   * вкладок — реестр окна; вкладка, которой в реестре нет, не рисуется:
+   * такое бывает на мгновение между двумя ответами ядра.
+   */
+  const visible = $derived(
+    pane.tabs.map((id) => tabById(id)).filter((tab): tab is Tab => tab !== null),
+  );
+
   let strip: HTMLDivElement;
 
   /** Нажатие произошло, но перетаскиванием ещё не стало. */
@@ -57,7 +71,7 @@
     }
     if (event.button !== 0) return;
 
-    setActive(id);
+    setActiveTab(pane.id, id);
     pressed = { id, startX: event.clientX };
     (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
   }
@@ -81,14 +95,14 @@
 
     const target = nextIndex(measure(), dragging, event.clientX);
     if (target !== null) {
-      moveLocal(dragging, target);
+      reorderLocal(pane.id, dragging, target);
     }
   }
 
   function finishDrag(): void {
     // Итоговый порядок уходит в ядро один раз, а не на каждый шаг мыши.
     if (dragging !== null) {
-      void commitOrder(dragging);
+      void commitReorder(pane.id, dragging);
     }
     pressed = null;
     dragging = null;
@@ -103,7 +117,7 @@
    * по которой щёлкнули. Notepad++ делает так же.
    */
   function onContextMenu(event: MouseEvent, id: number): void {
-    setActive(id);
+    setActiveTab(pane.id, id);
 
     const tab = tabById(id);
     if (!tab) return;
@@ -164,15 +178,15 @@
 </script>
 
 <div class="strip" bind:this={strip} role="tablist">
-  {#each tabs.items as tab (tab.meta.id)}
+  {#each visible as tab (tab.meta.id)}
     <div
       class="tab"
-      class:active={tab.meta.id === tabs.activeId}
+      class:active={tab.meta.id === pane.active}
       class:dragging={tab.meta.id === dragging}
       data-tab-id={tab.meta.id}
       role="tab"
       tabindex="-1"
-      aria-selected={tab.meta.id === tabs.activeId}
+      aria-selected={tab.meta.id === pane.active}
       title={tab.meta.path ?? tab.meta.title}
       onpointerdown={(e) => onPointerDown(e, tab.meta.id)}
       oncontextmenu={(e) => onContextMenu(e, tab.meta.id)}

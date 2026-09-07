@@ -5,6 +5,7 @@ import { syntaxTree, type LanguageSupport } from '@codemirror/language';
 
 import { languageById } from '../editor/langs';
 import { editorView } from '../editor/current';
+import { activeTabId } from '../state/panes.svelte';
 import { syntaxColors } from '../theme/syntax';
 import { benchStartIndex, benchStopIndex } from '../ipc/bench';
 import { indexProgress } from '../ipc/index';
@@ -234,7 +235,7 @@ async function openRealTab(
       .join(', ');
     throw new Error(
       `вкладка создана пустой: в активной ${tab.editor.state.doc.length} знаков вместо ${doc.length};` +
-        ` активная ${tabs.activeId}; все вкладки — ${all}`,
+        ` активная ${activeTabId()}; все вкладки — ${all}`,
     );
   }
   // Буфер без файла на диске имени языка не подсказывает, а мерить надо

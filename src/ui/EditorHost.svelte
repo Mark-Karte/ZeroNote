@@ -3,7 +3,8 @@
   import { EditorView } from '@codemirror/view';
   import { EditorState } from '@codemirror/state';
   import { undoDepth, redoDepth } from '@codemirror/commands';
-  import { tabs, tabById, activeTab, languageOf } from '../state/tabs.svelte';
+  import { tabById, activeTab, languageOf } from '../state/tabs.svelte';
+  import { paneById } from '../state/panes.svelte';
   import { setEditorView } from '../editor/current';
   import { canFold, canUnfold } from '../editor/folding';
   import { bookmarkedHere } from '../editor/bookmarks';
@@ -14,6 +15,14 @@
   import { commandList } from '../keymap/global.svelte';
   import { runCommand } from '../keymap/registry';
   import '../editor/editor.css';
+
+  /**
+   * В какой области живёт это представление (Р-208).
+   *
+   * Представление одно на область, а не на окно, и показывает оно активную
+   * вкладку своей области — не окна. Пока область одна, это одно и то же.
+   */
+  let { pane }: { pane: number } = $props();
 
   let host: HTMLDivElement;
   /**
@@ -77,7 +86,7 @@
     view.scrollDOM.addEventListener('scroll', onScroll, { passive: true });
 
     // Командам правки нужен доступ к редактору из обычного кода.
-    setEditorView(view);
+    setEditorView(pane, view);
   });
 
   /**
@@ -147,7 +156,7 @@
     view?.scrollDOM.removeEventListener('scroll', onScroll);
     view?.destroy();
     view = null;
-    setEditorView(null);
+    setEditorView(pane, null);
   });
 
   /**
@@ -164,7 +173,9 @@
    * состояние представления, поэтому ничего не происходит.
    */
   $effect(() => {
-    const id = tabs.activeId;
+    // Активная вкладка своей области, а не окна: соседняя область
+    // показывает своё, и её фокус этому представлению не указ.
+    const id = paneById(pane)?.active ?? null;
     const tab = id === null ? null : tabById(id);
     // У вкладки, которая не текст, состояния нет — но и этого компонента
     // над ней нет: рабочую область занимает её собственный экран.

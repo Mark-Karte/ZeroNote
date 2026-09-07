@@ -36,8 +36,29 @@ vi.mock('../src/ipc/files', () => ({
   })),
   setModified: vi.fn(async () => undefined),
   openFile: vi.fn(),
-  closeBuffer: vi.fn(async () => true),
+  closeBuffer: vi.fn(async () => EMPTY_LAYOUT),
   restoreSession: vi.fn(),
+}));
+
+// Раскладка одной пустой области — то, с чего начинается всякое окно.
+const EMPTY_LAYOUT = {
+  root: { kind: 'pane' as const, id: 1, tabs: [] as number[], active: null },
+  activePane: 1,
+  nextId: 2,
+};
+
+// Команды раскладки подменены тем же деревом: тест про содержимое вкладки,
+// а не про форму окна. «Сделать активной» ядро подтверждает молча.
+vi.mock('../src/ipc/layout', () => ({
+  setActiveTab: vi.fn(async () => EMPTY_LAYOUT),
+  setActivePane: vi.fn(async () => EMPTY_LAYOUT),
+  reorderTab: vi.fn(async () => EMPTY_LAYOUT),
+  removeTab: vi.fn(async () => EMPTY_LAYOUT),
+  splitPane: vi.fn(async () => EMPTY_LAYOUT),
+  closePane: vi.fn(async () => EMPTY_LAYOUT),
+  moveTab: vi.fn(async () => EMPTY_LAYOUT),
+  setSplitRatio: vi.fn(async () => EMPTY_LAYOUT),
+  layoutState: vi.fn(async () => EMPTY_LAYOUT),
 }));
 
 vi.mock('../src/state/persist.svelte', () => ({
@@ -65,6 +86,7 @@ vi.mock('../src/state/roots.svelte', () => ({
 }));
 
 const { activeTab, createEmpty, tabs } = await import('../src/state/tabs.svelte');
+const { applyLayout } = await import('../src/state/panes.svelte');
 const { setEditorView } = await import('../src/editor/current');
 
 /**
@@ -89,8 +111,10 @@ function viewShowing(text: string): EditorView {
 describe('содержимое новой вкладки', () => {
   beforeEach(() => {
     tabs.items = [];
-    tabs.activeId = null;
-    setEditorView(null);
+    // Свежая копия: `applyLayout` кладёт объект как есть, и общий на все
+    // тесты он унёс бы вкладки одного теста в следующий.
+    applyLayout(structuredClone(EMPTY_LAYOUT));
+    setEditorView(1, null);
   });
 
   it('сохраняется, когда представления ещё нет', async () => {
@@ -100,7 +124,7 @@ describe('содержимое новой вкладки', () => {
   });
 
   it('сохраняется, когда в представлении лежит другая вкладка', async () => {
-    setEditorView(viewShowing('содержимое прошлой вкладки'));
+    setEditorView(1, viewShowing('содержимое прошлой вкладки'));
 
     await createEmpty('текст вкладки');
 
@@ -108,7 +132,7 @@ describe('содержимое новой вкладки', () => {
   });
 
   it('вкладка помечается изменённой: содержимое есть только в памяти', async () => {
-    setEditorView(viewShowing('содержимое прошлой вкладки'));
+    setEditorView(1, viewShowing('содержимое прошлой вкладки'));
 
     await createEmpty('текст вкладки');
 

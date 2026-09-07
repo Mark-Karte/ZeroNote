@@ -1,6 +1,7 @@
 <script lang="ts">
   import Icon from '../Icon.svelte';
   import { tabs, setActive } from '../../state/tabs.svelte';
+  import { activeTabId } from '../../state/panes.svelte';
   import { editorView } from '../../editor/current';
   import { goToLine } from '../../editor/commands';
   import { bookmarkLines } from '../../editor/bookmarks';
@@ -49,7 +50,7 @@
   );
 
   function go(tabId: number, line: number): void {
-    if (tabs.activeId !== tabId) setActive(tabId);
+    if (activeTabId() !== tabId) setActive(tabId);
 
     // Переход после подстановки состояния в представление: до неё в окне
     // лежит ещё прошлая вкладка, и прокрутка ушла бы не в тот документ.
@@ -87,7 +88,7 @@
         {#each group.rows as row (row.line)}
           <button
             class="row"
-            class:current={tabs.activeId === row.tabId}
+            class:current={activeTabId() === row.tabId}
             type="button"
             onclick={() => go(row.tabId, row.line)}
             title={`${group.title}, строка ${row.line}`}

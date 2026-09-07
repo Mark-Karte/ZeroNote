@@ -263,7 +263,12 @@ impl Buffer {
     }
 }
 
-/// Список открытых буферов в порядке вкладок.
+/// Реестр открытых буферов.
+///
+/// До этапа 11 порядок в списке был порядком вкладок. Теперь порядок вкладок
+/// живёт в раскладке (`model/layout.rs`, Р-207): у каждой области он свой,
+/// а буфер может лежать в нескольких. Здесь остался порядок создания,
+/// и смотреть на него нельзя.
 #[derive(Debug, Default)]
 pub struct Buffers {
     next_id: BufferId,
@@ -271,8 +276,6 @@ pub struct Buffers {
     /// закрыв «Без имени 2» и создав новый, пользователь получил бы второй
     /// «Без имени 2» рядом с уже открытым.
     next_untitled: u32,
-    /// Порядок в векторе — это порядок вкладок. Отдельного поля с порядком нет
-    /// намеренно: один источник истины вместо двух согласуемых.
     items: Vec<Buffer>,
 }
 
@@ -436,23 +439,6 @@ impl Buffers {
         let before = self.items.len();
         self.items.retain(|b| b.id != id);
         self.items.len() != before
-    }
-
-    /// Переставить вкладку. Позиции за пределами списка прижимаются к краю,
-    /// чтобы перетаскивание не могло уронить приложение.
-    pub fn reorder(&mut self, id: BufferId, to: usize) -> bool {
-        let Some(from) = self.items.iter().position(|b| b.id == id) else {
-            return false;
-        };
-
-        let to = to.min(self.items.len().saturating_sub(1));
-        if from == to {
-            return false;
-        }
-
-        let buffer = self.items.remove(from);
-        self.items.insert(to, buffer);
-        true
     }
 
     /// Отметить буфер сохранённым: путь, состояние на диске, снятый признак
@@ -716,31 +702,8 @@ mod tests {
         assert_eq!(TabKind::parse("книга"), None, "вид из будущей версии");
     }
 
-    #[test]
-    fn reorder_moves_tab() {
-        let mut buffers = Buffers::new();
-        let a = open_file(&mut buffers, "a.txt");
-        let b = open_file(&mut buffers, "b.txt");
-        let c = open_file(&mut buffers, "c.txt");
-
-        buffers.reorder(c, 0);
-
-        let order: Vec<BufferId> = buffers.list().iter().map(|x| x.id).collect();
-        assert_eq!(order, vec![c, a, b]);
-    }
-
-    /// Перетаскивание за край списка не должно ронять приложение.
-    #[test]
-    fn reorder_clamps_out_of_range_positions() {
-        let mut buffers = Buffers::new();
-        let a = open_file(&mut buffers, "a.txt");
-        let b = open_file(&mut buffers, "b.txt");
-
-        buffers.reorder(a, 999);
-
-        let order: Vec<BufferId> = buffers.list().iter().map(|x| x.id).collect();
-        assert_eq!(order, vec![b, a]);
-    }
+    // Перестановка вкладок ушла в раскладку (`model/layout.rs`, Р-207):
+    // там она и проверяется.
 
     /// «Сохранить как» меняет и путь, и имя вкладки.
     #[test]

@@ -39,6 +39,14 @@ import {
 } from './settings.svelte';
 import { restoreFromSession } from './roots.svelte';
 import { scheduleAutosave } from './autosave.svelte';
+import {
+  activePane,
+  activeTabId,
+  applyLayout,
+  openLocal,
+  paneShowing,
+  setActiveTab,
+} from './panes.svelte';
 // Подсказка про вкладки ничего не знает — всё, что ей нужно, приходит
 // аргументами. Поэтому обычный импорт, а не отложенный: круга здесь нет.
 import { reportContext } from './suggest.svelte';
@@ -150,10 +158,15 @@ export function freshPdf(): PdfState {
   return { pages: 0, page: 1, scale: 'fit', problem: null };
 }
 
-/** Порядок в массиве — это порядок вкладок, такой же, как в ядре. */
-export const tabs = $state<{ items: Tab[]; activeId: number | null }>({
+/**
+ * Реестр открытых вкладок.
+ *
+ * Порядок здесь ничего не значит: с этапа 11 порядок вкладок и активная
+ * вкладка живут в раскладке (`state/panes`, Р-207) — у каждой области свои,
+ * и один буфер может стоять в нескольких. Здесь только «что открыто».
+ */
+export const tabs = $state<{ items: Tab[] }>({
   items: [],
-  activeId: null,
 });
 
 /**
@@ -179,9 +192,11 @@ const baselines = new Map<number, Text>();
  */
 const restoredDirty = new Set<number>();
 
+/** Активная вкладка окна — активная вкладка активной области (Р-210). */
 export function activeTab(): Tab | null {
-  if (tabs.activeId === null) return null;
-  return tabs.items.find((t) => t.meta.id === tabs.activeId) ?? null;
+  const id = activeTabId();
+  if (id === null) return null;
+  return tabs.items.find((t) => t.meta.id === id) ?? null;
 }
 
 export function tabById(id: number): Tab | null {
@@ -439,7 +454,8 @@ function putViewed(meta: Buffer): void {
     });
   }
 
-  tabs.activeId = meta.id;
+  // В активную область — то же, что только что сделало ядро.
+  openLocal(meta.id);
   noteStructureChange();
 }
 
@@ -472,7 +488,9 @@ function put(
   } else {
     tabs.items.push({ meta, editor, image: null, pdf: null });
   }
-  tabs.activeId = meta.id;
+  // В активную область — то же, что только что сделало ядро. До языка:
+  // подстановка языка проверяет, активна ли вкладка.
+  openLocal(meta.id);
   // Язык грузится и встаёт на место сам: ждать его открытие файла не должно.
   void applyLanguage(meta.id);
   noteStructureChange();
@@ -550,7 +568,7 @@ async function applyLanguage(id: number): Promise<void> {
   // ниже присваивала новой вкладке чужое состояние, и её содержимое пропадало
   // ещё до первой отрисовки. Нашлось переделкой стенда на настоящую вкладку
   // (задача 30): вкладка с документом в мегабайт оказывалась пустой.
-  if (tabs.activeId === id && view && view.state === current.editor.state) {
+  if (activeTabId() === id && view && view.state === current.editor.state) {
     // Вкладка на экране: правим живое представление, иначе оно осталось бы
     // со старым состоянием, а прокрутка отскочила бы к сохранённой.
     view.dispatch({ effects });
@@ -595,18 +613,27 @@ export function resetBaseline(id: number): void {
   }
 }
 
+/**
+ * Показать вкладку по номеру: в активной области, если она там есть,
+ * иначе в первой области, где есть, — и та становится активной (Р-210).
+ * Точка входа для всего, что зовёт вкладку не с её полосы: панель закладок,
+ * обратные ссылки, переход по ссылке.
+ */
 export function setActive(id: number): void {
-  tabs.activeId = id;
-  noteStructureChange();
+  const pane = paneShowing(id);
+  if (!pane) return;
+  setActiveTab(pane.id, id);
 }
 
-/** Переключение вкладок по кругу: за последней снова идёт первая. */
+/** Переключение вкладок по кругу — внутри своей области (Р-210). */
 function step(delta: 1 | -1): void {
-  if (tabs.items.length === 0) return;
-  const index = tabs.items.findIndex((t) => t.meta.id === tabs.activeId);
+  const pane = activePane();
+  const list = pane.tabs;
+  if (list.length === 0) return;
+  const index = pane.active === null ? -1 : list.indexOf(pane.active);
   const from = index < 0 ? 0 : index;
-  const next = (from + delta + tabs.items.length) % tabs.items.length;
-  setActive(tabs.items[next]!.meta.id);
+  const next = (from + delta + list.length) % list.length;
+  setActiveTab(pane.id, list[next]!);
 }
 
 export const nextTab = (): void => step(1);
@@ -694,7 +721,9 @@ async function restoreInner(): Promise<string[]> {
     session.sidebarPanel,
   );
 
-  tabs.activeId = session.active ?? tabs.items.at(-1)?.meta.id ?? null;
+  // Раскладка приезжает из ядра готовой: порядок вкладок, активные,
+  // форма окна. Ядро уже сверило её с тем, что восстановилось.
+  applyLayout(session.layout);
   return session.notices;
 }
 
@@ -730,7 +759,8 @@ export async function openSettings(): Promise<void> {
     tabs.items.push({ meta, editor: null, image: null, pdf: null });
   }
 
-  tabs.activeId = meta.id;
+  // В активную область — то же, что только что сделало ядро.
+  openLocal(meta.id);
   noteStructureChange();
 }
 
@@ -746,51 +776,25 @@ export function replaceContent(opened: BufferWithText): void {
   put(opened, opened.text);
 }
 
+/**
+ * Закрыть буфер совсем — из реестра и из всех областей.
+ *
+ * Кто станет активной вкладкой и не схлопнется ли область, решает ядро
+ * (Р-211): раскладка приходит в ответе, и здесь она просто применяется.
+ * Убрать вкладку из одной области, оставив буфер в другой, — это
+ * `removeTab` в `state/panes`, и до сюда такое не доходит.
+ */
 export async function close(id: number): Promise<void> {
   const index = tabs.items.findIndex((t) => t.meta.id === id);
   if (index < 0) return;
 
-  await ipc.closeBuffer(id);
+  const layout = await ipc.closeBuffer(id);
   tabs.items.splice(index, 1);
   baselines.delete(id);
   restoredDirty.delete(id);
+  applyLayout(layout);
   // Черновик закрытой вкладки больше не нужен: восстанавливать её не будем.
   await forgetDraft(id);
 
-  if (tabs.activeId === id) {
-    // Активной становится соседняя вкладка: та, что была справа, иначе слева.
-    const next = tabs.items[index] ?? tabs.items[index - 1] ?? null;
-    tabs.activeId = next ? next.meta.id : null;
-  }
-
-  noteStructureChange();
-}
-
-/**
- * Переставить вкладку только на стороне интерфейса.
- *
- * Во время перетаскивания порядок меняется много раз в секунду, и звать
- * на каждый шаг команду ядра незачем. Итог отправляется один раз, когда
- * пользователь отпустил вкладку, — см. `commitOrder`.
- */
-export function moveLocal(id: number, to: number): number {
-  const from = tabs.items.findIndex((t) => t.meta.id === id);
-  if (from < 0) return -1;
-
-  const target = Math.max(0, Math.min(to, tabs.items.length - 1));
-  if (from === target) return target;
-
-  const [tab] = tabs.items.splice(from, 1);
-  if (tab) {
-    tabs.items.splice(target, 0, tab);
-  }
-  return target;
-}
-
-/** Сообщить ядру итоговое место вкладки: порядок — часть сессии. */
-export async function commitOrder(id: number): Promise<void> {
-  const index = tabs.items.findIndex((t) => t.meta.id === id);
-  if (index < 0) return;
-  await ipc.reorderBuffer(id, index);
   noteStructureChange();
 }

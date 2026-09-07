@@ -8,6 +8,7 @@ use std::path::PathBuf;
 
 use crate::fsx::text_file;
 use crate::model::buffer::{Buffer, BufferId, TabKind};
+use crate::model::layout::Layout;
 use crate::session;
 use crate::state::AppState;
 use crate::text::encoding::Encoding;
@@ -45,10 +46,24 @@ pub fn list_buffers(state: tauri::State<'_, AppState>) -> Vec<Buffer> {
     buffers.list().to_vec()
 }
 
+/// Показать буфер: открыть его вкладку в активной области (Р-207).
+///
+/// Все команды открытия заканчиваются здесь, и это единственное место,
+/// где буфер попадает в раскладку. Блокировка раскладки берётся после
+/// блокировки реестра и всегда отдельно — см. правило порядка в `AppState`.
+fn show(state: &tauri::State<'_, AppState>, id: BufferId) {
+    let mut layout = state.layout.lock().expect("раскладка повреждена");
+    layout.open(id);
+}
+
 #[tauri::command]
 pub fn new_buffer(state: tauri::State<'_, AppState>) -> Buffer {
-    let mut buffers = state.buffers.lock().expect("реестр буферов повреждён");
-    buffers.create_untitled(eol::DEFAULT).clone()
+    let buffer = {
+        let mut buffers = state.buffers.lock().expect("реестр буферов повреждён");
+        buffers.create_untitled(eol::DEFAULT).clone()
+    };
+    show(&state, buffer.id);
+    buffer
 }
 
 /// Открыть параметры.
@@ -60,8 +75,12 @@ pub fn new_buffer(state: tauri::State<'_, AppState>) -> Buffer {
 /// Вкладка одна на окно: если она уже открыта, возвращается та же.
 #[tauri::command]
 pub fn open_settings(state: tauri::State<'_, AppState>) -> Buffer {
-    let mut buffers = state.buffers.lock().expect("реестр буферов повреждён");
-    buffers.create_settings().clone()
+    let buffer = {
+        let mut buffers = state.buffers.lock().expect("реестр буферов повреждён");
+        buffers.create_settings().clone()
+    };
+    show(&state, buffer.id);
+    buffer
 }
 
 /// Открыть файл.
@@ -84,6 +103,9 @@ pub fn open_file(state: tauri::State<'_, AppState>, path: String) -> Fallible<Bu
         // В историю попадает и повторное открытие: пользователь только что
         // выбрал этот файл, и в списке недавнего он должен оказаться сверху.
         remember_recent(&state, &path);
+        // И в активную область тоже: файл, открытый в соседней, отсюда
+        // получает зеркало (Р-209), а открытый здесь — просто активируется.
+        show(&state, id);
         return reload_buffer(state, id);
     }
 
@@ -99,6 +121,7 @@ pub fn open_file(state: tauri::State<'_, AppState>, path: String) -> Fallible<Bu
         let buffer = buffers.create_viewed(path.clone(), disk, kind).clone();
         drop(buffers);
 
+        show(&state, buffer.id);
         remember_recent(&state, &path);
         return Ok(BufferWithText {
             buffer,
@@ -130,6 +153,7 @@ pub fn open_file(state: tauri::State<'_, AppState>, path: String) -> Fallible<Bu
     // История пишется после успешного чтения: файла, который не открылся,
     // в списке недавнего быть не должно.
     drop(buffers);
+    show(&state, buffer.id);
     remember_recent(&state, &path);
 
     Ok(BufferWithText {
@@ -521,17 +545,23 @@ pub fn mark_detached(state: tauri::State<'_, AppState>, id: BufferId) -> Fallibl
     Ok(buffer.clone())
 }
 
+/// Закрыть буфер совсем — из реестра и из всех областей, где он лежал.
+///
+/// Закрытие вкладки в одной области при живом зеркале в другой — это
+/// не закрытие буфера, а правка раскладки; её делает `remove` в дереве,
+/// и сюда она не доходит.
+///
+/// Возвращает раскладку: закрытие могло схлопнуть область, и фронтенду
+/// нужна новая форма окна, а не признак «закрылось».
 #[tauri::command]
-pub fn close_buffer(state: tauri::State<'_, AppState>, id: BufferId) -> bool {
-    let mut buffers = state.buffers.lock().expect("реестр буферов повреждён");
-    buffers.close(id)
-}
-
-#[tauri::command]
-pub fn reorder_buffer(state: tauri::State<'_, AppState>, id: BufferId, to: usize) -> Vec<Buffer> {
-    let mut buffers = state.buffers.lock().expect("реестр буферов повреждён");
-    buffers.reorder(id, to);
-    buffers.list().to_vec()
+pub fn close_buffer(state: tauri::State<'_, AppState>, id: BufferId) -> Layout {
+    {
+        let mut buffers = state.buffers.lock().expect("реестр буферов повреждён");
+        buffers.close(id);
+    }
+    let mut layout = state.layout.lock().expect("раскладка повреждена");
+    layout.remove_everywhere(id);
+    layout.clone()
 }
 
 /// Список кодировок для меню.

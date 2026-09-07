@@ -10,6 +10,9 @@
   import { revealInExplorer } from '../actions/files';
   import { setPdfView } from '../pdf/current';
 
+  /** В какой области живёт этот показ (Р-208). */
+  let { pane }: { pane: number } = $props();
+
   /**
    * Показ PDF — и только показ (Р-181).
    *
@@ -139,7 +142,7 @@
 
   onDestroy(() => {
     release();
-    setPdfView(null);
+    setPdfView(pane, null);
   });
 
   async function load(id: number, pdf: PdfState): Promise<void> {
@@ -164,7 +167,7 @@
         pdf.pages = opened.numPages;
       });
 
-      setPdfView({ goToPage });
+      setPdfView(pane, { goToPage });
 
       // `tick`, а не микрозадача: заготовки страниц создаёт Svelte, и до
       // окончания его перерисовки прокручивать не к чему. Микрозадача

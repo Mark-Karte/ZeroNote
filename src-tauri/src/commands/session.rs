@@ -5,6 +5,7 @@
 
 use crate::fsx::text_file;
 use crate::model::buffer::{Buffer, BufferId, Buffers, TabKind};
+use crate::model::layout::Layout;
 use crate::model::root::{Root, Roots};
 use crate::session::{self, BufferSnapshot, RootSnapshot, WorkspaceSnapshot};
 use crate::state::AppState;
@@ -66,11 +67,14 @@ fn snapshot_of(buffer: &Buffer, view: Option<&ViewState>) -> BufferSnapshot {
 }
 
 /// Записать снимок сессии.
+///
+/// Активную вкладку и порядок вкладок фронтенд не присылает: ими владеет
+/// раскладка в ядре (Р-207). От фронтенда едет только то, чего ядро знать
+/// не может, — курсоры, прокрутка, язык, закладки и состояние панели.
 #[tauri::command]
 pub fn save_session(
     state: tauri::State<'_, AppState>,
     views: Vec<ViewState>,
-    active: Option<BufferId>,
     sidebar: bool,
     sidebar_width: u32,
     sidebar_panel: String,
@@ -92,20 +96,46 @@ pub fn save_session(
     };
 
     let snapshot = {
+        // Порядок блокировок — буферы, потом раскладка (см. `AppState`).
         let buffers = state.buffers.lock().expect("реестр буферов повреждён");
+        let layout = state.layout.lock().expect("раскладка повреждена");
+
+        // Пока область одна, порядок вкладок пишется порядком списка,
+        // а раскладка — нет: снимок остаётся читаемым для 0.10.0. С двумя
+        // областями порядок задаёт дерево, и список идёт как есть.
+        let single = layout.is_single();
+        let order: Vec<BufferId> = if single {
+            layout.active_pane().tabs.clone()
+        } else {
+            buffers.list().iter().map(|b| b.id).collect()
+        };
+        // Буфер, которого нет ни в одной области, — не ошибка раскладки,
+        // а щель между двумя командами; в снимок он всё равно попадает.
+        //
+        // Отдельным вектором, а не цепочкой итераторов: цепочка держала бы
+        // `order` заимствованным в замыкании и одновременно забирала бы его
+        // по значению — компилятор такое не пропускает, и правильно.
+        let stray: Vec<BufferId> = buffers
+            .list()
+            .iter()
+            .map(|b| b.id)
+            .filter(|id| !order.contains(id))
+            .collect();
+        let order: Vec<BufferId> = order.into_iter().chain(stray).collect();
 
         WorkspaceSnapshot {
-            active,
+            active: layout.active_tab(),
             next_id: buffers.next_id(),
             next_untitled: buffers.next_untitled(),
             next_root_id,
             sidebar,
             sidebar_width,
             sidebar_panel,
+            layout: (!single).then(|| layout.to_snapshot()),
             roots,
-            buffers: buffers
-                .list()
+            buffers: order
                 .iter()
+                .filter_map(|id| buffers.get(*id))
                 .map(|buffer| {
                     let view = views.iter().find(|v| v.id == buffer.id);
                     snapshot_of(buffer, view)
@@ -148,7 +178,8 @@ pub fn drop_draft(state: tauri::State<'_, AppState>, id: BufferId) {
 #[serde(rename_all = "camelCase")]
 pub struct RestoredSession {
     pub buffers: Vec<RestoredBuffer>,
-    pub active: Option<BufferId>,
+    /// Дерево областей с порядком вкладок и активной вкладкой (Р-207).
+    pub layout: Layout,
     pub roots: Vec<RootView>,
     pub sidebar: bool,
     pub sidebar_width: u32,
@@ -182,7 +213,7 @@ pub fn restore_session(state: tauri::State<'_, AppState>) -> RestoredSession {
     let Some(snapshot) = session::read_session(data) else {
         return RestoredSession {
             buffers: Vec::new(),
-            active: None,
+            layout: Layout::default(),
             roots: Vec::new(),
             sidebar: false,
             sidebar_width: 0,
@@ -368,8 +399,19 @@ pub fn restore_session(state: tauri::State<'_, AppState>) -> RestoredSession {
     // Активной могла быть вкладка, которую не удалось восстановить.
     let active = snapshot.active.filter(|id| ids.contains(id));
 
+    // Раскладка: из снимка, если он есть и цел, иначе одна область
+    // со всеми вкладками в порядке списка — так читается и сессия 0.10.0,
+    // и испорченное дерево. Потерять дерево — потеря формы окна;
+    // отвергнуть сессию из-за дерева — потеря вкладок. Выбор очевиден.
+    let layout = snapshot
+        .layout
+        .as_ref()
+        .and_then(|item| Layout::from_snapshot(item, &ids))
+        .unwrap_or_else(|| Layout::single(ids.clone(), active));
+
     *state.buffers.lock().expect("реестр буферов повреждён") =
         Buffers::restore(buffers, snapshot.next_id, snapshot.next_untitled);
+    *state.layout.lock().expect("раскладка повреждена") = layout.clone();
 
     // Черновики без буфера мог оставить сбой между записью черновика
     // и записью снимка. Копить их незачем.
@@ -377,7 +419,7 @@ pub fn restore_session(state: tauri::State<'_, AppState>) -> RestoredSession {
 
     RestoredSession {
         buffers: restored,
-        active,
+        layout,
         roots: root_views,
         sidebar: snapshot.sidebar,
         sidebar_width: snapshot.sidebar_width,

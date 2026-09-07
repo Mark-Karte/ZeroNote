@@ -23,6 +23,7 @@ use std::path::{Path, PathBuf};
 use crate::fsx::atomic_save;
 use crate::fsx::text_file::DiskState;
 use crate::model::buffer::BufferId;
+use crate::model::layout::LayoutSnapshot;
 use crate::model::root::RootId;
 use crate::text::encoding::Encoding;
 use crate::text::eol::Eol;
@@ -157,11 +158,24 @@ pub struct WorkspaceSnapshot {
     /// не должен отвергаться из-за незнакомого имени.
     #[serde(default)]
     pub sidebar_panel: String,
+    /// Дерево областей (Р-207). Появилось на этапе 11.
+    ///
+    /// **Не пишется, пока область одна**: тогда порядок вкладок — это
+    /// порядок `buffers`, активная — `active`, и снимок выглядит ровно так,
+    /// как его писала 0.10.0. Прошлая версия читает с `deny_unknown_fields`,
+    /// и лишняя таблица означала бы «после отката закрылись все вкладки».
+    /// Тот же приём, что у вида вкладки (`kind`).
+    ///
+    /// Стоит раньше списков: в TOML таблица, записанная после массива
+    /// таблиц, принадлежит его последнему элементу.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layout: Option<LayoutSnapshot>,
     /// Открытые корни. Поле появилось вместе с задачей 9 и имеет умолчание:
     /// файл сессии от версии 0.1.0 обязан читаться (Р-051).
     #[serde(default)]
     pub roots: Vec<RootSnapshot>,
-    /// Порядок в списке — порядок вкладок.
+    /// Без раскладки порядок в списке — порядок вкладок. С раскладкой
+    /// порядок задают области, а список — просто реестр.
     #[serde(default)]
     pub buffers: Vec<BufferSnapshot>,
 }
@@ -340,6 +354,7 @@ scroll-top = 0.0
             sidebar: true,
             sidebar_width: 280,
             sidebar_panel: "search".to_owned(),
+            layout: None,
             roots: vec![RootSnapshot {
                 id: 1,
                 path: PathBuf::from(r"C:\заметки"),
@@ -412,6 +427,44 @@ scroll-top = 0.0
                 },
             ],
         }
+    }
+
+    /// Сессия с одной областью не содержит раскладки: так её прочитает
+    /// и 0.10.0 при откате. Проверка сторожит `skip_serializing_if`.
+    #[test]
+    fn single_pane_session_writes_no_layout() {
+        let dir = temp_dir("no-layout");
+
+        write_session(&dir, &snapshot()).unwrap();
+        let text = std::fs::read_to_string(session_path(&dir)).unwrap();
+
+        assert!(!text.contains("layout"), "раскладка просочилась в снимок:\n{text}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Разделённое окно переживает перезапуск вместе с деревом областей.
+    ///
+    /// Раскладка вложена в TOML сессии, и проверять надо именно здесь:
+    /// таблица после массива таблиц молча уехала бы в последний буфер,
+    /// а сама по себе она в своём тесте читается прекрасно.
+    #[test]
+    fn split_layout_survives_write_and_read() {
+        use crate::model::layout::{Direction, Layout};
+
+        let dir = temp_dir("layout");
+        let mut layout = Layout::single(vec![1, 2, 3], Some(2));
+        layout.split(1, Direction::Row, Some(3));
+
+        let mut with_layout = snapshot();
+        with_layout.layout = Some(layout.to_snapshot());
+        write_session(&dir, &with_layout).unwrap();
+        let restored = read_session(&dir).expect("сессия должна прочитаться");
+
+        assert_eq!(restored, with_layout);
+        let back = Layout::from_snapshot(restored.layout.as_ref().unwrap(), &[1, 2, 3]).unwrap();
+        assert_eq!(back, layout);
+        assert_eq!(restored.buffers.len(), 3, "буферы не уехали в раскладку");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// Снимок обязан пережить запись и чтение без потерь: это и есть сессия.
