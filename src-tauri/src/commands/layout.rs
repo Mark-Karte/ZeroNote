@@ -71,9 +71,25 @@ pub fn split_pane(
     pane: NodeId,
     direction: Direction,
     id: Option<BufferId>,
+    first: bool,
 ) -> Layout {
     let mut layout = state.layout.lock().expect("раскладка повреждена");
-    layout.split(pane, direction, id);
+    layout.split_at(pane, direction, id, first);
+    layout.clone()
+}
+
+/// Вкладку бросили на край области: разделить и перенести одной операцией.
+#[tauri::command]
+pub fn move_tab_to_split(
+    state: tauri::State<'_, AppState>,
+    id: BufferId,
+    from: NodeId,
+    to: NodeId,
+    direction: Direction,
+    first: bool,
+) -> Layout {
+    let mut layout = state.layout.lock().expect("раскладка повреждена");
+    layout.move_to_split(id, from, to, direction, first);
     layout.clone()
 }
 

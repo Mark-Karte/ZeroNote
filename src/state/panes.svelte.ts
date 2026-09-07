@@ -203,10 +203,23 @@ export async function split(
   pane: number,
   direction: Direction,
   id: number | null,
+  first = false,
 ): Promise<number> {
-  applyLayout(await ipc.splitPane(pane, direction, id));
+  applyLayout(await ipc.splitPane(pane, direction, id, first));
   noteStructureChange();
   return layout.activePane;
+}
+
+/** Вкладку бросили на край области: разделить и перенести одной операцией. */
+export async function moveToSplit(
+  id: number,
+  from: number,
+  to: number,
+  direction: Direction,
+  first: boolean,
+): Promise<void> {
+  applyLayout(await ipc.moveTabToSplit(id, from, to, direction, first));
+  noteStructureChange();
 }
 
 /** Закрыть область. Буферы без области закрывает вызывающий — до этого. */

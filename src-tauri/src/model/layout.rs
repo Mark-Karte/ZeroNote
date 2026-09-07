@@ -285,6 +285,19 @@ impl Layout {
         direction: Direction,
         buffer: Option<BufferId>,
     ) -> Option<NodeId> {
+        self.split_at(pane, direction, buffer, false)
+    }
+
+    /// То же, но с выбором стороны: `first` — новая область встаёт первой,
+    /// слева или сверху. Нужно перетаскиванию вкладки к левому или верхнему
+    /// краю области (задача 77); команды всегда делят вправо и вниз.
+    pub fn split_at(
+        &mut self,
+        pane: NodeId,
+        direction: Direction,
+        buffer: Option<BufferId>,
+        first: bool,
+    ) -> Option<NodeId> {
         if self.pane(pane).is_none() {
             return None;
         }
@@ -298,17 +311,49 @@ impl Layout {
         };
 
         replace_pane(&mut self.root, pane, |old| {
+            let (left, right) = if first { (fresh, old) } else { (old, fresh) };
             Node::Split(Split {
                 id: split_id,
                 direction,
                 ratio: 0.5,
-                first: Box::new(Node::Pane(old)),
-                second: Box::new(Node::Pane(fresh)),
+                first: Box::new(Node::Pane(left)),
+                second: Box::new(Node::Pane(right)),
             })
         });
 
         self.active_pane = pane_id;
         Some(pane_id)
+    }
+
+    /// Вкладку бросили на край области: область делится, вкладка переезжает
+    /// в новую половину. Одной операцией, а не двумя: между разделением
+    /// и переносом окно не должно показывать пустую область.
+    ///
+    /// Единственную вкладку области на край той же области не бросают:
+    /// область опустела бы и схлопнулась, и вышло бы то же самое окно
+    /// с другим номером области.
+    pub fn move_to_split(
+        &mut self,
+        buffer: BufferId,
+        from: NodeId,
+        to: NodeId,
+        direction: Direction,
+        first: bool,
+    ) -> bool {
+        let Some(source) = self.pane(from) else {
+            return false;
+        };
+        if !source.tabs.contains(&buffer) {
+            return false;
+        }
+        if from == to && source.tabs.len() == 1 {
+            return false;
+        }
+
+        let Some(fresh) = self.split_at(to, direction, None, first) else {
+            return false;
+        };
+        self.move_tab(buffer, from, fresh, None)
     }
 
     /// Закрыть область со всеми её вкладками. Последнюю область закрыть
@@ -837,6 +882,47 @@ mod tests {
         assert!(layout.panes_with(1).is_empty());
         assert_eq!(layout.pane(1).unwrap().tabs, vec![2]);
         assert_eq!(layout.pane(right).unwrap().tabs, vec![2]);
+    }
+
+    #[test]
+    fn split_at_puts_new_pane_first_when_asked() {
+        let mut layout = Layout::new_for_test(vec![1]);
+        let fresh = layout.split_at(1, Direction::Row, Some(1), true).unwrap();
+
+        assert_eq!(ids(&layout), vec![fresh, 1], "новая область слева");
+        assert_eq!(layout.active_pane_id(), fresh);
+    }
+
+    #[test]
+    fn move_to_split_moves_tab_into_the_new_half() {
+        let mut layout = Layout::new_for_test(vec![1, 2, 3]);
+        let right = layout.split(1, Direction::Row, None).unwrap();
+        layout.move_tab(3, 1, right, None);
+
+        // Вкладку 2 бросили на верхний край правой области.
+        assert!(layout.move_to_split(2, 1, right, Direction::Column, true));
+
+        let panes = layout.panes();
+        assert_eq!(panes.len(), 3);
+        assert_eq!(panes[0].tabs, vec![1]);
+        assert_eq!(panes[1].tabs, vec![2], "новая половина сверху");
+        assert_eq!(panes[2].tabs, vec![3]);
+        assert_eq!(layout.active_tab(), Some(2));
+    }
+
+    #[test]
+    fn move_to_split_with_the_only_tab_of_the_same_pane_is_a_no_op() {
+        let mut layout = Layout::new_for_test(vec![1]);
+        let before = layout.clone();
+
+        assert!(!layout.move_to_split(1, 1, 1, Direction::Row, false));
+        assert_eq!(layout, before);
+
+        // А из области с двумя вкладками — можно: остаток остаётся на месте.
+        let mut layout = Layout::new_for_test(vec![1, 2]);
+        assert!(layout.move_to_split(2, 1, 1, Direction::Row, false));
+        assert_eq!(ids(&layout).len(), 2);
+        assert_eq!(layout.pane(1).unwrap().tabs, vec![1]);
     }
 
     #[test]

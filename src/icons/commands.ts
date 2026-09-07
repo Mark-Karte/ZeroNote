@@ -121,6 +121,9 @@ const ICON_FOR: Record<string, IconName> = {
   'menu.copy-name': 'action.copy',
   'menu.reveal': 'tree.folder-open',
   'menu.close-others': 'cmd.close-others',
+  // Тот же рисунок, что у команды разделения: действие одно и то же,
+  // только объект под курсором.
+  'menu.open-to-side': 'cmd.split-right',
   'menu.new-file': 'cmd.file-new',
   'menu.new-folder': 'action.add-folder',
   'menu.rename': 'cmd.rename',

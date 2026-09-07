@@ -3,7 +3,7 @@
   import { iconForFile, kindOf } from '../../icons/files';
   import { rows, toggle, tree, refreshDirs, type Row } from '../../state/tree.svelte';
   import { appearance } from '../../theme/store.svelte';
-  import { openDropped, revealInExplorer } from '../../actions/files';
+  import { openDropped, openToSide, revealInExplorer } from '../../actions/files';
   import { removeRoot, createProject, importFromObsidian } from '../../actions/project';
   import { copyText } from '../../actions/clipboard';
   import { createEntry, deleteEntry, renameEntry } from '../../actions/entries';
@@ -141,6 +141,9 @@
           case MENU.open:
           case MENU.toggle:
             void activate(row);
+            return;
+          case MENU.openToSide:
+            void openToSide(row.path);
             return;
           case MENU.refresh:
             void refreshDirs([row.path]);

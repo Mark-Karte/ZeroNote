@@ -11,7 +11,39 @@ import {
   tabs,
   close as closeTabState,
 } from '../state/tabs.svelte';
-import { layout, paneShowing, panesWith, removeTab } from '../state/panes.svelte';
+import {
+  activePane,
+  closePane,
+  layout,
+  paneById,
+  paneShowing,
+  panesWith,
+  removeTab,
+  split,
+} from '../state/panes.svelte';
+import { canSplitPane } from '../ui/pane-size';
+
+/**
+ * Открыть файл в новой области справа от активной — «Открыть сбоку».
+ *
+ * Сначала область, потом файл: команды открытия кладут буфер в активную
+ * область (Р-207), а после разделения активна новая. Если файл не открылся,
+ * новая область осталась бы пустой навсегда — она закрывается. Где делить
+ * негде (Р-212), файл просто открывается в активной.
+ */
+export async function openToSide(path: string): Promise<void> {
+  const from = activePane();
+  if (!canSplitPane(from.id, 'row')) {
+    await openDropped([path]);
+    return;
+  }
+
+  const fresh = await split(from.id, 'row', null);
+  await openDropped([path]);
+  if ((paneById(fresh)?.tabs.length ?? 0) === 0) {
+    await closePane(fresh);
+  }
+}
 import { FILE_FILTERS } from './file-types';
 import { askChoice } from '../state/modal.svelte';
 import { forgetDraft, noteStructureChange } from '../state/persist.svelte';

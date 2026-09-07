@@ -51,12 +51,25 @@ export const reorderTab = (pane: number, id: number, to: number): Promise<Layout
 export const removeTab = (pane: number, id: number): Promise<Layout> =>
   invoke('remove_tab', { pane, id });
 
-/** Разделить область. С буфером новая область получает его зеркало. */
+/**
+ * Разделить область. С буфером новая область получает его зеркало;
+ * `first` — новая встаёт слева или сверху, а не справа или снизу.
+ */
 export const splitPane = (
   pane: number,
   direction: Direction,
   id: number | null,
-): Promise<Layout> => invoke('split_pane', { pane, direction, id });
+  first: boolean,
+): Promise<Layout> => invoke('split_pane', { pane, direction, id, first });
+
+/** Вкладку бросили на край области: разделить и перенести одной операцией. */
+export const moveTabToSplit = (
+  id: number,
+  from: number,
+  to: number,
+  direction: Direction,
+  first: boolean,
+): Promise<Layout> => invoke('move_tab_to_split', { id, from, to, direction, first });
 
 export const closePane = (pane: number): Promise<Layout> => invoke('close_pane', { pane });
 

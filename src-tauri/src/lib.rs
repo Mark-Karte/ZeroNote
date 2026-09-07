@@ -191,6 +191,7 @@ pub fn run() {
             commands::layout::split_pane,
             commands::layout::close_pane,
             commands::layout::move_tab,
+            commands::layout::move_tab_to_split,
             commands::layout::set_split_ratio,
             commands::files::reveal_path,
             commands::files::split_paths,

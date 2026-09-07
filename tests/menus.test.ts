@@ -73,7 +73,7 @@ describe('пункты по командам реестра', () => {
     const known = new Set(commandIds());
     const all = [
       ...editorMenu({ ...EDITOR, markdown: true }, COMMANDS),
-      ...tabMenu({ modified: true, hasFile: true, text: true, others: 2 }, COMMANDS),
+      ...tabMenu({ modified: true, hasFile: true, text: true, others: 2, canSplit: true }, COMMANDS),
       ...treeMenu({ row: null }, COMMANDS),
       ...fieldMenu({ hasSelection: true, readOnly: false }, COMMANDS),
       ...snippetMenu(COMMANDS),
@@ -152,7 +152,7 @@ describe('меню редактора', () => {
 describe('меню вкладки', () => {
   it('гасит сохранение, когда сохранять нечего', () => {
     const items = tabMenu(
-      { modified: false, hasFile: true, text: true, others: 1 },
+      { modified: false, hasFile: true, text: true, others: 1, canSplit: true },
       COMMANDS,
     );
     expect(item(items, 'file.save').disabled).toBe(true);
@@ -160,7 +160,7 @@ describe('меню вкладки', () => {
 
   it('гасит «закрыть другие», когда вкладка одна', () => {
     const items = tabMenu(
-      { modified: true, hasFile: true, text: true, others: 0 },
+      { modified: true, hasFile: true, text: true, others: 0, canSplit: true },
       COMMANDS,
     );
     expect(item(items, MENU.closeOthers).disabled).toBe(true);
@@ -169,7 +169,7 @@ describe('меню вкладки', () => {
   /** У буфера без файла нет ни пути, ни места в проводнике. Имя есть всегда. */
   it('гасит путь и проводник у буфера без файла', () => {
     const items = tabMenu(
-      { modified: true, hasFile: false, text: true, others: 1 },
+      { modified: true, hasFile: false, text: true, others: 1, canSplit: true },
       COMMANDS,
     );
     expect(item(items, MENU.copyPath).disabled).toBe(true);
@@ -187,7 +187,7 @@ describe('меню вкладки', () => {
    */
   it('гасит сохранение у вкладки, которая не текст', () => {
     const items = tabMenu(
-      { modified: false, hasFile: false, text: false, others: 1 },
+      { modified: false, hasFile: false, text: false, others: 1, canSplit: true },
       COMMANDS,
     );
 
@@ -205,6 +205,7 @@ describe('меню дерева', () => {
   it('у файла предлагает открыть', () => {
     expect(ids(treeMenu({ row: file }, COMMANDS))).toEqual([
       MENU.open,
+      MENU.openToSide,
       MENU.newFile,
       MENU.newFolder,
       MENU.rename,

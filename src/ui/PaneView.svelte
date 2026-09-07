@@ -9,6 +9,7 @@
   import { layout, setActivePane } from '../state/panes.svelte';
   import { tabById, languageOf } from '../state/tabs.svelte';
   import { markdownBarEnabled } from '../state/settings.svelte';
+  import { dropTarget } from '../state/tab-drag.svelte';
 
   /**
    * Одна область редактора (Р-210): своя полоса вкладок, своё содержимое.
@@ -42,6 +43,16 @@
   function onPointerDown(): void {
     if (layout.activePane !== pane.id) setActivePane(pane.id);
   }
+
+  /**
+   * Куда встанет вкладка, которую сюда тащат (задача 77): половина области
+   * у края — разделение, вся область — перенос. Полосу подсвечивает она сама.
+   */
+  const drop = $derived.by(() => {
+    const target = dropTarget.value;
+    if (!target || target.pane !== pane.id || target.zone === 'strip') return null;
+    return target.zone;
+  });
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -71,10 +82,15 @@
     {/if}
     <EditorHost pane={pane.id} />
   {/if}
+
+  {#if drop}
+    <div class="drop {drop}"></div>
+  {/if}
 </div>
 
 <style>
   .pane {
+    position: relative;
     display: flex;
     flex: 1;
     flex-direction: column;
@@ -83,5 +99,31 @@
     /* Рабочая область — самый ближний слой: панели стоят на подложке,
        а она лежит на панели. */
     background-color: var(--zn-color-bg-raised);
+  }
+
+  /* Подсветка сброса — цветом выделения: та же роль «здесь окажется»,
+     что у выделенного текста, и та же прозрачность поверх содержимого. */
+  .drop {
+    position: absolute;
+    inset: 0;
+    z-index: var(--zn-z-overlay);
+    background-color: var(--zn-color-bg-selection);
+    pointer-events: none;
+  }
+
+  .drop.left {
+    inset-inline-end: 50%;
+  }
+
+  .drop.right {
+    inset-inline-start: 50%;
+  }
+
+  .drop.top {
+    inset-block-end: 50%;
+  }
+
+  .drop.bottom {
+    inset-block-start: 50%;
   }
 </style>

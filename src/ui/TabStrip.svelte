@@ -4,7 +4,17 @@
   import type { IconName } from '../icons/registry';
   import type { Buffer } from '../ipc/files';
   import { tabs, tabById, type Tab } from '../state/tabs.svelte';
-  import { setActiveTab, reorderLocal, commitReorder } from '../state/panes.svelte';
+  import {
+    setActiveTab,
+    reorderLocal,
+    commitReorder,
+    moveTab,
+    moveToSplit,
+    split,
+  } from '../state/panes.svelte';
+  import { dropTarget, setDropTarget, clearDropTarget, type DropTarget } from '../state/tab-drag.svelte';
+  import { dropZone, insertIndex } from './pane-drop';
+  import { canSplitPane } from './pane-size';
   import type { PaneNode } from '../ipc/layout';
   // Закрытие идёт через действие, а не напрямую через состояние: только там
   // спрашивают про несохранённые правки.
@@ -76,7 +86,11 @@
 
     setActiveTab(pane.id, id);
     pressed = { id, startX: event.clientX };
-    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    // Захват — полосой, а не вкладкой (задача 77). Перестановка переносит
+    // узел вкладки в DOM, и Chromium в этот момент снимает захват с него:
+    // движение обрывалось на первом же шаге. Нашлось трассой событий, когда
+    // вкладка не доезжала до соседней области. Полоса с места не сходит.
+    strip.setPointerCapture(event.pointerId);
   }
 
   function onPointerMove(event: PointerEvent): void {
@@ -96,20 +110,91 @@
       dragging = pressed.id;
     }
 
+    // Над чужой областью — подсветить, куда встанет; над своей полосой —
+    // переставлять, как раньше.
+    const found = locate(event);
+    if (found) {
+      setDropTarget(found);
+      return;
+    }
+    clearDropTarget();
+
     const target = nextIndex(measure(), dragging, event.clientX);
     if (target !== null) {
       reorderLocal(pane.id, dragging, target);
     }
   }
 
-  function finishDrag(): void {
-    // Итоговый порядок уходит в ядро один раз, а не на каждый шаг мыши.
-    if (dragging !== null) {
-      void commitReorder(pane.id, dragging);
+  /**
+   * Что под указателем (задача 77).
+   *
+   * Указатель захвачен вкладкой, и события приходят ей, а не тому, над чем
+   * он стоит, — поэтому `elementFromPoint`. `null` — своя полоса или своя
+   * середина: там обычная перестановка, а не перенос.
+   */
+  function locate(event: PointerEvent): DropTarget | null {
+    const hit = document.elementFromPoint(event.clientX, event.clientY);
+    const paneElement = hit?.closest<HTMLElement>('[data-pane-id]') ?? null;
+    if (!paneElement) return null;
+    const target = Number(paneElement.dataset['paneId']);
+
+    const stripElement = hit?.closest<HTMLElement>('[data-tab-strip]') ?? null;
+    if (stripElement) {
+      if (target === pane.id) return null;
+      const boxes = Array.from(stripElement.querySelectorAll<HTMLElement>('[data-tab-id]')).map(
+        (element) => {
+          const box = element.getBoundingClientRect();
+          return { left: box.left, width: box.width };
+        },
+      );
+      return { pane: target, zone: 'strip', index: insertIndex(boxes, event.clientX) };
     }
+
+    const box = paneElement.getBoundingClientRect();
+    let zone = dropZone(box, event.clientX, event.clientY);
+    // Край области, которую нельзя разделить, — та же середина (Р-212).
+    if (zone !== 'center') {
+      const direction = zone === 'left' || zone === 'right' ? 'row' : 'column';
+      if (!canSplitPane(target, direction)) zone = 'center';
+    }
+    if (target === pane.id && zone === 'center') return null;
+    return { pane: target, zone, index: 0 };
+  }
+
+  function finishDrag(): void {
+    const id = dragging;
+    const target = dropTarget.value;
     pressed = null;
     dragging = null;
+    clearDropTarget();
+    if (id === null) return;
+
+    // Итог уходит в ядро один раз, а не на каждый шаг мыши.
+    if (!target) {
+      void commitReorder(pane.id, id);
+      return;
+    }
+    void drop(id, target);
   }
+
+  /** Сброс в другую область: на место в полосе, в середину или на край. */
+  async function drop(id: number, target: DropTarget): Promise<void> {
+    if (target.zone === 'strip') {
+      await moveTab(id, pane.id, target.pane, target.index);
+    } else if (target.zone === 'center') {
+      await moveTab(id, pane.id, target.pane, null);
+    } else {
+      const direction = target.zone === 'left' || target.zone === 'right' ? 'row' : 'column';
+      const first = target.zone === 'left' || target.zone === 'top';
+      await moveToSplit(id, pane.id, target.pane, direction, first);
+    }
+  }
+
+  /** Куда в этой полосе встанет чужая вкладка; `null` — сюда не тащат. */
+  const dropIndex = $derived.by(() => {
+    const target = dropTarget.value;
+    return target && target.pane === pane.id && target.zone === 'strip' ? target.index : null;
+  });
 
   /**
    * Меню вкладки.
@@ -134,11 +219,16 @@
           hasFile: meta.path !== null,
           text: meta.kind === 'text',
           others: tabs.items.length - 1,
+          canSplit: canSplitPane(pane.id, 'row'),
         },
         commandList(),
       ),
       (choice) => {
         switch (choice) {
+          case MENU.openToSide:
+            // Зеркало этой вкладки в новой области справа (Р-209).
+            void split(pane.id, 'row', id);
+            return;
           case MENU.closeOthers:
             void closeOtherTabs(id);
             return;
@@ -170,22 +260,34 @@
   }
 
   function onPointerUp(event: PointerEvent): void {
-    const element = event.currentTarget as HTMLElement;
     // Захват мог быть уже потерян: тогда освобождение бросает исключение,
     // и без перехвата всё, что идёт следом, просто не выполнится.
-    if (element.hasPointerCapture(event.pointerId)) {
-      element.releasePointerCapture(event.pointerId);
+    if (strip.hasPointerCapture(event.pointerId)) {
+      strip.releasePointerCapture(event.pointerId);
     }
     finishDrag();
   }
 </script>
 
-<div class="strip" class:focused bind:this={strip} role="tablist">
-  {#each visible as tab (tab.meta.id)}
+<div
+  class="strip"
+  class:focused
+  class:drop-end={dropIndex === visible.length}
+  data-tab-strip
+  bind:this={strip}
+  role="tablist"
+  tabindex="-1"
+  onpointermove={onPointerMove}
+  onpointerup={onPointerUp}
+  onpointercancel={onPointerUp}
+  onlostpointercapture={finishDrag}
+>
+  {#each visible as tab, i (tab.meta.id)}
     <div
       class="tab"
       class:active={tab.meta.id === pane.active}
       class:dragging={tab.meta.id === dragging}
+      class:drop-before={dropIndex === i}
       data-tab-id={tab.meta.id}
       role="tab"
       tabindex="-1"
@@ -193,10 +295,6 @@
       title={tab.meta.path ?? tab.meta.title}
       onpointerdown={(e) => onPointerDown(e, tab.meta.id)}
       oncontextmenu={(e) => onContextMenu(e, tab.meta.id)}
-      onpointermove={onPointerMove}
-      onpointerup={onPointerUp}
-      onpointercancel={onPointerUp}
-      onlostpointercapture={finishDrag}
     >
       <span class="kind" data-kind={kindOf(tab.meta.title)}>
         <Icon name={tabIcon(tab.meta)} />
@@ -306,6 +404,16 @@
      «ты здесь», а здесь можно быть только в одном месте. */
   .strip.focused .tab.active {
     box-shadow: inset 0 var(--zn-border-width-thick) 0 var(--zn-color-accent);
+  }
+
+  /* Куда встанет вкладка, которую тащат из другой области (задача 77):
+     черта перед вкладкой, а за последней — у правого края полосы. */
+  .tab.drop-before {
+    box-shadow: inset var(--zn-border-width-thick) 0 0 var(--zn-color-accent);
+  }
+
+  .strip.drop-end {
+    box-shadow: inset calc(-1 * var(--zn-border-width-thick)) 0 0 var(--zn-color-accent);
   }
 
   .tab.dragging {

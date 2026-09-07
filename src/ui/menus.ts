@@ -32,6 +32,7 @@ export const MENU = {
   copyName: 'menu.copy-name',
   reveal: 'menu.reveal',
   closeOthers: 'menu.close-others',
+  openToSide: 'menu.open-to-side',
   newFile: 'menu.new-file',
   newFolder: 'menu.new-folder',
   rename: 'menu.rename',
@@ -157,6 +158,8 @@ export interface TabMenuContext {
   text: boolean;
   /** Сколько вкладок кроме этой. */
   others: number;
+  /** Поместятся ли две области на месте этой (Р-212). */
+  canSplit: boolean;
 }
 
 export function tabMenu(ctx: TabMenuContext, commands: Command[]): PopupItem[] {
@@ -166,7 +169,17 @@ export function tabMenu(ctx: TabMenuContext, commands: Command[]): PopupItem[] {
   const nothingToSave = ctx.text ? undefined : 'У этой вкладки нет файла: сохранять нечего';
 
   return tidy([
+    // Зеркало в новой области справа (Р-209). Гаснет, а не исчезает, когда
+    // области не поместятся (Р-212, Р-189).
+    {
+      id: MENU.openToSide,
+      label: 'Открыть сбоку',
+      disabled: !ctx.canSplit,
+      hint: ctx.canSplit ? undefined : 'Область слишком узкая, чтобы делить её надвое',
+    },
+
     fromCommand(commands, 'file.save', {
+      divider: true,
       disabled: !ctx.text || !ctx.modified,
       hint: nothingToSave,
     }),
@@ -223,6 +236,8 @@ export function treeMenu(ctx: TreeMenuContext, commands: Command[]): PopupItem[]
   const head: PopupItem[] = [];
   if (!row.isDir) {
     head.push({ id: MENU.open, label: 'Открыть' });
+    // В новой области справа от активной — как «Open to the Side» в VS Code.
+    head.push({ id: MENU.openToSide, label: 'Открыть сбоку' });
   } else if (!row.isLink) {
     head.push({ id: MENU.toggle, label: row.expanded ? 'Свернуть' : 'Раскрыть' });
     if (row.expanded) {
