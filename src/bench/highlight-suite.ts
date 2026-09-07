@@ -3,6 +3,7 @@ import { EditorView } from '@codemirror/view';
 
 import { languageById } from '../editor/langs';
 import { livePreview } from '../editor/live-preview';
+import { tablePreview } from '../editor/tables';
 import { syntaxColors } from '../theme/syntax';
 
 /**
@@ -92,6 +93,14 @@ Get-ChildItem -Recurse | Where-Object { $_.Length -gt 1024 }
 - пункт списка
 - ещё пункт
 
+| Параметр | Значение | Примечание |
+| --- | --- | --- |
+| Напряжение | 9…38 В | бортовая сеть |
+| Замков | 4 или 10 | по исполнению |
+| Импульс | **1 с** | \`настраивается\` |
+
+![снимок экрана](не-существует.png)
+
 `;
 
 interface Case {
@@ -116,7 +125,10 @@ const CASES: Case[] = [
     sample: MARKDOWN,
     sizes: [1, 10],
     label: 'Markdown + превью',
-    extra: () => [livePreview()],
+    // Ровно то же, что кладёт в отсек `livePreviewExtension`: таблицы
+    // живут отдельным полем состояния (Р-203), и мерить превью без них
+    // значило бы мерить не то, что видит человек.
+    extra: () => [livePreview(), tablePreview()],
   },
 ];
 

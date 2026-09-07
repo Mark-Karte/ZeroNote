@@ -11,7 +11,7 @@
 # Замеры на отладочной сборке бессмысленны и скриптом не поддерживаются.
 
 param(
-    [ValidateSet('all', 'startup', 'ipc', 'open', 'tree', 'index', 'highlight', 'live')]
+    [ValidateSet('all', 'startup', 'ipc', 'open', 'tree', 'index', 'highlight', 'live', 'media')]
     [string]$Only = 'all',
 
     [int]$Runs = 9
@@ -26,6 +26,24 @@ if (-not (Test-Path $exe)) {
     throw "Не найден релизный бинарник: $exe. Сначала выполните: npm run tauri build"
 }
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+
+# Папка данных выпускной сборки: она рядом с исполняемым файлом (Р-008).
+$dataDir = Join-Path (Split-Path -Parent $exe) 'data'
+
+# --- Условия замера. Оба — из приёмки этапа 9, оба стоили ложных чисел. ---
+
+# Первое: живой сосед. Он держит среду WebView2 тёплой и занижает тёплый старт
+# на четверть — та же сборка дала 422 мс без соседа и 292 мс с ним. С задачи 69
+# сосед с той же папкой данных замер уже не искажает, а срывает: второй
+# экземпляр отдаёт аргументы первому и выходит, отчёта не будет вовсе (Р-191).
+# Поэтому проверяем и говорим прямо, а не оставляем гадать над пустым отчётом.
+$alive = @(Get-Process -Name zeronote -ErrorAction SilentlyContinue |
+    Where-Object { $_.Path -eq $exe })
+if ($alive.Count -gt 0) {
+    throw ("Уже запущен ZeroNote из той же сборки (PID $($alive[0].Id)). " +
+        'Замер при живом соседе недостоверен: он держит среду WebView2 тёплой. ' +
+        'Закройте окно и повторите.')
+}
 
 function Get-Median([double[]]$values) {
     $sorted = $values | Sort-Object
@@ -76,14 +94,33 @@ function Measure-Startup {
     Write-Host 'запускайте скрипт сразу после перезагрузки и берите строку "первый запуск".' -ForegroundColor DarkGray
     Write-Host ''
 
-    $first = Invoke-StartupRun -ReportPath $reportPath
+    # Второе условие: сессия. Замер восстанавливает её из папки данных, и её
+    # содержимое на число влияет — десяток вкладок с файлами это чтение
+    # десятка файлов до первого кадра. Чтобы числа разных версий сравнивались,
+    # старт меряется с ПУСТОЙ сессией, а настоящая на это время отходит в бок.
+    $session = Join-Path $dataDir 'session.toml'
+    $stashed = "$session.bench"
+    $hadSession = Test-Path $session
+    if ($hadSession) { Move-Item $session $stashed -Force }
 
-    $warmWall = @()
-    $warmInner = @()
-    for ($i = 1; $i -lt $Runs; $i++) {
-        $r = Invoke-StartupRun -ReportPath $reportPath
-        $warmWall += $r.WallMs
-        $warmInner += $r.InnerMs
+    Write-Host 'Сессия на время замера пуста: её содержимое влияет на число.' -ForegroundColor DarkGray
+    Write-Host ''
+
+    try {
+        $first = Invoke-StartupRun -ReportPath $reportPath
+
+        $warmWall = @()
+        $warmInner = @()
+        for ($i = 1; $i -lt $Runs; $i++) {
+            $r = Invoke-StartupRun -ReportPath $reportPath
+            $warmWall += $r.WallMs
+            $warmInner += $r.InnerMs
+        }
+    }
+    finally {
+        # Возвращаем сессию в любом случае: прерванный замер не должен
+        # оставлять человека без открытых вкладок.
+        if ($hadSession) { Move-Item $stashed $session -Force }
     }
 
     Write-Host ('первый запуск   : {0,7:N0} мс полное, {1,7:N0} мс от main()' -f $first.WallMs, $first.InnerMs)
@@ -141,6 +178,10 @@ if ($Only -eq 'all' -or $Only -eq 'highlight') {
 if ($Only -eq 'all' -or $Only -eq 'live') {
     Measure-InApp -Mode 'live' -Title 'Инвариант 6: ввод во время индексации' -FileName 'live.md'
     Write-Host 'Цель: задержка ввода под нагрузкой не отличается от задержки в покое' -ForegroundColor DarkGray
+}
+if ($Only -eq 'all' -or $Only -eq 'media') {
+    Measure-InApp -Mode 'media' -Title 'Показ картинки и PDF' -FileName 'media.md'
+    Write-Host 'Цели нет: показ файла — разовое действие, а не путь ввода.' -ForegroundColor DarkGray
 }
 if ($Only -eq 'all' -or $Only -eq 'ipc') {
     Measure-InApp -Mode 'ipc' -Title 'Граница Rust <-> фронтенд' -FileName 'ipc.md'

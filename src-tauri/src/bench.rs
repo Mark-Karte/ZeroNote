@@ -65,6 +65,7 @@ pub fn parse_args(args: &[String]) -> BenchConfig {
         Some("index") => Some("index".to_owned()),
         Some("highlight") => Some("highlight".to_owned()),
         Some("live") => Some("live".to_owned()),
+        Some("media") => Some("media".to_owned()),
         _ => None,
     };
 
@@ -510,6 +511,156 @@ pub fn bench_write_report(path: String, content: String) -> Result<(), String> {
 pub fn bench_exit(app: tauri::AppHandle) {
     if config().mode.is_some() {
         app.exit(0);
+    }
+}
+
+
+// --- Образцы для замера показа картинки и PDF (задача 74) ---
+
+/// Образец: путь, вес и подпись для отчёта.
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MediaSample {
+    pub kind: String,
+    pub label: String,
+    pub path: String,
+    pub bytes: u64,
+}
+
+/// Приготовить файлы для замера показа.
+///
+/// **Картинка — BMP, и это не лень.** BMP пишется без сжатия, то есть без
+/// zlib: сорок строк вместо упаковщика, который пришлось бы тащить
+/// в приложение ради стенда. Движок окна разбирает его наравне с прочими,
+/// значит замер честный — от чтения с диска до разобранной картинки.
+///
+/// **PDF заполняется байтами, и разбор pdf.js в замер не входит.** Осмысленное
+/// число про разбор даёт только настоящий документ со шрифтами и векторами,
+/// а настоящий документ невоспроизводим на чужой машине. Меряется то, что
+/// написали мы: чтение и доставка байтов в окно.
+#[tauri::command]
+pub fn bench_make_media() -> Result<Vec<MediaSample>, String> {
+    // Прошлые прогоны за собой убираем: образцы весят полсотни мегабайт,
+    // и копить их в папке временных файлов незачем.
+    if let Ok(entries) = std::fs::read_dir(std::env::temp_dir()) {
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            if name.to_string_lossy().starts_with("zeronote-bench-media-") {
+                let _ = std::fs::remove_dir_all(entry.path());
+            }
+        }
+    }
+
+    let dir = std::env::temp_dir().join(format!("zeronote-bench-media-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+
+    let mut out = Vec::new();
+
+    for mib in [1u32, 5, 15] {
+        let path = dir.join(format!("образец-{mib}.bmp"));
+        // Ширина втрое меньше высоты — чтобы картинка была не полосой,
+        // а чем-то похожим на снимок экрана.
+        let pixels = (mib as u64 * 1024 * 1024) / 3;
+        let width = (pixels as f64 / 0.6).sqrt() as u32;
+        let height = (pixels / u64::from(width.max(1))) as u32;
+
+        let bytes = write_bmp(&path, width.max(1), height.max(1)).map_err(|e| e.to_string())?;
+        out.push(MediaSample {
+            kind: "image".to_owned(),
+            label: format!("BMP {width}×{height}"),
+            path: path.display().to_string(),
+            bytes,
+        });
+    }
+
+    for mib in [1u32, 8, 32] {
+        let path = dir.join(format!("образец-{mib}.pdf"));
+        let size = mib as usize * 1024 * 1024;
+        // Не нули: сплошной ноль система и диск сжимают лучше, чем настоящий
+        // файл, и замер вышел бы приятнее правды.
+        let block: Vec<u8> = (0..4096u32).map(|i| (i % 251) as u8).collect();
+        let mut bytes = Vec::with_capacity(size);
+        while bytes.len() < size {
+            bytes.extend_from_slice(&block);
+        }
+        bytes.truncate(size);
+
+        std::fs::write(&path, &bytes).map_err(|e| e.to_string())?;
+        out.push(MediaSample {
+            kind: "pdf".to_owned(),
+            label: format!("{mib} МиБ"),
+            path: path.display().to_string(),
+            bytes: bytes.len() as u64,
+        });
+    }
+
+    Ok(out)
+}
+
+/// Записать несжатый BMP заданного размера. Возвращает вес файла.
+fn write_bmp(path: &std::path::Path, width: u32, height: u32) -> std::io::Result<u64> {
+    // Строка точек выравнивается на четыре байта — это часть формата.
+    let stride = (width * 3).div_ceil(4) * 4;
+    let pixels = stride as usize * height as usize;
+    let size = 54 + pixels;
+
+    let mut out = Vec::with_capacity(size);
+    out.extend_from_slice(b"BM");
+    out.extend_from_slice(&(size as u32).to_le_bytes());
+    out.extend_from_slice(&0u32.to_le_bytes());
+    out.extend_from_slice(&54u32.to_le_bytes());
+    out.extend_from_slice(&40u32.to_le_bytes());
+    out.extend_from_slice(&(width as i32).to_le_bytes());
+    out.extend_from_slice(&(height as i32).to_le_bytes());
+    out.extend_from_slice(&1u16.to_le_bytes());
+    out.extend_from_slice(&24u16.to_le_bytes());
+    out.extend_from_slice(&0u32.to_le_bytes());
+    out.extend_from_slice(&(pixels as u32).to_le_bytes());
+    out.extend_from_slice(&2835i32.to_le_bytes());
+    out.extend_from_slice(&2835i32.to_le_bytes());
+    out.extend_from_slice(&0u32.to_le_bytes());
+    out.extend_from_slice(&0u32.to_le_bytes());
+
+    // Содержимое не однотонное: сплошной цвет и движок, и диск обработают
+    // быстрее настоящего снимка экрана.
+    for y in 0..height {
+        for x in 0..width {
+            out.push((x % 256) as u8);
+            out.push((y % 256) as u8);
+            out.push(((x + y) % 256) as u8);
+        }
+        for _ in (width * 3)..stride {
+            out.push(0);
+        }
+    }
+
+    std::fs::write(path, &out)?;
+    Ok(out.len() as u64)
+}
+
+#[cfg(test)]
+mod media_tests {
+    use super::*;
+
+    /// Заголовок BMP обязан быть правильным: иначе движок окна покажет
+    /// не картинку, а пустое место, и замер будет мерить пустое место.
+    #[test]
+    fn bmp_header_is_valid() {
+        let dir = std::env::temp_dir().join(format!("zeronote-bmp-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("проба.bmp");
+
+        let size = write_bmp(&path, 7, 5).unwrap();
+        let bytes = std::fs::read(&path).unwrap();
+
+        assert_eq!(&bytes[0..2], b"BM");
+        assert_eq!(u32::from_le_bytes(bytes[2..6].try_into().unwrap()), size as u32);
+        assert_eq!(u32::from_le_bytes(bytes[10..14].try_into().unwrap()), 54);
+        assert_eq!(u16::from_le_bytes(bytes[28..30].try_into().unwrap()), 24);
+        // Ширина 7 даёт 21 байт на строку, выравнивание — 24; пять строк.
+        assert_eq!(bytes.len(), 54 + 24 * 5);
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
 

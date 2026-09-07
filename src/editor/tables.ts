@@ -376,28 +376,68 @@ export function tableDecorations(state: EditorState): DecorationSet {
 }
 
 /**
+ * Что помнит поле: сами украшения и то, от чего они зависели.
+ *
+ * Второе — не кэш ради кэша, а мера, найденная приёмкой этапа: см. `signature`.
+ */
+interface TableState {
+  decorations: DecorationSet;
+  /** Строки, которых касается выделение. */
+  signature: string;
+}
+
+/**
+ * Отпечаток выделения по строкам.
+ *
+ * Раскрытие таблицы зависит не от места курсора, а от **строк**, которых
+ * он касается (Р-184). Значит, движение внутри строки ничего не меняет —
+ * и пересчитывать по нему нечего.
+ *
+ * Приёмка этапа 10 показала, во что обходится обратное: обход всего дерева
+ * на каждое движение курсора стоил 0,4 мс против 0,03 мс без таблиц —
+ * в десять с лишним раз больше. До кадра всё равно далеко, но платить
+ * за ничего незачем.
+ */
+function signature(state: EditorState): string {
+  const { doc } = state;
+  return state.selection.ranges
+    .map((range) => `${doc.lineAt(range.from).number}:${doc.lineAt(range.to).number}`)
+    .join(',');
+}
+
+/**
  * Показ таблиц. Полем состояния — см. `tableDecorations`.
  *
- * Пересчёт идёт на правку, на смену выделения и на приезд разбора. Последнее
- * обязательно и найдено ещё в задаче 64 (Р-169): язык подключается своим
- * отсеком и позже, чем превью, и без сравнения деревьев таблица оставалась бы
- * исходником до первого нажатия.
+ * Пересчёт идёт на правку, на приезд разбора и на смену **строк** выделения.
+ * Второе обязательно и найдено ещё в задаче 64 (Р-169): язык подключается
+ * своим отсеком и позже, чем превью, и без сравнения деревьев таблица
+ * оставалась бы исходником до первого нажатия.
  */
 export function tablePreview(): Extension {
-  return StateField.define<DecorationSet>({
-    create: (state) => tableDecorations(state),
+  return StateField.define<TableState>({
+    create: (state) => ({
+      decorations: tableDecorations(state),
+      signature: signature(state),
+    }),
 
     update(value, tr) {
-      if (
-        tr.docChanged ||
-        tr.selection !== undefined ||
-        syntaxTree(tr.startState) !== syntaxTree(tr.state)
-      ) {
-        return tableDecorations(tr.state);
+      if (tr.docChanged || syntaxTree(tr.startState) !== syntaxTree(tr.state)) {
+        return {
+          decorations: tableDecorations(tr.state),
+          signature: signature(tr.state),
+        };
       }
+
+      if (tr.selection !== undefined) {
+        const next = signature(tr.state);
+        if (next !== value.signature) {
+          return { decorations: tableDecorations(tr.state), signature: next };
+        }
+      }
+
       return value;
     },
 
-    provide: (field) => EditorView.decorations.from(field),
+    provide: (field) => EditorView.decorations.from(field, (value) => value.decorations),
   });
 }

@@ -5,7 +5,16 @@ import { invoke } from '@tauri-apps/api/core';
  * В обычном запуске `mode` равен null и приложение ведёт себя как приложение.
  */
 export interface BenchConfig {
-  mode: 'startup' | 'ipc' | 'open' | 'tree' | 'index' | 'highlight' | 'live' | null;
+  mode:
+    | 'startup'
+    | 'ipc'
+    | 'open'
+    | 'tree'
+    | 'index'
+    | 'highlight'
+    | 'live'
+    | 'media'
+    | null;
   outPath: string | null;
 }
 
@@ -77,6 +86,25 @@ export function benchStartIndex(): Promise<string> {
 /** Отменить индексацию стенда и убрать за ней. */
 export function benchStopIndex(path: string): Promise<void> {
   return invoke<void>('bench_stop_index', { path });
+}
+
+/** Образец для замера показа: путь, вес и подпись. */
+export interface MediaSample {
+  kind: 'image' | 'pdf';
+  label: string;
+  path: string;
+  bytes: number;
+}
+
+/**
+ * Приготовить файлы для замера показа картинки и PDF.
+ *
+ * Картинка — несжатый BMP: он пишется сорока строками, а движок окна
+ * разбирает его наравне с прочими. PDF заполняется байтами — разбор pdf.js
+ * в замер не входит, см. пояснение в `bench_make_media`.
+ */
+export function benchMakeMedia(): Promise<MediaSample[]> {
+  return invoke<MediaSample[]>('bench_make_media');
 }
 
 export function benchWriteReport(path: string, content: string): Promise<void> {

@@ -18,7 +18,6 @@
   import Suggest from './Suggest.svelte';
   import SettingsScreen from './settings/SettingsScreen.svelte';
   import ImageView from './ImageView.svelte';
-  import PdfView from './PdfView.svelte';
   import WelcomeScreen from './welcome/WelcomeScreen.svelte';
   import {
     autoCloseEnabled,
@@ -373,8 +372,15 @@
         <!-- Картинка: ни поиска, ни панели разметки, ни редактора над ней. -->
         <ImageView />
       {:else if activeKind === 'pdf'}
-        <!-- PDF: показ, и только показ (Р-181). -->
-        <PdfView />
+        <!-- PDF: показ, и только показ (Р-181).
+             Показ грузится по требованию, а не вместе с окном: pdf.js —
+             самая большая зависимость проекта, и обычным импортом он попадал
+             в главный кусок сборки, то есть в путь запуска. Нашла приёмка
+             этапа 10: главный кусок был 566 КиБ вместо нынешних 142. -->
+        {#await import('./PdfView.svelte') then module}
+          {@const PdfView = module.default}
+          <PdfView />
+        {/await}
       {:else}
         <SearchPanel />
         <!-- Панель разметки — только над markdown и только если её не убрали

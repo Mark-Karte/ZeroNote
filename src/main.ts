@@ -48,14 +48,13 @@ async function main(): Promise<void> {
 
   const startupMs = await benchReady();
 
-  if (
-    config.mode === 'ipc' ||
-    config.mode === 'open' ||
-    config.mode === 'tree' ||
-    config.mode === 'index' ||
-    config.mode === 'highlight' ||
-    config.mode === 'live'
-  ) {
+  // Условие, а не список режимов, и это стоило зависшего прогона: режим
+  // `media` добавили в `runBench`, а сюда дописать забыли — приложение
+  // открыло обычное окно, отчёта не написало, и стенд ждал файла, которого
+  // не будет. Два списка одного и того же расходятся молча; здесь их один.
+  // Неизвестный режим сюда не доходит: ядро отвергает его при разборе
+  // аргументов и отдаёт `null`.
+  if (config.mode !== null && config.mode !== 'startup') {
     let report: string;
     try {
       report = await runBench(config.mode);
@@ -95,6 +94,13 @@ async function runBench(mode: string): Promise<string> {
     // Инвариант 6: ввод под настоящей фоновой индексацией.
     const suite = await import('./bench/live-suite');
     return suite.formatMarkdown(await suite.runLiveSuite());
+  }
+
+  if (mode === 'media') {
+    // Показ картинки и PDF: путь пользовательский, от открытия файла
+    // до разобранной картинки.
+    const suite = await import('./bench/media-suite');
+    return suite.formatMarkdown(await suite.runMediaSuite());
   }
 
   if (mode === 'highlight') {

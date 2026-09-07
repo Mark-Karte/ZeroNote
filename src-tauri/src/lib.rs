@@ -188,6 +188,7 @@ pub fn run() {
             commands::files::image_source,
             commands::files::preview_image,
             commands::files::pdf_bytes,
+            bench::bench_make_media,
             commands::files::clipboard_text,
             commands::entries::create_entry,
             commands::entries::rename_entry,
