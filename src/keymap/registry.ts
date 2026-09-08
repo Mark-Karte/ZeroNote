@@ -19,6 +19,7 @@ import {
   closeActiveTab,
   closeAllTabs,
   closeActivePane,
+  reopenTab,
 } from '../actions/files';
 import { showAbout } from '../actions/about';
 import { checkForUpdates } from '../state/updates.svelte';
@@ -139,6 +140,7 @@ export const COMMANDS: Record<CommandId, () => void | Promise<unknown>> = {
   'view.previous-tab': previousTab,
   // История мест курсора (задача 85). Возвращает и в другую вкладку,
   // и в другую область: место — это всё вместе.
+  'file.reopen-tab': reopenTab,
   'view.back': goBack,
   'view.forward': goForward,
   // Области (Р-210). Разделение, после которого обе половины уже предела,

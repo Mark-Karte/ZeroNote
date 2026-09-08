@@ -32,6 +32,7 @@ import { wrapFor } from '../editor/readable';
 import { livePreviewOn } from '../editor/live-preview';
 import { lineNumbersOn } from '../editor/line-numbers';
 import { JUMP_LINES, jumped } from './history.svelte';
+import { remember as rememberClosed, takeClosed } from './closed.svelte';
 import { bookmarkLines } from '../editor/bookmarks';
 import { editorView, editorViewOf } from '../editor/current';
 import {
@@ -66,6 +67,8 @@ import {
   paneShowing,
   registerLayoutListener,
   setActivePane,
+  reorderLocal,
+  commitReorder,
   setActiveTab,
 } from './panes.svelte';
 // Подсказка про вкладки ничего не знает — всё, что ей нужно, приходит
@@ -924,6 +927,7 @@ function put(
   cursor = 0,
   scrollTop = 0,
   language: string | null = null,
+  bookmarks: number[] = [],
 ): void {
   // Вид решает, чем вкладка станет. Текста у картинки и PDF нет — ядро
   // и не читало файл, оно вернуло одни сведения о нём.
@@ -935,7 +939,7 @@ function put(
   // Отступ определяется один раз, по содержимому: перечитывать его на каждой
   // правке значило бы менять поведение `Tab` посреди набора.
   const indent = resolveIndent(text, indentSettings());
-  const state = makeState(meta, text, cursor, indent);
+  const state = makeState(meta, text, cursor, indent, bookmarks);
   baselines.set(meta.id, state.doc);
 
   const editor: TabEditor = {
@@ -1312,6 +1316,72 @@ export async function openPath(path: string): Promise<void> {
   put(opened, opened.text);
 }
 
+/**
+ * Запомнить закрытую вкладку, чтобы её можно было вернуть (задача 86).
+ *
+ * Только с файлом на диске (Р-219): безымянный буфер возвращать нечем —
+ * его черновик удаляется тут же, а на вопрос про несохранённое человек
+ * уже ответил.
+ */
+function noteClosed(tab: Tab): void {
+  const path = tab.meta.path;
+  if (!path) return;
+
+  const pane = paneShowing(tab.meta.id);
+  const editor = tab.editor;
+
+  rememberClosed({
+    path,
+    // Область и место в полосе — чтобы вкладка вернулась туда, откуда ушла,
+    // а не в конец активной области.
+    pane: pane?.id ?? 0,
+    index: pane ? pane.tabs.indexOf(tab.meta.id) : 0,
+    cursor: editor ? editor.state.selection.main.head : 0,
+    scrollTop: editor?.scrollTop ?? 0,
+    language: editor?.language ?? null,
+    bookmarks: editor ? bookmarkLines(editor.state) : [],
+  });
+}
+
+/**
+ * Вернуть последнюю закрытую вкладку — `Ctrl+Shift+T` (задача 86).
+ *
+ * Возвращается не только файл, но и всё, чем вкладка была: место в полосе,
+ * область, курсор, прокрутка, выбранный язык и закладки. Иначе «вернуть»
+ * значило бы «открыть заново», а это и так умеет быстрое открытие.
+ */
+export async function reopenClosed(): Promise<boolean> {
+  const entry = takeClosed((path) =>
+    tabs.items.some((tab) => samePath(tab.meta.path, path)),
+  );
+  if (!entry) return false;
+
+  // Область, из которой вкладку закрыли, могла схлопнуться (Р-211) —
+  // тогда вкладка возвращается в активную.
+  if (paneById(entry.pane)) setActivePane(entry.pane);
+
+  const opened = await ipc.openFile(entry.path);
+  put(opened, opened.text, entry.cursor, entry.scrollTop, entry.language, entry.bookmarks);
+
+  const pane = paneShowing(opened.id);
+  if (pane) {
+    const at = pane.tabs.indexOf(opened.id);
+    const to = Math.min(entry.index, pane.tabs.length - 1);
+    if (at >= 0 && to >= 0 && at !== to) {
+      reorderLocal(pane.id, opened.id, to);
+      void commitReorder(pane.id, opened.id);
+    }
+  }
+
+  return true;
+}
+
+/** Windows не различает регистр путей — сравнение то же, что в ядре. */
+function samePath(a: string | null, b: string): boolean {
+  if (a === null) return false;
+  return a.replace(/\//g, '\\').toLowerCase() === b.replace(/\//g, '\\').toLowerCase();
+}
+
 /** Заменить содержимое вкладки прочитанным заново. */
 export function replaceContent(opened: BufferWithText): void {
   put(opened, opened.text);
@@ -1328,6 +1398,8 @@ export function replaceContent(opened: BufferWithText): void {
 export async function close(id: number): Promise<void> {
   const index = tabs.items.findIndex((t) => t.meta.id === id);
   if (index < 0) return;
+
+  noteClosed(tabs.items[index]!);
 
   const layout = await ipc.closeBuffer(id);
   tabs.items.splice(index, 1);

@@ -110,6 +110,7 @@ export type IconName =
   | 'cmd.move-tab-left'
   | 'cmd.back'
   | 'cmd.forward'
+  | 'cmd.reopen-tab'
   | 'cmd.close-pane'
   | 'cmd.sidebar'
   | 'cmd.follow-link'
@@ -419,6 +420,11 @@ const ICONS: Record<IconName, string> = {
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4 2.4 7.6 6 11.2"/><path d="M2.4 7.6h6.4a4 4 0 0 1 0 8H7.2"/></svg>',
   'cmd.forward':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4l3.6 3.6L10 11.2"/><path d="M13.6 7.6H7.2a4 4 0 0 0 0 8h1.6"/></svg>',
+  // Вернуть закрытую вкладку: вкладка и стрелка возврата на ней. От «назад»
+  // отличается тем, что здесь есть сама вкладка: возвращается не место,
+  // а файл.
+  'cmd.reopen-tab':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M2.4 12.6V5.2a1.4 1.4 0 0 1 1.4-1.4h3l1.4 1.8h4.4a1.4 1.4 0 0 1 1.4 1.4v5.6"/><path d="M9 9.4 6.6 11.8 9 14.2"/><path d="M6.6 11.8h4.2"/></svg>',
   // Закрыть область: разделённое окно, во второй половине крест.
   'cmd.close-pane':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2.2" y="3" width="11.6" height="10" rx="1.5"/><path d="M7 3v10"/><path d="M9.2 6.4l2.6 3.2M11.8 6.4 9.2 9.6"/></svg>',

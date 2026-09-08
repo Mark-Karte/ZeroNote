@@ -10,6 +10,7 @@ import {
   contentOf,
   tabs,
   close as closeTabState,
+  reopenClosed,
 } from '../state/tabs.svelte';
 import {
   activePane,
@@ -47,6 +48,7 @@ export async function openToSide(path: string): Promise<void> {
 }
 import { FILE_FILTERS } from './file-types';
 import { askChoice } from '../state/modal.svelte';
+import { notify } from '../state/notices.svelte';
 import { forgetDraft, noteStructureChange } from '../state/persist.svelte';
 import { add as addRoot } from '../state/roots.svelte';
 import { autosavable } from '../state/autosave-rules';
@@ -360,5 +362,21 @@ export async function revealInExplorer(path: string): Promise<void> {
     await ipc.revealPath(path);
   } catch (error) {
     await report(error);
+  }
+}
+
+/**
+ * Вернуть последнюю закрытую вкладку — `Ctrl+Shift+T` (задача 86).
+ *
+ * Ошибка здесь не редкость и не мелочь: файл могли удалить или переименовать
+ * после того, как его закрыли. Молчание в ответ на нажатие читается как
+ * поломка, поэтому говорим полосой предупреждений — тем же способом,
+ * которым говорим обо всём остальном.
+ */
+export async function reopenTab(): Promise<void> {
+  try {
+    await reopenClosed();
+  } catch (error) {
+    notify(`Не удалось вернуть вкладку: ${String(error)}`);
   }
 }

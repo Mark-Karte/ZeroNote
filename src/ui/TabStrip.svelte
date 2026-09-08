@@ -15,6 +15,7 @@
   import { dropTarget, setDropTarget, clearDropTarget, type DropTarget } from '../state/tab-drag.svelte';
   import { dropZone, insertIndex } from './pane-drop';
   import { canSplitPane } from './pane-size';
+  import { hasClosed } from '../state/closed.svelte';
   import type { PaneNode } from '../ipc/layout';
   // Закрытие идёт через действие, а не напрямую через состояние: только там
   // спрашивают про несохранённые правки.
@@ -220,6 +221,7 @@
           text: meta.kind === 'text',
           others: pane.tabs.length - 1,
           canSplit: canSplitPane(pane.id, 'row'),
+          hasClosed: hasClosed(),
         },
         commandList(),
       ),

@@ -160,6 +160,8 @@ export interface TabMenuContext {
   others: number;
   /** Поместятся ли две области на месте этой (Р-212). */
   canSplit: boolean;
+  /** Есть ли что возвращать: в этом сеансе закрывали вкладку с файлом. */
+  hasClosed: boolean;
 }
 
 export function tabMenu(ctx: TabMenuContext, commands: Command[]): PopupItem[] {
@@ -193,6 +195,12 @@ export function tabMenu(ctx: TabMenuContext, commands: Command[]): PopupItem[] {
     },
     fromCommand(commands, 'file.close-all'),
     fromCommand(commands, 'view.close-pane'),
+    // Возврат закрытой стоит рядом с закрытием: это ответ на него, и искать
+    // его человек будет там же. Гаснет, когда возвращать нечего (Р-189).
+    fromCommand(commands, 'file.reopen-tab', {
+      disabled: !ctx.hasClosed,
+      hint: ctx.hasClosed ? undefined : 'В этом сеансе ничего не закрывали',
+    }),
 
     {
       id: MENU.copyPath,
