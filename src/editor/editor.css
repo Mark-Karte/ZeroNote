@@ -558,12 +558,29 @@
   color: var(--zn-color-danger);
 }
 
-/* Закладка на строке: акцентом и жирным по номеру строки. Своего поля
-   закладкам не заводим — третье поле у номеров строк отняло бы место
-   у текста ради того, что и так видно. */
+/* Закладка на строке: ленточка в поле номеров и акцент на самом номере.
+   Своего поля закладкам не заводим — третье поле у номеров строк отняло бы
+   место у текста ради того, что и так видно. */
 .cm-editor .cm-lineNumbers .zn-bookmark {
   color: var(--zn-color-accent);
   font-weight: var(--zn-font-weight-strong);
+}
+
+/* Значок — тот же, что в панели закладок и в меню: один рисунок читается
+   без объяснений, а точка на его месте не читалась никак (замечание
+   владельца после задачи 80). */
+.cm-editor .zn-bookmark-icon {
+  display: inline-flex;
+  vertical-align: text-bottom;
+  width: var(--zn-control-icon-size);
+  height: var(--zn-control-icon-size);
+  color: var(--zn-color-accent);
+}
+
+.cm-editor .zn-bookmark-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 /* Номера спрятаны (Р-213): поле остаётся, но сужается — его ширину задавал
@@ -573,9 +590,3 @@
   min-width: var(--zn-control-icon-size);
 }
 
-/* Закладку показывало само число, покрашенное акцентом, — теперь показывать
-   нечего. Знаком, а не фигурой из размеров: он едет за кеглем редактора
-   и слушается `color`, как стрелка табуляции выше. */
-.cm-editor.zn-no-line-numbers .cm-lineNumbers .zn-bookmark::after {
-  content: '•';
-}

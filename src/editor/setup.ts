@@ -32,7 +32,7 @@ import { search, highlightSelectionMatches } from '@codemirror/search';
 // `tests/brackets.test.ts` (решение Р-112).
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import { syntaxColors } from '../theme/syntax';
-import { bookmarkField, bookmarkMarkers, bookmarks } from './bookmarks';
+import { bookmarkField, bookmarkIcons, bookmarkMarkers, bookmarks } from './bookmarks';
 import { brackets } from './brackets';
 import { columnAt, indentUnitOf, type Indent } from './indent';
 import { folding } from './folding';
@@ -175,6 +175,9 @@ export function lineNumbersExtension(show: boolean): Extension {
     : [
         lineNumbers({ formatNumber: () => '' }),
         EditorView.editorAttributes.of({ class: 'zn-no-line-numbers' }),
+        // Номера спрятаны — закладке нужен свой рисунок: показывать её
+        // покрашенным числом больше нечем.
+        bookmarkIcons.of(true),
       ];
 }
 
@@ -284,7 +287,9 @@ export function extensionsFor(meta: Buffer, options: EditorOptions): Extension[]
     lineNumbersCompartment.of(lineNumbersExtension(options.lineNumbers)),
     // Закладки помечают ячейку с номером строки — своего поля им не надо.
     bookmarks(options.bookmarks),
-    lineNumberMarkers.compute([bookmarkField], (state) => bookmarkMarkers(state)),
+    lineNumberMarkers.compute([bookmarkField, bookmarkIcons], (state) =>
+      bookmarkMarkers(state),
+    ),
     // Поле свёртки — справа от номеров строк, как в Notepad++ и VS Code.
     // Порядок здесь и есть порядок полей на экране.
     folding(),

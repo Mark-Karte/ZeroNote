@@ -1,5 +1,13 @@
-import { RangeSet, StateEffect, StateField, type EditorState } from '@codemirror/state';
+import {
+  Facet,
+  RangeSet,
+  StateEffect,
+  StateField,
+  type EditorState,
+} from '@codemirror/state';
 import { GutterMarker, type EditorView } from '@codemirror/view';
+
+import { icon } from '../icons/registry';
 
 /**
  * Закладки на строках.
@@ -15,12 +23,53 @@ import { GutterMarker, type EditorView } from '@codemirror/view';
  * вкладки свой.
  */
 
+/**
+ * Закладка на строке с номером: номер красится акцентом, и этого довольно.
+ *
+ * Рисунка здесь нет намеренно. CodeMirror показывает либо номер строки,
+ * либо метку с собственной разметкой — но не то и другое разом, — а номер
+ * на строке, которую как раз и запомнили, отдавать нельзя: он и есть то,
+ * чем о ней говорят («ошибка в сорок второй», Р-214).
+ */
 class BookmarkMarker extends GutterMarker {
   /** Класс вешается на ячейку с номером строки — своего поля закладкам не надо. */
   override elementClass = 'zn-bookmark';
 }
 
+/**
+ * Закладка там, где номеров нет: ленточка — тот же значок, что в панели
+ * закладок и в меню.
+ *
+ * До этого на месте спрятанного номера рисовалась точка (задача 80), и
+ * владелец сказал прямо: «просто точка — не совсем понятно, что». Один
+ * и тот же рисунок в поле, в панели и в меню читается без объяснений.
+ */
+class BookmarkIcon extends GutterMarker {
+  override elementClass = 'zn-bookmark';
+
+  override toDOM(): HTMLElement {
+    const span = document.createElement('span');
+    span.className = 'zn-bookmark-icon';
+    // Разметка из собственного реестра значков, а не из файла пользователя.
+    span.innerHTML = icon('cmd.bookmark');
+    return span;
+  }
+}
+
 const marker = new BookmarkMarker();
+const iconMarker = new BookmarkIcon();
+
+/**
+ * Рисовать ли закладку значком.
+ *
+ * Ставится отсеком номеров строк (`lineNumbersExtension`): значок нужен
+ * ровно тогда, когда номер спрятан и показывать закладку больше нечем.
+ * Facet, а не догадка по классу на элементе: состояние знает о себе само,
+ * а разметку оно не видит.
+ */
+export const bookmarkIcons = Facet.define<boolean, boolean>({
+  combine: (values) => values[0] ?? false,
+});
 
 /** Переключить закладку на строке, в которой стоит эта позиция. */
 export const toggleBookmarkEffect = StateEffect.define<number>();
@@ -102,7 +151,15 @@ export function bookmarks(lines: number[]) {
 
 /** Для поля номеров строк: какие ячейки пометить. */
 export function bookmarkMarkers(state: EditorState): RangeSet<GutterMarker> {
-  return state.field(bookmarkField, false) ?? RangeSet.empty;
+  const set = state.field(bookmarkField, false) ?? RangeSet.empty;
+  if (!state.facet(bookmarkIcons)) return set;
+
+  // Пересобираем тем же набором позиций, но другой меткой. Закладок единицы,
+  // и пересборка идёт только при смене набора или настройки.
+  return RangeSet.of(
+    positions(set).map((from) => iconMarker.range(from)),
+    true,
+  );
 }
 
 export function toggleBookmark(view: EditorView): boolean {
