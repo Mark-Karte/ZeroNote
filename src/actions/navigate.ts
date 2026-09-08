@@ -1,7 +1,13 @@
 import { editorView } from '../editor/current';
 import { goToLine } from '../editor/commands';
 import { askInput } from '../state/modal.svelte';
-import { activeTab, type PdfState } from '../state/tabs.svelte';
+import { activeTab, cursorAt, goToPlace, type PdfState } from '../state/tabs.svelte';
+import {
+  arrivedAt,
+  configureHistory,
+  goBack as historyBack,
+  goForward as historyForward,
+} from '../state/history.svelte';
 import { pdfView } from '../pdf/current';
 import { notify } from '../state/notices.svelte';
 import { openSearch } from '../state/search.svelte';
@@ -81,4 +87,41 @@ export function findInTab(mode: 'find' | 'replace'): void {
   }
 
   openSearch(mode);
+}
+
+/**
+ * История мест знает только про два стека; всё остальное — крючки (задача 85).
+ *
+ * Настраиваются здесь, на уровне модуля: реестр команд импортирует этот файл
+ * при запуске, и другого «места старта» у действий в проекте нет.
+ */
+configureHistory({ cursorOf: cursorAt, goTo: goToPlace });
+
+/**
+ * Сообщить истории, что активная вкладка или область сменились.
+ *
+ * Зовётся из оболочки окна эффектом: точек, где меняется активная вкладка,
+ * с полдесятка — палитра, дерево, полоса вкладок, ссылка, панель закладок, —
+ * и держать их всех в согласии дороже, чем смотреть на итог.
+ */
+export function noteArrival(tab: number | null, pane: number): void {
+  if (tab === null) {
+    arrivedAt(null);
+    return;
+  }
+
+  const pos = cursorAt({ tab, pane });
+  // У вкладки, которая не текст, курсора нет — и места в истории тоже:
+  // возвращаться в картинку некуда, у неё нет «где».
+  arrivedAt(pos === null ? null : { tab, pane, pos });
+}
+
+/** `Alt+←` — назад по местам курсора. */
+export function goBack(): void {
+  historyBack();
+}
+
+/** `Alt+→` — вперёд по местам курсора. */
+export function goForward(): void {
+  historyForward();
 }

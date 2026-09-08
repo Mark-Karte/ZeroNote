@@ -23,7 +23,7 @@ import {
 import { showAbout } from '../actions/about';
 import { checkForUpdates } from '../state/updates.svelte';
 import { copySelection, cutSelection, pasteIntoEditor } from '../actions/clipboard';
-import { goToLineDialog, findInTab } from '../actions/navigate';
+import { goBack, goForward, goToLineDialog, findInTab } from '../actions/navigate';
 import {
   addRootDialog,
   toggleSidebarPanel,
@@ -137,6 +137,10 @@ export const COMMANDS: Record<CommandId, () => void | Promise<unknown>> = {
   'view.go-to-line': goToLineDialog,
   'view.next-tab': nextTab,
   'view.previous-tab': previousTab,
+  // История мест курсора (задача 85). Возвращает и в другую вкладку,
+  // и в другую область: место — это всё вместе.
+  'view.back': goBack,
+  'view.forward': goForward,
   // Области (Р-210). Разделение, после которого обе половины уже предела,
   // не выполняется (Р-212).
   'view.split-right': () => {

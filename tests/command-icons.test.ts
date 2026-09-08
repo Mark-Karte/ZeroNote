@@ -89,6 +89,7 @@ describe('значки команд', () => {
       ['file.close-tab', 'file.close-all'],
       ['view.move-tab-next-pane', 'view.move-tab-previous-pane'],
       ['view.split-right', 'view.split-down'],
+      ['view.back', 'view.forward'],
     ];
 
     for (const [first, second] of pairs) {

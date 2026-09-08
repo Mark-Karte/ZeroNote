@@ -85,6 +85,8 @@ const ICON_FOR: Record<string, IconName> = {
   'view.move-tab-next-pane': 'cmd.move-tab-right',
   'view.move-tab-previous-pane': 'cmd.move-tab-left',
   'view.close-pane': 'cmd.close-pane',
+  'view.back': 'cmd.back',
+  'view.forward': 'cmd.forward',
   'view.previous-tab': 'cmd.previous-tab',
   'view.sidebar': 'cmd.sidebar',
   'view.settings': 'panel.settings',

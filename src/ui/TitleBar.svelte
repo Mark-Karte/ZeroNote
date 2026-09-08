@@ -5,6 +5,10 @@
   import { activeTab } from '../state/tabs.svelte';
   import { roots } from '../state/roots.svelte';
   import { quickOpen } from '../actions/project';
+  import { goBack, goForward } from '../actions/navigate';
+  import { canGoBack, canGoForward } from '../state/history.svelte';
+  import { commandList } from '../keymap/global.svelte';
+  import { labelOf } from '../keymap/binding';
 
   const tab = $derived(activeTab());
 
@@ -16,6 +20,24 @@
 
   /** Полный путь — подсказкой: крошки показывают не всё. */
   const fullPath = $derived(tab?.meta.path ?? '');
+
+  /**
+   * Кнопки истории мест (задача 85).
+   *
+   * Гаснут, а не исчезают (Р-189): пропадающая кнопка сдвигает соседние,
+   * и человек попадает не туда, куда целился. Подпись сочетания берётся
+   * из раскладки — сочетание переназначаемо, а подсказка врать не должна.
+   */
+  const commands = $derived(commandList());
+
+  function hint(id: string, fallback: string): string {
+    const found = commands.find((command) => command.id === id);
+    if (!found) return fallback;
+    return found.binding ? `${found.title} · ${labelOf(found.binding)}` : found.title;
+  }
+
+  const back = $derived({ can: canGoBack(), hint: hint('view.back', 'Назад') });
+  const forward = $derived({ can: canGoForward(), hint: hint('view.forward', 'Вперёд') });
 </script>
 
 <!--
@@ -31,6 +53,29 @@
   <div class="brand" data-tauri-drag-region>
     <span class="mark"><Icon name="app.mark" /></span>
     <span class="name">ZeroNote</span>
+  </div>
+
+  <div class="history">
+    <button
+      class="step"
+      type="button"
+      disabled={!back.can}
+      onclick={goBack}
+      title={back.hint}
+      aria-label="Назад по местам курсора"
+    >
+      <Icon name="cmd.back" />
+    </button>
+    <button
+      class="step"
+      type="button"
+      disabled={!forward.can}
+      onclick={goForward}
+      title={forward.hint}
+      aria-label="Вперёд по местам курсора"
+    >
+      <Icon name="cmd.forward" />
+    </button>
   </div>
 
   <div class="crumbs" title={fullPath} data-tauri-drag-region>
@@ -91,6 +136,39 @@
   .name {
     color: var(--zn-color-fg-default);
     font-weight: var(--zn-font-weight-strong);
+  }
+
+  /* Стрелки стоят слева от крошек: они про путь, которым сюда пришли,
+     а крошки — про то, где мы сейчас. */
+  .history {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: var(--zn-space-1);
+  }
+
+  .step {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--zn-control-toolbar-button-size);
+    height: var(--zn-control-toolbar-button-size);
+    border: none;
+    border-radius: var(--zn-radius-md);
+    background: none;
+    color: var(--zn-color-fg-muted);
+    cursor: default;
+  }
+
+  .step:hover:not(:disabled) {
+    background-color: var(--zn-color-bg-hover);
+    color: var(--zn-color-fg-default);
+  }
+
+  /* Недоступная кнопка гаснет цветом, а не прозрачностью: прозрачность
+     смешала бы её с подложкой, а у нас три разных фона (Р-083). */
+  .step:disabled {
+    color: var(--zn-color-fg-subtle);
   }
 
   .crumbs {

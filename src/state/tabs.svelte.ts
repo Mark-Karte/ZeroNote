@@ -31,6 +31,7 @@ import type { Scale } from '../ui/zoom';
 import { wrapFor } from '../editor/readable';
 import { livePreviewOn } from '../editor/live-preview';
 import { lineNumbersOn } from '../editor/line-numbers';
+import { JUMP_LINES, jumped } from './history.svelte';
 import { bookmarkLines } from '../editor/bookmarks';
 import { editorView, editorViewOf } from '../editor/current';
 import {
@@ -289,9 +290,43 @@ function onEditorUpdate(id: number, update: ViewUpdate): void {
   const tab = tabById(id);
   if (!tab?.editor) return;
 
+  noteJump(id, tab.editor.home, update);
   tab.editor.state = update.state;
   afterPrimaryChange(tab);
   fanOut(tab, update.transactions);
+}
+
+/**
+ * Дальний прыжок курсора — это место, куда вернёт «назад» (задача 85).
+ *
+ * Здесь, в слушателе обновлений, а не в десятке команд: переход к строке,
+ * закладка, оглавление, результат поиска и щелчок мышью в другой конец файла
+ * приходят сюда одинаково — транзакцией со сменой выделения. Одно место
+ * вместо десяти точек входа, которые пришлось бы держать в согласии.
+ *
+ * Правка не считается прыжком, даже длинная: человек её сделал сам и знает,
+ * где он. Считается только перемещение по готовому тексту.
+ */
+function noteJump(id: number, pane: number | null, update: ViewUpdate): void {
+  if (pane === null || !update.selectionSet || update.docChanged) return;
+
+  // **Документ обязан быть тем же.** Переключение вкладки подменяет
+  // состояние в том же представлении, и слушатель видит это как смену
+  // выделения без правки — то есть как прыжок. Строки при этом считаются
+  // в двух разных документах, и «прыжок» выходил почти всегда: он стирал
+  // путь вперёд, и «вперёд» переставало работать сразу после «назад».
+  // Найдено на живом окне; тестом не ловится — в нём нет представления.
+  if (update.startState.doc !== update.state.doc) return;
+
+  const before = update.startState;
+  const from = before.doc.lineAt(before.selection.main.head).number;
+  const to = update.state.doc.lineAt(update.state.selection.main.head).number;
+  if (Math.abs(to - from) < JUMP_LINES) return;
+
+  jumped(
+    { tab: id, pane, pos: before.selection.main.head },
+    { tab: id, pane, pos: update.state.selection.main.head },
+  );
 }
 
 /** Что делается после любой правки главного состояния — из окна или без него. */
@@ -348,6 +383,7 @@ function onMirrorUpdate(id: number, pane: number, update: ViewUpdate): void {
   const mirror = tab?.editor?.mirrors[pane];
   if (!tab || !mirror) return;
 
+  noteJump(id, pane, update);
   mirror.state = update.state;
 
   for (const tr of update.transactions) {
@@ -1054,6 +1090,58 @@ export function setActive(id: number): void {
   const pane = paneShowing(id);
   if (!pane) return;
   setActiveTab(pane.id, id);
+}
+
+/**
+ * Курсор вкладки в этой области — для истории мест (задача 85).
+ *
+ * `null` означает «места больше нет»: вкладку закрыли. Область при этом
+ * не проверяется: она могла схлопнуться, а вкладка остаться в другой,
+ * и возвращаться туда — правильнее, чем не возвращаться никуда.
+ */
+export function cursorAt(place: { tab: number; pane: number }): number | null {
+  const editor = tabById(place.tab)?.editor;
+  if (!editor) return null;
+
+  const slot = editor.home === place.pane ? editor : editor.mirrors[place.pane];
+  return (slot ?? editor).state.selection.main.head;
+}
+
+/**
+ * Перейти в место из истории: область, вкладка, курсор.
+ *
+ * Область берётся из места, если вкладка там и правда есть; иначе любая,
+ * где она есть. Курсор ставится через представление, когда оно на экране,
+ * и прямо в состояние, когда нет, — то же условие, что в Р-105.
+ */
+export function goToPlace(place: { tab: number; pane: number; pos: number }): void {
+  const tab = tabById(place.tab);
+  if (!tab?.editor) return;
+
+  const pane = paneById(place.pane)?.tabs.includes(place.tab)
+    ? paneById(place.pane)
+    : paneShowing(place.tab);
+  if (!pane) return;
+
+  // Один вызов, а не два: `setActiveTab` сам делает область активной.
+  // С двумя между ними возникало состояние «новая область, старая вкладка» —
+  // место, где человек не был, — и история записывала его как переход,
+  // стирая путь вперёд. Найдено на живом окне.
+  setActiveTab(pane.id, place.tab);
+
+  const slot = slotFor(tab, pane.id);
+  if (!slot) return;
+
+  const anchor = Math.min(place.pos, slot.state.doc.length);
+  const view = editorViewOf(pane.id);
+
+  if (view && view.state === slot.state) {
+    view.dispatch({ selection: { anchor }, scrollIntoView: true });
+    view.focus();
+    return;
+  }
+
+  slot.state = slot.state.update({ selection: { anchor }, scrollIntoView: true }).state;
 }
 
 /** Переключение вкладок по кругу — внутри своей области (Р-210). */

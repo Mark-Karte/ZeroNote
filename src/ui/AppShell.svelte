@@ -39,6 +39,7 @@
   import { flushNow } from '../state/persist.svelte';
   import { layout, activeTabId } from '../state/panes.svelte';
   import { autosave, autosaveNow } from '../state/autosave.svelte';
+  import { noteArrival } from '../actions/navigate';
   import { roots, refresh as refreshRoots, rootProblems } from '../state/roots.svelte';
   import { refreshDirs } from '../state/tree.svelte';
   import { TREE_CHANGED } from '../ipc/tree';
@@ -81,6 +82,15 @@
   $effect(() => {
     void activeTabId();
     untrack(() => autosaveNow());
+  });
+
+  // История мест (задача 85): куда человек перешёл. Тем же способом и по той
+  // же причине — точек, меняющих активную вкладку, с полдесятка, а итог
+  // у них один.
+  $effect(() => {
+    const tab = activeTabId();
+    const pane = layout.activePane;
+    untrack(() => noteArrival(tab, pane));
   });
 
   // Перенос строк — общая настройка, а состояния вкладок создаются каждое

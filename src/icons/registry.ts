@@ -108,6 +108,8 @@ export type IconName =
   | 'cmd.pane'
   | 'cmd.move-tab-right'
   | 'cmd.move-tab-left'
+  | 'cmd.back'
+  | 'cmd.forward'
   | 'cmd.close-pane'
   | 'cmd.sidebar'
   | 'cmd.follow-link'
@@ -409,6 +411,14 @@ const ICONS: Record<IconName, string> = {
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2.2" y="3" width="11.6" height="10" rx="1.5"/><path d="M8 3v2.2M8 10.8V13"/><path d="M4.6 8h6.2M8.8 6 10.8 8l-2 2"/></svg>',
   'cmd.move-tab-left':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2.2" y="3" width="11.6" height="10" rx="1.5"/><path d="M8 3v2.2M8 10.8V13"/><path d="M11.4 8H5.2M7.2 6 5.2 8l2 2"/></svg>',
+  // Назад и вперёд по местам курсора: стрелка с загибом — та же, что
+  // в браузере. Прямая стрелка здесь не годится: ею уже подписан перенос
+  // вкладки между областями, и в одном окне это читалось бы как одно
+  // действие.
+  'cmd.back':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4 2.4 7.6 6 11.2"/><path d="M2.4 7.6h6.4a4 4 0 0 1 0 8H7.2"/></svg>',
+  'cmd.forward':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4l3.6 3.6L10 11.2"/><path d="M13.6 7.6H7.2a4 4 0 0 0 0 8h1.6"/></svg>',
   // Закрыть область: разделённое окно, во второй половине крест.
   'cmd.close-pane':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2.2" y="3" width="11.6" height="10" rx="1.5"/><path d="M7 3v10"/><path d="M9.2 6.4l2.6 3.2M11.8 6.4 9.2 9.6"/></svg>',
