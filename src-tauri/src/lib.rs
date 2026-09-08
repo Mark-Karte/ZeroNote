@@ -84,7 +84,7 @@ fn prepare_state() -> AppState {
         roots: std::sync::Mutex::new(model::root::Roots::new()),
         watchers: std::sync::Mutex::new(tree::watch::Watchers::default()),
         index: std::sync::Mutex::new(index::jobs::Index::default()),
-        replace_scan: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
+        file_scan: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
     }
 }
 
@@ -209,6 +209,7 @@ pub fn run() {
             commands::edits::apply_edits,
             commands::edits::plan_replace,
             commands::edits::cancel_replace,
+            commands::edits::search_expression,
             commands::entries::delete_entry,
             commands::entries::move_buffer,
             commands::roots::list_roots,

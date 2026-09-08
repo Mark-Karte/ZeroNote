@@ -22,6 +22,7 @@ function done(query: string, files = 1): DoneReplace {
   return {
     query,
     replacement: 'замысел',
+    expression: false,
     matches: files,
     undo: Array.from({ length: files }, (_, i) => ({
       path: String.raw`C:\проект\файл-` + i + '.md',
@@ -67,7 +68,13 @@ describe('стек замен', () => {
    */
   it('не помнит замену, ничего не изменившую', () => {
     remember(done('настоящая'));
-    remember({ query: 'пустая', replacement: 'что-то', matches: 0, undo: [] });
+    remember({
+      query: 'пустая',
+      replacement: 'что-то',
+      expression: false,
+      matches: 0,
+      undo: [],
+    });
 
     expect(undoable.items).toHaveLength(1);
     expect(lastReplace()?.query).toBe('настоящая');

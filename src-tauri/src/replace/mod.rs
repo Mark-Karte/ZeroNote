@@ -1,4 +1,4 @@
-//! Замена по проекту: что именно изменится в файлах (задача 88).
+//! Обход файлов проекта: что в них найдено и что изменится (задачи 88, 89).
 //!
 //! Как и у переименования (Р-136), сначала считается **план** — список
 //! файлов и правок в них, — и только потом, с согласия человека, правится
@@ -29,7 +29,9 @@ use crate::model::edit::TextEdit;
 use crate::model::root::RootId;
 use crate::text::document;
 
-pub use matcher::Options;
+pub use matcher::{Matcher, Options};
+
+use crate::index::query::{Hit, MARK_END, MARK_START};
 
 /// Сколько строк показывать из одного файла.
 const PREVIEW_PER_FILE: usize = 3;
@@ -98,28 +100,16 @@ pub struct Candidate {
 /// правится чужой файл, и проверять это надо на строке, а не на диске.
 pub fn edits_for(
     text: &str,
-    query: &str,
+    matcher: &Matcher,
     replacement: &str,
-    options: Options,
 ) -> (Vec<TextEdit>, Vec<Preview>) {
-    let found = matcher::find_all(text, query, options);
+    let edits = matcher.edits(text, replacement);
 
-    let edits = found
-        .iter()
-        .map(|hit| TextEdit {
-            offset: hit.offset,
-            // Что нашли, то и заменяем: без учёта регистра найденный кусок
-            // не обязан совпадать с запросом ни буквами, ни длиной.
-            was: text[hit.offset..hit.offset + hit.len].to_owned(),
-            becomes: replacement.to_owned(),
-        })
-        .collect();
-
-    let preview = found
+    let preview = edits
         .iter()
         .take(PREVIEW_PER_FILE)
-        .map(|hit| {
-            let (line, text) = matcher::line_at(text, hit.offset, PREVIEW_LINE);
+        .map(|edit| {
+            let (line, text) = matcher::line_at(text, edit.offset, PREVIEW_LINE);
             Preview { line, text }
         })
         .collect();
@@ -137,16 +127,11 @@ pub fn edits_for(
 /// который просил заменить текст, незачем.
 pub fn scan(
     candidates: &[Candidate],
-    query: &str,
+    matcher: &Matcher,
     replacement: &str,
-    options: Options,
     stop: &dyn Fn() -> bool,
 ) -> ReplacePlan {
     let mut plan = ReplacePlan::default();
-
-    if query.is_empty() {
-        return plan;
-    }
 
     for candidate in candidates {
         if stop() {
@@ -169,7 +154,7 @@ pub fn scan(
 
         plan.scanned += 1;
 
-        let (edits, preview) = edits_for(&raw.text, query, replacement, options);
+        let (edits, preview) = edits_for(&raw.text, matcher, replacement);
         if edits.is_empty() {
             continue;
         }
@@ -203,12 +188,139 @@ pub fn scan(
     plan
 }
 
+/// Что нашёл обход файлов (задача 89).
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Search {
+    /// Найденное — в том же виде, в каком его отдаёт индекс: панель рисует
+    /// оба ответа одним кодом, и знать, кто их посчитал, ей незачем.
+    pub hits: Vec<Hit>,
+    pub scanned: usize,
+    /// Обход прервали.
+    pub stopped: bool,
+    /// Файлов с совпадениями больше, чем показано.
+    pub limited: bool,
+}
+
+/// Сколько знаков строки помещается в отрывок до совпадения и после него.
+const LEAD: usize = 40;
+const TAIL: usize = 120;
+
+/// Найти файлы, в которых есть совпадение.
+///
+/// Второй путь поиска, рядом с индексом: FTS5 ищет слова и выражений
+/// не умеет вовсе. Цена честная — это чтение файлов, — и потому обход идёт
+/// в отдельном потоке и прерывается (инвариант 6).
+pub fn find(
+    candidates: &[Candidate],
+    matcher: &Matcher,
+    limit: usize,
+    stop: &dyn Fn() -> bool,
+) -> Search {
+    let mut result = Search::default();
+
+    for candidate in candidates {
+        if stop() {
+            result.stopped = true;
+            break;
+        }
+
+        let Ok(bytes) = std::fs::read(&candidate.path) else {
+            continue;
+        };
+        let Ok(raw) = document::read_raw(&bytes) else {
+            continue;
+        };
+
+        result.scanned += 1;
+
+        let Some(found) = matcher.find_all(&raw.text).into_iter().next() else {
+            continue;
+        };
+
+        if result.hits.len() >= limit {
+            // Дальше не идём: список длиннее человек всё равно не смотрит,
+            // а каждый файл — это чтение с диска.
+            result.limited = true;
+            break;
+        }
+
+        result.hits.push(Hit {
+            root_id: candidate.root_id,
+            path: candidate.path.clone(),
+            name: file_name(&candidate.path),
+            snippet: snippet_for(&raw.text, found.offset, found.len),
+        });
+    }
+
+    result
+}
+
+/// Имя файла из пути. Разделитель тут всегда свой, путь пришёл из индекса.
+fn file_name(path: &str) -> String {
+    path.rsplit(['\\', '/']).next().unwrap_or(path).to_owned()
+}
+
+/// Отрывок строки с пометками вокруг совпадения.
+///
+/// Пометки те же, что у отрывка из FTS5 (управляющие знаки): панель разрезает
+/// по ним и рисует подсветку сама, и делать для второго пути второй вид
+/// отрывка значило бы завести второй разбор в интерфейсе.
+fn snippet_for(text: &str, offset: usize, len: usize) -> String {
+    // Границы строки, в которой лежит совпадение. Совпадение выражения может
+    // и перешагнуть перенос — тогда в отрывок попадает его начало: строка
+    // и есть единица показа.
+    let start = text[..offset].rfind('\n').map_or(0, |at| at + 1);
+    let end = text[offset..].find('\n').map_or(text.len(), |at| offset + at);
+    let stop = (offset + len).min(end);
+
+    let before = text[start..offset].trim_start_matches(['\r', ' ', '\t']);
+    let hit = &text[offset..stop];
+    let after = text[stop..end].trim_end_matches('\r');
+
+    let lead = tail_chars(before, LEAD);
+    let tail = head_chars(after, TAIL);
+
+    format!(
+        "{}{lead}{MARK_START}{hit}{MARK_END}{tail}{}",
+        if lead.len() < before.len() { "…" } else { "" },
+        if tail.len() < after.len() { "…" } else { "" },
+    )
+}
+
+/// Последние `limit` знаков — по знакам, а не по байтам.
+fn tail_chars(text: &str, limit: usize) -> &str {
+    match text.char_indices().nth_back(limit.saturating_sub(1)) {
+        Some((at, _)) if text.chars().count() > limit => &text[at..],
+        _ => text,
+    }
+}
+
+/// Первые `limit` знаков.
+fn head_chars(text: &str, limit: usize) -> &str {
+    match text.char_indices().nth(limit) {
+        Some((at, _)) => &text[..at],
+        None => text,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn options() -> Options {
-        Options::default()
+    fn literal() -> Matcher {
+        Matcher::build("план", Options::default()).unwrap()
+    }
+
+    fn find_with(query: &str) -> Matcher {
+        Matcher::build(
+            query,
+            Options {
+                expression: true,
+                ..Options::default()
+            },
+        )
+        .unwrap()
     }
 
     fn temp_dir(tag: &str) -> std::path::PathBuf {
@@ -238,7 +350,7 @@ mod tests {
 
     #[test]
     fn edits_carry_what_was_found() {
-        let (edits, _) = edits_for("План и план", "план", "дело", options());
+        let (edits, _) = edits_for("План и план", &literal(), "дело");
 
         assert_eq!(edits.len(), 2);
         assert_eq!(edits[0].was, "План", "заменяется найденное, а не запрос");
@@ -249,7 +361,7 @@ mod tests {
     #[test]
     fn preview_is_shorter_than_the_plan() {
         let text = "план\nплан\nплан\nплан\nплан\n";
-        let (edits, preview) = edits_for(text, "план", "дело", options());
+        let (edits, preview) = edits_for(text, &literal(), "дело");
 
         assert_eq!(edits.len(), 5);
         assert_eq!(preview.len(), 3);
@@ -264,9 +376,8 @@ mod tests {
 
         let plan = scan(
             &candidates(&dir, &["есть.md", "нет.md"]),
-            "план",
+            &literal(),
             "дело",
-            options(),
             &never(),
         );
 
@@ -285,9 +396,8 @@ mod tests {
 
         let plan = scan(
             &candidates(&dir, &["файл.md"]),
-            "план",
+            &literal(),
             "дело",
-            options(),
             &|| true,
         );
 
@@ -306,9 +416,8 @@ mod tests {
 
         let plan = scan(
             &candidates(&dir, &[".obsidian/app.json"]),
-            "план",
+            &literal(),
             "дело",
-            options(),
             &never(),
         );
 
@@ -332,9 +441,8 @@ mod tests {
 
         let plan = scan(
             &candidates(&dir, &["битый.txt"]),
-            "план",
+            &literal(),
             "дело",
-            options(),
             &never(),
         );
 
@@ -348,16 +456,80 @@ mod tests {
         let dir = temp_dir("empty");
         std::fs::write(dir.join("файл.md"), "план").unwrap();
 
-        let plan = scan(
-            &candidates(&dir, &["файл.md"]),
-            "",
-            "дело",
-            options(),
+        let nothing = Matcher::build("", Options::default()).unwrap();
+        let plan = scan(&candidates(&dir, &["файл.md"]), &nothing, "дело", &never());
+
+        assert_eq!(plan.total, 0);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Поиск обходом находит то, чего индекс не умеет: выражение.
+    #[test]
+    fn find_walks_files_with_an_expression() {
+        let dir = temp_dir("find");
+        std::fs::write(dir.join("код.rs"), "fn первая() {}\nfn вторая() {}\n").unwrap();
+        std::fs::write(dir.join("текст.md"), "просто слова\n").unwrap();
+
+        let result = find(
+            &candidates(&dir, &["код.rs", "текст.md"]),
+            &find_with(r"fn \w+\(\)"),
+            20,
             &never(),
         );
 
-        assert_eq!(plan.total, 0);
-        assert_eq!(plan.scanned, 0);
+        assert_eq!(result.scanned, 2);
+        assert_eq!(result.hits.len(), 1);
+        assert_eq!(result.hits[0].name, "код.rs");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Отрывок помечен теми же знаками, что у индекса: панель одна на оба
+    /// пути, и второго разбора отрывка в интерфейсе быть не должно.
+    #[test]
+    fn found_snippet_is_marked_like_the_index_one() {
+        let dir = temp_dir("snippet");
+        std::fs::write(dir.join("файл.md"), "первая строка\nвот тут план дел\n").unwrap();
+
+        let result = find(&candidates(&dir, &["файл.md"]), &literal(), 20, &never());
+
+        assert_eq!(result.hits.len(), 1);
+        assert_eq!(
+            result.hits[0].snippet,
+            format!("вот тут {MARK_START}план{MARK_END} дел")
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Список ограничен, и об этом сказано: обход длиннее стоит чтения
+    /// с диска, а такой список всё равно не смотрят.
+    #[test]
+    fn find_stops_at_the_limit() {
+        let dir = temp_dir("limit");
+        for name in ["а.md", "б.md", "в.md"] {
+            std::fs::write(dir.join(name), "план").unwrap();
+        }
+
+        let result = find(
+            &candidates(&dir, &["а.md", "б.md", "в.md"]),
+            &literal(),
+            2,
+            &never(),
+        );
+
+        assert_eq!(result.hits.len(), 2);
+        assert!(result.limited);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn find_stops_when_asked() {
+        let dir = temp_dir("find-stop");
+        std::fs::write(dir.join("файл.md"), "план").unwrap();
+
+        let result = find(&candidates(&dir, &["файл.md"]), &literal(), 20, &|| true);
+
+        assert!(result.stopped);
+        assert!(result.hits.is_empty());
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

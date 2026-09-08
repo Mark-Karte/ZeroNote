@@ -92,8 +92,9 @@ export async function replaceEverything(): Promise<void> {
     plan = await planReplace(
       query,
       replacement,
-      replace.matchCase,
-      replace.wholeWord,
+      projectSearch.matchCase,
+      projectSearch.wholeWord,
+      projectSearch.regexp,
       projectSearch.rootId,
     );
   } catch (error) {
@@ -148,7 +149,13 @@ export async function replaceEverything(): Promise<void> {
   await checkExternalChanges();
 
   const count = matchesIn(outcome.undo);
-  remember({ query, replacement, matches: count, undo: outcome.undo });
+  remember({
+    query,
+    replacement,
+    expression: projectSearch.regexp,
+    matches: count,
+    undo: outcome.undo,
+  });
   replace.done = describeDone(count, outcome.undo.length);
   refreshHits();
 
@@ -178,7 +185,13 @@ export async function undoReplace(): Promise<void> {
 
   const answer = await askChoice(
     'Отменить замену по проекту?',
-    describeUndo(last.query, last.replacement, last.matches, last.undo.length),
+    describeUndo(
+      last.query,
+      last.replacement,
+      last.matches,
+      last.undo.length,
+      last.expression,
+    ),
     [
       { id: 'undo', label: 'Отменить замену', primary: true },
       { id: 'keep', label: 'Оставить как есть', cancel: true },

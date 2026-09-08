@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 
 use zeronote_lib::fsx::text_edit;
 use zeronote_lib::model::edit::{self, FileEdits};
-use zeronote_lib::replace::{self, Candidate, Options};
+use zeronote_lib::replace::{self, Candidate, Matcher, Options};
 
 fn temp_dir(tag: &str) -> PathBuf {
     let nanos = std::time::SystemTime::now()
@@ -60,13 +60,26 @@ fn undo(files: &[FileEdits]) {
 }
 
 fn plan(dir: &Path, names: &[&str], query: &str, replacement: &str) -> replace::ReplacePlan {
-    replace::scan(
-        &candidates(dir, names),
+    let matcher = Matcher::build(query, Options::default()).expect("запрос не собрался");
+    replace::scan(&candidates(dir, names), &matcher, replacement, &|| false)
+}
+
+/// План по регулярному выражению — тем же кодом, только искатель другой.
+fn plan_by_expression(
+    dir: &Path,
+    names: &[&str],
+    query: &str,
+    replacement: &str,
+) -> replace::ReplacePlan {
+    let matcher = Matcher::build(
         query,
-        replacement,
-        Options::default(),
-        &|| false,
+        Options {
+            expression: true,
+            ..Options::default()
+        },
     )
+    .expect("выражение не собралось");
+    replace::scan(&candidates(dir, names), &matcher, replacement, &|| false)
 }
 
 /// Замена проходит по нескольким файлам, а отмена возвращает их байт в байт.
@@ -232,6 +245,38 @@ fn undo_refuses_when_the_replacement_is_gone() {
 
     assert!(result.is_err(), "отмена переписала чужой текст");
     assert_eq!(fs::read_to_string(&path).unwrap(), rewritten);
+
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// Замена по выражению с подстановкой групп — и отмена возвращает всё назад.
+///
+/// Ради этого выражение в замене обычно и нужно: переставить куски местами.
+/// Отмена здесь ничем не отличается от обычной: обратная правка не знает,
+/// каким способом посчитали прямую.
+#[test]
+fn expression_replacement_and_undo() {
+    let dir = temp_dir("expression");
+    let path = dir.join("настройки.toml");
+    let before = "ключ = значение\nдругой = ещё\n";
+    fs::write(&path, before).unwrap();
+
+    let plan = plan_by_expression(
+        &dir,
+        &["настройки.toml"],
+        r"(\w+) = (\w+)",
+        "$2 = $1",
+    );
+    assert_eq!(plan.total, 2);
+
+    let back = apply(&plan);
+    assert_eq!(
+        fs::read_to_string(&path).unwrap(),
+        "значение = ключ\nещё = другой\n"
+    );
+
+    undo(&back);
+    assert_eq!(fs::read_to_string(&path).unwrap(), before);
 
     let _ = fs::remove_dir_all(&dir);
 }

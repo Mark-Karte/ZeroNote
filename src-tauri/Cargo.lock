@@ -5136,6 +5136,7 @@ dependencies = [
  "encoding_rs",
  "ignore",
  "notify",
+ "regex",
  "rusqlite",
  "serde",
  "serde_json",

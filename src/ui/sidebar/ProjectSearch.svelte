@@ -107,25 +107,63 @@
     </select>
   {/if}
 
-  <input
-    class="field"
-    type="text"
-    bind:this={field}
-    bind:value={projectSearch.query}
-    oninput={schedule}
-    onkeydown={(event) => {
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        void runNow();
-      }
-    }}
-    placeholder="Найти в файлах проекта"
-    aria-label="Найти в проекте"
-    spellcheck="false"
-  />
+  <div class="bar">
+    <input
+      class="field"
+      class:invalid={projectSearch.error !== ''}
+      type="text"
+      bind:this={field}
+      bind:value={projectSearch.query}
+      oninput={schedule}
+      onkeydown={(event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          void runNow();
+        }
+      }}
+      placeholder={projectSearch.regexp
+        ? 'Выражение; Enter — искать'
+        : 'Найти в файлах проекта'}
+      aria-label="Найти в проекте"
+      spellcheck="false"
+    />
+
+    <div class="flags">
+      <button
+        class="flag"
+        class:on={projectSearch.matchCase}
+        type="button"
+        title="Учитывать регистр"
+        onclick={() => {
+          projectSearch.matchCase = !projectSearch.matchCase;
+          void runNow();
+        }}>Aa</button
+      >
+      <button
+        class="flag"
+        class:on={projectSearch.wholeWord}
+        type="button"
+        title="Слово целиком"
+        onclick={() => {
+          projectSearch.wholeWord = !projectSearch.wholeWord;
+          void runNow();
+        }}>|ab|</button
+      >
+      <button
+        class="flag"
+        class:on={projectSearch.regexp}
+        type="button"
+        title="Регулярное выражение"
+        onclick={() => {
+          projectSearch.regexp = !projectSearch.regexp;
+          void runNow();
+        }}>.*</button
+      >
+    </div>
+  </div>
 
   {#if replace.open}
-    <div class="replace-row">
+    <div class="bar">
       <input
         class="field replacement"
         type="text"
@@ -137,30 +175,13 @@
             void replaceEverything();
           }
         }}
-        placeholder="Заменить на"
+        placeholder={projectSearch.regexp ? 'Заменить на; $1 — группа' : 'Заменить на'}
         aria-label="Заменить на"
         spellcheck="false"
       />
-
-      <div class="flags">
-        <button
-          class="flag"
-          class:on={replace.matchCase}
-          type="button"
-          title="Учитывать регистр"
-          onclick={() => (replace.matchCase = !replace.matchCase)}>Aa</button
-        >
-        <button
-          class="flag"
-          class:on={replace.wholeWord}
-          type="button"
-          title="Слово целиком"
-          onclick={() => (replace.wholeWord = !replace.wholeWord)}>|ab|</button
-        >
-      </div>
     </div>
 
-    <div class="replace-row">
+    <div class="bar">
       {#if replace.running}
         <button class="action" type="button" onclick={() => void stopReplace()}>
           Прервать
@@ -188,12 +209,18 @@
     {/if}
   {/if}
 
-  {#if projectSearch.running}
+  {#if projectSearch.error !== ''}
+    <p class="note warn">{projectSearch.error}</p>
+  {:else if projectSearch.running}
     <p class="note">идёт поиск…</p>
   {:else if projectSearch.searched && projectSearch.hits.length === 0}
     <p class="note">Ничего не найдено</p>
   {:else if projectSearch.hits.length > 0}
-    <p class="note">Найдено файлов: {projectSearch.hits.length}</p>
+    <p class="note">
+      Найдено файлов: {projectSearch.hits.length}{projectSearch.limited
+        ? ' — показаны первые'
+        : ''}
+    </p>
   {/if}
 
   <ul class="list">
@@ -263,7 +290,7 @@
   /* Свой класс, а не `.row`: строка результата поиска ниже зовётся так же
      и стоит в стилях позже — она бы и побеждала. Найдено глазами: поле
      замены и кнопки встали столбиком по центру. */
-  .replace-row {
+  .bar {
     display: flex;
     align-items: center;
     gap: var(--zn-space-2);
@@ -271,7 +298,7 @@
     margin: 0 var(--zn-space-3) var(--zn-space-2);
   }
 
-  .replace-row .field {
+  .bar .field {
     margin: 0;
     flex: 1;
     min-width: 0;
@@ -367,6 +394,14 @@
   .field:focus {
     outline: none;
     border-color: var(--zn-color-border-focus);
+  }
+
+  .field.invalid {
+    border-color: var(--zn-color-danger);
+  }
+
+  .note.warn {
+    color: var(--zn-color-danger);
   }
 
   .note {

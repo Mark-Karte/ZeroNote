@@ -15,7 +15,7 @@ use std::sync::atomic::Ordering;
 
 use crate::model::edit::{self, FileEdits};
 use crate::model::root::RootId;
-use crate::replace::{self, Candidate, Options, ReplacePlan};
+use crate::replace::{self, Candidate, Matcher, Options, ReplacePlan, Search};
 use crate::state::AppState;
 
 use super::entries::guard;
@@ -50,26 +50,30 @@ pub async fn plan_replace(
     replacement: String,
     match_case: bool,
     whole_word: bool,
+    expression: bool,
     root_id: Option<RootId>,
 ) -> Result<ReplacePlan, String> {
     if query.is_empty() {
         return Ok(ReplacePlan::default());
     }
 
-    // Номер поколения, как у индексации: отмена не флаг, а увеличение
-    // счётчика. Свой номер обход помнит и бросает работу, как только счётчик
-    // ушёл вперёд, — новый запрос отменяет прежний сам, без отдельного вызова.
-    let generation = state.replace_scan.clone();
-    let mine = generation.fetch_add(1, Ordering::SeqCst) + 1;
+    // Выражение разбирается здесь, до первого прочитанного файла: ошибку
+    // в нём человек должен увидеть сразу, а не после обхода десяти тысяч
+    // файлов, из которых ни один не подошёл.
+    let matcher = Matcher::build(
+        &query,
+        Options {
+            match_case,
+            whole_word,
+            expression,
+        },
+    )?;
 
+    let (generation, mine) = mark(&state);
     let candidates = candidates(&state, root_id);
-    let options = Options {
-        match_case,
-        whole_word,
-    };
 
     let plan = tauri::async_runtime::spawn_blocking(move || {
-        replace::scan(&candidates, &query, &replacement, options, &|| {
+        replace::scan(&candidates, &matcher, &replacement, &|| {
             generation.load(Ordering::SeqCst) != mine
         })
     })
@@ -79,14 +83,66 @@ pub async fn plan_replace(
     Ok(plan)
 }
 
-/// Прервать идущий обход.
+/// Поиск по проекту выражением (задача 89).
+///
+/// Второй путь рядом с индексом, а не замена ему: FTS5 ищет слова и выражения
+/// не понимает вовсе. Цена — чтение файлов, поэтому обход идёт в отдельном
+/// потоке и прерывается тем же счётчиком, что у замены: одновременно эти две
+/// работы не нужны никому, и новая отменяет прежнюю сама.
+#[tauri::command]
+pub async fn search_expression(
+    state: tauri::State<'_, AppState>,
+    query: String,
+    match_case: bool,
+    whole_word: bool,
+    root_id: Option<RootId>,
+    limit: Option<u32>,
+) -> Result<Search, String> {
+    if query.is_empty() {
+        return Ok(Search::default());
+    }
+
+    let matcher = Matcher::build(
+        &query,
+        Options {
+            match_case,
+            whole_word,
+            expression: true,
+        },
+    )?;
+
+    let (generation, mine) = mark(&state);
+    let candidates = candidates(&state, root_id);
+    let limit = limit.unwrap_or(200) as usize;
+
+    tauri::async_runtime::spawn_blocking(move || {
+        replace::find(&candidates, &matcher, limit, &|| {
+            generation.load(Ordering::SeqCst) != mine
+        })
+    })
+    .await
+    .map_err(|e| format!("обход файлов прервался: {e}"))
+}
+
+/// Занять номер поколения обхода.
+///
+/// Приём тот же, что у индексации: отмена — не флаг, а увеличение счётчика.
+/// Свой номер обход помнит и бросает работу, как только счётчик ушёл
+/// вперёд, — новый запрос отменяет прежний сам, без отдельного вызова.
+fn mark(state: &AppState) -> (std::sync::Arc<std::sync::atomic::AtomicU64>, u64) {
+    let generation = state.file_scan.clone();
+    let mine = generation.fetch_add(1, Ordering::SeqCst) + 1;
+    (generation, mine)
+}
+
+/// Прервать идущий обход — и поиска, и замены.
 ///
 /// Отдельная команда, а не отмена запроса во фронтенде: обход уже идёт
 /// в потоке, и выбросить его ответ мало — он всё равно дочитает все файлы
 /// до конца.
 #[tauri::command]
 pub fn cancel_replace(state: tauri::State<'_, AppState>) {
-    state.replace_scan.fetch_add(1, Ordering::SeqCst);
+    state.file_scan.fetch_add(1, Ordering::SeqCst);
 }
 
 /// Файлы проекта, в которых имеет смысл искать.

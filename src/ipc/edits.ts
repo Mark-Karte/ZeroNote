@@ -1,5 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 
+import type { Hit } from './index';
+
 /**
  * Правка чужих файлов пачкой: план замены и применение правок.
  *
@@ -71,9 +73,52 @@ export const planReplace = (
   replacement: string,
   matchCase: boolean,
   wholeWord: boolean,
+  expression: boolean,
   rootId: number | null,
 ): Promise<ReplacePlan> =>
-  invoke('plan_replace', { query, replacement, matchCase, wholeWord, rootId });
+  invoke('plan_replace', {
+    query,
+    replacement,
+    matchCase,
+    wholeWord,
+    expression,
+    rootId,
+  });
+
+/** Что нашёл обход файлов (задача 89). */
+export interface Search {
+  hits: Hit[];
+  scanned: number;
+  /** Обход прервали. */
+  stopped: boolean;
+  /** Файлов с совпадениями больше, чем показано. */
+  limited: boolean;
+}
+
+/**
+ * Поиск по проекту регулярным выражением.
+ *
+ * Второй путь рядом с индексом: FTS5 ищет слова и выражений не понимает.
+ * Цена — чтение файлов, поэтому запрос идёт по Enter, а не по букве,
+ * и прерывается `cancelReplace`.
+ *
+ * Ошибка в выражении приходит отказом с человеческим текстом — это ответ,
+ * а не сбой: выражение пишут по букве, и половина написанного не разбирается.
+ */
+export const searchExpression = (
+  query: string,
+  matchCase: boolean,
+  wholeWord: boolean,
+  rootId: number | null,
+  limit?: number,
+): Promise<Search> =>
+  invoke('search_expression', {
+    query,
+    matchCase,
+    wholeWord,
+    rootId,
+    limit: limit ?? null,
+  });
 
 /** Прервать идущий обход. */
 export const cancelReplace = (): Promise<void> => invoke('cancel_replace');

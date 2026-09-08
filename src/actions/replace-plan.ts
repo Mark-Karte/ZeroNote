@@ -129,13 +129,25 @@ export function describeUndone(count: number, changed: number): string {
   return `Замена отменена: ${matches(count)} в ${files(changed)}`;
 }
 
-/** Вопрос перед отменой замены. */
+/**
+ * Вопрос перед отменой замены.
+ *
+ * Замену по выражению называем выражением, а не подстановкой: «$2=$1» станет
+ * «(\w+)=(\w+)» — не то, что произойдёт, и человек прочитает это как
+ * бессмыслицу. Вернётся то, что было в файлах, а было там не выражение.
+ */
 export function describeUndo(
   query: string,
   replacement: string,
   count: number,
   changed: number,
+  expression = false,
 ): string {
-  const what = replacement === '' ? `«${query}» вернётся` : `«${replacement}» станет «${query}»`;
+  const what = expression
+    ? `Замена по выражению «${query}» → «${replacement}» будет отменена`
+    : replacement === ''
+      ? `«${query}» вернётся`
+      : `«${replacement}» станет «${query}»`;
+
   return `${what}: ${matches(count)} в ${files(changed)}. Файлы, изменённые после замены, останутся как есть.`;
 }

@@ -2,6 +2,7 @@ import { tick } from 'svelte';
 
 import * as ipc from '../ipc/index';
 import type { Hit } from '../ipc/index';
+import * as search from '../ipc/edits';
 import { openPath } from './tabs.svelte';
 import { search as fileSearch, findNext } from './search.svelte';
 
@@ -34,12 +35,36 @@ export const projectSearch = $state<{
    * и застать его завтра там же было бы неожиданностью.
    */
   rootId: number | null;
+  /**
+   * Переключатели запроса (задача 89).
+   *
+   * `regexp` меняет не только смысл строки, но и путь: выражение ищется
+   * обходом файлов, а не индексом, — FTS5 ищет слова и выражений не понимает.
+   * Отсюда и правило «Enter — искать»: обход стоит чтения файлов, и делать
+   * его на каждую букву недописанного выражения незачем.
+   *
+   * `matchCase` и `wholeWord` при обычном поиске список не меняют: индекс
+   * ищет слова и регистра не различает. На замену они действуют всегда —
+   * замена ищет точный текст сама (задача 88).
+   */
+  matchCase: boolean;
+  wholeWord: boolean;
+  regexp: boolean;
+  /** Выражение не разобрано — текст отказа из ядра. */
+  error: string;
+  /** Найденного больше, чем показано. */
+  limited: boolean;
 }>({
   query: '',
   hits: [],
   running: false,
   searched: false,
   rootId: null,
+  matchCase: false,
+  wholeWord: false,
+  regexp: false,
+  error: '',
+  limited: false,
 });
 
 /**
@@ -63,6 +88,8 @@ async function run(): Promise<void> {
   timer = null;
   const mine = ++latest;
   const query = projectSearch.query;
+  projectSearch.error = '';
+  projectSearch.limited = false;
 
   if (query.trim() === '') {
     projectSearch.hits = [];
@@ -73,27 +100,57 @@ async function run(): Promise<void> {
 
   // Запрос, начинающийся с решётки, — это поиск по тегу. Так же ведёт себя
   // Obsidian, и набрать `#тег` в поле поиска — самое очевидное, что можно
-  // сделать, увидев тег в тексте.
-  if (query.trimStart().startsWith('#')) {
+  // сделать, увидев тег в тексте. У выражения решётка — обычный знак,
+  // поэтому режим тега проверяется только в обычном поиске.
+  if (!projectSearch.regexp && query.trimStart().startsWith('#')) {
     await searchByTag(query.trim().slice(1));
     return;
   }
 
   projectSearch.running = true;
   try {
+    if (projectSearch.regexp) {
+      const found = await search.searchExpression(
+        query,
+        projectSearch.matchCase,
+        projectSearch.wholeWord,
+        projectSearch.rootId,
+      );
+      if (mine !== latest) return;
+      projectSearch.hits = found.hits;
+      projectSearch.limited = found.limited;
+      projectSearch.searched = true;
+      return;
+    }
+
     const hits = await ipc.searchProject(query, projectSearch.rootId ?? undefined);
     // Ответ на устаревший запрос выбрасываем.
     if (mine !== latest) return;
     projectSearch.hits = hits;
+    projectSearch.searched = true;
+  } catch (error) {
+    if (mine !== latest) return;
+    // Отказ из ядра — это разобранное выражение, а не сбой: показываем его
+    // словами и оставляем список пустым.
+    projectSearch.error = String(error);
+    projectSearch.hits = [];
     projectSearch.searched = true;
   } finally {
     if (mine === latest) projectSearch.running = false;
   }
 }
 
-/** Запрос изменился: искать после паузы. */
+/**
+ * Запрос изменился: искать после паузы.
+ *
+ * Выражение по букве не ищется вовсе (задача 89): каждый такой запрос —
+ * обход файлов с чтением, а недописанное выражение либо не разбирается,
+ * либо находит совсем не то. Ищем по Enter, и панель об этом говорит.
+ */
 export function schedule(): void {
   if (timer !== null) clearTimeout(timer);
+  if (projectSearch.regexp) return;
+
   timer = setTimeout(() => {
     void run();
   }, DELAY_MS);
