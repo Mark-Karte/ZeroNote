@@ -30,6 +30,7 @@ import { resolveIndent, type Indent } from '../editor/indent';
 import type { Scale } from '../ui/zoom';
 import { wrapFor } from '../editor/readable';
 import { livePreviewOn } from '../editor/live-preview';
+import { indentFolding } from '../editor/fold-indent';
 import { lineNumbersOn } from '../editor/line-numbers';
 import { JUMP_LINES, jumped } from './history.svelte';
 import { remember as rememberClosed, takeClosed } from './closed.svelte';
@@ -1044,7 +1045,12 @@ async function applyLanguage(id: number): Promise<void> {
   // Свыше порога подсветки нет — это записанная политика больших файлов:
   // разбор десятков мегабайт съел бы и память, и отзывчивость.
   const language = tab.meta.large ? null : languageOf(tab);
-  const support = language ? await language.load() : [];
+  const support = language ? await language.load() : null;
+
+  // Свёртка по отступам едет вместе с языком (задача 92): она нужна там,
+  // где разбор построчный, и запрещена там, где есть дерево. Большому файлу
+  // её не даём вовсе — у него по той же причине нет и подсветки.
+  const folding = tab.meta.large ? [] : indentFolding(support);
 
   // За время загрузки вкладку могли закрыть или переключить язык ещё раз.
   const current = tabById(id);
@@ -1058,7 +1064,7 @@ async function applyLanguage(id: number): Promise<void> {
   // показывает прошлую вкладку. Без проверки новой вкладке доставалось
   // чужое состояние, и её содержимое пропадало ещё до первой отрисовки
   // (задача 30). Условия «вкладка активна» для этого мало.
-  reconfigure(current, languageCompartment.reconfigure(support));
+  reconfigure(current, languageCompartment.reconfigure([support ?? [], folding]));
 }
 
 /** Выбрать язык подсветки вручную. `null` — снова определять по имени. */
