@@ -44,7 +44,13 @@ function hiddenParts(doc: string, cursor = 0): string[] {
   return out;
 }
 
-/** Как строка выглядит на экране: исходник минус спрятанное. */
+/**
+ * Как строка выглядит на экране: исходник минус спрятанное.
+ *
+ * Пропускаются только замены. Украшения текста и строки — `zn-callout-title`,
+ * `zn-task-text-done` — ничего не прячут, и считать их спрятанным значило бы
+ * потерять из показа сам текст задачи (найдено тестом задачи 91).
+ */
 function shown(doc: string, cursor = 0): string {
   const editor = state(doc, cursor);
   const set = decorateLivePreview(editor, [{ from: 0, to: editor.doc.length }]);
@@ -53,12 +59,46 @@ function shown(doc: string, cursor = 0): string {
   let at = 0;
   const iter = set.iter();
   while (iter.value !== null) {
-    out += editor.doc.sliceString(at, iter.from);
-    at = iter.to;
+    const spec = iter.value.spec as { class?: string };
+    if (spec.class === undefined) {
+      out += editor.doc.sliceString(at, iter.from);
+      at = iter.to;
+    }
     iter.next();
   }
   return out + editor.doc.sliceString(at);
 }
+
+describe('задачи списка (задача 91)', () => {
+  /**
+   * `[ ]` заменяется переключателем — значит, пропадает из показа. Текст
+   * задачи при этом остаётся: прячется знак, а не строка.
+   */
+  it('знак задачи заменяется переключателем', () => {
+    const doc = '- [ ] купить хлеб\n- [x] позвонить\n\n';
+
+    expect(shown(doc, doc.length)).toBe('-  купить хлеб\n-  позвонить\n\n');
+    expect(hiddenParts(doc, doc.length)).toContain('[ ]');
+    expect(hiddenParts(doc, doc.length)).toContain('[x]');
+  });
+
+  /** Правило Р-158 действует и здесь: под курсором стоит исходник. */
+  it('на строке под курсором остаётся исходник', () => {
+    const doc = '- [ ] первая\n- [ ] вторая\n';
+
+    expect(shown(doc, 0)).toBe('- [ ] первая\n-  вторая\n');
+  });
+
+  /**
+   * `[ ]` посреди обычного текста — не задача: GFM считает задачей только
+   * начало элемента списка, и своего разбора здесь не нужно.
+   */
+  it('скобки вне списка не трогаются', () => {
+    const doc = 'просто [ ] текст\n\n';
+
+    expect(shown(doc, doc.length)).toBe(doc);
+  });
+});
 
 describe('живое превью: знаки вокруг текста', () => {
   it('прячет звёздочки жирного и курсива', () => {

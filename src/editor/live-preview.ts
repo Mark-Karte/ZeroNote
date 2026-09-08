@@ -12,6 +12,7 @@ import {
 import { icon } from '../icons/registry';
 import { CALLOUT_ICON, parseCallout, type CalloutKind } from './callouts';
 import { EmbedWidget, ImageWidget, embedIsImage, localTarget } from './images';
+import { TaskBox, taskState } from './tasks';
 import { linkTarget, wikilinkSpans } from './wikilinks';
 
 /**
@@ -59,6 +60,9 @@ const hidden = Decoration.replace({});
 
 /** Строка `---` рисуется чертой, а не дефисами. */
 const ruleLine = Decoration.line({ class: 'zn-hr' });
+
+/** Текст сделанной задачи: приглушённый и зачёркнутый. */
+const doneText = Decoration.mark({ class: 'zn-task-text-done' });
 
 /** Остаток первой строки callout-а — его заголовок. */
 const calloutTitle = Decoration.mark({ class: 'zn-callout-title' });
@@ -315,6 +319,36 @@ export function decorateLivePreview(
           }
           if (markTo < first.to) {
             found.push(calloutTitle.range(markTo, first.to));
+          }
+          return;
+        }
+
+        // Задача списка: `[ ]` показывается переключателем, и щелчок по нему
+        // правит документ (задача 91). Узел даёт GFM, и он ровно три знака
+        // длиной — свой разбор здесь не нужен.
+        //
+        // Правило Р-158 действует и тут: на строке под курсором стоит
+        // исходник. Цена названа вслух — задачу, на строке которой стоит
+        // курсор, щелчком не переключить; зато `- [ ]` можно дописать
+        // и поправить, как всякую другую разметку.
+        if (node.name === 'TaskMarker') {
+          const line = doc.lineAt(node.from);
+          if (touched(state, line)) return;
+
+          const marker = taskState(doc.sliceString(node.from, node.to));
+          if (marker === null) return;
+
+          found.push(
+            Decoration.replace({ widget: new TaskBox(marker) }).range(node.from, node.to),
+          );
+
+          // Сделанная задача написана приглушённо и зачёркнуто — так видно,
+          // что осталось, не читая каждую строку. Украшение текста, а не
+          // строки: у задачи в несколько строк зачёркнут весь её текст,
+          // но не соседние элементы списка.
+          const task = node.node.parent;
+          if (marker === 'done' && task?.name === 'Task' && node.to < task.to) {
+            found.push(doneText.range(node.to, task.to));
           }
           return;
         }

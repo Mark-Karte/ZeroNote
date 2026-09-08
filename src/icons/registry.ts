@@ -90,6 +90,8 @@ export type IconName =
   | 'cmd.find-previous'
   | 'cmd.replace'
   | 'cmd.daily-note'
+  | 'md.task-open'
+  | 'md.task-done'
   | 'cmd.bookmark'
   | 'cmd.bookmark-next'
   | 'cmd.bookmark-previous'
@@ -360,6 +362,15 @@ const ICONS: Record<IconName, string> = {
   'cmd.replace':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M2.8 5.6h8.4M9.2 3.4l2.2 2.2-2.2 2.2"/><path d="M13.2 10.4H4.8M6.8 8.2 4.6 10.4l2.2 2.2"/></svg>',
   // Ленточка закладки. Она же пойдёт в панель закладок задачи 59.
+  // Переключатель задачи в превью (задача 91). Рисунком, а не системным
+  // флажком: тот не слушается ни токенов, ни темы. И не знаком `☐` из шрифта:
+  // в редакторском шрифте его может не быть вовсе, и тогда его подставит
+  // чужой — с другой шириной и другим весом.
+  'md.task-open':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2.6" y="2.6" width="10.8" height="10.8" rx="2"/></svg>',
+  'md.task-done':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2.6" y="2.6" width="10.8" height="10.8" rx="2"/><path d="M5.2 8.2l2 2 3.6-4"/></svg>',
+
   // Лист календаря: рамка, отрывной верх с двумя кольцами и точка дня.
   // Не цифра и не число: значок рисуется в шестнадцать пикселей, и любая
   // цифра в нём — либо нечитаемая, либо неверная (день-то каждый раз новый).
