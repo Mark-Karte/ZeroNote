@@ -25,6 +25,11 @@ export interface LinkContext {
   query: string;
   /** Сразу за курсором стоит `]]` — закрывать ссылку не надо. */
   closed: boolean;
+  /**
+   * Перед `[[` стоит `!`: набирается вставка файла, а не ссылка на заметку.
+   * От этого зависит, что предлагать (Р-218).
+   */
+  embed: boolean;
 }
 
 const OPEN = '[[';
@@ -88,6 +93,8 @@ export function linkContextAt(state: EditorState): LinkContext | null {
     to: main.head,
     query,
     closed: after === CLOSE,
+    // Знак стоит вплотную к скобкам: `! [[имя]]` — это не вставка.
+    embed: at > 0 && before[at - 1] === '!',
   };
 }
 

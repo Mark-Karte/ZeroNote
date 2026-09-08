@@ -97,6 +97,17 @@ export const previewImage = (link: string, base: string | null): Promise<string>
   invoke('preview_image', { link, base });
 
 /**
+ * Картинка вставкой Obsidian: `![[рисунок.png]]` (задача 83).
+ *
+ * От `previewImage` отличается тем, что цель — имя, а не путь: превратить
+ * имя в файл умеет только индекс, теми же правилами, по которым разрешаются
+ * `[[ссылки]]` (Р-217). Поэтому и команда своя, и нужен путь заметки,
+ * от которой считается близость кандидатов.
+ */
+export const previewEmbed = (target: string, from: string): Promise<string> =>
+  invoke('preview_embed', { target, from });
+
+/**
  * Открыть страницу «Приложения по умолчанию» на карточке ZeroNote.
  *
  * Умолчание назначает человек (Р-190) — кнопка лишь доводит до нужной

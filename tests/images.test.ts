@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { localTarget } from '../src/editor/images';
+import { embedIsImage, localTarget } from '../src/editor/images';
+import { wikilinkSpans } from '../src/editor/wikilinks';
 
 /**
  * Что из адреса картинки в markdown можно показать.
@@ -65,5 +66,45 @@ describe('адрес картинки', () => {
     expect(localTarget('')).toBeNull();
     expect(localTarget('   ')).toBeNull();
     expect(localTarget('<>')).toBeNull();
+  });
+});
+
+/**
+ * Вставка Obsidian — `![[рисунок.png]]` (задача 83).
+ *
+ * Два правила, и оба решаются до всякого обращения к индексу: вставка это
+ * или ссылка, и картинка ли то, что вставляют.
+ */
+describe('вставка файла', () => {
+  it('восклицательный знак перед скобками делает ссылку вставкой', () => {
+    const [link] = wikilinkSpans('текст [[Заметка]] дальше');
+    expect(link?.embed).toBe(false);
+
+    const [embed] = wikilinkSpans('текст ![[рисунок.png]] дальше');
+    expect(embed?.embed).toBe(true);
+  });
+
+  /** Знак стоит вплотную: `! [[имя]]` — это восклицание и ссылка. */
+  it('знак на расстоянии вставкой не делает', () => {
+    const [span] = wikilinkSpans('ого! [[Заметка]]');
+    expect(span?.embed).toBe(false);
+  });
+
+  it('картинка узнаётся по расширению', () => {
+    expect(embedIsImage('рисунок.png')).toBe(true);
+    expect(embedIsImage('СНИМОК.JPG')).toBe(true);
+    expect(embedIsImage('вложения/схема.webp')).toBe(true);
+  });
+
+  /**
+   * `![[заметка]]` в Obsidian вставляет её текст, а мы этого не умеем.
+   * Такая запись остаётся исходником, а не превращается в жалобу
+   * на несделанное.
+   */
+  it('всё остальное картинкой не считается', () => {
+    expect(embedIsImage('заметка')).toBe(false);
+    expect(embedIsImage('заметка.md')).toBe(false);
+    expect(embedIsImage('устав.pdf')).toBe(false);
+    expect(embedIsImage('файл.png.txt')).toBe(false);
   });
 });

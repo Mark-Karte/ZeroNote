@@ -55,9 +55,18 @@ export const findFiles = (query: string, limit?: number): Promise<FileHit[]> =>
  * От `findFiles` отличается тем, что список честен по отношению к ссылке
  * (Р-134): только корень ссылающегося файла, без него самого. Файл вне
  * проектов не получает подсказки вовсе — сослаться ему не на что.
+ *
+ * `embed` — набирается ли вставка `![[…]]`. Она означает «вставить файл»,
+ * и тогда в списке нужны картинки; обычная `[[…]]` означает «сослаться
+ * на заметку», и снимки экрана в ней только мешают (Р-218).
  */
-export const findNotes = (query: string, from: string, limit?: number): Promise<FileHit[]> =>
-  invoke('find_notes', { query, from, limit: limit ?? null });
+export const findNotes = (
+  query: string,
+  from: string,
+  embed: boolean,
+  limit?: number,
+): Promise<FileHit[]> =>
+  invoke('find_notes', { query, from, embed, limit: limit ?? null });
 
 /**
  * Каким текстом записать ссылку на этот файл, чтобы она привела именно в него.

@@ -123,30 +123,49 @@ fn resolve_id(
         return Ok(None);
     }
 
-    // `has_text = 1` — только файлы, содержимое которых индекс прочитал.
-    // С задачи 82 в `files` лежат и картинки, и PDF, но ссылка на них пока
-    // не наводится: `![[рисунок.png]]` — задача 83, и там же решается,
-    // что делать, когда рядом лежат `Планы.md` и `Планы.png`. До тех пор
-    // ссылки ведут ровно туда же, куда вели, — иначе задача 82 незаметно
-    // сделала бы половину чужой работы.
-    //
-    // Заодно этим отсекается большой текстовый файл: его содержимого в индексе
-    // нет, и ссылка на него была висячей и раньше.
+    // Путь от корня — если в цели есть косая черта, имя файла тут ни при чём.
+    // Вложение по пути пишется с расширением, и `rel_key` его хранит.
     if key.contains('/') {
         let by_path = query_candidates(
             connection,
-            "SELECT id, path FROM files
-             WHERE rel_key = ?1 AND root_id = ?2 AND has_text = 1",
+            "SELECT id, path FROM files WHERE rel_key = ?1 AND root_id = ?2",
             &key,
             root_id,
         )?;
         return Ok(nearest(by_path, from));
     }
 
-    let by_name = query_candidates(
+    // Имя целиком — так пишут ссылку на вложение: `![[рисунок.png]]`.
+    // Спрашивается первым: расширение в цели написано намеренно, и отвечать
+    // на такую ссылку заметкой-тёзкой было бы подменой.
+    let by_file = query_candidates(
+        connection,
+        "SELECT id, path FROM files WHERE file_key = ?1 AND root_id = ?2",
+        &key,
+        root_id,
+    )?;
+    if let Some(found) = nearest(by_file, from) {
+        return Ok(Some(found));
+    }
+
+    // Имя без расширения — так пишут ссылку на заметку, и **заметка важнее
+    // вложения** (Р-217): при `схема.md` и `схема.png` рядом `[[схема]]`
+    // ведёт в заметку. Отсюда два запроса вместо одного: сначала среди тех,
+    // чьё содержимое прочитано, и только потом среди всех.
+    let by_note = query_candidates(
         connection,
         "SELECT id, path FROM files
          WHERE name_key = ?1 AND root_id = ?2 AND has_text = 1",
+        &key,
+        root_id,
+    )?;
+    if let Some(found) = nearest(by_note, from) {
+        return Ok(Some(found));
+    }
+
+    let by_name = query_candidates(
+        connection,
+        "SELECT id, path FROM files WHERE name_key = ?1 AND root_id = ?2",
         &key,
         root_id,
     )?;

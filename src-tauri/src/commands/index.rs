@@ -291,18 +291,24 @@ pub fn find_notes(
     state: tauri::State<'_, AppState>,
     query: String,
     from: String,
+    embed: Option<bool>,
     limit: Option<u32>,
 ) -> Vec<FileHit> {
     let Some((root_id, root_path)) = root_of(&state, &from) else {
         return Vec::new();
     };
 
-    // Только те файлы, у которых индекс прочитал содержимое: подсказка
-    // предлагает то, на что ссылка и правда наведёт. Картинки и PDF попали
-    // в индекс задачей 82, но `[[рисунок.png]]` пока не разрешается — это
-    // задача 83, и предлагать раньше значило бы подсказывать ссылку,
-    // которая выйдет висячей.
-    let files = state.index.lock().expect("индекс повреждён").text_files();
+    // Что предлагать, решает сама запись (Р-218): `![[` — это «вставить
+    // файл», и там нужны картинки; `[[` — это «сослаться на заметку»,
+    // и снимки экрана в таком списке только мешают. Правило видно
+    // из набранного, поэтому спрашивать о нём никого не надо.
+    let index = state.index.lock().expect("индекс повреждён");
+    let files = if embed.unwrap_or(false) {
+        index.files()
+    } else {
+        index.text_files()
+    };
+    drop(index);
     let limit = limit.unwrap_or(20) as usize;
 
     let relative = files

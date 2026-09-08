@@ -196,43 +196,53 @@ fn images_and_pdfs_are_found_by_name_only() {
     let _ = fs::remove_dir_all(&db_dir);
 }
 
-/// Граница задач 82 и 83: картинка попала в индекс, но ссылка на неё
-/// пока не наводится.
+/// Ссылка на вложение и правило приоритета (задача 83, Р-217).
 ///
-/// Задача 82 даёт индексу имена всех файлов, и разрешение ссылок стало бы
-/// находить картинку само собой — молча, без правил на случай, когда рядом
-/// лежат заметка и вложение с одним именем. Такие правила пишутся в задаче
-/// 83; до тех пор ссылки ведут ровно туда же, куда вели.
+/// Три случая в одном тесте намеренно: они и есть правило целиком, и порознь
+/// каждый выглядит произвольным.
 #[test]
-fn links_do_not_reach_images_yet() {
+fn links_reach_attachments_but_notes_win() {
     let dir = temp_dir("link-image");
     let db_dir = temp_dir("link-image-db");
     let note = dir.join("заметка.md");
     fs::write(&note, "ссылка на [[схема]]").unwrap();
     fs::write(dir.join("схема.png"), [0x89, b'P', b'N', b'G', 0x00]).unwrap();
     fs::write(dir.join("схема.md"), "а это заметка про схему").unwrap();
+    fs::write(dir.join("только-картинка.png"), [0x89, b'P', b'N', b'G', 0x00]).unwrap();
 
     let rules = ignore::build(&dir, &IgnoreSettings::default());
     let db = schema::open(&schema::index_path(&db_dir)).unwrap();
     scan(&db, &dir, &rules);
 
-    let note_path = note.to_string_lossy().into_owned();
-    let resolved = graph::resolve(&db, "схема", &note_path, 1).unwrap();
-
-    assert!(
-        resolved.is_some_and(|found| found.path.ends_with("схема.md")),
-        "ссылка обязана вести в заметку, а не во вложение"
-    );
-
-    // А на картинку, у которой нет заметки-тёзки, ссылка пока висячая.
-    fs::write(dir.join("только-картинка.png"), [0x89, b'P', b'N', b'G', 0x00]).unwrap();
-    scan(&db, &dir, &rules);
-    assert!(
-        graph::resolve(&db, "только-картинка", &note_path, 1)
+    let from = note.to_string_lossy().into_owned();
+    let resolve = |target: &str| {
+        graph::resolve(&db, target, &from, 1)
             .unwrap()
-            .is_none(),
-        "разрешение ссылок на вложения — задача 83"
+            .map(|found| found.path)
+    };
+
+    // Имя без расширения — это ссылка на заметку, и заметка выигрывает
+    // у тёзки-вложения.
+    assert!(
+        resolve("схема").is_some_and(|path| path.ends_with("схема.md")),
+        "имя без расширения обязано вести в заметку"
     );
+
+    // Расширение в цели написано намеренно — отвечать заметкой было бы
+    // подменой.
+    assert!(
+        resolve("схема.png").is_some_and(|path| path.ends_with("схема.png")),
+        "имя с расширением обязано вести во вложение"
+    );
+
+    // Тёзки нет — ведём во вложение и без расширения: ссылка, которой
+    // некуда больше вести, лучше висячей.
+    assert!(
+        resolve("только-картинка").is_some_and(|path| path.ends_with(".png")),
+        "вложение без тёзки должно находиться и по имени без расширения"
+    );
+
+    assert!(resolve("такого-файла-нет").is_none(), "ссылка обязана быть висячей");
 
     let _ = fs::remove_dir_all(&dir);
     let _ = fs::remove_dir_all(&db_dir);

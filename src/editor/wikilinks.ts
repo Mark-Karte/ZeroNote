@@ -78,6 +78,12 @@ export interface WikilinkSpan {
   to: number;
   /** Содержимое скобок как есть: цель, раздел и подпись. */
   inner: string;
+  /**
+   * Перед `[[` стоит `!` — это вставка файла, а не ссылка на него
+   * (задача 83). Восклицательный знак в `from` не входит: он не часть
+   * ссылки, а приставка к ней, и подсветка красит ровно скобки.
+   */
+  embed: boolean;
 }
 
 /**
@@ -95,7 +101,12 @@ export function wikilinkSpans(text: string): WikilinkSpan[] {
   // а вызывают его из разных мест.
   LINK.lastIndex = 0;
   for (let m = LINK.exec(text); m !== null; m = LINK.exec(text)) {
-    out.push({ from: m.index, to: m.index + m[0].length, inner: m[1] ?? '' });
+    out.push({
+      from: m.index,
+      to: m.index + m[0].length,
+      inner: m[1] ?? '',
+      embed: m.index > 0 && text[m.index - 1] === '!',
+    });
   }
 
   return out;

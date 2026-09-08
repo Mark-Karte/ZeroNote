@@ -148,8 +148,12 @@ pub fn path_key(path: &Path) -> String {
     path.to_string_lossy().replace('/', "\\").to_lowercase()
 }
 
-/// Путь внутри корня и имя без расширения, приведённые к общему виду.
-fn keys(root: &Path, path: &Path) -> (String, String) {
+/// Путь внутри корня, имя без расширения и имя целиком — в общем виде.
+///
+/// Три ключа, а не два: на заметку ссылаются без расширения (`[[Планы]]`),
+/// на вложение — с ним (`![[рисунок.png]]`), и разрешение спрашивает индекс
+/// об этом порознь (Р-217).
+fn keys(root: &Path, path: &Path) -> (String, String, String) {
     let full = path.to_string_lossy();
     let prefix = root.to_string_lossy();
 
@@ -163,7 +167,12 @@ fn keys(root: &Path, path: &Path) -> (String, String) {
         .map(|n| n.to_string_lossy().to_lowercase())
         .unwrap_or_default();
 
-    (markdown::links::link_key(relative), name)
+    let file = path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+
+    (markdown::links::link_key(relative), name, file)
 }
 
 pub fn index_file(
@@ -208,13 +217,13 @@ pub fn index_file(
     // а два вхождения одного файла давали бы его дважды в выдаче.
     forget_file(connection, path)?;
 
-    let (rel_key, name_key) = keys(root_path, path);
+    let (rel_key, name_key, file_key) = keys(root_path, path);
 
     connection.execute(
         "INSERT INTO files
             (root_id, path, path_key, name, has_text, rel_key, name_key,
-             mtime_ms, size, indexed_ms)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+             file_key, mtime_ms, size, indexed_ms)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
         rusqlite::params![
             root_id as i64,
             text_path.as_ref(),
@@ -223,6 +232,7 @@ pub fn index_file(
             text.is_some() as i64,
             rel_key,
             name_key,
+            file_key,
             mtime,
             size as i64,
             now_ms()

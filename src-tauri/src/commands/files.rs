@@ -648,6 +648,39 @@ pub fn preview_image(link: String, base: Option<String>) -> Fallible<String> {
     image_data_url(&path)
 }
 
+/// Картинка вставкой Obsidian — `![[рисунок.png]]` (задача 83).
+///
+/// Отличие от `preview_image` одно, и оно всё: цель здесь не путь, а **имя**,
+/// и превратить имя в путь умеет только индекс. Правила те же, по которым
+/// разрешаются `[[ссылки]]`, — второго способа находить файл по имени
+/// в проекте нет и быть не должно (Р-217).
+///
+/// Байты дальше идут тем же путём, что у вкладки с картинкой и у превью
+/// по обычной записи (Р-201).
+#[tauri::command]
+pub fn preview_embed(
+    state: tauri::State<'_, AppState>,
+    target: String,
+    from: String,
+) -> Fallible<String> {
+    let root_id = {
+        let roots = state.roots.lock().expect("реестр корней повреждён");
+        roots
+            .for_path(std::path::Path::new(&from))
+            .map(|root| root.id)
+            .ok_or_else(|| "заметка не в проекте: ссылку не по чему разрешать".to_owned())?
+    };
+
+    let found = state
+        .index
+        .lock()
+        .expect("индекс повреждён")
+        .resolve_link(&target, &from, root_id)
+        .ok_or_else(|| format!("в проекте нет файла «{target}»"))?;
+
+    image_data_url(std::path::Path::new(&found.path))
+}
+
 /// Байты картинки адресом `data:` — общая часть вкладки и превью.
 fn image_data_url(path: &std::path::Path) -> Fallible<String> {
     let mime = TabKind::image_mime(path).ok_or_else(|| "неизвестный вид картинки".to_owned())?;

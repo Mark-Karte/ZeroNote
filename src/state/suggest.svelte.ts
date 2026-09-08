@@ -129,12 +129,14 @@ export function reportContext(input: {
   suggest.query = input.context.query;
   suggest.caret = caretOf(input.view, input.context.from);
 
-  void search(input.context.query, input.path);
+  void search(input.context.query, input.path, input.context.embed);
 }
 
-async function search(query: string, from: string): Promise<void> {
+async function search(query: string, from: string, embed: boolean): Promise<void> {
   const mine = (generation += 1);
-  const found = await findNotes(query, from, 20).catch(() => [] as FileHit[]);
+  // `![[` — «вставить файл», и там нужны картинки; `[[` — «сослаться
+  // на заметку», и снимки экрана в списке только мешают (Р-218).
+  const found = await findNotes(query, from, embed, 20).catch(() => [] as FileHit[]);
 
   // Пока ходили в индекс, курсор мог уехать, вкладка — смениться, подсказка —
   // закрыться. Ответ на отменённый запрос выбрасываем молча.

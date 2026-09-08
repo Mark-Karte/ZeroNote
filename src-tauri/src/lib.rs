@@ -197,6 +197,7 @@ pub fn run() {
             commands::files::split_paths,
             commands::files::image_source,
             commands::files::preview_image,
+            commands::files::preview_embed,
             commands::files::pdf_bytes,
             bench::bench_make_media,
             commands::files::clipboard_text,

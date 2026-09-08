@@ -11,8 +11,8 @@ import {
 
 import { icon } from '../icons/registry';
 import { CALLOUT_ICON, parseCallout, type CalloutKind } from './callouts';
-import { ImageWidget, localTarget } from './images';
-import { wikilinkSpans } from './wikilinks';
+import { EmbedWidget, ImageWidget, embedIsImage, localTarget } from './images';
+import { linkTarget, wikilinkSpans } from './wikilinks';
 
 /**
  * Живое превью markdown: разметка не показывается, а действует.
@@ -142,6 +142,39 @@ export function decorateLivePreview(
       const from = range.from + span.from;
       const to = range.from + span.to;
       wiki.push({ from, to });
+
+      // `![[рисунок.png]]` показывается картинкой — целиком, вместе
+      // с восклицательным знаком (задача 83). Единица раскрытия здесь та же,
+      // что у обычной картинки (Р-184): курсор на строке возвращает всю
+      // запись, и этим же ответом закрыт вопрос «как её удалить».
+      //
+      // Только картинка. `![[заметка]]` в Obsidian вставляет её текст,
+      // а мы этого не умеем — и оставляем запись как есть, а не рисуем
+      // на её месте жалобу на несделанное.
+      const target = linkTarget(span.inner);
+      if (span.embed) {
+        // Вставка не-картинки остаётся исходником целиком, вместе
+        // со скобками: спрятав их, мы показали бы `!заметка` — запись,
+        // которой человек не писал и которая читается как опечатка.
+        // Видимая `![[заметка]]` говорит правду: так написано, и мы этого
+        // пока не умеем.
+        if (!embedIsImage(target)) continue;
+
+        const line = doc.lineAt(from);
+        if (!touched(state, line)) {
+          const alias = span.inner.indexOf('|');
+          const alt = alias >= 0 ? span.inner.slice(alias + 1).trim() : target;
+          found.push(
+            Decoration.replace({
+              widget: new EmbedWidget(target, sourcePath(), alt),
+              // Знак `!` стоит перед скобками и в саму ссылку не входит:
+              // забираем его отдельно, иначе он остался бы висеть слева
+              // от картинки.
+            }).range(from - 1, to),
+          );
+        }
+        continue;
+      }
 
       // `[[цель|подпись]]` показывается подписью: цель уезжает вместе
       // со скобками. `[[имя]]` — просто именем.

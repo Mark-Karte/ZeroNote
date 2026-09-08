@@ -17,7 +17,10 @@ use rusqlite::Connection;
 /// и PDF. Старую базу этим не дополнишь: имён, которых в ней нет, там
 /// и не появится, — значит переиндексация, ровно то, ради чего принималось
 /// решение Р-060.
-pub const SCHEMA_VERSION: u32 = 3;
+///
+/// Версия 4 — ключ полного имени файла (задача 83). По нему разрешается
+/// `![[рисунок.png]]`: имя с расширением, а `name_key` хранит имя без него.
+pub const SCHEMA_VERSION: u32 = 4;
 
 /// Имя файла базы. Лежит в папке данных приложения, а не в папке проекта
 /// (решение Р-058): мы не сорим в чужих папках.
@@ -138,6 +141,13 @@ fn create(connection: &Connection) -> Result<(), rusqlite::Error> {
             -- недобротой.
             rel_key    TEXT NOT NULL DEFAULT '',
             name_key   TEXT NOT NULL DEFAULT '',
+            -- Имя файла целиком, в нижнем регистре: `рисунок.png`.
+            --
+            -- Отдельно от `name_key`, где имя без расширения. На заметку
+            -- ссылаются без расширения (`[[Планы]]`), на вложение — с ним
+            -- (`![[рисунок.png]]`), и это два разных вопроса к индексу
+            -- (задача 83, Р-217).
+            file_key   TEXT NOT NULL DEFAULT '',
             -- Время и размер на момент индексации: по ним видно, что файл
             -- изменился, и не нужно перечитывать его содержимое.
             mtime_ms   INTEGER,
@@ -148,6 +158,7 @@ fn create(connection: &Connection) -> Result<(), rusqlite::Error> {
         CREATE INDEX files_by_root ON files(root_id);
         CREATE INDEX files_by_path_key ON files(path_key);
         CREATE INDEX files_by_name_key ON files(name_key);
+        CREATE INDEX files_by_file_key ON files(file_key);
         CREATE INDEX files_by_rel_key ON files(rel_key);
 
         -- Связи между заметками. Цель хранится как написана и приведённой

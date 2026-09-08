@@ -1,6 +1,7 @@
 import { WidgetType } from '@codemirror/view';
 
-import { previewImage } from '../ipc/files';
+import { previewImage, previewEmbed } from '../ipc/files';
+import { IMAGE_EXTENSIONS } from '../actions/file-types';
 
 /**
  * Картинки в живом превью markdown: `![подпись](рисунок.png)` показывается
@@ -52,6 +53,26 @@ export function localTarget(url: string): string | null {
   }
 
   return text === '' ? null : text;
+}
+
+/**
+ * Картинка ли это по имени — для `![[рисунок.png]]` (задача 83).
+ *
+ * Решается по расширению и **синхронно**: показывать вставку картинкой или
+ * оставить исходником, надо решить в тот же миг, когда собираются украшения,
+ * а ответ индекса приходит позже. Список расширений канонический — он лежит
+ * в ядре и сверяется тестом (`tests/file-types.test.ts`).
+ *
+ * Вставку не-картинки мы не трогаем вовсе: `![[заметка]]` в Obsidian
+ * вставляет её текст, а мы этого не умеем, и рисовать вместо неё «файла нет»
+ * значило бы обещать несделанное.
+ */
+export function embedIsImage(target: string): boolean {
+  const dot = target.lastIndexOf('.');
+  if (dot < 0) return false;
+  return (IMAGE_EXTENSIONS as readonly string[]).includes(
+    target.slice(dot + 1).toLowerCase(),
+  );
 }
 
 /**
@@ -121,28 +142,9 @@ export class ImageWidget extends WidgetType {
   }
 
   override toDOM(): HTMLElement {
-    const box = document.createElement('span');
-    box.className = 'zn-image';
-
-    const id = key(this.link, this.base);
-    const problem = failed.get(id);
-    if (problem !== undefined) {
-      box.append(missing(this.link, problem));
-      return box;
-    }
-
-    const image = document.createElement('img');
-    image.alt = this.alt;
-    box.append(image);
-
-    const ready = cache.get(id);
-    if (ready !== undefined) {
-      image.src = ready;
-      return box;
-    }
-
-    void fill(box, image, this.link, this.base, id);
-    return box;
+    return paint(this.link, key(this.link, this.base), this.alt, () =>
+      previewImage(this.link, this.base),
+    );
   }
 
   /** Курсор ходит по разметке, а не по картинке: она не текст. */
@@ -151,15 +153,80 @@ export class ImageWidget extends WidgetType {
   }
 }
 
-async function fill(
+/**
+ * Картинка, вставленная записью Obsidian: `![[рисунок.png]]`.
+ *
+ * Отдельный виджет, а не флаг у `ImageWidget`: у них разные ключи кэша
+ * (у одного путь и папка заметки, у другого имя и сама заметка) и разный
+ * способ добыть байты. Общего у них ровно то, что оба показывают картинку,
+ * и это общее вынесено в `paint`.
+ */
+export class EmbedWidget extends WidgetType {
+  constructor(
+    readonly target: string,
+    readonly from: string | null,
+    readonly alt: string,
+  ) {
+    super();
+  }
+
+  override eq(other: EmbedWidget): boolean {
+    return other.target === this.target && other.from === this.from;
+  }
+
+  override toDOM(): HTMLElement {
+    return paint(this.target, key(this.target, this.from), this.alt, async () => {
+      if (this.from === null) {
+        throw new Error('заметка ещё не сохранена: ссылку не по чему разрешать');
+      }
+      return previewEmbed(this.target, this.from);
+    });
+  }
+
+  override ignoreEvent(): boolean {
+    return false;
+  }
+}
+
+/** Общая часть обоих виджетов: рамка, кэш, жалоба вместо пустого места. */
+function paint(
+  link: string,
+  id: string,
+  alt: string,
+  load: () => Promise<string>,
+): HTMLElement {
+  const box = document.createElement('span');
+  box.className = 'zn-image';
+
+  const problem = failed.get(id);
+  if (problem !== undefined) {
+    box.append(missing(link, problem));
+    return box;
+  }
+
+  const image = document.createElement('img');
+  image.alt = alt;
+  box.append(image);
+
+  const ready = cache.get(id);
+  if (ready !== undefined) {
+    image.src = ready;
+    return box;
+  }
+
+  void fillWith(box, image, link, id, load);
+  return box;
+}
+
+async function fillWith(
   box: HTMLElement,
   image: HTMLImageElement,
   link: string,
-  base: string | null,
   id: string,
+  load: () => Promise<string>,
 ): Promise<void> {
   try {
-    const source = await previewImage(link, base);
+    const source = await load();
     remember(id, source);
     image.src = source;
   } catch (error) {
