@@ -7,7 +7,7 @@ import {
 } from '@codemirror/state';
 import { undo, redo } from '@codemirror/commands';
 import * as ipc from '../ipc/files';
-import type { Buffer, BufferWithText, ViewState } from '../ipc/files';
+import type { Buffer, BufferWithText, PaneView, ViewState } from '../ipc/files';
 import { EditorView, type ViewUpdate } from '@codemirror/view';
 import { createMirror, replaySpec, sourceOf } from '../editor/mirror';
 import {
@@ -127,6 +127,15 @@ export interface TabEditor {
    * и замена состояния зеркала должна быть видна хосту той области.
    */
   mirrors: Record<number, MirrorState>;
+  /**
+   * Курсоры из сессии, ещё не применённые (задача 84).
+   *
+   * Зеркало создаётся лениво — в тот миг, когда область впервые рисует
+   * вкладку, — а сессия восстанавливается раньше и вся сразу. Значит
+   * курсоры надо где-то подождать; здесь они и ждут, и запись убирается,
+   * как только досталась своему представлению.
+   */
+  restored: Record<number, { cursor: number; scrollTop: number }>;
 }
 
 /** Состояние одной области у вкладки: главное или зеркало. */
@@ -423,7 +432,12 @@ export function slotFor(tab: Tab, pane: number): MirrorState | null {
   if (!editor) return null;
 
   if (editor.home === null || editor.home === pane) {
+    const first = editor.home === null;
     editor.home = pane;
+    // Главное тоже получает свой курсор из сессии, и только при первом
+    // обращении: какая область станет главной после перезапуска, заранее
+    // не известно, а курсоры записаны по областям (задача 84).
+    if (first) applyRestored(editor, pane, editor);
     return editor;
   }
 
@@ -431,8 +445,65 @@ export function slotFor(tab: Tab, pane: number): MirrorState | null {
   if (!mirror) {
     mirror = { state: makeMirror(tab, editor, pane), scrollTop: editor.scrollTop };
     editor.mirrors[pane] = mirror;
+    applyRestored(editor, pane, mirror);
   }
   return mirror;
+}
+
+/**
+ * Поставить представлению курсор, дождавшийся его в сессии.
+ *
+ * Запись убирается сразу: она одноразовая, и второй раз возвращать курсор
+ * туда, откуда человек уже ушёл, было бы хуже, чем не возвращать вовсе.
+ */
+function applyRestored(editor: TabEditor, pane: number, slot: MirrorState): void {
+  const saved = editor.restored[pane];
+  if (!saved) return;
+  delete editor.restored[pane];
+
+  slot.scrollTop = saved.scrollTop;
+  slot.state = slot.state.update({
+    // Курсор за концом документа уронил бы правку: файл могли укоротить
+    // в другой программе, пока приложение было закрыто.
+    selection: { anchor: Math.min(saved.cursor, slot.state.doc.length) },
+  }).state;
+}
+
+/**
+ * Курсоры всех представлений — для снимка сессии (задача 84).
+ *
+ * По областям, а не по вкладкам: один файл в двух областях — это два
+ * курсора, и в снимке буфера помещается только один. Область, которую
+ * ни разу не рисовали, своего представления не имеет — за неё в снимок
+ * уезжает то, что она не успела получить из прошлой сессии.
+ */
+export function paneViewsOf(): PaneView[] {
+  const out: PaneView[] = [];
+
+  for (const pane of panes()) {
+    for (const id of pane.tabs) {
+      const editor = tabById(id)?.editor;
+      if (!editor) continue;
+
+      const slot = editor.home === pane.id ? editor : editor.mirrors[pane.id];
+      if (slot) {
+        out.push({
+          pane: pane.id,
+          buffer: id,
+          cursor: slot.state.selection.main.head,
+          scrollTop: slot.scrollTop,
+        });
+        continue;
+      }
+
+      const waiting = editor.restored[pane.id];
+      if (waiting) {
+        out.push({ pane: pane.id, buffer: id, ...waiting });
+      }
+    }
+  }
+
+  return out;
 }
 
 /** Отсеки, которые переконфигурируются на лету и потому копируются в зеркало. */
@@ -831,7 +902,17 @@ function put(
   const state = makeState(meta, text, cursor, indent);
   baselines.set(meta.id, state.doc);
 
-  const editor: TabEditor = { state, scrollTop, language, indent, home: null, mirrors: {} };
+  const editor: TabEditor = {
+    state,
+    scrollTop,
+    language,
+    indent,
+    home: null,
+    mirrors: {},
+    // Открытая заново вкладка ничего из сессии не ждёт: её курсор пришёл
+    // вместе с ней.
+    restored: {},
+  };
 
   const existing = tabById(meta.id);
   if (existing) {
@@ -1021,6 +1102,20 @@ export async function restore(): Promise<string[]> {
   }
 }
 
+/** Курсоры этой вкладки по областям — из плоского списка, каким их дало ядро. */
+function restoredFor(
+  views: PaneView[],
+  id: number,
+): Record<number, { cursor: number; scrollTop: number }> {
+  const out: Record<number, { cursor: number; scrollTop: number }> = {};
+  for (const view of views) {
+    if (view.buffer === id) {
+      out[view.pane] = { cursor: view.cursor, scrollTop: view.scrollTop };
+    }
+  }
+  return out;
+}
+
 async function restoreInner(): Promise<string[]> {
   const session = await ipc.restoreSession();
 
@@ -1056,7 +1151,15 @@ async function restoreInner(): Promise<string[]> {
     baselines.set(meta.id, state.doc);
     tabs.items.push({
       meta,
-      editor: { state, scrollTop, language: language ?? null, indent, home: null, mirrors: {} },
+      editor: {
+        state,
+        scrollTop,
+        language: language ?? null,
+        indent,
+        home: null,
+        mirrors: {},
+        restored: restoredFor(session.paneViews, meta.id),
+      },
       image: null,
       pdf: null,
     });

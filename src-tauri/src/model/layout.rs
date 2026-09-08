@@ -444,11 +444,13 @@ impl Layout {
 
     // --- Снимок для сессии ---
 
-    pub fn to_snapshot(&self) -> LayoutSnapshot {
+    /// Снимок раскладки. Курсоры приходят снаружи: сама раскладка их
+    /// не хранит — курсор живёт в представлении, то есть во фронтенде.
+    pub fn to_snapshot(&self, views: &[PaneView]) -> LayoutSnapshot {
         LayoutSnapshot {
             active_pane: self.active_pane,
             next_id: self.next_id,
-            root: snapshot_of(&self.root),
+            root: snapshot_of(&self.root, views),
         }
     }
 
@@ -538,6 +540,43 @@ pub struct PaneSnapshot {
     pub tabs: Vec<BufferId>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub active: Option<BufferId>,
+    /// Где стоял курсор в **этой** области у каждой её вкладки (задача 84).
+    ///
+    /// Один файл открыт в двух областях — это два представления с разными
+    /// курсорами (Р-209), а курсор в снимке буфера один. Без этих записей
+    /// зеркало после перезапуска вставало на курсор главного.
+    ///
+    /// Массив таблиц объявлен последним: TOML припишет ему всё, что стоит
+    /// ниже, — и `tabs` с `active` уехали бы внутрь последней записи.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub views: Vec<ViewSnapshot>,
+}
+
+/// Курсор одной вкладки в одной области.
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct ViewSnapshot {
+    #[serde(default)]
+    pub buffer: BufferId,
+    #[serde(default)]
+    pub cursor: usize,
+    #[serde(default)]
+    pub scroll_top: f64,
+}
+
+/// Курсор вкладки в области — то, что фронтенд знает, а ядро только переносит.
+///
+/// Плоским списком, а не деревом: фронтенд обходит свои представления,
+/// а раскладывает записи по областям ядро — оно и так держит дерево.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PaneView {
+    pub pane: NodeId,
+    pub buffer: BufferId,
+    #[serde(default)]
+    pub cursor: usize,
+    #[serde(default)]
+    pub scroll_top: f64,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -553,10 +592,51 @@ pub struct SplitSnapshot {
     pub second: Box<NodeSnapshot>,
 }
 
-fn snapshot_of(node: &Node) -> NodeSnapshot {
+/// Курсоры по областям из снимка — плоским списком, как их прислал фронтенд.
+///
+/// Отдельной функцией, а не частью `from_snapshot`: раскладка в памяти
+/// курсоров не держит, а восстановить их всё равно надо. Записи о неизвестных
+/// областях и буферах не отсеиваются здесь — это делает тот, кто их применит:
+/// он один знает, какие вкладки поднялись.
+pub fn views_of_snapshot(snapshot: &LayoutSnapshot) -> Vec<PaneView> {
+    let mut out = Vec::new();
+    collect_views(&snapshot.root, &mut out);
+    out
+}
+
+fn collect_views(node: &NodeSnapshot, out: &mut Vec<PaneView>) {
+    if let Some(pane) = &node.pane {
+        for view in &pane.views {
+            out.push(PaneView {
+                pane: pane.id,
+                buffer: view.buffer,
+                cursor: view.cursor,
+                scroll_top: view.scroll_top,
+            });
+        }
+    }
+    if let Some(split) = &node.split {
+        collect_views(&split.first, out);
+        collect_views(&split.second, out);
+    }
+}
+
+fn snapshot_of(node: &Node, views: &[PaneView]) -> NodeSnapshot {
     match node {
         Node::Pane(pane) => NodeSnapshot {
             pane: Some(PaneSnapshot {
+                // Только вкладки этой области и только те, чей курсор
+                // фронтенд и правда знает: область, которую ни разу
+                // не рисовали, своего представления не имеет.
+                views: views
+                    .iter()
+                    .filter(|view| view.pane == pane.id && pane.tabs.contains(&view.buffer))
+                    .map(|view| ViewSnapshot {
+                        buffer: view.buffer,
+                        cursor: view.cursor,
+                        scroll_top: view.scroll_top,
+                    })
+                    .collect(),
                 id: pane.id,
                 tabs: pane.tabs.clone(),
                 active: pane.active,
@@ -569,8 +649,8 @@ fn snapshot_of(node: &Node) -> NodeSnapshot {
                 id: split.id,
                 direction: split.direction.as_str().to_owned(),
                 ratio: split.ratio,
-                first: Box::new(snapshot_of(&split.first)),
-                second: Box::new(snapshot_of(&split.second)),
+                first: Box::new(snapshot_of(&split.first, views)),
+                second: Box::new(snapshot_of(&split.second, views)),
             }),
         },
     }
@@ -968,7 +1048,7 @@ mod tests {
         }
 
         let text = toml::to_string_pretty(&Wrapper {
-            layout: layout.to_snapshot(),
+            layout: layout.to_snapshot(&[]),
         })
         .expect("снимок пишется");
         let back: Wrapper = toml::from_str(&text).expect("снимок читается");
@@ -984,7 +1064,7 @@ mod tests {
 
         // Буфер 2 не восстановился, буфер 7 восстановился, но в раскладке
         // его нет.
-        let restored = Layout::from_snapshot(&layout.to_snapshot(), &[1, 7]).unwrap();
+        let restored = Layout::from_snapshot(&layout.to_snapshot(&[]), &[1, 7]).unwrap();
 
         assert_eq!(ids(&restored), vec![1], "правая область осталась пустой и схлопнулась");
         assert_eq!(restored.pane(1).unwrap().tabs, vec![1, 7]);
@@ -1000,12 +1080,12 @@ mod tests {
         // Незнакомое направление.
         let mut layout = Layout::new_for_test(vec![1]);
         layout.split(1, Direction::Row, Some(1));
-        let mut snapshot = layout.to_snapshot();
+        let mut snapshot = layout.to_snapshot(&[]);
         snapshot.root.split.as_mut().unwrap().direction = "diagonal".to_owned();
         assert!(Layout::from_snapshot(&snapshot, &[1]).is_none());
 
         // Повторный номер узла.
-        let mut snapshot = layout.to_snapshot();
+        let mut snapshot = layout.to_snapshot(&[]);
         snapshot.root.split.as_mut().unwrap().second.pane.as_mut().unwrap().id = 1;
         assert!(Layout::from_snapshot(&snapshot, &[1]).is_none());
     }
@@ -1013,7 +1093,7 @@ mod tests {
     #[test]
     fn snapshot_of_single_pane_reads_back_as_single() {
         let layout = Layout::new_for_test(vec![3, 1]);
-        let restored = Layout::from_snapshot(&layout.to_snapshot(), &[1, 3]).unwrap();
+        let restored = Layout::from_snapshot(&layout.to_snapshot(&[]), &[1, 3]).unwrap();
         assert!(restored.is_single());
         assert_eq!(restored.pane(1).unwrap().tabs, vec![3, 1], "порядок из снимка, не из списка");
     }

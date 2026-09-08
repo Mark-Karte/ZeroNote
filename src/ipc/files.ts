@@ -201,10 +201,26 @@ export interface RestoredBuffer extends BufferWithText {
   bookmarks: number[];
 }
 
+/**
+ * Где стоял курсор у вкладки в конкретной области (задача 84).
+ *
+ * Один файл в двух областях — это два представления со своими курсорами
+ * (Р-209), а курсор в снимке буфера один. Без этих записей зеркало после
+ * перезапуска вставало на курсор главного.
+ */
+export interface PaneView {
+  pane: number;
+  buffer: number;
+  cursor: number;
+  scrollTop: number;
+}
+
 export interface RestoredSession {
   buffers: RestoredBuffer[];
   /** Дерево областей с порядком вкладок и активной вкладкой (Р-207). */
   layout: Layout;
+  /** Курсоры вкладок по областям. Пусто, пока область одна. */
+  paneViews: PaneView[];
   roots: import('./roots').Root[];
   sidebar: boolean;
   /** Ноль — ширина не подгонялась, действует значение из темы. */
@@ -220,10 +236,12 @@ export interface RestoredSession {
  */
 export const saveSession = (
   views: ViewState[],
+  paneViews: PaneView[],
   sidebar: boolean,
   sidebarWidth: number,
   sidebarPanel: string,
-): Promise<void> => invoke('save_session', { views, sidebar, sidebarWidth, sidebarPanel });
+): Promise<void> =>
+  invoke('save_session', { views, paneViews, sidebar, sidebarWidth, sidebarPanel });
 
 export const flushDrafts = (entries: { id: number; text: string }[]): Promise<void> =>
   invoke('flush_drafts', { entries });

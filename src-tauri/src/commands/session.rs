@@ -5,7 +5,7 @@
 
 use crate::fsx::text_file;
 use crate::model::buffer::{Buffer, BufferId, Buffers, TabKind};
-use crate::model::layout::Layout;
+use crate::model::layout::{self, Layout, PaneView};
 use crate::model::root::{Root, Roots};
 use crate::session::{self, BufferSnapshot, RootSnapshot, WorkspaceSnapshot};
 use crate::state::AppState;
@@ -75,6 +75,7 @@ fn snapshot_of(buffer: &Buffer, view: Option<&ViewState>) -> BufferSnapshot {
 pub fn save_session(
     state: tauri::State<'_, AppState>,
     views: Vec<ViewState>,
+    pane_views: Vec<PaneView>,
     sidebar: bool,
     sidebar_width: u32,
     sidebar_panel: String,
@@ -131,7 +132,10 @@ pub fn save_session(
             sidebar,
             sidebar_width,
             sidebar_panel,
-            layout: (!single).then(|| layout.to_snapshot()),
+            // Курсоры по областям пишутся вместе с раскладкой и только
+            // с ней: пока область одна, курсор у вкладки один и лежит там же,
+            // где лежал всегда, — в снимке буфера (задача 84).
+            layout: (!single).then(|| layout.to_snapshot(&pane_views)),
             roots,
             buffers: order
                 .iter()
@@ -180,6 +184,12 @@ pub struct RestoredSession {
     pub buffers: Vec<RestoredBuffer>,
     /// Дерево областей с порядком вкладок и активной вкладкой (Р-207).
     pub layout: Layout,
+    /// Курсоры вкладок по областям (задача 84).
+    ///
+    /// Отдельным списком, а не внутри `layout`: раскладка курсоров не хранит,
+    /// они живут в представлениях, то есть во фронтенде. Ядро их только
+    /// переносит между запусками.
+    pub pane_views: Vec<PaneView>,
     pub roots: Vec<RootView>,
     pub sidebar: bool,
     pub sidebar_width: u32,
@@ -214,6 +224,7 @@ pub fn restore_session(state: tauri::State<'_, AppState>) -> RestoredSession {
         return RestoredSession {
             buffers: Vec::new(),
             layout: Layout::default(),
+            pane_views: Vec::new(),
             roots: Vec::new(),
             sidebar: false,
             sidebar_width: 0,
@@ -419,6 +430,11 @@ pub fn restore_session(state: tauri::State<'_, AppState>) -> RestoredSession {
 
     RestoredSession {
         buffers: restored,
+        pane_views: snapshot
+            .layout
+            .as_ref()
+            .map(layout::views_of_snapshot)
+            .unwrap_or_default(),
         layout,
         roots: root_views,
         sidebar: snapshot.sidebar,

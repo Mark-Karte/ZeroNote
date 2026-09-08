@@ -449,14 +449,24 @@ scroll-top = 0.0
     /// а сама по себе она в своём тесте читается прекрасно.
     #[test]
     fn split_layout_survives_write_and_read() {
-        use crate::model::layout::{Direction, Layout};
+        use crate::model::layout::{Direction, Layout, PaneView, views_of_snapshot};
 
         let dir = temp_dir("layout");
         let mut layout = Layout::single(vec![1, 2, 3], Some(2));
         layout.split(1, Direction::Row, Some(3));
 
+        // Курсор зеркала (задача 84) — тоже часть снимка, и проверять его
+        // надо здесь же: массив таблиц внутри таблицы области ошибается
+        // в TOML ровно так же, как сама область внутри списка буферов.
+        let views = vec![PaneView {
+            pane: layout.active_pane().id,
+            buffer: 3,
+            cursor: 42,
+            scroll_top: 128.0,
+        }];
+
         let mut with_layout = snapshot();
-        with_layout.layout = Some(layout.to_snapshot());
+        with_layout.layout = Some(layout.to_snapshot(&views));
         write_session(&dir, &with_layout).unwrap();
         let restored = read_session(&dir).expect("сессия должна прочитаться");
 
@@ -464,6 +474,11 @@ scroll-top = 0.0
         let back = Layout::from_snapshot(restored.layout.as_ref().unwrap(), &[1, 2, 3]).unwrap();
         assert_eq!(back, layout);
         assert_eq!(restored.buffers.len(), 3, "буферы не уехали в раскладку");
+        assert_eq!(
+            views_of_snapshot(restored.layout.as_ref().unwrap()),
+            views,
+            "курсор зеркала не пережил запись и чтение"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 

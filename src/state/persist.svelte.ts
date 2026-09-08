@@ -1,5 +1,5 @@
 import * as ipc from '../ipc/files';
-import { tabs, contentOf, viewStateOf } from './tabs.svelte';
+import { tabs, contentOf, viewStateOf, paneViewsOf } from './tabs.svelte';
 import { roots } from './roots.svelte';
 
 /**
@@ -47,7 +47,13 @@ async function writeSession(): Promise<void> {
   const views: ipc.ViewState[] = tabs.items.map((tab) => viewStateOf(tab));
   // Сами корни ядро берёт из своего реестра — отсюда едет только то, чего оно
   // знать не может: открыта ли панель.
-  await ipc.saveSession(views, roots.sidebar, roots.sidebarWidth, roots.panel);
+  await ipc.saveSession(
+    views,
+    paneViewsOf(),
+    roots.sidebar,
+    roots.sidebarWidth,
+    roots.panel,
+  );
 }
 
 async function writeDrafts(): Promise<void> {
