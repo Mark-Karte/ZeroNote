@@ -71,8 +71,9 @@ export const planReplace = (
   replacement: string,
   matchCase: boolean,
   wholeWord: boolean,
+  rootId: number | null,
 ): Promise<ReplacePlan> =>
-  invoke('plan_replace', { query, replacement, matchCase, wholeWord });
+  invoke('plan_replace', { query, replacement, matchCase, wholeWord, rootId });
 
 /** Прервать идущий обход. */
 export const cancelReplace = (): Promise<void> => invoke('cancel_replace');

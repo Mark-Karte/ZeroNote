@@ -14,6 +14,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 
 use crate::model::edit::{self, FileEdits};
+use crate::model::root::RootId;
 use crate::replace::{self, Candidate, Options, ReplacePlan};
 use crate::state::AppState;
 
@@ -49,6 +50,7 @@ pub async fn plan_replace(
     replacement: String,
     match_case: bool,
     whole_word: bool,
+    root_id: Option<RootId>,
 ) -> Result<ReplacePlan, String> {
     if query.is_empty() {
         return Ok(ReplacePlan::default());
@@ -60,7 +62,7 @@ pub async fn plan_replace(
     let generation = state.replace_scan.clone();
     let mine = generation.fetch_add(1, Ordering::SeqCst) + 1;
 
-    let candidates = candidates(&state);
+    let candidates = candidates(&state, root_id);
     let options = Options {
         match_case,
         whole_word,
@@ -92,10 +94,10 @@ pub fn cancel_replace(state: tauri::State<'_, AppState>) {
 /// Берутся у индекса вместе с путём внутри корня: этот путь показывается
 /// человеку в списке, и считать его каждому потребителю заново незачем.
 /// Файл, чей корень успели убрать, отсеивается — писать в него уже нельзя.
-fn candidates(state: &AppState) -> Vec<Candidate> {
+fn candidates(state: &AppState, only: Option<RootId>) -> Vec<Candidate> {
     let files = state.index.lock().expect("индекс повреждён").text_files();
 
-    let roots: Vec<(u64, String)> = {
+    let roots: Vec<(RootId, String)> = {
         let roots = state.roots.lock().expect("реестр корней повреждён");
         roots
             .list()
@@ -104,8 +106,23 @@ fn candidates(state: &AppState) -> Vec<Candidate> {
             .collect()
     };
 
+    pick(files, &roots, only)
+}
+
+/// Отбор кандидатов — чистой функцией, без состояния.
+///
+/// `only` — искать в одной папке, а не во всех сразу. Это не удобство,
+/// а защита: одинаковые библиотеки лежат в разных проектах, и переименование
+/// переменной в одном из них не должно доехать до остальных (замечание
+/// владельца после задачи 88).
+fn pick(
+    files: Vec<crate::index::writer::FileRow>,
+    roots: &[(RootId, String)],
+    only: Option<RootId>,
+) -> Vec<Candidate> {
     files
         .into_iter()
+        .filter(|file| only.is_none_or(|id| file.root_id == id))
         .filter_map(|file| {
             let (_, root_path) = roots.iter().find(|(id, _)| *id == file.root_id)?;
             let inside = inside_root(&file.path, root_path)?;
@@ -174,4 +191,61 @@ fn write_all(files: Vec<FileEdits>) -> ApplyOutcome {
     }
 
     outcome
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::index::writer::FileRow;
+
+    fn roots() -> Vec<(RootId, String)> {
+        vec![
+            (1, r"C:\проекты\первый".to_owned()),
+            (2, r"C:\проекты\второй".to_owned()),
+        ]
+    }
+
+    fn file(root_id: RootId, path: &str) -> FileRow {
+        FileRow {
+            root_id,
+            path: path.to_owned(),
+            name: path.rsplit('\\').next().unwrap_or(path).to_owned(),
+            has_text: true,
+        }
+    }
+
+    #[test]
+    fn takes_every_root_by_default() {
+        let files = vec![
+            file(1, r"C:\проекты\первый\util.rs"),
+            file(2, r"C:\проекты\второй\util.rs"),
+        ];
+
+        assert_eq!(pick(files, &roots(), None).len(), 2);
+    }
+
+    /// Ради этого выбор и заведён: одинаковая библиотека лежит в двух
+    /// проектах, а правится в одном.
+    #[test]
+    fn one_root_leaves_the_others_alone() {
+        let files = vec![
+            file(1, r"C:\проекты\первый\util.rs"),
+            file(2, r"C:\проекты\второй\util.rs"),
+        ];
+
+        let picked = pick(files, &roots(), Some(2));
+
+        assert_eq!(picked.len(), 1);
+        assert_eq!(picked[0].root_id, 2);
+        assert_eq!(picked[0].inside, "util.rs");
+    }
+
+    /// Файл, чей корень успели убрать, не берётся вовсе: писать в него уже
+    /// нельзя, да и путь внутри корня для него не посчитать.
+    #[test]
+    fn file_without_a_root_is_dropped() {
+        let files = vec![file(7, r"C:\чужое\файл.md")];
+
+        assert!(pick(files, &roots(), None).is_empty());
+    }
 }

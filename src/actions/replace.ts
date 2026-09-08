@@ -1,7 +1,7 @@
 import { message } from '@tauri-apps/plugin-dialog';
 
 import { applyEdits, cancelReplace, planReplace } from '../ipc/edits';
-import type { FileEdits, ReplacePlan } from '../ipc/edits';
+import type { FileEdits, ReplaceFile, ReplacePlan } from '../ipc/edits';
 import { askChoice } from '../state/modal.svelte';
 import { noteStructureChange } from '../state/persist.svelte';
 import { projectSearch, runNow } from '../state/project-search.svelte';
@@ -12,10 +12,11 @@ import {
   replaceFocusRequest,
   takeLastReplace,
 } from '../state/replace.svelte';
-import { showPanel } from '../state/roots.svelte';
+import { roots, showPanel } from '../state/roots.svelte';
 import { unsavedPaths } from '../state/tabs.svelte';
 import { checkExternalChanges } from './external';
 import { splitPlan } from './rename-plan';
+import type { SplitPlan } from './rename-plan';
 import {
   describeDone,
   describeReplace,
@@ -88,7 +89,13 @@ export async function replaceEverything(): Promise<void> {
 
   let plan: ReplacePlan;
   try {
-    plan = await planReplace(query, replacement, replace.matchCase, replace.wholeWord);
+    plan = await planReplace(
+      query,
+      replacement,
+      replace.matchCase,
+      replace.wholeWord,
+      projectSearch.rootId,
+    );
   } catch (error) {
     await report(error);
     return;
@@ -121,9 +128,11 @@ export async function replaceEverything(): Promise<void> {
     return;
   }
 
+  // Показываем один список, а правим по другому: имена папок нужны глазам,
+  // а записи — исходные пути.
   const answer = await askChoice(
     replaceTitle(query, replacement),
-    describeReplace(plan, split),
+    describeReplace(plan, withRootNames(split), scopeName()),
     [
       { id: 'replace', label: 'Заменить', primary: true },
       { id: 'cancel', label: 'Отмена', cancel: true },
@@ -194,6 +203,43 @@ export async function undoReplace(): Promise<void> {
       { title: 'ZeroNote', kind: 'warning' },
     );
   }
+}
+
+/**
+ * Имя папки, в которой идёт замена. `null` — во всех сразу.
+ *
+ * Показывается в вопросе: «во всех открытых папках» и «в этой» — разные
+ * обещания, и человек должен видеть, какое из них он подтверждает.
+ */
+function scopeName(): string | null {
+  const id = projectSearch.rootId;
+  return id === null ? null : (roots.items.find((root) => root.id === id)?.name ?? null);
+}
+
+/**
+ * Дописать имя папки к путям, если замена идёт по нескольким папкам сразу.
+ *
+ * Найдено глазами на двух проектах с одинаковой библиотекой: список выглядел
+ * как «readme.md — 2» дважды подряд, и какой из них какой — не сказано ничем.
+ * Путь внутри корня короток намеренно, но когда корней несколько, он
+ * перестаёт быть именем.
+ *
+ * Меняется только показ: правится по исходному списку, эти копии никуда
+ * дальше диалога не уходят.
+ */
+function withRootNames(split: SplitPlan<ReplaceFile>): SplitPlan<ReplaceFile> {
+  const roots0 = new Set([...split.editable, ...split.blocked].map((f) => f.rootId));
+  if (roots0.size < 2) return split;
+
+  const named = (file: ReplaceFile): ReplaceFile => ({
+    ...file,
+    inside: `${roots.items.find((root) => root.id === file.rootId)?.name ?? ''} / ${file.inside}`,
+  });
+
+  return {
+    editable: split.editable.map(named),
+    blocked: split.blocked.map(named),
+  };
 }
 
 /** Убрать из плана всё, что нужно только показу. */

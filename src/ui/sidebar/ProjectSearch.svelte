@@ -48,6 +48,16 @@
     }
   });
 
+  // Выбранную папку могли убрать из дерева, пока панель была открыта.
+  // Тогда выбор возвращается ко «всем папкам»: искать в том, чего нет,
+  // нельзя, а список, молча оставшийся пустым, ничего не объясняет.
+  $effect(() => {
+    const id = projectSearch.rootId;
+    if (id !== null && !roots.items.some((root) => root.id === id)) {
+      projectSearch.rootId = null;
+    }
+  });
+
   function place(path: string, rootId: number): string {
     const root = roots.items.find((r) => r.id === rootId);
     const cut = root ? path.slice(root.path.length).replace(/^[\\/]/, '') : path;
@@ -76,6 +86,26 @@
       <Icon name="cmd.replace" />
     </button>
   </header>
+
+  {#if roots.items.length > 1}
+    <!-- Выбор папки появляется только когда папок больше одной: строка
+         «во всех папках» при единственной папке — это выбор без выбора. -->
+    <select
+      class="scope"
+      aria-label="Где искать"
+      value={projectSearch.rootId === null ? '' : String(projectSearch.rootId)}
+      onchange={(event) => {
+        const picked = event.currentTarget.value;
+        projectSearch.rootId = picked === '' ? null : Number(picked);
+        void runNow();
+      }}
+    >
+      <option value="">Во всех папках</option>
+      {#each roots.items as root (root.id)}
+        <option value={String(root.id)}>{root.name}</option>
+      {/each}
+    </select>
+  {/if}
 
   <input
     class="field"
@@ -303,6 +333,23 @@
     font-weight: var(--zn-font-weight-strong);
     text-transform: uppercase;
     letter-spacing: var(--zn-font-letter-spacing-caps);
+  }
+
+  .scope {
+    flex: none;
+    margin: 0 var(--zn-space-3) var(--zn-space-2);
+    padding: var(--zn-space-1) var(--zn-space-2);
+    background-color: var(--zn-color-bg-canvas);
+    border: var(--zn-border-width) solid var(--zn-color-border-default);
+    border-radius: var(--zn-radius-sm);
+    color: var(--zn-color-fg-muted);
+    font-family: var(--zn-font-family-ui);
+    font-size: var(--zn-font-size-ui-small);
+  }
+
+  .scope:focus {
+    outline: none;
+    border-color: var(--zn-color-border-focus);
   }
 
   .field {

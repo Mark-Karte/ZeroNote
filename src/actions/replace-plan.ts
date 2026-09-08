@@ -71,11 +71,19 @@ export function previewLines(list: ReplaceFile[], limit = PREVIEW_LINES): string
  * 12 файлов» отвечает на вопрос ровно наоборот. Длинный список
  * прокручивается — диалог это умеет.
  */
-export function describeReplace(plan: ReplacePlan, split: SplitPlan<ReplaceFile>): string {
+export function describeReplace(
+  plan: ReplacePlan,
+  split: SplitPlan<ReplaceFile>,
+  scope: string | null = null,
+): string {
   const total = split.editable.reduce((sum, file) => sum + file.edits.length, 0);
 
+  // Область названа первой строкой: «во всех открытых папках» и «только
+  // в этой» — разные обещания, и подтверждают их по-разному.
+  const where = scope === null ? 'Во всех открытых папках' : `В папке «${scope}»`;
+
   const parts = [
-    `${matches(total)} в ${files(split.editable.length)}. ` +
+    `${where}: ${matches(total)} в ${files(split.editable.length)}. ` +
       `Просмотрено файлов: ${plan.scanned}.`,
   ];
 

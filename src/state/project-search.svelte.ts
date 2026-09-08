@@ -22,11 +22,24 @@ export const projectSearch = $state<{
   /** Поиск отработал хотя бы раз — чтобы отличить «ничего не нашлось»
    *  от «ещё не искали». */
   searched: boolean;
+  /**
+   * В какой папке искать. `null` — во всех сразу.
+   *
+   * Выбор появился после задачи 88 по замечанию владельца: одинаковые
+   * библиотеки лежат в разных проектах, и замена в одном из них не должна
+   * доезжать до остальных. Поиск и замена смотрят один и тот же выбор —
+   * иначе список показывал бы одно, а правилось бы другое (Р-220).
+   *
+   * Живёт в памяти, а не в сессии: выбор папки — это про текущее занятие,
+   * и застать его завтра там же было бы неожиданностью.
+   */
+  rootId: number | null;
 }>({
   query: '',
   hits: [],
   running: false,
   searched: false,
+  rootId: null,
 });
 
 /**
@@ -68,7 +81,7 @@ async function run(): Promise<void> {
 
   projectSearch.running = true;
   try {
-    const hits = await ipc.searchProject(query);
+    const hits = await ipc.searchProject(query, projectSearch.rootId ?? undefined);
     // Ответ на устаревший запрос выбрасываем.
     if (mine !== latest) return;
     projectSearch.hits = hits;
