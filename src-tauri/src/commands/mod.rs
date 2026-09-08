@@ -6,6 +6,7 @@
 
 pub mod about;
 pub mod appearance;
+pub mod edits;
 pub mod entries;
 pub mod files;
 pub mod index;

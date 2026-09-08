@@ -13,6 +13,7 @@ pub mod keymap;
 pub mod markdown;
 pub mod model;
 pub mod project;
+pub mod replace;
 pub mod session;
 pub mod settings;
 pub mod single;
@@ -83,6 +84,7 @@ fn prepare_state() -> AppState {
         roots: std::sync::Mutex::new(model::root::Roots::new()),
         watchers: std::sync::Mutex::new(tree::watch::Watchers::default()),
         index: std::sync::Mutex::new(index::jobs::Index::default()),
+        replace_scan: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
     }
 }
 
@@ -204,7 +206,9 @@ pub fn run() {
             commands::entries::create_entry,
             commands::entries::rename_entry,
             commands::entries::plan_rename,
-            commands::entries::apply_link_edits,
+            commands::edits::apply_edits,
+            commands::edits::plan_replace,
+            commands::edits::cancel_replace,
             commands::entries::delete_entry,
             commands::entries::move_buffer,
             commands::roots::list_roots,

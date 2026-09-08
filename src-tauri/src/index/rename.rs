@@ -2,7 +2,7 @@
 //!
 //! Решения Р-136 и Р-137. Здесь считается **план** — список файлов и правок
 //! в них, — и считается он до того, как на диске что-то изменится. Сама
-//! правка живёт в `fsx/link_edit.rs`: разделение не косметическое, план
+//! правка живёт в `fsx/text_edit.rs`: разделение не косметическое, план
 //! показывается человеку и может быть отвергнут целиком.
 //!
 //! Способ расчёта не «заменить старое имя новым», а симуляция. Почему —
@@ -18,38 +18,17 @@ use std::path::Path;
 use rusqlite::Connection;
 
 use crate::markdown;
+use crate::model::edit::{FileEdits, TextEdit};
 use crate::model::root::RootId;
 
 use super::graph;
 use super::writer::path_key;
 
-/// Одна замена в файле: где, что было и что станет.
-///
-/// `was` не для красоты: между показом плана и правкой файл могли изменить,
-/// и запись вслепую по смещению испортила бы чужой текст. Перед правкой
-/// байты сверяются.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LinkEdit {
-    /// Смещение цели ссылки в байтах от начала файла.
-    pub offset: usize,
-    pub was: String,
-    pub becomes: String,
-}
-
-/// Что изменится в одном файле.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FileEdits {
-    /// Путь файла **после** переименования: файл со ссылками может и сам
-    /// лежать внутри переименовываемой папки.
-    pub path: String,
-    /// Путь внутри корня — его и показывают человеку.
-    pub inside: String,
-    pub edits: Vec<LinkEdit>,
-}
-
 /// План целиком.
+///
+/// Пути файлов в `files` — те, по которым файлы окажутся **после**
+/// переименования: файл со ссылками может и сам лежать внутри
+/// переименовываемой папки.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RenamePlan {
@@ -248,7 +227,7 @@ pub fn plan(
     let transaction = connection.transaction()?;
     apply_moves(&transaction, root_path, &moved)?;
 
-    let mut by_file: BTreeMap<String, Vec<LinkEdit>> = BTreeMap::new();
+    let mut by_file: BTreeMap<String, Vec<TextEdit>> = BTreeMap::new();
     for candidate in &candidates {
         let now = graph::resolve(
             &transaction,
@@ -292,7 +271,7 @@ pub fn plan(
         by_file
             .entry(candidate.source_new.clone())
             .or_default()
-            .push(LinkEdit {
+            .push(TextEdit {
                 offset: candidate.offset,
                 was: candidate.was.clone(),
                 becomes,

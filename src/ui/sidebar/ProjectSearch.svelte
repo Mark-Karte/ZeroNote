@@ -9,6 +9,16 @@
     openHit,
   } from '../../state/project-search.svelte';
   import { roots } from '../../state/roots.svelte';
+  import {
+    canUndoReplace,
+    replace,
+    replaceFocusRequest,
+  } from '../../state/replace.svelte';
+  import {
+    replaceEverything,
+    stopReplace,
+    undoReplace,
+  } from '../../actions/replace';
 
   /**
    * Панель результатов поиска по проекту.
@@ -20,11 +30,23 @@
    */
 
   let field: HTMLInputElement | undefined = $state();
+  let replaceField: HTMLInputElement | undefined = $state();
+  let lastFocusRequest = 0;
 
   export function focusField(): void {
     field?.focus();
     field?.select();
   }
+
+  // Команда «Заменить в проекте» раскрывает строку замены и просит фокус.
+  // Счётчиком, а не признаком: повторный вызов обязан вернуть фокус тоже.
+  $effect(() => {
+    if (replaceFocusRequest.value !== lastFocusRequest && replaceField) {
+      lastFocusRequest = replaceFocusRequest.value;
+      replaceField.focus();
+      replaceField.select();
+    }
+  });
 
   function place(path: string, rootId: number): string {
     const root = roots.items.find((r) => r.id === rootId);
@@ -43,6 +65,16 @@
 <div class="panel">
   <header class="head">
     <span class="title">Поиск в проекте</span>
+    <button
+      class="toggle"
+      class:on={replace.open}
+      type="button"
+      title="Замена по проекту"
+      aria-pressed={replace.open}
+      onclick={() => (replace.open = !replace.open)}
+    >
+      <Icon name="cmd.replace" />
+    </button>
   </header>
 
   <input
@@ -61,6 +93,70 @@
     aria-label="Найти в проекте"
     spellcheck="false"
   />
+
+  {#if replace.open}
+    <div class="replace-row">
+      <input
+        class="field replacement"
+        type="text"
+        bind:this={replaceField}
+        bind:value={replace.replacement}
+        onkeydown={(event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            void replaceEverything();
+          }
+        }}
+        placeholder="Заменить на"
+        aria-label="Заменить на"
+        spellcheck="false"
+      />
+
+      <div class="flags">
+        <button
+          class="flag"
+          class:on={replace.matchCase}
+          type="button"
+          title="Учитывать регистр"
+          onclick={() => (replace.matchCase = !replace.matchCase)}>Aa</button
+        >
+        <button
+          class="flag"
+          class:on={replace.wholeWord}
+          type="button"
+          title="Слово целиком"
+          onclick={() => (replace.wholeWord = !replace.wholeWord)}>|ab|</button
+        >
+      </div>
+    </div>
+
+    <div class="replace-row">
+      {#if replace.running}
+        <button class="action" type="button" onclick={() => void stopReplace()}>
+          Прервать
+        </button>
+        <span class="note inline">идёт обход файлов…</span>
+      {:else}
+        <button
+          class="action"
+          type="button"
+          disabled={projectSearch.query === ''}
+          onclick={() => void replaceEverything()}
+        >
+          Заменить всё
+        </button>
+        {#if canUndoReplace()}
+          <button class="action" type="button" onclick={() => void undoReplace()}>
+            Отменить замену
+          </button>
+        {/if}
+      {/if}
+    </div>
+
+    {#if replace.done !== ''}
+      <p class="note">{replace.done}</p>
+    {/if}
+  {/if}
 
   {#if projectSearch.running}
     <p class="note">идёт поиск…</p>
@@ -101,9 +197,104 @@
   .head {
     display: flex;
     align-items: center;
+    justify-content: space-between;
+    gap: var(--zn-space-2);
     height: var(--zn-control-toolbar-height);
     flex: none;
     padding-inline: var(--zn-space-4);
+  }
+
+  .toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: var(--zn-control-toolbar-button-size);
+    height: var(--zn-control-toolbar-button-size);
+    padding: 0;
+    border: var(--zn-border-width) solid transparent;
+    border-radius: var(--zn-radius-sm);
+    background: transparent;
+    color: var(--zn-color-fg-muted);
+    cursor: default;
+  }
+
+  .toggle:hover {
+    background-color: var(--zn-color-bg-hover);
+    color: var(--zn-color-fg-default);
+  }
+
+  .toggle.on {
+    background-color: var(--zn-color-bg-selected);
+    border-color: var(--zn-color-accent);
+    color: var(--zn-color-fg-default);
+  }
+
+  /* Свой класс, а не `.row`: строка результата поиска ниже зовётся так же
+     и стоит в стилях позже — она бы и побеждала. Найдено глазами: поле
+     замены и кнопки встали столбиком по центру. */
+  .replace-row {
+    display: flex;
+    align-items: center;
+    gap: var(--zn-space-2);
+    flex: none;
+    margin: 0 var(--zn-space-3) var(--zn-space-2);
+  }
+
+  .replace-row .field {
+    margin: 0;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .flags {
+    display: flex;
+    flex: none;
+    gap: var(--zn-space-1);
+  }
+
+  .flag,
+  .action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: var(--zn-control-row-height);
+    height: var(--zn-control-row-height);
+    padding-inline: var(--zn-space-2);
+    border: var(--zn-border-width) solid transparent;
+    border-radius: var(--zn-radius-sm);
+    background-color: transparent;
+    color: var(--zn-color-fg-muted);
+    font-family: var(--zn-font-family-editor);
+    font-size: var(--zn-font-size-ui-small);
+    cursor: default;
+  }
+
+  .action {
+    font-family: var(--zn-font-family-ui);
+    border-color: var(--zn-color-border-default);
+    padding-inline: var(--zn-space-3);
+  }
+
+  .flag:hover,
+  .action:hover:not(:disabled) {
+    background-color: var(--zn-color-bg-hover);
+    color: var(--zn-color-fg-default);
+  }
+
+  .action:disabled {
+    color: var(--zn-color-fg-subtle);
+    border-color: var(--zn-color-border-subtle);
+  }
+
+  .flag.on {
+    background-color: var(--zn-color-bg-selected);
+    border-color: var(--zn-color-accent);
+    color: var(--zn-color-fg-default);
+  }
+
+  .note.inline {
+    padding: 0;
   }
 
   .title {

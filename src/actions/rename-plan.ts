@@ -28,10 +28,10 @@ export function movedPath(path: string, from: string, to: string): string | null
 }
 
 /** План, разложенный на то, что правится, и то, что не будет тронуто. */
-export interface SplitPlan {
-  editable: FileEdits[];
+export interface SplitPlan<T extends FileEdits = FileEdits> {
+  editable: T[];
   /** Открыты с несохранёнными правками — на диске не трогаются (Р-138). */
-  blocked: FileEdits[];
+  blocked: T[];
 }
 
 /**
@@ -40,8 +40,15 @@ export interface SplitPlan {
  * `busy` — пути вкладок с несохранёнными правками. Сравнение по нижнему
  * регистру: Windows не различает регистр путей, а путь вкладки и путь из
  * плана приходят разными дорогами.
+ *
+ * Обобщённая по типу файла: замена по проекту (задача 88) добавляет к плану
+ * строки для показа, и делить их надо тем же правилом — Р-138 не про то,
+ * кто посчитал правки.
  */
-export function splitPlan(files: FileEdits[], busy: Iterable<string>): SplitPlan {
+export function splitPlan<T extends FileEdits>(
+  files: T[],
+  busy: Iterable<string>,
+): SplitPlan<T> {
   const taken = new Set([...busy].map((path) => path.toLowerCase()));
 
   return {

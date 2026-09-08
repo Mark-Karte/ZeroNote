@@ -1,10 +1,11 @@
-//! Правка ссылок в файле, который пользователь не открывал (Р-136).
+//! Правка файла, который пользователь не открывал (Р-136).
 //!
 //! Самое опасное место проекта: здесь приложение меняет чужой файл по своей
 //! инициативе. Поэтому правил больше, чем кода.
 //!
-//! * меняются только байты цели ссылки — то, что между `[[` и `#`, `|`
-//!   или `]]`. Всё остальное содержимое не участвует вовсе;
+//! * меняются только те куски, которые названы в правках, — цель `[[ссылки]]`
+//!   при переименовании (задача 48), найденный текст при замене по проекту
+//!   (задача 88). Всё остальное содержимое не участвует вовсе;
 //! * текст читается **без приведения переносов строк** и пишется обратно
 //!   той же кодировкой: у файла со смешанными переносами они останутся
 //!   смешанными;
@@ -15,7 +16,7 @@
 
 use std::path::Path;
 
-use crate::index::rename::LinkEdit;
+use crate::model::edit::TextEdit;
 use crate::text::document;
 
 #[derive(Debug)]
@@ -47,14 +48,14 @@ impl std::fmt::Display for EditError {
 
 impl std::error::Error for EditError {}
 
-/// Подставить новые цели ссылок в текст.
+/// Подставить правки в текст.
 ///
 /// Отдельной функцией и без файловой системы — ради проверяемости: именно
 /// здесь можно ошибиться смещением на единицу и испортить чужой текст.
 /// Правки применяются с конца, иначе первая же смена длины сдвинула бы
 /// все следующие смещения.
-pub fn rewrite(text: &str, edits: &[LinkEdit]) -> Result<String, EditError> {
-    let mut sorted: Vec<&LinkEdit> = edits.iter().collect();
+pub fn rewrite(text: &str, edits: &[TextEdit]) -> Result<String, EditError> {
+    let mut sorted: Vec<&TextEdit> = edits.iter().collect();
     sorted.sort_by_key(|edit| std::cmp::Reverse(edit.offset));
 
     let mut out = text.to_owned();
@@ -76,8 +77,8 @@ pub fn rewrite(text: &str, edits: &[LinkEdit]) -> Result<String, EditError> {
     Ok(out)
 }
 
-/// Поправить ссылки в файле на диске.
-pub fn apply(path: &Path, edits: &[LinkEdit]) -> Result<(), EditError> {
+/// Поправить файл на диске.
+pub fn apply(path: &Path, edits: &[TextEdit]) -> Result<(), EditError> {
     let bytes = std::fs::read(path).map_err(|e| EditError::Read(e.to_string()))?;
     let raw = document::read_raw(&bytes).map_err(|e| EditError::Read(e.to_string()))?;
 
@@ -96,8 +97,8 @@ pub fn apply(path: &Path, edits: &[LinkEdit]) -> Result<(), EditError> {
 mod tests {
     use super::*;
 
-    fn edit(offset: usize, was: &str, becomes: &str) -> LinkEdit {
-        LinkEdit {
+    fn edit(offset: usize, was: &str, becomes: &str) -> TextEdit {
+        TextEdit {
             offset,
             was: was.to_owned(),
             becomes: becomes.to_owned(),
@@ -107,7 +108,7 @@ mod tests {
     /// Смещение ищется, а не пишется числом: оно байтовое, а кириллица
     /// занимает по два байта на букву — считать такое руками значит однажды
     /// посчитать неверно и записать неверный ответ в тест.
-    fn at(text: &str, what: &str, becomes: &str) -> LinkEdit {
+    fn at(text: &str, what: &str, becomes: &str) -> TextEdit {
         edit(text.find(what).expect("такого куска в тексте нет"), what, becomes)
     }
 

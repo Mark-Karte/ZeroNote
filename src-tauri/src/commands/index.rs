@@ -265,7 +265,7 @@ fn root_of(state: &AppState, from: &str) -> Option<(RootId, String)> {
 ///
 /// Проверка префикса — по приведённым ключам: путь корня приходит из реестра,
 /// путь файла — из базы, и совпадать по регистру они не обязаны.
-fn inside_root(path: &str, root_path: &str) -> Option<String> {
+pub(crate) fn inside_root(path: &str, root_path: &str) -> Option<String> {
     let key = crate::index::writer::path_key(std::path::Path::new(path));
     let root_key = crate::index::writer::path_key(std::path::Path::new(root_path));
     if !key.starts_with(&root_key) {

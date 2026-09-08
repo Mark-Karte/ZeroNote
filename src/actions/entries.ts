@@ -1,8 +1,14 @@
 import { message } from '@tauri-apps/plugin-dialog';
 import * as ipc from '../ipc/tree';
 import { moveBuffer } from '../ipc/files';
+import { applyEdits } from '../ipc/edits';
 import { askChoice, askInput } from '../state/modal.svelte';
-import { applyMeta, tabs, close as closeTabState } from '../state/tabs.svelte';
+import {
+  applyMeta,
+  tabs,
+  unsavedPaths,
+  close as closeTabState,
+} from '../state/tabs.svelte';
 import { refreshDirs } from '../state/tree.svelte';
 import { openDropped } from './files';
 import { checkExternalChanges } from './external';
@@ -100,13 +106,6 @@ export async function renameEntry(path: string, oldName: string): Promise<void> 
   }
 }
 
-/** Пути вкладок с несохранёнными правками: их файлы на диске не трогаем. */
-function unsavedPaths(): string[] {
-  return tabs.items
-    .filter((tab) => tab.meta.modified && tab.meta.path !== null)
-    .map((tab) => tab.meta.path as string);
-}
-
 /**
  * Применить правку ссылок и разобраться с последствиями.
  *
@@ -116,7 +115,7 @@ function unsavedPaths(): string[] {
  * старый текст до следующего переключения в другое окно и обратно.
  */
 async function fixLinksOnDisk(files: FileEdits[]): Promise<void> {
-  const problems = await ipc.applyLinkEdits(files);
+  const { problems } = await applyEdits(files);
 
   await checkExternalChanges();
 

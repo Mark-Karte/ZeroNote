@@ -1,5 +1,11 @@
 import { invoke } from '@tauri-apps/api/core';
 
+import type { FileEdits } from './edits';
+
+// Правка файлов по плану переехала в `ipc/edits`: ею пользуется и замена
+// по проекту (задача 88). Здесь остаётся то, что про дерево.
+export type { FileEdits };
+
 /** Одна строка дерева: файл или папка. */
 export interface TreeEntry {
   path: string;
@@ -29,24 +35,12 @@ export const createEntry = (parent: string, name: string, folder: boolean): Prom
 export const renameEntry = (path: string, name: string): Promise<string> =>
   invoke('rename_entry', { path, name });
 
-/** Одна замена в файле: где, что было и что станет. */
-export interface LinkEdit {
-  /** Смещение цели ссылки в байтах от начала файла. */
-  offset: number;
-  was: string;
-  becomes: string;
-}
-
-/** Что изменится в одном файле. */
-export interface FileEdits {
-  /** Путь после переименования: файл со ссылками мог и сам переехать. */
-  path: string;
-  /** Путь внутри корня — его и показывают человеку. */
-  inside: string;
-  edits: LinkEdit[];
-}
-
-/** Что придётся поправить, если переименовать (Р-136). */
+/**
+ * Что придётся поправить, если переименовать (Р-136).
+ *
+ * Пути файлов — те, по которым они окажутся **после** переименования: файл
+ * со ссылками может и сам лежать внутри переименовываемой папки.
+ */
 export interface RenamePlan {
   target: string;
   files: FileEdits[];
@@ -61,10 +55,6 @@ export interface RenamePlan {
  */
 export const planRename = (path: string, name: string): Promise<RenamePlan> =>
   invoke('plan_rename', { path, name });
-
-/** Поправить ссылки по плану. Возвращает жалобы на то, что не вышло. */
-export const applyLinkEdits = (files: FileEdits[]): Promise<string[]> =>
-  invoke('apply_link_edits', { files });
 
 /** Удалить в корзину. Мимо корзины не удаляет никогда (Р-110). */
 export const deleteEntry = (path: string): Promise<void> =>

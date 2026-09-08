@@ -27,8 +27,12 @@ fn inside_root(state: &AppState, path: &Path) -> Fallible<PathBuf> {
         .ok_or_else(|| "путь не входит ни в одну открытую папку".to_owned())
 }
 
-/// Общие для всех трёх операций отказы.
-fn guard(state: &AppState, path: &Path) -> Fallible<PathBuf> {
+/// Общие для всех операций над чужими файлами отказы.
+///
+/// Зовётся и отсюда, и из `commands/edits.rs`: правка файла по плану обязана
+/// проходить те же две проверки, что создание и удаление, — свой проект
+/// и не `.obsidian`.
+pub(crate) fn guard(state: &AppState, path: &Path) -> Fallible<PathBuf> {
     let root = inside_root(state, path)?;
 
     // Инвариант 2: в `.obsidian` не пишется ничего и ни при каких условиях.
@@ -149,37 +153,6 @@ pub fn plan_rename(
         files: Vec::new(),
         links: 0,
     }))
-}
-
-/// Поправить ссылки по плану. Возвращает жалобы на файлы, которые не вышло.
-///
-/// Зовётся уже после переименования, и часть плана к этому времени могла
-/// устареть: файл успели изменить в другой программе. Такой файл пропускается
-/// с объяснением, а остальные правятся — половина работы лучше, чем ничего,
-/// потому что каждый файл здесь независим.
-#[tauri::command]
-pub fn apply_link_edits(
-    state: tauri::State<'_, AppState>,
-    files: Vec<crate::index::rename::FileEdits>,
-) -> Vec<String> {
-    let mut problems = Vec::new();
-
-    for file in files {
-        let path = PathBuf::from(&file.path);
-
-        // Те же отказы, что у любой записи: свой проект и не `.obsidian`.
-        // План приходит снаружи, и доверять ему на слово нельзя.
-        if let Err(complaint) = guard(&state, &path) {
-            problems.push(format!("{}: {complaint}", file.inside));
-            continue;
-        }
-
-        if let Err(error) = crate::fsx::link_edit::apply(&path, &file.edits) {
-            problems.push(format!("{}: {error}", file.inside));
-        }
-    }
-
-    problems
 }
 
 /// Тот же файл, только записанный другим регистром.

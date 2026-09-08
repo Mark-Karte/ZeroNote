@@ -2,14 +2,14 @@
 //!
 //! Здесь проверяется то, ради чего задача 48 писалась: после переименования
 //! ссылка ведёт в ту же заметку, что и до него. Модульные тесты в
-//! `fsx/link_edit.rs` отвечают за подстановку в текст, здесь — за ответ
+//! `fsx/text_edit.rs` отвечают за подстановку в текст, здесь — за ответ
 //! на вопрос «что именно подставлять», а он считается симуляцией (Р-137).
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use rusqlite::Connection;
-use zeronote_lib::fsx::link_edit;
+use zeronote_lib::fsx::text_edit;
 use zeronote_lib::index::{graph, jobs, rename, schema, writer};
 use zeronote_lib::project::{IgnoreSettings, ignore};
 
@@ -66,7 +66,7 @@ fn rename_and_fix(
     fs::rename(from, to).expect("переименование не удалось");
 
     for file in &plan.files {
-        link_edit::apply(Path::new(&file.path), &file.edits).expect("правка не удалась");
+        text_edit::apply(Path::new(&file.path), &file.edits).expect("правка не удалась");
     }
 
     plan

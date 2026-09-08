@@ -39,6 +39,7 @@ import {
   showTags,
   showBookmarks,
 } from '../actions/project';
+import { showReplace, undoReplace } from '../actions/replace';
 import { findNext, findPrevious } from '../state/search.svelte';
 import { toggleInvisibles, toggleLivePreview, toggleWrap } from '../state/settings.svelte';
 import {
@@ -171,6 +172,8 @@ export const COMMANDS: Record<CommandId, () => void | Promise<unknown>> = {
   'project.commands': commandPalette,
   'project.tags': tagPalette,
   'project.search': searchInProject,
+  'project.replace': showReplace,
+  'project.undo-replace': () => void undoReplace(),
   'project.follow-link': followLink,
   'project.backlinks': showBacklinks,
   'view.outline': showOutline,
