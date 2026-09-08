@@ -482,6 +482,67 @@ scroll-top = 0.0
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// Снимок 0.12.0 читается разбором 0.11.0 (приёмка этапа 12).
+    ///
+    /// Задача 84 положила курсоры областей в снимок раскладки, и это место
+    /// выбрано ради отката: у `LayoutSnapshot` нарочно нет
+    /// `deny_unknown_fields`, а у `BufferSnapshot` он есть. Проверяем это
+    /// не рассуждением, а разбором: структура ниже — снимок области прошлой
+    /// версии, без поля `views`.
+    ///
+    /// Дублирование здесь намеренное. Тест сторожит обещание «откат
+    /// не закрывает человеку вкладки», и сверять его с настоящей структурой
+    /// нельзя: она меняется, а обещание — нет.
+    #[test]
+    fn snapshot_is_readable_by_the_previous_version() {
+        use crate::model::layout::{Direction, Layout, PaneView};
+
+        #[derive(serde::Deserialize)]
+        #[serde(rename_all = "kebab-case")]
+        struct OldPane {
+            #[serde(default)]
+            id: u64,
+            #[serde(default)]
+            tabs: Vec<BufferId>,
+            #[serde(default)]
+            active: Option<BufferId>,
+        }
+
+        #[derive(Default, serde::Deserialize)]
+        #[serde(rename_all = "kebab-case")]
+        struct OldNode {
+            #[serde(default)]
+            pane: Option<OldPane>,
+        }
+
+        let mut layout = Layout::single(vec![1, 2], Some(1));
+        layout.split(1, Direction::Row, Some(2));
+        let views = vec![PaneView {
+            pane: layout.active_pane().id,
+            buffer: 2,
+            cursor: 17,
+            scroll_top: 40.0,
+        }];
+
+        let text = toml::to_string_pretty(&layout.to_snapshot(&views)).unwrap();
+        assert!(text.contains("views"), "курсоры областей должны быть в снимке");
+
+        // Разбор прошлой версии не знает про `views` и обязан её пережить.
+        #[derive(serde::Deserialize)]
+        #[serde(rename_all = "kebab-case")]
+        struct OldLayout {
+            #[serde(default)]
+            root: OldNode,
+        }
+
+        let old: OldLayout =
+            toml::from_str(&text).expect("0.11.0 обязана прочитать снимок 0.12.0");
+        assert!(
+            old.root.pane.is_none(),
+            "у разделённой раскладки корень — не область"
+        );
+    }
+
     /// Снимок обязан пережить запись и чтение без потерь: это и есть сессия.
     #[test]
     fn snapshot_survives_write_and_read() {
