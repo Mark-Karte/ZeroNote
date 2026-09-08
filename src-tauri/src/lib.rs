@@ -210,6 +210,7 @@ pub fn run() {
             commands::edits::plan_replace,
             commands::edits::cancel_replace,
             commands::edits::search_expression,
+            commands::notes::open_daily_note,
             commands::entries::delete_entry,
             commands::entries::move_buffer,
             commands::roots::list_roots,

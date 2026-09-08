@@ -89,6 +89,7 @@ export type IconName =
   | 'cmd.find-next'
   | 'cmd.find-previous'
   | 'cmd.replace'
+  | 'cmd.daily-note'
   | 'cmd.bookmark'
   | 'cmd.bookmark-next'
   | 'cmd.bookmark-previous'
@@ -359,6 +360,11 @@ const ICONS: Record<IconName, string> = {
   'cmd.replace':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M2.8 5.6h8.4M9.2 3.4l2.2 2.2-2.2 2.2"/><path d="M13.2 10.4H4.8M6.8 8.2 4.6 10.4l2.2 2.2"/></svg>',
   // Ленточка закладки. Она же пойдёт в панель закладок задачи 59.
+  // Лист календаря: рамка, отрывной верх с двумя кольцами и точка дня.
+  // Не цифра и не число: значок рисуется в шестнадцать пикселей, и любая
+  // цифра в нём — либо нечитаемая, либо неверная (день-то каждый раз новый).
+  'cmd.daily-note':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2.6" y="3.4" width="10.8" height="10" rx="1.4"/><path d="M2.6 6.6h10.8M5.6 2.2v2.4M10.4 2.2v2.4"/><circle cx="8" cy="10.2" r="1.1" fill="currentColor" stroke="none"/></svg>',
   'cmd.bookmark':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><path d="M4.4 2.8h7.2v10.6L8 10.8l-3.6 2.6z"/></svg>',
   'cmd.bookmark-next':

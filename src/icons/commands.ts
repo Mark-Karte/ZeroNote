@@ -105,6 +105,7 @@ const ICON_FOR: Record<string, IconName> = {
   'project.tags': 'palette.tag',
   'project.search': 'panel.search',
   'project.replace': 'cmd.replace',
+  'project.daily-note': 'cmd.daily-note',
   'project.undo-replace': 'cmd.undo',
   'project.follow-link': 'cmd.follow-link',
   'project.backlinks': 'panel.links',

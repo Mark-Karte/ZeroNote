@@ -12,6 +12,7 @@ pub mod files;
 pub mod index;
 pub mod keymap;
 pub mod layout;
+pub mod notes;
 pub mod roots;
 pub mod session;
 pub mod settings;

@@ -29,6 +29,23 @@ pub struct Settings {
     pub font: FontSettings,
     #[serde(default)]
     pub editor: EditorSettings,
+    #[serde(default)]
+    pub notes: NotesSettings,
+}
+
+/// Заметки: то, что приложение создаёт само (задача 90).
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct NotesSettings {
+    /// Куда класть ежедневную заметку. Пусто — в папку данных приложения.
+    ///
+    /// Умолчание названо ценой, а не удобством: заметка в папке данных лежит
+    /// вне проектов, её не видит ни дерево, ни индекс, и `[[ссылки]]` из неё
+    /// не разрешаются. Взамен команда работает сразу у любого и никогда
+    /// не создаёт файлов в чужой папке без указания (Р-049).
+    pub daily_folder: String,
+    /// Файл-шаблон новой ежедневной заметки. Пусто — заголовок и пустая строка.
+    pub daily_template: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -201,6 +218,7 @@ impl Default for Settings {
             appearance: AppearanceSettings::default(),
             font: FontSettings::default(),
             editor: EditorSettings::default(),
+            notes: NotesSettings::default(),
         }
     }
 }
@@ -358,6 +376,19 @@ link_suggest = true
 # не пишет в чужой файл без команды. Черновики (инвариант 4) работают всегда
 # и не зависят от этой настройки.
 autosave = false
+
+[notes]
+# Куда класть ежедневную заметку («Заметка на сегодня» в палитре команд).
+# Пусто — в папку данных приложения, в data/notes. Такая заметка лежит вне
+# проектов: её не видит ни дерево, ни индекс, и [[ссылки]] из неё
+# не разрешаются. Укажите здесь папку внутри своего проекта — и заметка
+# станет обычной заметкой этого проекта.
+daily_folder = ""
+# Файл-шаблон новой заметки. Пусто — заголовок и пустая строка под ним.
+# В шаблоне подставляются {{date}}, {{time}} и {{title}}; всё остальное
+# копируется как есть. Существующая заметка шаблоном не переписывается
+# никогда — команда просто открывает её.
+daily_template = ""
 "#;
 
 /// Создать файл настроек, если его ещё нет.

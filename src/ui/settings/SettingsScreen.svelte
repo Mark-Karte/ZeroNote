@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { open as openDialog } from '@tauri-apps/plugin-dialog';
   import Icon from '../Icon.svelte';
   import { settings, put } from '../../state/settings.svelte';
   import * as ipc from '../../ipc/files';
@@ -57,6 +58,26 @@
 
   async function openFile(): Promise<void> {
     if (file) await openDropped([file.path]);
+  }
+
+  /**
+   * Папка и шаблон ежедневной заметки (задача 90).
+   *
+   * Путь и набирают руками, и выбирают кнопкой: набрать быстрее, когда он
+   * известен, а выбрать — единственный способ не ошибиться в чужой папке.
+   * Пустая строка означает умолчание, и это сказано подсказкой в поле.
+   */
+  async function pickDailyFolder(): Promise<void> {
+    const picked = await openDialog({ directory: true, multiple: false });
+    if (typeof picked === 'string') void put(['notes', 'daily_folder'], picked);
+  }
+
+  async function pickDailyTemplate(): Promise<void> {
+    const picked = await openDialog({
+      multiple: false,
+      filters: [{ name: 'Заметка', extensions: ['md', 'markdown', 'txt'] }],
+    });
+    if (typeof picked === 'string') void put(['notes', 'daily_template'], picked);
   }
 
   /**
@@ -386,6 +407,63 @@
 
         <div class="row">
           <div class="what">
+            <span class="name">Папка ежедневных заметок</span>
+            <span class="note">
+              Куда ложится «Заметка на сегодня». Пусто — папка данных
+              приложения: такая заметка лежит вне проектов, её не видит
+              ни дерево, ни поиск. Папка внутри проекта делает её обычной
+              заметкой этого проекта.
+            </span>
+          </div>
+          <div class="control path">
+            <input
+              class="text"
+              type="text"
+              disabled={broken !== null}
+              value={values.notes.daily_folder}
+              placeholder="папка данных приложения"
+              spellcheck="false"
+              onchange={(e) => put(['notes', 'daily_folder'], e.currentTarget.value.trim())}
+            />
+            <button
+              class="pick"
+              type="button"
+              disabled={broken !== null}
+              onclick={() => void pickDailyFolder()}>Выбрать…</button
+            >
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="what">
+            <span class="name">Шаблон ежедневной заметки</span>
+            <span class="note">
+              Файл, с которого начинается новая заметка. Подставляются
+              {'{{date}}'}, {'{{time}}'} и {'{{title}}'}. Пусто — заголовок
+              и пустая строка. Уже написанная заметка шаблоном не переписывается.
+            </span>
+          </div>
+          <div class="control path">
+            <input
+              class="text"
+              type="text"
+              disabled={broken !== null}
+              value={values.notes.daily_template}
+              placeholder="без шаблона"
+              spellcheck="false"
+              onchange={(e) => put(['notes', 'daily_template'], e.currentTarget.value.trim())}
+            />
+            <button
+              class="pick"
+              type="button"
+              disabled={broken !== null}
+              onclick={() => void pickDailyTemplate()}>Выбрать…</button
+            >
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="what">
             <span class="name">Шрифт интерфейса</span>
             <span class="note">Пусто — из темы. Шрифт редактора задаёт тема.</span>
           </div>
@@ -546,6 +624,37 @@
     border: var(--zn-border-width) solid var(--zn-color-warning);
     border-radius: var(--zn-radius-lg);
     color: var(--zn-color-warning);
+  }
+
+  .control.path {
+    display: flex;
+    gap: var(--zn-space-2);
+    align-items: center;
+  }
+
+  .control.path .text {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .pick {
+    flex: none;
+    padding: var(--zn-space-1) var(--zn-space-3);
+    border: var(--zn-border-width) solid var(--zn-color-border-default);
+    border-radius: var(--zn-radius-sm);
+    background-color: var(--zn-color-bg-raised);
+    color: var(--zn-color-fg-default);
+    font-family: var(--zn-font-family-ui);
+    font-size: var(--zn-font-size-ui);
+    cursor: default;
+  }
+
+  .pick:hover:not(:disabled) {
+    background-color: var(--zn-color-bg-hover);
+  }
+
+  .pick:disabled {
+    color: var(--zn-color-fg-subtle);
   }
 
   .rows {
