@@ -187,6 +187,10 @@
           Прервать
         </button>
         <span class="note inline">идёт обход файлов…</span>
+      {:else if replace.writing}
+        <!-- Запись не прерывается: файлы независимы, но остановка на середине
+             оставила бы половину проекта в одном виде, половину в другом. -->
+        <span class="note inline">идёт запись…</span>
       {:else}
         <button
           class="action"

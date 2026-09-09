@@ -131,8 +131,15 @@
 
   .dialog {
     position: relative;
+    display: flex;
+    flex-direction: column;
     min-width: min(var(--zn-control-dialog-min-width), 90vw);
     max-width: min(var(--zn-control-dialog-max-width), 92vw);
+    /* Выше экрана диалог не растёт: длинный список уводил заголовок и кнопки
+       за края окна, и подтвердить действие было нечем. Найдено приёмкой
+       этапа 13 на замене в пяти тысячах файлов — до неё длинными списками
+       были ссылки при переименовании, то есть десятки строк. */
+    max-height: 88vh;
     padding: var(--zn-space-5);
     background-color: var(--zn-color-bg-raised);
     border: var(--zn-border-width) solid var(--zn-color-border-default);
@@ -167,6 +174,12 @@
 
   .text {
     margin: 0 0 var(--zn-space-4) 0;
+    /* Прокручивается текст, а не диалог: заголовок и кнопки остаются
+       на месте, как бы длинен ни был список. `min-height` — чтобы flex
+       разрешил сжать этот блок, иначе он растянул бы диалог по содержимому
+       и предел высоты не сработал бы вовсе. */
+    overflow-y: auto;
+    min-height: 0;
     color: var(--zn-color-fg-muted);
     white-space: pre-line;
   }

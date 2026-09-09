@@ -425,11 +425,80 @@ pub fn bench_run_index() -> Result<String, String> {
         hits.len()
     ));
 
+    // --- Этап 13: второй путь поиска и план замены ---
+    //
+    // Обход файлов с чтением — главная новая цена этапа, и мерить её надо
+    // на том же наборе, что индексацию: тогда числа сравнимы между собой.
+    // Индекс здесь отдаёт только список файлов; всё остальное — диск.
+    //
+    // **Мерить надо два случая, и первый прогон это показал.** Поиск
+    // останавливается, набрав предел в двести файлов, — на стенде, где
+    // слово есть в каждом файле, он прочитал 201 файл и отчитался
+    // о трёх миллисекундах. Число верное и бесполезное: настоящая цена
+    // обхода видна там, где не найдено ничего и остановиться негде.
+    let candidates: Vec<crate::replace::Candidate> = writer::text_files(&db)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|file| crate::replace::Candidate {
+            root_id: file.root_id,
+            inside: file.name,
+            path: file.path,
+        })
+        .collect();
+
+    let never = || false;
+    let options = crate::replace::Options::default();
+    let expression = crate::replace::Options {
+        expression: true,
+        ..crate::replace::Options::default()
+    };
+
+    let common = crate::replace::Matcher::build("заметка", options).map_err(|e| e.to_string())?;
+    let start = Instant::now();
+    let found = crate::replace::find(&candidates, &common, 200, &never);
+    let ms = start.elapsed().as_secs_f64() * 1000.0;
+    report.push_str(&format!(
+        "| Поиск обходом, слово в каждом файле | {} до предела | {ms:.0} мс |\n",
+        found.scanned
+    ));
+
+    let rare = crate::replace::Matcher::build("такогословатутнет", options)
+        .map_err(|e| e.to_string())?;
+    let start = Instant::now();
+    let found = crate::replace::find(&candidates, &rare, 200, &never);
+    let ms = start.elapsed().as_secs_f64() * 1000.0;
+    report.push_str(&format!(
+        "| Поиск обходом, ничего не найдено | {} просмотрено | {ms:.0} мс |\n",
+        found.scanned
+    ));
+
+    let rare_expression =
+        crate::replace::Matcher::build(r"такогослова\w*тутнет", expression)
+            .map_err(|e| e.to_string())?;
+    let start = Instant::now();
+    let found = crate::replace::find(&candidates, &rare_expression, 200, &never);
+    let ms = start.elapsed().as_secs_f64() * 1000.0;
+    report.push_str(&format!(
+        "| Поиск выражением, ничего не найдено | {} просмотрено | {ms:.0} мс |\n",
+        found.scanned
+    ));
+
+    let start = Instant::now();
+    let plan = crate::replace::scan(&candidates, &common, "запись", &never);
+    let ms = start.elapsed().as_secs_f64() * 1000.0;
+    report.push_str(&format!(
+        "| План замены по всем файлам | {} совпадений | {ms:.0} мс |\n",
+        plan.total
+    ));
+
     let db_size = std::fs::metadata(&db_path).map(|m| m.len()).unwrap_or(0);
     report.push_str(&format!(
         "\nБаза индекса: {:.1} МиБ на {} файлов.\n\
          Повторный проход — это цена запуска с готовым индексом: он сверяет\n\
-         время и размер и содержимое не перечитывает.\n",
+         время и размер и содержимое не перечитывает.\n\
+         Поиск обходом и план замены читают файлы целиком — это цена второго\n\
+         пути (задачи 88 и 89), и сравнивать её надо не с поиском по индексу,\n\
+         а с первой индексацией: работа та же.\n",
         db_size as f64 / (1024.0 * 1024.0),
         TREE_FILES * 2
     ));

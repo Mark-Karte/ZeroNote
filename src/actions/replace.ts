@@ -141,7 +141,18 @@ export async function replaceEverything(): Promise<void> {
   );
   if (answer !== 'replace') return;
 
-  const outcome = await applyEdits(split.editable.map(bare));
+  // Запись тысяч файлов идёт секундами, и молчать об этом нельзя: человек
+  // уже согласился и ждёт ответа (найдено приёмкой этапа 13).
+  replace.writing = true;
+  let outcome;
+  try {
+    outcome = await applyEdits(split.editable.map(bare));
+  } catch (error) {
+    await report(error);
+    return;
+  } finally {
+    replace.writing = false;
+  }
 
   // Перечитывание открытых вкладок — не мелочь: механизм внешних изменений
   // опрашивает диск при получении окном фокуса (Р-014), а во время нашей же
@@ -204,7 +215,17 @@ export async function undoReplace(): Promise<void> {
   // и вторая попытка нашла бы на их месте исходный текст.
   takeLastReplace();
 
-  const outcome = await applyEdits(last.undo);
+  replace.writing = true;
+  let outcome;
+  try {
+    outcome = await applyEdits(last.undo);
+  } catch (error) {
+    await report(error);
+    return;
+  } finally {
+    replace.writing = false;
+  }
+
   await checkExternalChanges();
 
   replace.done = describeUndone(matchesIn(outcome.undo), outcome.undo.length);
