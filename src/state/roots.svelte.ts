@@ -45,6 +45,18 @@ export function vaultRoot(): Root | null {
   return roots.items.find((root) => root.isVault) ?? null;
 }
 
+/**
+ * Как корень называется человеку.
+ *
+ * У дома для заметок имя своё — «Заметки», а не имя папки на диске: в списке
+ * областей поиска и в путях выдачи он должен читаться так же, как подписана
+ * его панель. Имя папки при этом никуда не девается — оно видно в дереве
+ * и в параметрах.
+ */
+export function rootLabel(root: Root): string {
+  return root.isVault ? 'Заметки' : root.name;
+}
+
 /** Открытые проекты — всё, кроме папки заметок. */
 export function projectRoots(): Root[] {
   return roots.items.filter((root) => !root.isVault);

@@ -12,7 +12,7 @@ import {
   replaceFocusRequest,
   takeLastReplace,
 } from '../state/replace.svelte';
-import { roots, showPanel } from '../state/roots.svelte';
+import { roots, showPanel, rootLabel } from '../state/roots.svelte';
 import { unsavedPaths } from '../state/tabs.svelte';
 import { checkExternalChanges } from './external';
 import { splitPlan } from './rename-plan';
@@ -247,7 +247,8 @@ export async function undoReplace(): Promise<void> {
  */
 function scopeName(): string | null {
   const id = projectSearch.rootId;
-  return id === null ? null : (roots.items.find((root) => root.id === id)?.name ?? null);
+  const root = roots.items.find((item) => item.id === id);
+  return id === null || !root ? null : rootLabel(root);
 }
 
 /**
@@ -261,13 +262,18 @@ function scopeName(): string | null {
  * Меняется только показ: правится по исходному списку, эти копии никуда
  * дальше диалога не уходят.
  */
+function label(rootId: number): string {
+  const root = roots.items.find((item) => item.id === rootId);
+  return root ? rootLabel(root) : '';
+}
+
 function withRootNames(split: SplitPlan<ReplaceFile>): SplitPlan<ReplaceFile> {
   const roots0 = new Set([...split.editable, ...split.blocked].map((f) => f.rootId));
   if (roots0.size < 2) return split;
 
   const named = (file: ReplaceFile): ReplaceFile => ({
     ...file,
-    inside: `${roots.items.find((root) => root.id === file.rootId)?.name ?? ''} / ${file.inside}`,
+    inside: `${label(file.rootId)} / ${file.inside}`,
   });
 
   return {

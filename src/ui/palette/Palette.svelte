@@ -4,7 +4,7 @@
   import { iconForFile, kindOf } from '../../icons/files';
   import { iconForCommand } from '../../icons/commands';
   import { palette, refresh, close, move, accept, mode } from '../../state/palette.svelte';
-  import { roots } from '../../state/roots.svelte';
+  import { roots, rootLabel } from '../../state/roots.svelte';
   import { matchRange, placeholderFor, parse } from './query';
   import { labelOf } from '../../keymap/binding';
 
@@ -91,7 +91,7 @@
     // Имя корня показываем, только когда корней несколько: иначе оно
     // повторяется в каждой строке и не несёт ничего.
     if (roots.items.length > 1 && root) {
-      return inside === '' ? root.name : `${root.name} / ${inside}`;
+      return inside === '' ? rootLabel(root) : `${rootLabel(root)} / ${inside}`;
     }
     return inside;
   }

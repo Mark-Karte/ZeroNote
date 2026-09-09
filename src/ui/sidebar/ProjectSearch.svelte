@@ -8,7 +8,7 @@
     runNow,
     openHit,
   } from '../../state/project-search.svelte';
-  import { roots } from '../../state/roots.svelte';
+  import { roots, rootLabel, projectRoots, vaultRoot } from '../../state/roots.svelte';
   import {
     canUndoReplace,
     replace,
@@ -66,7 +66,7 @@
     const inside = parts.join(' / ');
 
     if (roots.items.length > 1 && root) {
-      return inside === '' ? root.name : `${root.name} / ${inside}`;
+      return inside === '' ? rootLabel(root) : `${rootLabel(root)} / ${inside}`;
     }
     return inside;
   }
@@ -101,9 +101,14 @@
       }}
     >
       <option value="">Во всех папках</option>
-      {#each roots.items as root (root.id)}
+      {#each projectRoots() as root (root.id)}
         <option value={String(root.id)}>{root.name}</option>
       {/each}
+      <!-- Дом для заметок идёт последним и под своим именем: он не проект,
+           но искать в нём можно так же (ответ владельца по задаче 96). -->
+      {#if vaultRoot()}
+        <option value={String(vaultRoot()?.id)}>Заметки</option>
+      {/if}
     </select>
   {/if}
 
