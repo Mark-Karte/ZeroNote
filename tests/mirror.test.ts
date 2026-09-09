@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { EditorState, Transaction } from '@codemirror/state';
-import { history, undo, undoDepth } from '@codemirror/commands';
+import { history, undo, undoDepth, undoSelection } from '@codemirror/commands';
 import { createMirror, mirroredFrom, replaySpec, sourceOf } from '../src/editor/mirror';
 import { bookmarkField, bookmarks, toggleBookmarkEffect } from '../src/editor/bookmarks';
 
@@ -95,6 +95,41 @@ describe('перенос транзакции', () => {
       annotations: mirroredFrom.of(3),
     });
     expect(sourceOf(forwarded)).toBe(3);
+  });
+});
+
+describe('история курсора у зеркала своя (задача 98)', () => {
+  /**
+   * Курсор у зеркала свой (Р-209), значит и «вернуть его туда, где он был» —
+   * своё. Перенаправить команду в главное нельзя: она подвинула бы курсор
+   * в другой области.
+   */
+  it('движение курсора попадает в историю зеркала', () => {
+    const primary = EditorState.create({ doc: 'начало и конец', extensions: base });
+    const mirror = headless(createMirror(primary, base));
+
+    mirror.dispatch(mirror.state.update({ selection: { anchor: 3 } }));
+    mirror.dispatch(mirror.state.update({ selection: { anchor: 12 } }));
+
+    expect(mirror.state.selection.main.head).toBe(12);
+    expect(undoSelection(mirror)).toBe(true);
+    expect(mirror.state.selection.main.head).toBe(3);
+  });
+
+  /**
+   * А правка в историю зеркала не попадает по-прежнему: две истории текста
+   * на один документ — то, ради чего история зеркала и была отключена.
+   */
+  it('но правка в неё по-прежнему не попадает', () => {
+    const primary = EditorState.create({ doc: '', extensions: base });
+    const mirror = createMirror(primary, base);
+
+    const typed = mirror.update({ changes: { from: 0, insert: 'текст' } }).state;
+    expect(undoDepth(typed)).toBe(0);
+
+    // И рассылка правки из главного — тоже правка: её зеркало не помнит.
+    const replayed = typed.update({ changes: { from: 5, insert: '!' } }).state;
+    expect(undoDepth(replayed)).toBe(0);
   });
 });
 
