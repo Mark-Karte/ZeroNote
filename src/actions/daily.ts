@@ -39,8 +39,12 @@ function parentOf(path: string): string {
  * Существующая заметка открывается как есть — за день команду нажимают
  * много раз, и второе нажатие обязано показать написанное утром.
  */
-export async function openDaily(): Promise<void> {
-  const { date, time } = stamp(new Date());
+export async function openDaily(day?: string): Promise<void> {
+  // День приходит из календаря (задача 97), время — всегда текущее: в
+  // `{{time}}` шаблона имеет смысл только час, когда заметку завели.
+  const now = stamp(new Date());
+  const date = day ?? now.date;
+  const time = now.time;
 
   try {
     const note = await openDailyNote(date, time);

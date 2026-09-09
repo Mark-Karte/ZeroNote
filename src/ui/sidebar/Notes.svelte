@@ -1,6 +1,7 @@
 <script lang="ts">
   import Icon from '../Icon.svelte';
   import FileTree from './FileTree.svelte';
+  import Calendar from './Calendar.svelte';
   import { vaultRoot } from '../../state/roots.svelte';
   import { expand, isExpanded } from '../../state/tree.svelte';
   import { openDaily } from '../../actions/daily';
@@ -88,6 +89,10 @@
       <Icon name="cmd.file-new" />
     </button>
   </header>
+
+  <!-- Календарь первым: ежедневная заметка — самая частая дорога в дом,
+       и искать её в глубине дерева не надо (задача 97). -->
+  <Calendar />
 
   {#if !vault}
     <p class="empty">Папка заметок не готова</p>

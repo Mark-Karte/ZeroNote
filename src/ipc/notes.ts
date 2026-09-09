@@ -19,6 +19,15 @@ export interface DailyNote {
 export const openDailyNote = (date: string, time: string): Promise<DailyNote> =>
   invoke('open_daily_note', { date, time });
 
+/**
+ * За какие дни месяца заметки уже написаны (задача 97).
+ *
+ * Месяц — `ГГГГ-ММ`, ответ — номера дней. Месяц считает окно: у ядра нет
+ * часового пояса, как и с датой заметки на сегодня.
+ */
+export const dailyNotesOfMonth = (month: string): Promise<number[]> =>
+  invoke('daily_notes_of_month', { month });
+
 /** Заготовка: имя для списка и путь для чтения (задача 95). */
 export interface Template {
   name: string;

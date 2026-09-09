@@ -58,8 +58,24 @@ pub fn file_name(date: &str) -> Result<String, DailyError> {
     Ok(format!("{}.md", title(date)?))
 }
 
+/// Дата из имени файла заметки, если это она.
+///
+/// Обратная сторона `file_name`: календарь спрашивает, за какие дни заметки
+/// уже написаны, а знает об этом только папка. Разбор строгий — ровно то имя,
+/// которое пишем мы: чужой файл `Заметка про отпуск.md` днём календаря
+/// не станет.
+pub fn date_of(file_name: &str) -> Option<String> {
+    let stem = file_name.strip_suffix(".md")?;
+    let date = stem.strip_prefix("Заметка ")?;
+    if looks_like_date(date) {
+        Some(date.to_owned())
+    } else {
+        None
+    }
+}
+
 /// Ровно `ГГГГ-ММ-ДД` и ничего больше.
-fn looks_like_date(date: &str) -> bool {
+pub fn looks_like_date(date: &str) -> bool {
     let bytes = date.as_bytes();
     if bytes.len() != 10 {
         return false;
@@ -96,6 +112,22 @@ pub fn blank(fields: &Fields) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_daily_name_gives_its_date() {
+        assert_eq!(date_of("Заметка 2026-09-09.md").as_deref(), Some("2026-09-09"));
+    }
+
+    /// Чужие файлы днями календаря не становятся: разбор строгий, потому что
+    /// по нему решается, помечен день или нет.
+    #[test]
+    fn other_names_are_not_dates() {
+        assert_eq!(date_of("Заметка про отпуск.md"), None);
+        assert_eq!(date_of("2026-09-09.md"), None);
+        assert_eq!(date_of("Заметка 2026-9-9.md"), None);
+        assert_eq!(date_of("Заметка 2026-09-09.txt"), None);
+        assert_eq!(date_of("Заметка 2026-09-09"), None);
+    }
 
     fn fields() -> Fields {
         Fields {

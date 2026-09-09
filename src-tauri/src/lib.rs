@@ -211,6 +211,7 @@ pub fn run() {
             commands::edits::cancel_replace,
             commands::edits::search_expression,
             commands::notes::open_daily_note,
+            commands::notes::daily_notes_of_month,
             commands::notes::list_templates,
             commands::notes::read_template,
             commands::notes::create_note_from_text,

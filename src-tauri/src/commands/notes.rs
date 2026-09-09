@@ -93,6 +93,49 @@ fn ensure(folder: &Path, name: &str, template: &str, fields: &Fields) -> Fallibl
     })
 }
 
+/// За какие дни месяца заметки уже написаны.
+///
+/// Месяц приходит в виде `2026-09` — от окна, как и дата: у ядра нет
+/// часового пояса, и «текущий месяц» оно посчитать не может. Ответ — номера
+/// дней, а не пути: календарю нужно знать, что помечать, а открывать он
+/// будет той же командой, что и «заметка на сегодня».
+#[tauri::command]
+pub fn daily_notes_of_month(state: tauri::State<'_, AppState>, month: String) -> Vec<u32> {
+    let settings = crate::settings::load(&state.data_dir.settings_file()).unwrap_or_default();
+    let vault = crate::model::vault::path_of(&settings.notes.vault, &state.data_dir.path);
+    let folder = crate::model::vault::daily_folder(&settings.notes.daily_folder, &vault);
+
+    let Ok(entries) = std::fs::read_dir(&folder) else {
+        // Папки может не быть вовсе — ни одной заметки ещё не написали.
+        // Это не ошибка: календарь просто покажет месяц без пометок.
+        return Vec::new();
+    };
+
+    let names: Vec<String> = entries
+        .flatten()
+        .filter(|entry| entry.path().is_file())
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .collect();
+
+    days_of(&names, &month)
+}
+
+/// Какие дни месяца встречаются среди имён. Отдельно — ради проверяемости.
+fn days_of(names: &[String], month: &str) -> Vec<u32> {
+    let mut days: Vec<u32> = names
+        .iter()
+        .filter_map(|name| daily::date_of(name))
+        .filter_map(|date| {
+            let rest = date.strip_prefix(month)?.strip_prefix('-')?;
+            rest.parse::<u32>().ok()
+        })
+        .collect();
+
+    days.sort_unstable();
+    days.dedup();
+    days
+}
+
 /// Заготовка: имя для списка и путь для чтения.
 #[derive(Debug, Clone, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -247,6 +290,32 @@ fn body(template: &str, fields: &Fields) -> Fallible<String> {
 mod tests {
     use super::*;
     use std::path::PathBuf;
+
+    #[test]
+    fn days_are_taken_from_daily_names_only() {
+        let names: Vec<String> = [
+            "Заметка 2026-09-01.md",
+            "Заметка 2026-09-09.md",
+            "Заметка 2026-10-01.md",
+            "Заметка про отпуск.md",
+            "readme.md",
+        ]
+        .iter()
+        .map(|s| (*s).to_owned())
+        .collect();
+
+        assert_eq!(days_of(&names, "2026-09"), vec![1, 9]);
+        assert_eq!(days_of(&names, "2026-10"), vec![1]);
+        assert!(days_of(&names, "2026-11").is_empty());
+    }
+
+    /// Месяц сравнивается целиком, а не началом строки: иначе «2026-1»
+    /// поймал бы и октябрь, и ноябрь, и декабрь.
+    #[test]
+    fn a_partial_month_matches_nothing() {
+        let names = vec!["Заметка 2026-10-05.md".to_owned()];
+        assert!(days_of(&names, "2026-1").is_empty());
+    }
 
     /// Заготовками считаются только текстовые файлы: читать чужой двоичный
     /// файл как текст — верный способ вставить в заметку мусор.
