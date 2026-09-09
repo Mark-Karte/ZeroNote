@@ -8,6 +8,7 @@ import { vaultRoot } from '../state/roots.svelte';
 import { editorView } from '../editor/current';
 import { activeTab } from '../state/tabs.svelte';
 import { refreshDirs } from '../state/tree.svelte';
+import { noteCreated } from '../state/notes.svelte';
 import { stamp } from './daily';
 import { openDropped } from './files';
 
@@ -180,6 +181,7 @@ export async function newOne(template: Template): Promise<void> {
 
   try {
     const path = await ipc.createNoteFromText(vault.path, fileName, text);
+    noteCreated();
     await refreshDirs([vault.path]);
     await openDropped([path]);
   } catch (error) {

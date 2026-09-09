@@ -2,6 +2,7 @@
   import Icon from '../Icon.svelte';
   import { dailyNotesOfMonth } from '../../ipc/notes';
   import { openDaily, stamp } from '../../actions/daily';
+  import { notes } from '../../state/notes.svelte';
   import { monthGrid, monthKey, monthLabel, shiftMonth, type Cell } from '../calendar';
 
   /**
@@ -37,10 +38,12 @@
   }
 
   $effect(() => {
-    // Зависимость от года и месяца: их смена — единственный повод спросить
-    // ядро заново.
+    // Зависимость от года, месяца и отметки о созданной заметке: заметку
+    // заводит не только щелчок по календарю, но и кнопка в шапке, команда
+    // и заготовка (находка приёмки этапа 14).
     void year;
     void month;
+    void notes.created;
     void refresh();
   });
 
@@ -60,9 +63,9 @@
   }
 
   async function open(cell: Cell): Promise<void> {
+    // Перечитывать список здесь не надо: `openDaily` сама отмечает создание,
+    // и на отметку смотрит эффект выше — одна дорога на все случаи.
     await openDaily(cell.date);
-    // Заметки за этот день могло не быть — теперь она есть.
-    await refresh();
   }
 
   const DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];

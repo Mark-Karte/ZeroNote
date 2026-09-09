@@ -3,6 +3,7 @@ import { message } from '@tauri-apps/plugin-dialog';
 import { openDailyNote } from '../ipc/notes';
 import { openDropped } from './files';
 import { refreshDirs } from '../state/tree.svelte';
+import { noteCreated } from '../state/notes.svelte';
 
 /**
  * Заметка на сегодня (задача 90).
@@ -52,7 +53,11 @@ export async function openDaily(day?: string): Promise<void> {
 
     // Созданный файл виден в дереве сразу, а не после следующего обхода:
     // папка может быть внутри открытого проекта, и человек ждёт её там.
-    if (note.created) await refreshDirs([parentOf(note.path)]);
+    // Календарю тоже надо сказать: он помечает дни, за которые заметка есть.
+    if (note.created) {
+      noteCreated();
+      await refreshDirs([parentOf(note.path)]);
+    }
   } catch (error) {
     await message(String(error), { title: 'ZeroNote', kind: 'error' });
   }

@@ -491,6 +491,54 @@ mod tests {
         assert!(error.to_string().contains("wrapp"), "{error}");
     }
 
+    /// **Откат на 0.13.0 отвергнет файл с ключами задачи 94.**
+    ///
+    /// Проверка разбором, а не рассуждением: структура прошлой версии
+    /// (`[notes]` с двумя ключами и `deny_unknown_fields`) читает наш образец
+    /// и обязана споткнуться о `vault`. Тест закрепляет **известную цену**
+    /// Р-235, а не желаемое поведение: раздел незнакомой версии пропускается,
+    /// а новый ключ в известном разделе — нет.
+    ///
+    /// Что это значит для человека: после отката настройки не потеряются
+    /// (файл не переписывается), но применяться не будут, пока он не уберёт
+    /// новые ключи руками. Дублирование структуры здесь намеренное — так же,
+    /// как у снимка сессии: обещание не должно меняться вместе с кодом.
+    #[test]
+    fn the_previous_version_stumbles_on_new_notes_keys() {
+        #[derive(serde::Deserialize)]
+        #[serde(deny_unknown_fields, default)]
+        struct OldNotes {
+            #[allow(dead_code)]
+            daily_folder: String,
+            #[allow(dead_code)]
+            daily_template: String,
+        }
+
+        impl Default for OldNotes {
+            fn default() -> Self {
+                OldNotes {
+                    daily_folder: String::new(),
+                    daily_template: String::new(),
+                }
+            }
+        }
+
+        #[derive(serde::Deserialize)]
+        struct OldSettings {
+            #[allow(dead_code)]
+            #[serde(default)]
+            notes: OldNotes,
+        }
+
+        let outcome = toml::from_str::<OldSettings>(DEFAULT_TEMPLATE);
+        let error = outcome.err().expect("0.13.0 обязана споткнуться о новый ключ");
+        let message = error.message();
+        assert!(
+            message.contains("vault") || message.contains("templates"),
+            "спотыкаться надо о новый ключ, а не о что-то ещё: {error}"
+        );
+    }
+
     /// Настройка, которой в файле нет, берёт умолчание — и для автозакрытия
     /// это `true`, а не `false`.
     ///
