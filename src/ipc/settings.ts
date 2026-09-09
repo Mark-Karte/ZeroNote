@@ -42,6 +42,7 @@ export interface Settings {
     daily_folder: string;
     /** Файл-шаблон новой заметки. Пусто — заголовок и пустая строка. */
     daily_template: string;
+    templates: string;
   };
 }
 

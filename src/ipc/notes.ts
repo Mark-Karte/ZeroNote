@@ -18,3 +18,38 @@ export interface DailyNote {
  */
 export const openDailyNote = (date: string, time: string): Promise<DailyNote> =>
   invoke('open_daily_note', { date, time });
+
+/** Заготовка: имя для списка и путь для чтения (задача 95). */
+export interface Template {
+  name: string;
+  path: string;
+}
+
+/**
+ * Что лежит в папке заготовок.
+ *
+ * Папка не задана или пуста — пустой список, а не ошибка: «шаблонов нет» —
+ * обычное состояние.
+ */
+export const listTemplates = (): Promise<Template[]> => invoke('list_templates');
+
+/**
+ * Прочитать заготовку, подставив дату, время и заголовок.
+ *
+ * Дату и время приносит окно — по той же причине, что у заметки на сегодня.
+ * Путь ядро проверяет по папке шаблонов: команда читает файл с диска,
+ * и брать путь на веру нельзя.
+ */
+export const readTemplate = (
+  path: string,
+  date: string,
+  time: string,
+  title: string,
+): Promise<string> => invoke('read_template', { path, date, time, title });
+
+/** Создать заметку с готовым содержимым. Существующий файл не переписывается. */
+export const createNoteFromText = (
+  folder: string,
+  name: string,
+  text: string,
+): Promise<string> => invoke('create_note_from_text', { folder, name, text });

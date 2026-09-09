@@ -47,6 +47,25 @@ pub fn daily_folder(setting: &str, vault: &Path) -> PathBuf {
     }
 }
 
+/// Куда положены шаблоны.
+///
+/// Правило то же, что у папки ежедневных заметок: имя относительно
+/// хранилища, абсолютный путь — сам по себе. Пусто означает «шаблонов нет»,
+/// а не «весь дом», — иначе шаблоном стала бы каждая заметка.
+pub fn templates_folder(setting: &str, vault: &Path) -> Option<PathBuf> {
+    let trimmed = setting.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let named = Path::new(trimmed);
+    Some(if named.is_absolute() {
+        named.to_path_buf()
+    } else {
+        vault.join(named)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -83,6 +102,22 @@ mod tests {
         assert_eq!(
             daily_folder(r"Дневник\2026", &vault),
             PathBuf::from(r"D:\Хранилище\Дневник\2026")
+        );
+    }
+
+    /// Пустая настройка выключает шаблоны совсем: папка шаблонов в корне
+    /// хранилища сделала бы заготовкой каждую заметку.
+    #[test]
+    fn templates_are_off_until_named() {
+        let vault = PathBuf::from(r"D:\Хранилище");
+        assert_eq!(templates_folder("", &vault), None);
+        assert_eq!(
+            templates_folder("Шаблоны", &vault),
+            Some(PathBuf::from(r"D:\Хранилище\Шаблоны"))
+        );
+        assert_eq!(
+            templates_folder(r"E:\Общие шаблоны", &vault),
+            Some(PathBuf::from(r"E:\Общие шаблоны"))
         );
     }
 

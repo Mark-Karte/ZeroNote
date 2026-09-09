@@ -42,6 +42,7 @@ import {
 } from '../actions/project';
 import { showReplace, undoReplace } from '../actions/replace';
 import { openDaily } from '../actions/daily';
+import { insertTemplate, newNoteFromTemplate } from '../actions/templates';
 import { findNext, findPrevious } from '../state/search.svelte';
 import { toggleInvisibles, toggleLivePreview, toggleWrap } from '../state/settings.svelte';
 import {
@@ -177,6 +178,8 @@ export const COMMANDS: Record<CommandId, () => void | Promise<unknown>> = {
   'project.replace': showReplace,
   'project.daily-note': () => void openDaily(),
   'view.notes': showNotes,
+  'notes.insert-template': () => void insertTemplate(),
+  'notes.new-from-template': () => void newNoteFromTemplate(),
   'project.undo-replace': () => void undoReplace(),
   'project.follow-link': followLink,
   'project.backlinks': showBacklinks,

@@ -126,6 +126,8 @@ pub const COMMANDS: &[(&str, &str)] = &[
     // почти не осталось. Назначить можно во вкладке «Клавиши».
     ("project.daily-note", "Заметка на сегодня"),
     ("view.notes", "Панель заметок"),
+    ("notes.insert-template", "Вставить шаблон"),
+    ("notes.new-from-template", "Новая заметка из шаблона"),
     ("project.undo-replace", "Отменить замену в проекте"),
     ("project.follow-link", "Перейти по ссылке под курсором"),
     ("project.backlinks", "Обратные ссылки"),

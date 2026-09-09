@@ -40,6 +40,25 @@ export function showMenu(
   contextMenu.open = { items, at: { x: event.clientX, y: event.clientY }, pick };
 }
 
+/**
+ * Показать меню в заданной точке.
+ *
+ * Нужно там, где выбор начинает не щелчок, а команда: список заготовок
+ * по `Вставить шаблон` показывается у курсора, а мыши в этот момент
+ * в деле нет вовсе.
+ */
+export function showMenuAt(
+  at: { x: number; y: number },
+  items: PopupItem[],
+  pick: (id: string) => void,
+): void {
+  if (items.length === 0) {
+    contextMenu.open = null;
+    return;
+  }
+  contextMenu.open = { items, at, pick };
+}
+
 export function hideMenu(): void {
   contextMenu.open = null;
 }

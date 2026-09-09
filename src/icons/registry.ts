@@ -91,6 +91,8 @@ export type IconName =
   | 'cmd.find-previous'
   | 'cmd.replace'
   | 'cmd.daily-note'
+  | 'cmd.template-insert'
+  | 'cmd.template-new'
   | 'md.task-open'
   | 'md.task-done'
   | 'cmd.bookmark'
@@ -383,6 +385,12 @@ const ICONS: Record<IconName, string> = {
   // цифра в нём — либо нечитаемая, либо неверная (день-то каждый раз новый).
   'cmd.daily-note':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2.6" y="3.4" width="10.8" height="10" rx="1.4"/><path d="M2.6 6.6h10.8M5.6 2.2v2.4M10.4 2.2v2.4"/><circle cx="8" cy="10.2" r="1.1" fill="currentColor" stroke="none"/></svg>',
+  // Лист с загнутым углом и стрелка внутрь: заготовка приезжает в заметку.
+  'cmd.template-insert':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5H4.4v11h7.2V5.1z"/><path d="M8.9 2.5v2.6h2.7"/><path d="M8 7.4v4.1M6.4 9.9 8 11.5l1.6-1.6"/></svg>',
+  // Тот же лист, но со звёздочкой: заготовка становится новой заметкой.
+  'cmd.template-new':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5H4.4v11h7.2V5.1z"/><path d="M8.9 2.5v2.6h2.7"/><path d="M8 7.6v3.6M6.2 9.4h3.6"/></svg>',
   'cmd.bookmark':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><path d="M4.4 2.8h7.2v10.6L8 10.8l-3.6 2.6z"/></svg>',
   'cmd.bookmark-next':

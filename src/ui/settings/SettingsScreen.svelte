@@ -89,6 +89,12 @@
     if (typeof picked === 'string') void put(['notes', 'daily_folder'], picked);
   }
 
+  /** Папка заготовок (задача 95). Путь внутри дома либо абсолютный. */
+  async function pickTemplatesFolder(): Promise<void> {
+    const picked = await openDialog({ directory: true, multiple: false });
+    if (typeof picked === 'string') void put(['notes', 'templates'], picked);
+  }
+
   async function pickDailyTemplate(): Promise<void> {
     const picked = await openDialog({
       multiple: false,
@@ -504,6 +510,35 @@
               type="button"
               disabled={broken !== null}
               onclick={() => void pickDailyTemplate()}>Выбрать…</button
+            >
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="what">
+            <span class="name">Папка шаблонов</span>
+            <span class="note">
+              Откуда берут список «Вставить шаблон» и «Новая заметка
+              из шаблона». Путь внутри папки заметок; пусто — шаблонов нет.
+              В заготовке подставляются {'{{date}}'}, {'{{time}}'}
+              и {'{{title}}'}; исполняемого кода в шаблонах нет.
+            </span>
+          </div>
+          <div class="control path">
+            <input
+              class="text"
+              type="text"
+              disabled={broken !== null}
+              value={values.notes.templates}
+              placeholder="без шаблонов"
+              spellcheck="false"
+              onchange={(e) => put(['notes', 'templates'], e.currentTarget.value.trim())}
+            />
+            <button
+              class="pick"
+              type="button"
+              disabled={broken !== null}
+              onclick={() => void pickTemplatesFolder()}>Выбрать…</button
             >
           </div>
         </div>

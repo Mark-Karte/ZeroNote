@@ -1,7 +1,8 @@
-//! Заметки, которые приложение создаёт само (задача 90).
+//! Заметки, которые приложение создаёт само: ежедневная (задача 90)
+//! и заготовки-шаблоны (задача 95).
 //!
-//! Пока одна — ежедневная. Логики здесь нет: имя и шаблон считает
-//! `markdown/daily`, запись идёт через `fsx::atomic_save`, как всякая другая.
+//! Логики здесь нет: имя и подстановки считает `markdown/daily`, пути —
+//! `model/vault`, запись идёт через `fsx::atomic_save`, как всякая другая.
 //! Здесь то, что нельзя проверить чистой функцией: настройки, папка данных
 //! и существующий файл.
 //!
@@ -92,6 +93,136 @@ fn ensure(folder: &Path, name: &str, template: &str, fields: &Fields) -> Fallibl
     })
 }
 
+/// Заготовка: имя для списка и путь для чтения.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Template {
+    /// Имя файла без расширения — оно же подпись в списке.
+    pub name: String,
+    pub path: String,
+}
+
+/// Расширения, которые считаются заготовкой.
+///
+/// Шаблон — это текст, который вставляют в заметку. Картинке или PDF в этом
+/// списке делать нечего, а читать чужой двоичный файл как текст — верный
+/// способ вставить в заметку мусор.
+const TEMPLATE_EXTENSIONS: [&str; 3] = ["md", "markdown", "txt"];
+
+/// Куда настройки указывают за шаблонами. `None` — папка не задана.
+fn templates_dir(state: &AppState) -> Option<std::path::PathBuf> {
+    let settings = crate::settings::load(&state.data_dir.settings_file()).unwrap_or_default();
+    let vault = crate::model::vault::path_of(&settings.notes.vault, &state.data_dir.path);
+    crate::model::vault::templates_folder(&settings.notes.templates, &vault)
+}
+
+/// Список заготовок.
+///
+/// Папки нет или она пуста — пустой список, а не ошибка: «шаблонов нет» —
+/// обычное состояние, и отвечать на него окном с ошибкой незачем. Вложенные
+/// папки не обходятся: заготовки лежат стопкой, а не деревом.
+#[tauri::command]
+pub fn list_templates(state: tauri::State<'_, AppState>) -> Vec<Template> {
+    match templates_dir(&state) {
+        Some(dir) => templates_in(&dir),
+        None => Vec::new(),
+    }
+}
+
+/// Что в папке заготовок. Отдельно от команды — ради проверяемости.
+fn templates_in(dir: &Path) -> Vec<Template> {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return Vec::new();
+    };
+
+    let mut items: Vec<Template> = entries
+        .flatten()
+        .filter(|entry| entry.path().is_file())
+        .filter(|entry| {
+            entry
+                .path()
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .map(|ext| TEMPLATE_EXTENSIONS.contains(&ext.to_lowercase().as_str()))
+                .unwrap_or(false)
+        })
+        .map(|entry| {
+            let path = entry.path();
+            Template {
+                name: path
+                    .file_stem()
+                    .map(|stem| stem.to_string_lossy().into_owned())
+                    .unwrap_or_default(),
+                path: path.to_string_lossy().into_owned(),
+            }
+        })
+        .collect();
+
+    // По алфавиту и без учёта регистра: порядок файловой системы
+    // на разных дисках разный, а список читают глазами.
+    items.sort_by_key(|item| item.name.to_lowercase());
+    items
+}
+
+/// Прочитать заготовку и подставить в неё поля.
+///
+/// Путь проверяется по папке шаблонов: команда читает файл с диска, и брать
+/// путь у окна на веру — значит отдать чтение любого файла кому угодно, кто
+/// доберётся до IPC. Р-118 в той же логике: наружу приложение ходит только
+/// туда, куда само решило.
+#[tauri::command]
+pub fn read_template(
+    state: tauri::State<'_, AppState>,
+    path: String,
+    date: String,
+    time: String,
+    title: String,
+) -> Fallible<String> {
+    let path = std::path::PathBuf::from(path);
+    let Some(dir) = templates_dir(&state) else {
+        return Err("папка шаблонов не задана".to_owned());
+    };
+
+    if !crate::model::root::same_path(path.parent().unwrap_or(Path::new("")), &dir) {
+        return Err(format!("{} — не заготовка из папки шаблонов", path.display()));
+    }
+
+    let bytes = std::fs::read(&path)
+        .map_err(|e| format!("шаблон {} не прочитан: {e}", path.display()))?;
+    let raw = crate::text::document::read_raw(&bytes)
+        .map_err(|e| format!("шаблон {} не прочитан: {e}", path.display()))?;
+
+    Ok(daily::fill(&raw.text, &Fields { date, time, title }))
+}
+
+/// Создать заметку с готовым содержимым.
+///
+/// Имя своё, а не `create_note`: та команда с задачи 29 создаёт пустую
+/// заметку по висячей ссылке, и две команды с одним именем в реестре Tauri
+/// не уживаются. Отдельно от `create_entry` (задача 38) — та создаёт пустой
+/// файл в дереве, а здесь текст известен заранее. Правила у всех троих одни:
+/// `.obsidian` не трогаем, существующий файл не переписываем, запись
+/// атомарная.
+#[tauri::command]
+pub fn create_note_from_text(folder: String, name: String, text: String) -> Fallible<String> {
+    let folder = std::path::PathBuf::from(folder);
+    let path = crate::fsx::entry_ops::child_path(&folder, &name).map_err(|e| e.to_string())?;
+
+    if crate::fsx::atomic_save::is_inside_obsidian(&path) {
+        return Err("в .obsidian ничего не пишется (инвариант 2)".to_owned());
+    }
+
+    if path.exists() {
+        return Err(format!("«{}» здесь уже есть", path.display()));
+    }
+
+    std::fs::create_dir_all(&folder)
+        .map_err(|e| format!("не удалось создать папку {}: {e}", folder.display()))?;
+    crate::fsx::atomic_save::save(&path, text.as_bytes()).map_err(|e| e.to_string())?;
+
+    Ok(path.to_string_lossy().into_owned())
+}
+
 /// Содержимое новой заметки: шаблон с подстановками или заголовок.
 ///
 /// Шаблон, которого нет на диске, — это отказ, а не тишина: человек его
@@ -116,6 +247,85 @@ fn body(template: &str, fields: &Fields) -> Fallible<String> {
 mod tests {
     use super::*;
     use std::path::PathBuf;
+
+    /// Заготовками считаются только текстовые файлы: читать чужой двоичный
+    /// файл как текст — верный способ вставить в заметку мусор.
+    #[test]
+    fn only_text_files_are_templates() {
+        let dir = temp_dir("templates");
+        std::fs::write(dir.join("Встреча.md"), "# {{title}}").unwrap();
+        std::fs::write(dir.join("заметка.markdown"), "-").unwrap();
+        std::fs::write(dir.join("список.txt"), "-").unwrap();
+        std::fs::write(dir.join("картинка.png"), [0u8, 1, 2]).unwrap();
+        std::fs::create_dir(dir.join("папка")).unwrap();
+
+        let names: Vec<String> = templates_in(&dir).into_iter().map(|t| t.name).collect();
+        assert_eq!(names, vec!["Встреча", "заметка", "список"]);
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Папки нет — пустой список, а не ошибка: «шаблонов нет» это обычное
+    /// состояние, и окно с ошибкой на него было бы враньём о поломке.
+    #[test]
+    fn a_missing_folder_is_an_empty_list() {
+        let dir = temp_dir("templates-none").join("нет такой");
+        assert!(templates_in(&dir).is_empty());
+    }
+
+    #[test]
+    fn a_note_is_created_with_its_text() {
+        let dir = temp_dir("note-from-text");
+        let path = create_note_from_text(
+            dir.to_string_lossy().into_owned(),
+            "Встреча.md".to_owned(),
+            "# Встреча\n\nтекст\n".to_owned(),
+        )
+        .expect("заметка не создана");
+
+        let written = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(written, "# Встреча\n\nтекст\n");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Существующий файл не переписывается — как и везде, где приложение
+    /// само создаёт заметки (Р-229).
+    #[test]
+    fn an_existing_file_is_never_overwritten() {
+        let dir = temp_dir("note-exists");
+        std::fs::write(dir.join("Встреча.md"), "написано утром").unwrap();
+
+        let outcome = create_note_from_text(
+            dir.to_string_lossy().into_owned(),
+            "Встреча.md".to_owned(),
+            "пустой шаблон".to_owned(),
+        );
+        assert!(outcome.is_err());
+        assert_eq!(
+            std::fs::read_to_string(dir.join("Встреча.md")).unwrap(),
+            "написано утром"
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Инвариант 2: в `.obsidian` не пишется ничего и никогда.
+    #[test]
+    fn obsidian_is_refused_for_new_notes() {
+        let dir = temp_dir("note-obsidian").join(".obsidian");
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let outcome = create_note_from_text(
+            dir.to_string_lossy().into_owned(),
+            "Встреча.md".to_owned(),
+            "текст".to_owned(),
+        );
+        assert!(outcome.is_err());
+        assert!(!dir.join("Встреча.md").exists());
+
+        std::fs::remove_dir_all(dir.parent().unwrap()).ok();
+    }
 
     fn temp_dir(tag: &str) -> PathBuf {
         let nanos = std::time::SystemTime::now()

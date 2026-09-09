@@ -4,6 +4,8 @@
   import { vaultRoot } from '../../state/roots.svelte';
   import { expand, isExpanded } from '../../state/tree.svelte';
   import { openDaily } from '../../actions/daily';
+  import { insertOne, newOne } from '../../actions/templates';
+  import { listTemplates, type Template } from '../../ipc/notes';
   import { createEntry } from '../../actions/entries';
   import { showSettings } from '../../actions/project';
   import { labelOf } from '../../keymap/binding';
@@ -23,6 +25,26 @@
    */
 
   const vault = $derived(vaultRoot());
+
+  /**
+   * Заготовки читаются при показе панели, а не по таймеру.
+   *
+   * Панель размонтируется при переключении на соседнюю, поэтому возврат
+   * к ней — и есть перечитывание. Шаблоны добавляют раз в месяц; следить
+   * за папкой ради этого значило бы держать наблюдатель ради списка
+   * из пяти строк.
+   */
+  let templates: Template[] = $state([]);
+
+  $effect(() => {
+    void listTemplates()
+      .then((items) => {
+        templates = items;
+      })
+      .catch(() => {
+        templates = [];
+      });
+  });
 
   /**
    * Корень раскрывается сам, когда панель открыли.
@@ -81,6 +103,52 @@
   {:else}
     <FileTree scope="notes" />
   {/if}
+
+  <!-- Шаблоны — раздел этой панели, а не восьмой значок в полосе: их
+       открывают раз в месяц, а заметки каждый день, и равные по весу
+       кнопки сказали бы неправду о том, чем пользуются. -->
+  <section class="templates">
+    <header class="head">
+      <span class="title">Шаблоны</span>
+    </header>
+
+    {#if templates.length === 0}
+      <p class="hint">
+        Папка шаблонов не задана —
+        <button class="link" type="button" onclick={() => void showSettings()}>
+          в параметрах
+        </button>
+      </p>
+    {:else}
+      <ul class="list">
+        {#each templates as template (template.path)}
+          <li class="row">
+            <!-- Щелчок вставляет: это то, ради чего заготовку открывают
+                 чаще всего. Новая заметка — соседней кнопкой, чтобы одно
+                 нажатие не означало двух разных дел. -->
+            <button
+              class="name"
+              type="button"
+              title="Вставить «{template.name}» в открытую заметку"
+              onclick={() => void insertOne(template)}
+            >
+              <Icon name="cmd.template-insert" />
+              <span class="label">{template.name}</span>
+            </button>
+            <button
+              class="action"
+              type="button"
+              title="Новая заметка из «{template.name}»"
+              aria-label="Новая заметка из «{template.name}»"
+              onclick={() => void newOne(template)}
+            >
+              <Icon name="cmd.template-new" />
+            </button>
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  </section>
 </div>
 
 <style>
@@ -153,6 +221,68 @@
     color: var(--zn-color-fg-subtle);
     font-size: var(--zn-font-size-ui-small);
     overflow-wrap: anywhere;
+  }
+
+  /* Раздел шаблонов прижат к низу панели: дерево — главное, заготовки —
+     справочная полка под ним. Высота ограничена, список прокручивается:
+     заготовок бывает десяток, а дерево терять из виду нельзя. */
+  .templates {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    max-height: 40%;
+    border-top: var(--zn-border-width) solid var(--zn-color-border-subtle);
+  }
+
+  .list {
+    margin: 0;
+    padding: 0 0 var(--zn-space-2);
+    list-style: none;
+    overflow: auto;
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    height: var(--zn-control-row-height);
+  }
+
+  .row:hover {
+    background-color: var(--zn-color-bg-hover);
+  }
+
+  .name {
+    display: flex;
+    align-items: center;
+    gap: var(--zn-space-2);
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    padding: 0 var(--zn-space-2) 0 var(--zn-space-4);
+    border: none;
+    background: transparent;
+    color: var(--zn-color-fg-default);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Вторая кнопка строки видна только под курсором: она про редкое действие,
+     и в спокойном списке ей делать нечего. Тот же приём, что у кнопок
+     корня в дереве. */
+  .row .action {
+    visibility: hidden;
+  }
+
+  .row:hover .action,
+  .row .action:focus-visible {
+    visibility: visible;
   }
 
   .link {
