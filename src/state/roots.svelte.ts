@@ -13,7 +13,14 @@ import { expand, forgetRoot } from './tree.svelte';
  * отражение этого списка для интерфейса.
  */
 /** Какая панель показана в боковой полосе. */
-export type PanelId = 'tree' | 'search' | 'links' | 'outline' | 'tags' | 'bookmarks';
+export type PanelId =
+  | 'tree'
+  | 'search'
+  | 'links'
+  | 'outline'
+  | 'tags'
+  | 'bookmarks'
+  | 'notes';
 
 export const roots = $state<{
   items: Root[];
@@ -27,6 +34,33 @@ export const roots = $state<{
   sidebarWidth: 0,
   panel: 'tree',
 });
+
+/**
+ * Папка заметок (задача 94). Её роль задана настройкой, а не кнопкой.
+ *
+ * В списке она лежит вместе с проектами: ядру она обычный корень — с деревом,
+ * индексом, ссылками и тегами. Разделяет их только показ.
+ */
+export function vaultRoot(): Root | null {
+  return roots.items.find((root) => root.isVault) ?? null;
+}
+
+/** Открытые проекты — всё, кроме папки заметок. */
+export function projectRoots(): Root[] {
+  return roots.items.filter((root) => !root.isVault);
+}
+
+/**
+ * Перечитать настройку «папка заметок» и применить ответ ядра целиком.
+ *
+ * Целиком потому, что роль могла уйти с прежней папки: та не исчезает,
+ * а возвращается в «Папки» обычным корнем, и своей копии этого правила
+ * во фронтенде быть не должно.
+ */
+export async function refreshVault(): Promise<void> {
+  const fresh = await ipc.ensureVault();
+  roots.items.splice(0, roots.items.length, ...fresh);
+}
 
 /** Жалобы всех корней разом — для полосы предупреждений. */
 export function rootProblems(): string[] {
@@ -55,7 +89,10 @@ export async function add(path: string): Promise<Root> {
   // на невидимой панели. Найдено на живом окне, когда папку уронили в окно
   // с открытым поиском.
   roots.sidebar = true;
-  showPanel('tree');
+  // Папка заметок живёт в своей панели, и открывать её «как проект» —
+  // законное действие: человек мог не знать, что она уже открыта. Показываем
+  // ту панель, где она видна, иначе нажатие выглядит как ничего не сделавшее.
+  showPanel(root.isVault ? 'notes' : 'tree');
   await expand(root.id, root.path);
   return root;
 }

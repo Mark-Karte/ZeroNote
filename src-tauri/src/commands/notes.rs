@@ -9,7 +9,7 @@
 //! Команду за день нажимают много раз, и второе нажатие обязано открыть
 //! написанное утром, а не заменить его пустым шаблоном.
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use crate::markdown::daily::{self, Fields};
 use crate::state::AppState;
@@ -49,14 +49,13 @@ pub fn open_daily_note(
     // параметров.
     let settings = crate::settings::load(&state.data_dir.settings_file())
         .unwrap_or_default();
-    let folder = settings.notes.daily_folder;
     let template = settings.notes.daily_template;
 
-    let folder = if folder.trim().is_empty() {
-        state.data_dir.notes_dir()
-    } else {
-        PathBuf::from(folder.trim())
-    };
+    // Папка заметок — дом для записей (задача 94), а `daily_folder` — путь
+    // внутри него. Абсолютный путь по-прежнему означает папку саму по себе:
+    // так настроенное на этапе 13 остаётся работать.
+    let vault = crate::model::vault::path_of(&settings.notes.vault, &state.data_dir.path);
+    let folder = crate::model::vault::daily_folder(&settings.notes.daily_folder, &vault);
 
     ensure(&folder, &name, &template, &Fields { date, time, title })
 }
@@ -116,6 +115,7 @@ fn body(template: &str, fields: &Fields) -> Fallible<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
 
     fn temp_dir(tag: &str) -> PathBuf {
         let nanos = std::time::SystemTime::now()

@@ -230,7 +230,7 @@ describe('меню дерева', () => {
     const items = treeMenu(
       {
         row: { ...dir, isRoot: true },
-        root: { hasProjectFile: true, hasObsidianConfig: false },
+        root: { hasProjectFile: true, hasObsidianConfig: false, isVault: false },
       },
       COMMANDS,
     );
@@ -262,7 +262,7 @@ describe('меню дерева', () => {
     const items = treeMenu(
       {
         row: { ...dir, isRoot: true },
-        root: { hasProjectFile: false, hasObsidianConfig: true },
+        root: { hasProjectFile: false, hasObsidianConfig: true, isVault: false },
       },
       COMMANDS,
     );
@@ -275,12 +275,31 @@ describe('меню дерева', () => {
     const items = treeMenu(
       {
         row: { ...dir, isRoot: true },
-        root: { hasProjectFile: true, hasObsidianConfig: false },
+        root: { hasProjectFile: true, hasObsidianConfig: false, isVault: false },
       },
       COMMANDS,
     );
     expect(ids(items)).not.toContain(MENU.projectFile);
     expect(ids(items)).not.toContain(MENU.obsidian);
+  });
+
+  /**
+   * Папку заметок «Убрать папку» не берёт: её роль задана настройкой,
+   * и корень вернулся бы на место при следующем запуске (задача 94).
+   */
+  it('у папки заметок не предлагает убрать её', () => {
+    const items = treeMenu(
+      {
+        row: { ...dir, isRoot: true },
+        root: { hasProjectFile: false, hasObsidianConfig: false, isVault: true },
+      },
+      COMMANDS,
+    );
+
+    expect(ids(items)).not.toContain(MENU.removeRoot);
+    // Всё остальное у неё есть: это обычная папка, просто с ролью.
+    expect(ids(items)).toContain(MENU.newFile);
+    expect(ids(items)).toContain(MENU.projectFile);
   });
 
   it('на пустом месте предлагает открыть папку', () => {

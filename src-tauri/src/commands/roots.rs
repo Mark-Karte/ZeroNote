@@ -26,6 +26,9 @@ pub struct RootView {
     /// В папке есть `.obsidian` — можно предложить перенос настроек.
     pub has_obsidian_config: bool,
     pub available: bool,
+    /// Это папка заметок, а не открытый проект (задача 94). Дерево «Папок»
+    /// её не показывает — у неё своя панель.
+    pub is_vault: bool,
     pub problems: Vec<String>,
 }
 
@@ -38,9 +41,87 @@ impl RootView {
             has_project_file: root.has_project_file,
             has_obsidian_config: root.has_obsidian_config,
             available: root.available,
+            is_vault: root.is_vault,
             problems: root.problems.clone(),
         }
     }
+}
+
+/// Привести реестр корней в согласие с настройкой «папка заметок».
+///
+/// Зовётся при восстановлении сессии и после правки настройки. Работа
+/// идемпотентная: второй вызов подряд ничего не меняет.
+///
+/// Прежняя папка заметок из списка **не убирается** — она просто перестаёт
+/// быть домом и показывается в «Папках» обычным корнем. Убирать её молча
+/// нельзя: настройку могли поправить руками при закрытом приложении, и тогда
+/// исчезновение папки из рабочего пространства выглядело бы поломкой. Правило
+/// одно на оба случая — так его можно объяснить одной фразой.
+pub fn sync_vault(state: &AppState, notices: &mut Vec<String>) -> Option<RootView> {
+    // Настройки читаются с диска: файл и есть состояние (Р-077), и его могли
+    // поправить руками минуту назад. Испорченный файл не мешает — хранилищем
+    // становится папка данных, о поломке скажет окно параметров.
+    let settings = crate::settings::load(&state.data_dir.settings_file()).unwrap_or_default();
+    let named = !settings.notes.vault.trim().is_empty();
+    let path = crate::model::vault::path_of(&settings.notes.vault, &state.data_dir.path);
+
+    // Свою папку создаём молча: она в папке данных приложения и принадлежит
+    // ему. Чужую, названную человеком, не создаём никогда (Р-049) — опечатка
+    // в пути не должна оставлять после себя папку.
+    if !named && !path.is_dir() {
+        if let Err(error) = std::fs::create_dir_all(&path) {
+            notices.push(format!(
+                "не удалось создать папку заметок {}: {error}",
+                path.display()
+            ));
+            return None;
+        }
+    }
+
+    if named && !path.is_dir() {
+        // Папка недоступна — например, отключён диск. Корень всё равно
+        // остаётся в списке (Р-052), но молчать об этом нельзя: пустое
+        // дерево без объяснений выглядит как поломка.
+        notices.push(format!("папка заметок недоступна: {}", path.display()));
+    }
+
+    let (id, view, appeared) = {
+        let mut roots = state.roots.lock().expect("реестр корней повреждён");
+        let known = roots.find_by_path(&crate::model::root::normalize(&path)).is_some();
+        let root = roots.add(path.clone());
+        let id = root.id;
+        roots.mark_vault(&crate::model::root::normalize(&path));
+        let view = roots.get(id).map(RootView::of);
+        (id, view, !known)
+    };
+
+    // Наблюдатель и индексация — только для впервые появившейся папки: корень
+    // из сессии их уже получил, а второй вызов `watch` означал бы второе
+    // событие на каждую правку файла.
+    if appeared {
+        state
+            .watchers
+            .lock()
+            .expect("наблюдатели повреждены")
+            .watch(id, &path);
+        super::index::schedule_scan(state, id);
+    }
+
+    view
+}
+
+/// Перечитать настройку «папка заметок» и вернуть весь список корней.
+///
+/// Зовётся после правки настроек в окне параметров. Список целиком, а не одна
+/// папка: роль могла уйти с прежней папки, и та возвращается в «Папки» —
+/// фронтенду проще применить ответ целиком, чем повторять правило у себя.
+#[tauri::command]
+pub fn ensure_vault(state: tauri::State<'_, AppState>) -> Vec<RootView> {
+    let mut notices = Vec::new();
+    sync_vault(&state, &mut notices);
+
+    let roots = state.roots.lock().expect("реестр корней повреждён");
+    roots.list().iter().map(RootView::of).collect()
 }
 
 #[tauri::command]
@@ -88,6 +169,12 @@ pub fn add_root(state: tauri::State<'_, AppState>, path: String) -> Fallible<Roo
 pub fn remove_root(state: tauri::State<'_, AppState>, id: RootId) -> bool {
     let removed = {
         let mut roots = state.roots.lock().expect("реестр корней повреждён");
+        // Папку заметок «Убрать папку» не берёт: её роль задана настройкой,
+        // и корень вернулся бы на место при следующем запуске. Отказ здесь
+        // честнее исчезновения на один сеанс.
+        if roots.get(id).is_some_and(|root| root.is_vault) {
+            return false;
+        }
         roots.remove(id)
     };
 

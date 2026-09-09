@@ -38,6 +38,7 @@ export interface Settings {
   };
   notes: {
     /** Куда ложится «Заметка на сегодня». Пусто — папка данных приложения. */
+    vault: string;
     daily_folder: string;
     /** Файл-шаблон новой заметки. Пусто — заголовок и пустая строка. */
     daily_template: string;

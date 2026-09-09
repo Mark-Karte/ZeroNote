@@ -221,11 +221,14 @@ pub fn restore_session(state: tauri::State<'_, AppState>) -> RestoredSession {
     let mut notices = Vec::new();
 
     let Some(snapshot) = session::read_session(data) else {
+        // Первый запуск или испорченный снимок: вкладок нет, а дом для
+        // заметок есть — он приходит из настройки и не зависит от сессии.
+        let vault = super::roots::sync_vault(&state, &mut notices);
         return RestoredSession {
             buffers: Vec::new(),
             layout: Layout::default(),
             pane_views: Vec::new(),
-            roots: Vec::new(),
+            roots: vault.into_iter().collect(),
             sidebar: false,
             sidebar_width: 0,
             sidebar_panel: String::new(),
@@ -253,8 +256,6 @@ pub fn restore_session(state: tauri::State<'_, AppState>) -> RestoredSession {
         }
     }
 
-    let root_views: Vec<RootView> = restored_roots.iter().map(RootView::of).collect();
-
     {
         let mut watchers = state.watchers.lock().expect("наблюдатели повреждены");
         for root in &restored_roots {
@@ -272,6 +273,17 @@ pub fn restore_session(state: tauri::State<'_, AppState>) -> RestoredSession {
 
     *state.roots.lock().expect("реестр корней повреждён") =
         Roots::restore(restored_roots, snapshot.next_root_id);
+
+    // Папка заметок (задача 94) приходит из настройки, а не из сессии:
+    // в снимке она лежит обычным корнем и потому сохраняет свой номер —
+    // по номеру названы записи индекса, и корень, получающий новый номер
+    // при каждом запуске, переиндексировался бы целиком каждый раз.
+    super::roots::sync_vault(&state, &mut notices);
+
+    let root_views: Vec<RootView> = {
+        let roots = state.roots.lock().expect("реестр корней повреждён");
+        roots.list().iter().map(RootView::of).collect()
+    };
 
     // Индексация восстановленных корней идёт в фоне и старт не задерживает:
     // цель по тёплому старту — 800 мс, а обход хранилища столько не стоит.

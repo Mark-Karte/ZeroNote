@@ -1,7 +1,14 @@
 <script lang="ts">
   import Icon from '../Icon.svelte';
   import { iconForFile, kindOf } from '../../icons/files';
-  import { rows, toggle, tree, refreshDirs, type Row } from '../../state/tree.svelte';
+  import {
+    rows,
+    toggle,
+    tree,
+    refreshDirs,
+    type Row,
+    type TreeScope,
+  } from '../../state/tree.svelte';
   import { appearance } from '../../theme/store.svelte';
   import { openDropped, openToSide, revealInExplorer } from '../../actions/files';
   import { removeRoot, createProject, importFromObsidian } from '../../actions/project';
@@ -24,7 +31,18 @@
    * списка есть номер строки, а без него виртуализация невозможна.
    */
 
-  const items = $derived.by(() => rows());
+  interface Props {
+    /**
+     * Чьё дерево рисуем. Панель «Папки» показывает проекты, панель
+     * «Заметки» — папку заметок: у ядра это один и тот же корень,
+     * и делится только показ.
+     */
+    scope?: TreeScope;
+  }
+
+  let { scope = 'projects' }: Props = $props();
+
+  const items = $derived.by(() => rows(scope));
 
   let viewport: HTMLElement | undefined = $state();
   let scrollTop = $state(0);
@@ -131,6 +149,7 @@
             ? {
                 hasProjectFile: root.hasProjectFile,
                 hasObsidianConfig: root.hasObsidianConfig,
+                isVault: root.isVault,
               }
             : null,
         },

@@ -228,6 +228,12 @@ export function showBookmarks(): void {
   noteStructureChange();
 }
 
+/** Показать заметки: дом для записей рядом с проектами (задача 94). */
+export function showNotes(): void {
+  showPanel('notes');
+  noteStructureChange();
+}
+
 /** Поиск по проекту: открыть панель и забрать фокус в поле. */
 export function searchInProject(): void {
   showPanel('search');

@@ -38,6 +38,7 @@ import {
   showOutline,
   showTags,
   showBookmarks,
+  showNotes,
 } from '../actions/project';
 import { showReplace, undoReplace } from '../actions/replace';
 import { openDaily } from '../actions/daily';
@@ -175,6 +176,7 @@ export const COMMANDS: Record<CommandId, () => void | Promise<unknown>> = {
   'project.search': searchInProject,
   'project.replace': showReplace,
   'project.daily-note': () => void openDaily(),
+  'view.notes': showNotes,
   'project.undo-replace': () => void undoReplace(),
   'project.follow-link': followLink,
   'project.backlinks': showBacklinks,

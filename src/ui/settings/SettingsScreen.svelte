@@ -2,6 +2,7 @@
   import { open as openDialog } from '@tauri-apps/plugin-dialog';
   import Icon from '../Icon.svelte';
   import { settings, put } from '../../state/settings.svelte';
+  import { refreshVault } from '../../state/roots.svelte';
   import * as ipc from '../../ipc/files';
   import { openDropped } from '../../actions/files';
   import { showAbout } from '../../actions/about';
@@ -67,6 +68,22 @@
    * известен, а выбрать — единственный способ не ошибиться в чужой папке.
    * Пустая строка означает умолчание, и это сказано подсказкой в поле.
    */
+  /**
+   * Папка заметок — дом для записей (задача 94).
+   *
+   * После правки ядро приводит к ней реестр корней: панель «Заметки»
+   * показывает новую папку сразу, без перезапуска.
+   */
+  async function pickVault(): Promise<void> {
+    const picked = await openDialog({ directory: true, multiple: false });
+    if (typeof picked === 'string') await setVault(picked);
+  }
+
+  async function setVault(path: string): Promise<void> {
+    await put(['notes', 'vault'], path);
+    await refreshVault();
+  }
+
   async function pickDailyFolder(): Promise<void> {
     const picked = await openDialog({ directory: true, multiple: false });
     if (typeof picked === 'string') void put(['notes', 'daily_folder'], picked);
@@ -407,12 +424,41 @@
 
         <div class="row">
           <div class="what">
+            <span class="name">Папка заметок</span>
+            <span class="note">
+              Дом для записей рядом с проектами: панель «Заметки» показывает
+              её дерево, даже когда все папки закрыты. Поиск, [[ссылки]]
+              и теги работают в ней как в проекте. Пусто — data/notes в папке
+              данных приложения. Своё хранилище Obsidian указывать можно:
+              ZeroNote ничего в него не добавляет, а .obsidian не трогает.
+            </span>
+          </div>
+          <div class="control path">
+            <input
+              class="text"
+              type="text"
+              disabled={broken !== null}
+              value={values.notes.vault}
+              placeholder="папка данных приложения"
+              spellcheck="false"
+              onchange={(e) => void setVault(e.currentTarget.value.trim())}
+            />
+            <button
+              class="pick"
+              type="button"
+              disabled={broken !== null}
+              onclick={() => void pickVault()}>Выбрать…</button
+            >
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="what">
             <span class="name">Папка ежедневных заметок</span>
             <span class="note">
-              Куда ложится «Заметка на сегодня». Пусто — папка данных
-              приложения: такая заметка лежит вне проектов, её не видит
-              ни дерево, ни поиск. Папка внутри проекта делает её обычной
-              заметкой этого проекта.
+              Куда ложится «Заметка на сегодня». Путь внутри папки заметок;
+              пусто — прямо в неё. Абсолютный путь означает папку саму
+              по себе, где бы она ни лежала.
             </span>
           </div>
           <div class="control path">
@@ -421,7 +467,7 @@
               type="text"
               disabled={broken !== null}
               value={values.notes.daily_folder}
-              placeholder="папка данных приложения"
+              placeholder="корень папки заметок"
               spellcheck="false"
               onchange={(e) => put(['notes', 'daily_folder'], e.currentTarget.value.trim())}
             />

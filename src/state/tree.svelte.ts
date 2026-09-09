@@ -1,6 +1,7 @@
 import * as ipc from '../ipc/tree';
 import type { TreeEntry } from '../ipc/tree';
 import { roots } from './roots.svelte';
+import type { Root } from '../ipc/roots';
 
 /**
  * Дерево файлов.
@@ -143,13 +144,25 @@ export interface Row {
 }
 
 /**
+ * Чьё дерево рисуем: открытые проекты или папку заметок (задача 94).
+ *
+ * Разделение только в показе: ядру папка заметок — обычный корень, и всё,
+ * что у корня есть, у неё есть тоже.
+ */
+export type TreeScope = 'projects' | 'notes';
+
+function scoped(scope: TreeScope): Root[] {
+  return roots.items.filter((root) => (scope === 'notes' ? root.isVault : !root.isVault));
+}
+
+/**
  * Развернуть раскрытые папки в плоский список.
  *
  * Плоский он потому, что рисуется виртуализованным списком: на экране живут
  * только видимые строки, а вложенность передаётся отступом. Дерево из
  * вложенных компонентов такого не позволяет.
  */
-export function rows(): Row[] {
+export function rows(scope: TreeScope = 'projects'): Row[] {
   const out: Row[] = [];
 
   const walk = (rootId: number, dir: string, depth: number): void => {
@@ -173,7 +186,7 @@ export function rows(): Row[] {
     }
   };
 
-  for (const root of roots.items) {
+  for (const root of scoped(scope)) {
     const expanded = isExpanded(root.path);
     out.push({
       rootId: root.id,

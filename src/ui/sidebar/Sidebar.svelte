@@ -6,7 +6,8 @@
   import Outline from './Outline.svelte';
   import Tags from './Tags.svelte';
   import Bookmarks from './Bookmarks.svelte';
-  import { roots, setSidebarWidth } from '../../state/roots.svelte';
+  import Notes from './Notes.svelte';
+  import { roots, setSidebarWidth, projectRoots } from '../../state/roots.svelte';
   import { addRootDialog } from '../../actions/project';
   import { noteStructureChange } from '../../state/persist.svelte';
 
@@ -124,6 +125,8 @@
     <Tags />
   {:else if roots.panel === 'bookmarks'}
     <Bookmarks />
+  {:else if roots.panel === 'notes'}
+    <Notes />
   {:else}
     <header class="head">
       <span class="title">Папки</span>
@@ -138,7 +141,7 @@
       </button>
     </header>
 
-    {#if roots.items.length === 0}
+    {#if projectRoots().length === 0}
       <p class="empty">Папок нет</p>
       <p class="hint">Ctrl+Shift+O — открыть папку как проект</p>
     {:else}

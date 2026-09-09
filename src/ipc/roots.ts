@@ -10,6 +10,8 @@ export interface Root {
   hasObsidianConfig: boolean;
   /** Папка сейчас читается. `false` — например, отключён сетевой диск. */
   available: boolean;
+  /** Это папка заметок, а не открытый проект: у неё своя панель. */
+  isVault: boolean;
   /** Что не так с zeronote.toml. Показывается полосой предупреждений. */
   problems?: string[];
 }
@@ -20,6 +22,14 @@ export const listRoots = (): Promise<Root[]> => invoke('list_roots');
 export const addRoot = (path: string): Promise<Root> => invoke('add_root', { path });
 
 export const removeRoot = (id: number): Promise<boolean> => invoke('remove_root', { id });
+
+/**
+ * Перечитать настройку «папка заметок» и вернуть её корень.
+ *
+ * Зовётся после правки настроек: путь хранилища живёт в `settings.toml`,
+ * и реестр корней приводит к нему ядро, а не окно параметров.
+ */
+export const ensureVault = (): Promise<Root[]> => invoke('ensure_vault');
 
 /** Перечитать файлы проектов и доступность папок. */
 export const refreshRoots = (): Promise<Root[]> => invoke('refresh_roots');

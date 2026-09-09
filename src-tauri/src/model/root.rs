@@ -87,6 +87,14 @@ pub struct Root {
     /// Папка сейчас читается. `false` — например, отключён сетевой диск;
     /// корень при этом остаётся в списке (Р-052).
     pub available: bool,
+    /// Это папка заметок (задача 94), а не открытый проект.
+    ///
+    /// Признак не хранится в сессии и вычисляется при запуске сравнением
+    /// пути с настройкой `[notes] vault`: у снимка корня стоит
+    /// `deny_unknown_fields`, и новое поле в нём означало бы, что откат
+    /// на 0.13.0 отвергает сессию целиком. Заодно источник правды остаётся
+    /// один — файл настроек.
+    pub is_vault: bool,
     /// Что не так с файлом проекта или его правилами. Едет пользователю
     /// полосой предупреждений, а не в лог.
     pub problems: Vec<String>,
@@ -149,6 +157,9 @@ impl Root {
             has_project_file: loaded.present,
             has_obsidian_config: project::obsidian::detect(&path),
             available,
+            // Признак ставит `commands::roots::sync_vault`: `load` знает
+            // о папке всё, кроме её роли в рабочем пространстве.
+            is_vault: false,
             problems,
             project: loaded.project,
             rules: Arc::new(rules),
@@ -158,7 +169,11 @@ impl Root {
 
     /// Перечитать файл проекта, сохранив номер корня.
     pub fn reload(&mut self) {
-        let fresh = Root::load(self.id, self.path.clone());
+        let mut fresh = Root::load(self.id, self.path.clone());
+        // Роль папки живёт в настройках, а не на диске: перечитывание файла
+        // проекта её не меняет. Без этой строки корень заметок становился бы
+        // обычным при каждом возвращении фокуса в окно.
+        fresh.is_vault = self.is_vault;
         *self = fresh;
     }
 }
@@ -208,6 +223,28 @@ impl Roots {
         self.items.iter().find(|r| same_path(&r.path, path))
     }
 
+    /// Папка заметок, если она есть в списке.
+    pub fn vault(&self) -> Option<&Root> {
+        self.items.iter().find(|r| r.is_vault)
+    }
+
+    /// Назначить папкой заметок ту, что лежит по этому пути, сняв роль
+    /// со всех прочих. Возвращает номер назначенного корня, если он нашёлся.
+    ///
+    /// Роль ровно одна: хранилище у человека одно (ответ владельца), а две
+    /// папки с одинаковой ролью означали бы два ответа на вопрос «где лежит
+    /// заметка на сегодня».
+    pub fn mark_vault(&mut self, path: &Path) -> Option<RootId> {
+        let mut marked = None;
+        for root in &mut self.items {
+            root.is_vault = same_path(&root.path, path);
+            if root.is_vault {
+                marked = Some(root.id);
+            }
+        }
+        marked
+    }
+
     /// Добавить папку корнем.
     ///
     /// Уже добавленная папка возвращается прежним корнем, а не удваивается:
@@ -249,6 +286,60 @@ impl Roots {
             .iter()
             .filter(|r| inside(&r.path, path))
             .max_by_key(|r| r.path.as_os_str().len())
+    }
+}
+
+#[cfg(test)]
+mod vault_role_tests {
+    use super::*;
+
+    fn roots_with(paths: &[&str]) -> Roots {
+        let items: Vec<Root> = paths
+            .iter()
+            .enumerate()
+            .map(|(index, path)| Root::load(index as RootId + 1, PathBuf::from(path)))
+            .collect();
+        Roots::restore(items, paths.len() as RootId + 1)
+    }
+
+    /// Роль ровно одна: хранилище у человека одно, и две папки с этой ролью
+    /// означали бы два ответа на вопрос «где лежит заметка на сегодня».
+    #[test]
+    fn marking_a_vault_takes_the_role_from_the_previous_one() {
+        let mut roots = roots_with(&[r"C:\проект", r"C:\заметки", r"C:\другие"]);
+
+        assert_eq!(roots.mark_vault(Path::new(r"C:\заметки")), Some(2));
+        assert_eq!(roots.vault().map(|root| root.id), Some(2));
+
+        assert_eq!(roots.mark_vault(Path::new(r"C:\другие")), Some(3));
+        assert_eq!(roots.vault().map(|root| root.id), Some(3));
+        assert_eq!(roots.list().iter().filter(|root| root.is_vault).count(), 1);
+    }
+
+    /// Регистр в путях Windows не значит ничего, и папка заметок, записанная
+    /// в настройках иначе, чем в сессии, обязана узнаваться.
+    #[test]
+    fn the_role_ignores_letter_case() {
+        let mut roots = roots_with(&[r"C:\Заметки"]);
+        assert_eq!(roots.mark_vault(Path::new(r"c:\заметки")), Some(1));
+    }
+
+    /// Путь из настройки может указывать на папку, которой в списке нет вовсе.
+    #[test]
+    fn an_unknown_path_marks_nothing() {
+        let mut roots = roots_with(&[r"C:\проект"]);
+        assert_eq!(roots.mark_vault(Path::new(r"D:\чужое")), None);
+        assert!(roots.vault().is_none());
+    }
+
+    /// Роль живёт в настройках, а не на диске: перечитывание файла проекта
+    /// (оно идёт при каждом возвращении фокуса в окно) её не отменяет.
+    #[test]
+    fn reload_keeps_the_role() {
+        let mut root = Root::load(1, PathBuf::from(r"C:\заметки"));
+        root.is_vault = true;
+        root.reload();
+        assert!(root.is_vault);
     }
 }
 

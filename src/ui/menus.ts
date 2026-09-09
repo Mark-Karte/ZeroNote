@@ -230,7 +230,7 @@ export interface TreeMenuContext {
   /** `null` — щёлкнули по пустому месту панели. */
   row: TreeRow | null;
   /** Корень, если строка корневая: по нему видно, чего в папке не хватает. */
-  root?: { hasProjectFile: boolean; hasObsidianConfig: boolean } | null;
+  root?: { hasProjectFile: boolean; hasObsidianConfig: boolean; isVault: boolean } | null;
 }
 
 export function treeMenu(ctx: TreeMenuContext, commands: Command[]): PopupItem[] {
@@ -267,13 +267,17 @@ export function treeMenu(ctx: TreeMenuContext, commands: Command[]): PopupItem[]
     if (ctx.root.hasObsidianConfig) {
       root.push({ id: MENU.obsidian, label: 'Перенести настройки Obsidian' });
     }
-    root.push({
-      id: MENU.removeRoot,
-      label: 'Убрать папку',
-      danger: true,
-      hint: 'Убрать из рабочего пространства. Файлы на диске остаются на месте.',
-    });
-    root[0] = { ...root[0]!, divider: true };
+    // У папки заметок «Убрать папку» нет: её роль задана настройкой, и корень
+    // вернулся бы на место при следующем запуске. Меняют её в параметрах.
+    if (!ctx.root.isVault) {
+      root.push({
+        id: MENU.removeRoot,
+        label: 'Убрать папку',
+        danger: true,
+        hint: 'Убрать из рабочего пространства. Файлы на диске остаются на месте.',
+      });
+    }
+    if (root[0]) root[0] = { ...root[0], divider: true };
   }
 
   // Создать, переименовать, удалить. Запись в папку пользователя разрешена

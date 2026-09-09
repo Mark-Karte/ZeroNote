@@ -214,6 +214,7 @@ pub fn run() {
             commands::entries::delete_entry,
             commands::entries::move_buffer,
             commands::roots::list_roots,
+            commands::roots::ensure_vault,
             commands::roots::add_root,
             commands::roots::remove_root,
             commands::roots::refresh_roots,

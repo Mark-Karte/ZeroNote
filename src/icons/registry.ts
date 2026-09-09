@@ -41,6 +41,7 @@ export type IconName =
   | 'panel.search'
   | 'panel.links'
   | 'panel.outline'
+  | 'panel.notes'
   | 'panel.settings'
   | 'file.markdown'
   | 'file.text'
@@ -200,6 +201,12 @@ const ICONS: Record<IconName, string> = {
   // и не отличался бы от значка маркированного списка.
   'panel.outline':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2.5 3.5h11"/><path d="M5 7h8.5"/><path d="M7.5 10.5h6"/><path d="M5 14h8.5"/></svg>',
+
+  // Тетрадь с корешком: у панели заметок должен быть значок предмета,
+  // а не действия. Календарь занят заметкой на сегодня, строки — оглавлением,
+  // папка — деревом; тетрадь ни с одним из них не путается.
+  'panel.notes':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3.4" y="2.5" width="9.6" height="11" rx="1.4"/><path d="M6.1 2.5v11"/><path d="M8.2 5.9h2.9M8.2 8h2.9M8.2 10.1h2"/></svg>',
 
   // Классическая шестерёнка — как в референсе, внизу полосы значков.
   'panel.settings':
