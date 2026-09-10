@@ -98,6 +98,13 @@ export function openSearch(mode: SearchMode): void {
 
 export function closeSearch(): void {
   search.open = false;
+  // Панель закрыли — пометки совпадений уходят с ней. Тот же приём, что
+  // при переезде панели в соседнюю область: запрос с пустой строкой.
+  // До задачи 100 этого не требовалось: помечать было нечем.
+  if (applied) {
+    engine.apply(applied, { ...query(), term: '' });
+    applied = null;
+  }
   editorView()?.focus();
 }
 

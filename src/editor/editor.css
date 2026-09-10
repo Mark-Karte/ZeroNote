@@ -45,10 +45,14 @@
   max-width: var(--zn-control-editor-width);
 }
 
-/* base.css запрещает выделение мышью в интерфейсе — в тексте оно нужно. */
+/* base.css запрещает выделение мышью в интерфейсе — в тексте оно нужно.
+
+   Своего `caret-color` здесь нет намеренно: `drawSelection()` гасит
+   системную каретку правилом `caret-color: transparent !important`
+   и рисует свою (`.cm-cursor` ниже). Наша строка тут стояла с этапа 1
+   и не делала ничего — найдено разбором задачи 100. */
 .cm-editor .cm-content {
   user-select: text;
-  caret-color: var(--zn-color-fg-default);
 }
 
 .cm-editor .cm-gutters {
@@ -166,6 +170,9 @@
   color: var(--zn-color-fg-default);
 }
 
+/* Строка курсора. Цвет сплошной, поэтому подсветка снимается, пока
+   выделение не пусто, — иначе она закрасила бы выделение целиком
+   (`editor/active-line.ts`, задача 100). */
 .cm-editor .cm-activeLine {
   background-color: var(--zn-color-bg-hover);
 }
@@ -175,20 +182,50 @@
   border-left-color: var(--zn-color-fg-default);
 }
 
-/* Собственная отрисовка выделения CodeMirror и системная — обе должны
-   слушаться токенов, иначе в одной из тем текст пропадает на фоне.
+/* Выделение текста. Роль отдельная от `bg-selected`: та же подложка,
+   но плотнее — выделение обязано быть видно поверх подсветки строки.
 
-   Роль отдельная от `bg-selected`: та же подложка, но плотнее. Выделение
-   лежит поверх подсветки текущей строки, и на одинаковых цветах его границы
-   не видно — а выделение надо видеть точно. */
-.cm-editor .cm-selectionBackground,
-.cm-editor .cm-content ::selection,
-.cm-editor .cm-line::selection {
+   **Селектор повторяет путь чужого правила, и это не украшение.** Базовая
+   тема CodeMirror красит выделение правилом из четырёх классов
+   (`&dark.cm-focused > .cm-scroller > .cm-selectionLayer
+   .cm-selectionBackground`), и короткое наше — из трёх — проигрывало ему
+   с этапа 3: на экране был цвет CodeMirror `#233`, а не наш токен.
+   Пять классов здесь берут верх по весу, а не по порядку подключения
+   (задача 100).
+
+   Системного выделения мы не красим вовсе: `drawSelection()` гасит его
+   `background-color: transparent !important` и рисует своё. */
+.cm-editor > .cm-scroller > .cm-selectionLayer .cm-selectionBackground,
+.cm-editor.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground {
   background-color: var(--zn-color-bg-selection);
 }
 
-.cm-editor.cm-focused .cm-selectionBackground {
+/* Совпадение поиска по файлу. Класс наш: подсветку рисует
+   `editor/search-matches.ts`, потому что чужая включается только вместе
+   с чужой панелью (задача 100).
+
+   Цвет тот же, что у выделения, и это не небрежность: текущее совпадение
+   переход делает выделением, а выделение лежит слоем ниже — две
+   полупрозрачные подложки складываются, и то, на котором стоишь, выходит
+   плотнее остальных само. Тихая роль `bg-selected` тут не годится:
+   при 16% на тёмной теме совпадение приходится искать глазами, а ищут
+   как раз его. */
+.cm-editor .zn-search-match {
   background-color: var(--zn-color-bg-selection);
+}
+
+/* «То же слово, что выделено» — подложка нейтральная, а не акцентная:
+   акцентом уже помечены совпадения поиска, и путать эти две пометки нельзя.
+   Своего цвета тут не было, и до экрана доезжал чужой — зелёное
+   `#99ff7780` из `@codemirror/search` (задача 100). */
+.cm-editor .cm-selectionMatch {
+  background-color: var(--zn-color-bg-active);
+}
+
+/* Управляющий знак, которого не должно быть в тексте. У CodeMirror он
+   красный литералом. */
+.cm-editor .cm-specialChar {
+  color: var(--zn-color-danger);
 }
 
 /* Полоса прокрутки редактора: системная в тёмной теме выглядит чужеродно. */
@@ -274,7 +311,7 @@
  * `--callout-color` без приставки `--zn-`: приставка принадлежит слою
  * токенов (задача 49), а это внутренняя переменная одного украшения.
  *
- * Подложка — `bg-canvas`, роль утопленного (Р-083), та же, что у блоков кода:
+ * Подложка — `bg-block`, роль утопленного (Р-083), та же, что у блоков кода:
  * callout вложен в текст, а не приподнят над ним. Заливки цветом роли здесь
  * нет намеренно, хотя она напрашивалась: это был бы четвёртый фон под текстом,
  * а проверка читаемости (Р-143) считает контраст на трёх. Цвет роли и так
@@ -283,7 +320,11 @@
 .cm-editor .zn-callout {
   padding-left: var(--zn-space-3);
   box-shadow: inset var(--zn-border-width-thick) 0 0 var(--callout-color);
-  background-color: var(--zn-color-bg-canvas);
+  /* С прозрачностью, и это не украшение: подложка строки лежит поверх слоя
+     выделения, и сплошная скрыла бы выделение внутри карточки целиком
+     (задача 100). Цвет подобран так, чтобы поверх рабочей области дать
+     прежний `bg-canvas`. */
+  background-color: var(--zn-color-bg-block);
 }
 
 .cm-editor .zn-callout-note {
@@ -464,7 +505,7 @@
 /*
  * Блоки кода в markdown.
  *
- * Подложка — `bg-canvas`, роль утопленного (Р-083): блок вложен в текст,
+ * Подложка — `bg-block`, роль утопленного (Р-083): блок вложен в текст,
  * а не приподнят над ним. Тот же цвет, что у поля ввода внутри панели.
  *
  * Рамка нарисована внутренней тенью, а не border: border добавил бы строке
@@ -472,7 +513,9 @@
  * и с номерами строк.
  */
 .cm-editor .zn-code-block {
-  background-color: var(--zn-color-bg-canvas);
+  /* С прозрачностью — чтобы выделение внутри блока было видно (задача 100),
+     см. `.zn-callout` выше. */
+  background-color: var(--zn-color-bg-block);
   box-shadow:
     inset var(--zn-border-width) 0 0 var(--zn-color-border-subtle),
     inset calc(-1 * var(--zn-border-width)) 0 0 var(--zn-color-border-subtle);

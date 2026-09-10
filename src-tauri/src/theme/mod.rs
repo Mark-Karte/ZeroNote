@@ -223,6 +223,91 @@ fn substitute(
     Ok(out)
 }
 
+/// Разбор цвета вида `#rgb` или `#rrggbb`. Ничего другого палитра не знает
+/// про непрозрачные цвета, а полупрозрачные сюда не приходят.
+fn parse_hex(value: &str) -> Option<[f64; 3]> {
+    let hex = value.trim().strip_prefix('#')?;
+
+    let expand = |c: char| -> Option<f64> {
+        let digit = c.to_digit(16)?;
+        Some((digit * 17) as f64)
+    };
+
+    match hex.len() {
+        3 => {
+            let mut chars = hex.chars();
+            let r = expand(chars.next()?)?;
+            let g = expand(chars.next()?)?;
+            let b = expand(chars.next()?)?;
+            Some([r, g, b])
+        }
+        6 => {
+            let mut out = [0.0; 3];
+            for (i, slot) in out.iter_mut().enumerate() {
+                let from = i * 2;
+                *slot = u8::from_str_radix(hex.get(from..from + 2)?, 16).ok()? as f64;
+            }
+            Some(out)
+        }
+        _ => None,
+    }
+}
+
+/// Наибольшая прозрачность подложки блока: дальше цвет упирается в чёрное.
+///
+/// «Контраст» с его `bg-0 = #000000` требует непрозрачной подложки, чтобы
+/// остаться чёрным поверх `#111111`. Предел позволяет ему отклониться
+/// на три единицы яркости — глазу это ничто — и не отнимать выделение
+/// целиком.
+const BLOCK_MAX_ALPHA: f64 = 0.85;
+
+/// Подложка утопленного блока внутри текста: **считается, а не задаётся.**
+///
+/// Блок кода и карточка callout красят строку целиком, а слой выделения
+/// CodeMirror лежит под содержимым — сплошная подложка закрывает выделение,
+/// и в блоке кода не видно, что выделено (задача 100). Ответ — прозрачность:
+/// цвет подбирается так, чтобы поверх рабочей области (`bg-2`) он давал
+/// прежний цвет подложки окна (`bg-0`), а выделение под ним оставалось
+/// видно. Прозрачность берётся **наибольшая возможная**: чем её больше,
+/// тем заметнее выделение под блоком.
+///
+/// Считаем сами, а не просим у темы: тема из пяти строк обязана работать,
+/// и лишний ключ палитры на каждую новую роль — это та же ошибка, что
+/// «настройка, которую некому выполнить». Тема может задать `bg-block`
+/// руками, и тогда её значение сильнее.
+fn block_overlay(canvas: &str, raised: &str) -> Option<String> {
+    let c = parse_hex(canvas)?;
+    let r = parse_hex(raised)?;
+
+    // Прозрачность ограничена снизу тем, что цвет обязан существовать:
+    // канал подложки не бывает ни меньше нуля, ни больше 255.
+    let mut alpha: f64 = 0.05;
+    for i in 0..3 {
+        if r[i] > 0.0 {
+            alpha = alpha.max(1.0 - c[i] / r[i]);
+        }
+        if c[i] > r[i] && r[i] < 255.0 {
+            alpha = alpha.max((c[i] - r[i]) / (255.0 - r[i]));
+        }
+    }
+
+    // Запас: ровно на границе один из каналов упирается в ноль, и округление
+    // до целого сдвинуло бы цвет.
+    let alpha = (alpha + 0.02).clamp(0.05, BLOCK_MAX_ALPHA);
+
+    let channel = |i: usize| {
+        (((c[i] - (1.0 - alpha) * r[i]) / alpha).round()).clamp(0.0, 255.0) as u8
+    };
+
+    Some(format!(
+        "rgba({}, {}, {}, {:.3})",
+        channel(0),
+        channel(1),
+        channel(2),
+        alpha
+    ))
+}
+
 /// Итоговая таблица «имя токена → значение CSS» без пользовательских
 /// переопределений. Отдельная функция только ради краткости в тестах.
 pub fn resolve(theme: &ThemeFile, density: Density) -> Result<BTreeMap<String, String>, ThemeError> {
@@ -285,6 +370,16 @@ pub fn resolve_with(
     let mut palette = builtin(theme.appearance).palette;
     for (key, value) in &theme.palette {
         palette.insert(key.clone(), value.clone());
+    }
+
+    // Подложка утопленного блока выводится из палитры, если тема не задала
+    // её сама. Не вышло разобрать цвета — остаётся прежний непрозрачный
+    // `bg-0`: тихо потерять подложку хуже, чем потерять прозрачность.
+    if !palette.contains_key("bg-block") {
+        let canvas = palette.get("bg-0").cloned().unwrap_or_default();
+        let raised = palette.get("bg-2").cloned().unwrap_or_default();
+        let derived = block_overlay(&canvas, &raised).unwrap_or(canvas);
+        palette.insert("bg-block".to_owned(), derived);
     }
 
     let mut resolved = BTreeMap::new();
@@ -668,6 +763,107 @@ mod tests {
                 "в теме {id} не заданы цвета палитры: {missing:?}"
             );
         }
+    }
+
+    /// Разбор `rgba(r, g, b, a)` обратно в числа — только для проверок.
+    fn parse_rgba(value: &str) -> ([f64; 3], f64) {
+        let inside = value
+            .trim()
+            .strip_prefix("rgba(")
+            .and_then(|rest| rest.strip_suffix(')'))
+            .unwrap_or_else(|| panic!("ожидался rgba(...), получено: {value}"));
+
+        let parts: Vec<f64> = inside
+            .split(',')
+            .map(|part| part.trim().parse::<f64>().expect("число"))
+            .collect();
+        assert_eq!(parts.len(), 4, "у rgba четыре составляющие: {value}");
+
+        ([parts[0], parts[1], parts[2]], parts[3])
+    }
+
+    /// Подложка блока накладывается на рабочую область и даёт прежний цвет.
+    ///
+    /// Прежний — это `bg-0`, которым блоки кода и карточки callout красились
+    /// до задачи 100. Вид не изменился, изменилось только то, что сквозь
+    /// подложку теперь видно выделение.
+    #[test]
+    fn block_overlay_keeps_the_colour_of_the_block() {
+        for (id, source) in BUILTIN {
+            let theme = parse(source).expect("тема должна разбираться");
+            let values = resolve(&theme, Density::Normal).expect("тема должна собираться");
+
+            let (over, alpha) = parse_rgba(&values["color-bg-block"]);
+            let canvas = parse_hex(&values["color-bg-canvas"]).expect("цвет подложки окна");
+            let raised = parse_hex(&values["color-bg-raised"]).expect("цвет рабочей области");
+
+            for i in 0..3 {
+                let composed = alpha * over[i] + (1.0 - alpha) * raised[i];
+                assert!(
+                    (composed - canvas[i]).abs() <= 3.0,
+                    "в теме {id} подложка блока даёт {composed}, а была {}",
+                    canvas[i]
+                );
+            }
+        }
+    }
+
+    /// Прозрачность обязана остаться: ради неё всё и затевалось.
+    ///
+    /// «Контраст» — предел этого правила: его `bg-0 = #000000` поверх
+    /// `#111111` требует непрозрачной подложки, и там прозрачность упирается
+    /// в потолок `BLOCK_MAX_ALPHA`.
+    #[test]
+    fn block_overlay_leaves_room_for_the_selection() {
+        for (id, source) in BUILTIN {
+            let theme = parse(source).expect("тема должна разбираться");
+            let values = resolve(&theme, Density::Normal).expect("тема должна собираться");
+            let (_, alpha) = parse_rgba(&values["color-bg-block"]);
+
+            assert!(
+                alpha <= BLOCK_MAX_ALPHA,
+                "в теме {id} подложка блока непрозрачна: {alpha}"
+            );
+        }
+    }
+
+    /// Тема может задать подложку блока сама — тогда считать нечего.
+    #[test]
+    fn theme_may_set_the_block_background_itself() {
+        let source = r#"
+            schema = 1
+            id = "своя"
+            name = "Своя"
+            appearance = "dark"
+
+            [palette]
+            bg-block = "rgba(1, 2, 3, 0.5)"
+        "#;
+
+        let theme = parse(source).expect("тема должна разбираться");
+        let values = resolve(&theme, Density::Normal).expect("тема должна собираться");
+        assert_eq!(values["color-bg-block"], "rgba(1, 2, 3, 0.5)");
+    }
+
+    /// Цвет, который не разбирается, оставляет подложку непрозрачной.
+    ///
+    /// Потерять прозрачность не страшно — потерять подложку значило бы
+    /// показать блок кода без блока.
+    #[test]
+    fn unparsable_palette_leaves_the_block_opaque() {
+        let source = r#"
+            schema = 1
+            id = "своя"
+            name = "Своя"
+            appearance = "dark"
+
+            [palette]
+            bg-0 = "rebeccapurple"
+        "#;
+
+        let theme = parse(source).expect("тема должна разбираться");
+        let values = resolve(&theme, Density::Normal).expect("тема должна собираться");
+        assert_eq!(values["color-bg-block"], "rebeccapurple");
     }
 
     /// Составляющие цвета `#rrggbb`, приведённые из значения, каким его хранит

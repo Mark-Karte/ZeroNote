@@ -10,7 +10,6 @@ import {
   type ViewUpdate,
   keymap,
   lineNumbers,
-  highlightActiveLine,
   highlightActiveLineGutter,
   drawSelection,
   dropCursor,
@@ -32,6 +31,8 @@ import { search, highlightSelectionMatches } from '@codemirror/search';
 // `tests/brackets.test.ts` (решение Р-112).
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import { syntaxColors } from '../theme/syntax';
+import { activeLine } from './active-line';
+import { searchMatches } from './search-matches';
 import { bookmarkField, bookmarkIcons, bookmarkMarkers, bookmarks } from './bookmarks';
 import { brackets } from './brackets';
 import { columnAt, indentUnitOf, type Indent } from './indent';
@@ -294,7 +295,8 @@ export function extensionsFor(meta: Buffer, options: EditorOptions): Extension[]
     // Порядок здесь и есть порядок полей на экране.
     folding(),
     highlightActiveLineGutter(),
-    highlightActiveLine(),
+    // Подсветка строки курсора своя: чужая кроет выделение (задача 100).
+    activeLine,
     history(),
     drawSelection(),
     dropCursor(),
@@ -332,6 +334,9 @@ export function extensionsFor(meta: Buffer, options: EditorOptions): Extension[]
     // несёт свои размеры и цвета, то есть прошла бы мимо слоя токенов.
     // Панель у нас своя, в `ui/SearchPanel.svelte`.
     search(),
+    // Подсветка совпадений своя: чужая включается только при чужой панели,
+    // а панель у нас своя — до задачи 100 не помечалось ни одно совпадение.
+    searchMatches,
     highlightSelectionMatches(),
 
     // Упрощённый режим больших файлов и файлы «только для чтения».

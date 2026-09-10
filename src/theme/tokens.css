@@ -17,6 +17,7 @@
   /* --- Цвет: семантические роли. Палитра сюда не попадает: компонент не
      должен знать, какой именно серый ему достался. --- */
   --zn-color-bg-canvas: #eff2f5;
+  --zn-color-bg-block: rgba(63, 99, 135, 0.083);
   --zn-color-bg-surface: #f6f8fa;
   --zn-color-bg-raised: #ffffff;
   --zn-color-bg-hover: #eaeef2;
