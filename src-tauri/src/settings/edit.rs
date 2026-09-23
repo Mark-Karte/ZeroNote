@@ -38,12 +38,17 @@ impl std::fmt::Display for EditError {
 impl std::error::Error for EditError {}
 
 /// Что можно записать. Ровно то, что встречается в наших настройках.
+///
+/// Список появился с задачей 102: состав панели инструментов — перечень
+/// команд, и писать его по одной строке значило бы получить в файле
+/// промежуточные состояния, которые никто не собирал.
 #[derive(Debug, Clone, PartialEq, serde::Deserialize)]
 #[serde(untagged)]
 pub enum Setting {
     Text(String),
     Number(i64),
     Flag(bool),
+    List(Vec<String>),
 }
 
 impl From<&Setting> for Value {
@@ -52,6 +57,20 @@ impl From<&Setting> for Value {
             Setting::Text(text) => Value::from(text.as_str()),
             Setting::Number(number) => Value::from(*number),
             Setting::Flag(flag) => Value::from(*flag),
+            Setting::List(items) => {
+                let mut array = toml_edit::Array::new();
+                for item in items {
+                    array.push(item.as_str());
+                }
+                // По строке на элемент: список правят и руками, а строка
+                // в тридцать команд длиной в полэкрана не читается вовсе.
+                for value in array.iter_mut() {
+                    value.decor_mut().set_prefix("\n    ");
+                }
+                array.set_trailing_comma(true);
+                array.set_trailing("\n");
+                Value::Array(array)
+            }
         }
     }
 }
@@ -447,5 +466,23 @@ family = \"Verdana\"
         let before = "schema = 1\n[editor]\nwrapp = true\n[appearance]\ndensity = \"normal\"\n";
         let after = set(before, &["appearance", "density"], &Setting::Text("compact".into())).unwrap();
         assert_eq!(verify(before, &after), Ok(()));
+    }
+
+    /// Список пишется по строке на элемент и читается обратно тем же.
+    #[test]
+    fn list_is_written_one_item_per_line() {
+        let source = "schema = 1\n";
+        let items = Setting::List(vec!["md.bold".into(), "separator".into(), "path".into()]);
+
+        let out = set(source, &["toolbar", "items"], &items).unwrap();
+
+        assert!(out.contains("\n    \"md.bold\",\n"), "{out}");
+        let parsed = crate::settings::parse(&out).expect("итог должен разбираться");
+        assert_eq!(parsed.settings.toolbar.items, vec!["md.bold", "separator", "path"]);
+        assert!(parsed.problems.is_empty(), "{:?}", parsed.problems);
+
+        // Второй раз тот же список — тот же файл: правка не копит пустоты.
+        let again = set(&out, &["toolbar", "items"], &items).unwrap();
+        assert_eq!(again, out);
     }
 }

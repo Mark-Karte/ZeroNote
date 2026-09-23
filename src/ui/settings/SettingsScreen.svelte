@@ -9,6 +9,7 @@
   import { version } from '../../version';
   import KeysScreen from './KeysScreen.svelte';
   import ThemesScreen from './ThemesScreen.svelte';
+  import ToolbarScreen from './ToolbarScreen.svelte';
   import { updates, checkForUpdates } from '../../state/updates.svelte';
 
   /**
@@ -31,7 +32,7 @@
    * пять настроек оформления. Разделение просил владелец: «чтобы не мусорить
    * в основных настройках».
    */
-  let tab = $state<'general' | 'themes' | 'keys'>('general');
+  let tab = $state<'general' | 'themes' | 'keys' | 'toolbar'>('general');
 
   const file = $derived(settings.state);
   const values = $derived(file?.settings);
@@ -130,7 +131,9 @@
           ? 'Оформление · Шрифт · Файл настроек · О программе'
           : tab === 'themes'
             ? 'Темы · Образцы · Своя тема из файла'
-            : 'Горячие клавиши · keymap.toml'}
+            : tab === 'toolbar'
+              ? 'Состав · Показ · Размер · раздел [toolbar] в settings.toml'
+              : 'Горячие клавиши · keymap.toml'}
       </p>
     </header>
 
@@ -159,10 +162,23 @@
       >
         Клавиши
       </button>
+      <!-- Своя вкладка, а не строки в «Настройках» (решение владельца):
+           состав панели — список в три десятка строк, и среди настроек
+           редактора он утопил бы всё остальное. -->
+      <button
+        class="tab"
+        class:current={tab === 'toolbar'}
+        type="button"
+        onclick={() => (tab = 'toolbar')}
+      >
+        Панель инструментов
+      </button>
     </div>
 
     {#if tab === 'keys'}
       <KeysScreen />
+    {:else if tab === 'toolbar'}
+      <ToolbarScreen />
     {:else if tab === 'themes'}
       <ThemesScreen />
     {:else}
@@ -365,45 +381,6 @@
           >
             <option value="no">Во всю ширину</option>
             <option value="yes">Колонкой по центру</option>
-          </select>
-        </div>
-
-        <div class="row">
-          <div class="what">
-            <span class="name">Панель разметки markdown</span>
-            <span class="note">
-              Жирный, курсив, заголовки, списки, ссылка и заготовки. Появляется
-              только над markdown; всё то же есть в палитре команд.
-            </span>
-          </div>
-          <select
-            class="control"
-            disabled={broken !== null}
-            value={values.editor.markdown_bar ? 'yes' : 'no'}
-            onchange={(e) => put(['editor', 'markdown_bar'], e.currentTarget.value === 'yes')}
-          >
-            <option value="no">Не показывать</option>
-            <option value="yes">Показывать</option>
-          </select>
-        </div>
-
-        <div class="row">
-          <div class="what">
-            <span class="name">Ширина панели разметки</span>
-            <span class="note">
-              Над колонкой — кнопки стоят над текстом заметки, а не в левом
-              углу. Действует, только когда включена читаемая ширина: без
-              колонки панель во всю ширину при любом значении.
-            </span>
-          </div>
-          <select
-            class="control"
-            disabled={broken !== null}
-            value={values.editor.markdown_bar_width}
-            onchange={(e) => put(['editor', 'markdown_bar_width'], e.currentTarget.value)}
-          >
-            <option value="column">Над колонкой</option>
-            <option value="full">Во всю ширину</option>
           </select>
         </div>
 

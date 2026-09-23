@@ -2,25 +2,28 @@
   import TabStrip from './TabStrip.svelte';
   import EditorHost from './EditorHost.svelte';
   import SearchPanel from './SearchPanel.svelte';
-  import MarkdownBar from './MarkdownBar.svelte';
+  import Toolbar from './Toolbar.svelte';
   import SettingsScreen from './settings/SettingsScreen.svelte';
   import ImageView from './ImageView.svelte';
   import type { PaneNode } from '../ipc/layout';
   import { layout, setActivePane } from '../state/panes.svelte';
   import { tabById, languageOf } from '../state/tabs.svelte';
   import {
-    markdownBarEnabled,
-    markdownBarWidth,
     readableWidthEnabled,
+    toolbarItems,
+    toolbarShow,
+    toolbarSize,
+    toolbarWidth,
   } from '../state/settings.svelte';
-  import { markdownBarColumn } from '../editor/readable';
+  import { toolbarColumn } from '../editor/readable';
+  import { toolbarShown, visibleEntries, type ToolbarPlace } from './toolbar';
   import { dropTarget } from '../state/tab-drag.svelte';
 
   /**
    * Одна область редактора (Р-210): своя полоса вкладок, своё содержимое.
    *
    * Что показывать, решает вид активной вкладки **этой** области, а не окна.
-   * На область — полоса вкладок и панель разметки; на окно — строка
+   * На область — полоса вкладок и панель инструментов; на окно — строка
    * состояния, шапка, боковая полоса, и они смотрят на активную область.
    */
   let { pane }: { pane: PaneNode } = $props();
@@ -30,26 +33,37 @@
   const kind = $derived(tab?.meta.kind ?? 'text');
 
   /**
-   * Панель разметки — только над markdown и только если её не убрали
-   * настройкой. Язык берётся у вкладки: его меняют руками в строке
-   * состояния, и панель обязана следовать за выбором.
+   * Язык берётся у вкладки, а не у имени файла: его меняют руками
+   * в строке состояния, и панель обязана следовать за выбором.
    */
-  const showMarkdownBar = $derived(
-    markdownBarEnabled() && tab !== null && languageOf(tab)?.id === 'markdown',
+  const markdown = $derived(tab !== null && languageOf(tab)?.id === 'markdown');
+  const place = $derived<ToolbarPlace>({ tab: kind, markdown });
+
+  /**
+   * Панель инструментов (задача 102): стоит ли она здесь и что на ней.
+   * Считается здесь, а не в самой панели: она рисует кнопки и не должна
+   * знать ни про настройки, ни про язык вкладки.
+   *
+   * Пустую полосу не показываем: над картинкой при `always` от набора,
+   * где одна разметка, не остаётся ничего, и черта под пустотой
+   * сообщала бы только о том, что панель есть.
+   */
+  const entries = $derived(visibleEntries(toolbarItems(), place));
+  const showToolbar = $derived(
+    tab !== null && toolbarShown(toolbarShow(), place) && entries.length > 0,
   );
 
   /**
    * Панель встаёт над колонкой читаемой ширины, а не во всю область
-   * (задача 81, Р-215). Считается там же, где решается показ: панель
-   * не должна знать ни про настройки, ни про язык вкладки — она рисует
-   * кнопки.
+   * (задача 81, Р-215). Колонка бывает только у markdown — над кодом
+   * панель всегда во всю ширину.
    */
   const barColumn = $derived(
-    markdownBarColumn({
+    toolbarColumn({
       wrap: false,
       readableWidth: readableWidthEnabled(),
-      markdown: true,
-      barWidth: markdownBarWidth(),
+      markdown,
+      barWidth: toolbarWidth(),
     }),
   );
 
@@ -83,8 +97,14 @@
     <!-- Параметры — вкладка, а не режим окна (Р-185). -->
     <SettingsScreen />
   {:else if kind === 'image'}
+    {#if showToolbar}
+      <Toolbar {entries} column={barColumn} size={toolbarSize()} {tab} />
+    {/if}
     <ImageView pane={pane.id} />
   {:else if kind === 'pdf'}
+    {#if showToolbar}
+      <Toolbar {entries} column={barColumn} size={toolbarSize()} {tab} />
+    {/if}
     <!-- Показ грузится по требованию: pdf.js — самая большая зависимость
          проекта, и обычным импортом он попадал бы в путь запуска. -->
     {#await import('./PdfView.svelte') then module}
@@ -97,8 +117,8 @@
     {#if focused}
       <SearchPanel />
     {/if}
-    {#if showMarkdownBar}
-      <MarkdownBar column={barColumn} />
+    {#if showToolbar}
+      <Toolbar {entries} column={barColumn} size={toolbarSize()} {tab} />
     {/if}
     <EditorHost pane={pane.id} />
   {/if}

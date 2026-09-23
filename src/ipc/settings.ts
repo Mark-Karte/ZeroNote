@@ -29,8 +29,6 @@ export interface Settings {
     indent_width: number;
     invisibles: boolean;
     line_numbers: 'always' | 'never' | 'code';
-    markdown_bar: boolean;
-    markdown_bar_width: 'column' | 'full';
     readable_width: boolean;
     live_preview: boolean;
     link_suggest: boolean;
@@ -43,6 +41,14 @@ export interface Settings {
     /** Файл-шаблон новой заметки. Пусто — заголовок и пустая строка. */
     daily_template: string;
     templates: string;
+  };
+  /** Панель инструментов (задача 102). */
+  toolbar: {
+    /** Состав: команды и служебные слова `separator`, `spacer`, `path`. */
+    items: string[];
+    show: 'always' | 'text' | 'markdown' | 'never';
+    width: 'column' | 'full';
+    size: 'small' | 'normal' | 'large';
   };
 }
 
@@ -61,8 +67,11 @@ export interface SettingsState {
 
 export const settingsState = (): Promise<SettingsState> => invoke('settings_state');
 
-/** Записать одну настройку. `null` — убрать ключ, то есть «брать из темы». */
+/**
+ * Записать одну настройку. `null` — убрать ключ, то есть «брать из темы»
+ * или «набор по умолчанию». Список — состав панели инструментов.
+ */
 export const updateSetting = (
   path: string[],
-  value: string | number | boolean | null,
+  value: string | number | boolean | string[] | null,
 ): Promise<void> => invoke('update_setting', { path, value });

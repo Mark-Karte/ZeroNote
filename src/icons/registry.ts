@@ -58,7 +58,6 @@ export type IconName =
   | 'md.ordered-list'
   | 'md.task-list'
   | 'md.quote'
-  | 'md.snippets'
   | 'md.callout-note'
   | 'md.callout-tip'
   | 'md.callout-warning'
@@ -131,6 +130,13 @@ export type IconName =
   | 'md.heading-1'
   | 'md.heading-2'
   | 'md.heading-3'
+  | 'md.heading-4'
+  | 'md.heading-5'
+  | 'md.heading-6'
+  | 'md.underline'
+  | 'md.wikilink'
+  | 'md.image'
+  | 'md.mermaid'
   | 'md.table'
   | 'md.code-block'
   | 'md.divider';
@@ -268,8 +274,6 @@ const ICONS: Record<IconName, string> = {
   // Кавычки — цитата.
   'md.callout-quote':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M6.2 4.6c-1.9.6-3 2.1-3 4.1 0 1.4.8 2.4 2 2.4s1.9-.8 1.9-1.9-.7-1.8-1.7-1.8h-.3c.1-.9.7-1.6 1.6-2Z"/><path d="M12.6 4.6c-1.9.6-3 2.1-3 4.1 0 1.4.8 2.4 2 2.4s1.9-.8 1.9-1.9-.7-1.8-1.7-1.8h-.3c.1-.9.7-1.6 1.6-2Z"/></svg>',
-  'md.snippets':
-    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2.4" y="2.4" width="11.2" height="11.2" rx="2"/><path d="M8 5.4v5.2M5.4 8h5.2"/></svg>',
 
   'file.markdown':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"><path d="M9 1.6H4a1.4 1.4 0 0 0-1.4 1.4v10a1.4 1.4 0 0 0 1.4 1.4h8a1.4 1.4 0 0 0 1.4-1.4V6z"/><path d="M9 1.6V6h4.4"/><path d="M5.2 11.6V8.4l1.5 1.8 1.5-1.8v3.2" stroke-linecap="round"/></svg>',
@@ -448,10 +452,14 @@ const ICONS: Record<IconName, string> = {
   // в браузере. Прямая стрелка здесь не годится: ею уже подписан перенос
   // вкладки между областями, и в одном окне это читалось бы как одно
   // действие.
+  // Прямые стрелки, как у браузера, а не крючком (задача 102). Крючок —
+  // знак отмены, и владелец читал стрелки истории как «отменить»
+  // и «вернуть»; на панели инструментов они теперь стоят рядом с отменой,
+  // и одинаковые рисунки у соседних кнопок сообщали бы, что кнопки одни.
   'cmd.back':
-    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4 2.4 7.6 6 11.2"/><path d="M2.4 7.6h6.4a4 4 0 0 1 0 8H7.2"/></svg>',
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"><path d="M13 8H3.2"/><path d="M7.2 4 3.2 8l4 4"/></svg>',
   'cmd.forward':
-    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4l3.6 3.6L10 11.2"/><path d="M13.6 7.6H7.2a4 4 0 0 0 0 8h1.6"/></svg>',
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h9.8"/><path d="M8.8 4l4 4-4 4"/></svg>',
   // Вернуть закрытую вкладку: вкладка и стрелка возврата на ней. От «назад»
   // отличается тем, что здесь есть сама вкладка: возвращается не место,
   // а файл.
@@ -498,6 +506,28 @@ const ICONS: Record<IconName, string> = {
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.6 3.4v9.2M8 3.4v9.2M2.6 8H8"/><path d="M10.6 9.6a1.5 1.5 0 0 1 2.9.6c0 1.2-2.9 1.8-2.9 3h3"/></svg>',
   'md.heading-3':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.6 3.4v9.2M8 3.4v9.2M2.6 8H8"/><path d="M10.7 9a1.4 1.4 0 1 1 1.1 2.2 1.4 1.4 0 1 1-1.1 2.2"/></svg>',
+  // Четвёрка, пятёрка и шестёрка — тем же пером и в той же клетке, что
+  // единица, двойка и тройка: шесть уровней стоят рядом в меню.
+  'md.heading-4':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.6 3.4v9.2M8 3.4v9.2M2.6 8H8"/><path d="M12.6 13.2V8.6l-2.4 3.2h3.4"/></svg>',
+  'md.heading-5':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.6 3.4v9.2M8 3.4v9.2M2.6 8H8"/><path d="M13.3 8.6h-2.4l-.3 2a1.5 1.5 0 1 1 .1 2.4"/></svg>',
+  'md.heading-6':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2.6 3.4v9.2M8 3.4v9.2M2.6 8H8"/><path d="M12.9 8.8c-1.4-.4-2.4.6-2.4 2.4"/><circle cx="11.8" cy="11.9" r="1.3"/></svg>',
+  // Буква U над чертой — как во всех текстовых редакторах.
+  'md.underline':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4.8 2.8v4.6a3.2 3.2 0 0 0 6.4 0V2.8"/><path d="M3.6 13.4h8.8"/></svg>',
+  // Двойные скобки — ровно то, что вставляется. Отличается от обычной
+  // ссылки нарочно: звено цепи — адрес, скобки — заметка.
+  'md.wikilink':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M4.4 3H2.6v10h1.8M6.6 3H5.4v10h1.2"/><path d="M11.6 3h1.8v10h-1.8M9.4 3h1.2v10H9.4"/></svg>',
+  // Рамка с горой и солнцем — знак картинки. Не тот, что у файла картинки
+  // в дереве: там документ, здесь вставка в текст.
+  'md.image':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2.2" y="3.2" width="11.6" height="9.6" rx="1.6"/><path d="m2.6 11.4 3.2-3.2 2.4 2.4 1.6-1.6 3.4 3.2"/><circle cx="10.6" cy="6.2" r=".9"/></svg>',
+  // Три узла со стрелками — схема.
+  'md.mermaid':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="1.8" y="2.4" width="4.4" height="3.4" rx=".8"/><rect x="9.8" y="2.4" width="4.4" height="3.4" rx=".8"/><rect x="5.8" y="10.2" width="4.4" height="3.4" rx=".8"/><path d="M6.2 4.1h3.6M4 5.8 6.8 10.2M12 5.8 9.2 10.2"/></svg>',
   // Сетка.
   'md.table':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><rect x="2.4" y="3.4" width="11.2" height="9.2" rx="1.4"/><path d="M2.4 6.6h11.2M2.4 9.6h11.2M6.6 6.6v6"/></svg>',

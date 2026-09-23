@@ -3,7 +3,8 @@ import { listen } from '@tauri-apps/api/event';
 import * as ipc from '../ipc/settings';
 import type { SettingsState } from '../ipc/settings';
 import { lineNumbersSettingOf, type LineNumbersSetting } from '../editor/line-numbers';
-import { markdownBarWidthOf, type MarkdownBarWidth } from '../editor/readable';
+import { toolbarWidthOf, type ToolbarWidth } from '../editor/readable';
+import type { ToolbarShow, ToolbarSize } from '../ui/toolbar';
 
 /**
  * Окно параметров — надстройка над `settings.toml` (Р-077).
@@ -81,23 +82,33 @@ export async function toggleInvisibles(): Promise<void> {
 }
 
 /**
- * Показывать ли панель разметки над markdown-файлами.
- *
- * Умолчание `true` повторяет умолчание ядра: несовпадение означало бы, что
- * первые полсекунды после запуска панели нет, а потом она появляется.
+ * Состав панели инструментов (задача 102). Пока настройки не приехали —
+ * пусто: набор по умолчанию знает ядро, и копия здесь разошлась бы с ним.
+ * Полсекунды при запуске панель стоит без кнопок, и это честнее, чем
+ * кнопки, которые потом переставятся.
  */
-export function markdownBarEnabled(): boolean {
-  return settings.state?.settings.editor.markdown_bar ?? true;
+export function toolbarItems(): string[] {
+  return settings.state?.settings.toolbar.items ?? [];
+}
+
+/** Над какими вкладками стоит панель. Умолчание повторяет ядро. */
+export function toolbarShow(): ToolbarShow {
+  return settings.state?.settings.toolbar.show ?? 'text';
 }
 
 /**
- * Чем меряется ширина панели разметки: колонкой или всей областью (Р-215).
+ * Чем меряется ширина панели: колонкой или всей областью (Р-215).
  *
  * Умолчание `column` повторяет умолчание ядра — иначе панель первые
  * полсекунды после запуска стояла бы во всю ширину и потом съезжала.
  */
-export function markdownBarWidth(): MarkdownBarWidth {
-  return markdownBarWidthOf(settings.state?.settings.editor.markdown_bar_width);
+export function toolbarWidth(): ToolbarWidth {
+  return toolbarWidthOf(settings.state?.settings.toolbar.width);
+}
+
+/** Размер кнопок панели. */
+export function toolbarSize(): ToolbarSize {
+  return settings.state?.settings.toolbar.size ?? 'normal';
 }
 
 /** Подсказывать ли имена заметок после `[[` в markdown (Р-132). */
@@ -178,7 +189,7 @@ export function refresh(): void {
  */
 export async function put(
   path: string[],
-  value: string | number | boolean | null,
+  value: string | number | boolean | string[] | null,
 ): Promise<void> {
   try {
     await ipc.updateSetting(path, value);

@@ -103,6 +103,11 @@ pub const METRICS_NORMAL: &[(&str, &str)] = &[
     // (38 px) и от этого была выше любой другой полосы в окне. Размер —
     // роль, а не число (Р-096), и ролей у кнопки оказалось две.
     ("control-toolbar-button-size", "28px"),
+    // Две другие ступени размера кнопок панели инструментов (задача 102).
+    // Ступени, а не число: значки нарисованы под сетку, и кнопка любого
+    // размера размыла бы их.
+    ("control-toolbar-button-size-small", "24px"),
+    ("control-toolbar-button-size-large", "34px"),
     ("control-row-height", "26px"),
     // Высота полей ввода и кнопок. Отдельно от строки списка: поле выше её.
     ("control-field-height", "28px"),
@@ -174,6 +179,8 @@ pub const METRICS_COMPACT: &[(&str, &str)] = &[
     ("control-window-button-width", "40px"),
     ("control-toolbar-height", "30px"),
     ("control-toolbar-button-size", "24px"),
+    ("control-toolbar-button-size-small", "20px"),
+    ("control-toolbar-button-size-large", "30px"),
     ("control-row-height", "22px"),
     ("control-field-height", "24px"),
     ("control-icon-size", "14px"),

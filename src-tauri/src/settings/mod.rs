@@ -40,6 +40,7 @@ pub struct Settings {
     pub font: FontSettings,
     pub editor: EditorSettings,
     pub notes: NotesSettings,
+    pub toolbar: ToolbarSettings,
 }
 
 /// Заметки: то, что приложение создаёт само (задача 90).
@@ -104,18 +105,6 @@ pub struct EditorSettings {
     /// Прячется само число, а поле остаётся: закладка рисуется там же,
     /// где рисовалась, и свёртка стоит рядом, как стояла.
     pub line_numbers: LineNumbers,
-    /// Показывать панель разметки над markdown-файлами. По умолчанию да:
-    /// заметки — половина того, ради чего редактор писался, а панель видна
-    /// только там, где ей место, и не мешает никому больше.
-    pub markdown_bar: bool,
-    /// Во всю ширину области стоит панель разметки или над колонкой
-    /// читаемой ширины (задача 81).
-    ///
-    /// По умолчанию `Column`: панель — набор кнопок для текста, и стоять
-    /// ей полагается над текстом, а не в левом углу области, пока текст
-    /// стоит колонкой посередине. Без колонки настройка не значит ничего:
-    /// колонки нет — панель во всю ширину при любом значении.
-    pub markdown_bar_width: MarkdownBarWidth,
     /// Подсказывать имена заметок после `[[` в markdown (Р-132).
     ///
     /// По умолчанию да: это то, ради чего связи между заметками и делались,
@@ -172,16 +161,124 @@ pub enum LineNumbers {
     Code,
 }
 
-/// Чем меряется ширина панели разметки markdown.
+/// Панель инструментов над текстом (задача 102).
+///
+/// Раньше это была «панель разметки» только над markdown и с составом,
+/// зашитым в код. Теперь состав решает человек, а сама панель стоит над
+/// любым текстом: отмена и возврат нужны и в коде (решение владельца).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct ToolbarSettings {
+    /// Что стоит на панели и в каком порядке: идентификаторы команд из
+    /// реестра и служебные слова [`TOOLBAR_WORDS`]. Ключа нет в файле —
+    /// набор по умолчанию [`DEFAULT_TOOLBAR`]; незнакомая команда
+    /// называется и пропускается (Р-248).
+    pub items: Vec<String>,
+    /// Над какими вкладками показывать.
+    pub show: ToolbarShow,
+    /// Во всю ширину области или над колонкой читаемой ширины (задача 81).
+    pub width: ToolbarWidth,
+    /// Размер кнопок.
+    pub size: ToolbarSize,
+}
+
+/// Над какими вкладками стоит панель.
+///
+/// `Text` по умолчанию: над кодом и заметками, но не над картинкой и PDF —
+/// там почти всем кнопкам делать нечего, и полоса гасших значков над
+/// снимком экрана ничего бы не сообщала.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ToolbarShow {
+    Always,
+    Text,
+    Markdown,
+    Never,
+}
+
+/// Чем меряется ширина панели.
 ///
 /// `Column` — колонкой читаемой ширины, `Full` — всей областью. Значение
 /// действует только там, где колонка есть: у markdown с включённой
 /// настройкой `readable_width`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
-pub enum MarkdownBarWidth {
+pub enum ToolbarWidth {
     Column,
     Full,
+}
+
+/// Размер кнопок панели. Три ступени, а не число пикселей: значки нарисованы
+/// под сетку в шестнадцать точек, и кнопка произвольного размера размыла бы
+/// их. Каждой ступени соответствует пара токенов — кнопка и значок.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ToolbarSize {
+    Small,
+    Normal,
+    Large,
+}
+
+/// Служебные слова в составе панели — всё, что не команда.
+///
+/// Черта между группами, распорка (всё после неё уезжает вправо) и путь
+/// к файлу. Путь — ответ на просьбу владельца показывать его отдельной
+/// строкой: панель собираемая, и строка с путём — это «распорка и путь»,
+/// которые ничего не стоят тем, кто их не ставил.
+pub const TOOLBAR_WORDS: &[&str] = &["separator", "spacer", "path"];
+
+/// Набор панели по умолчанию.
+///
+/// Всё, что есть в разделе «Текст» у плагина владельца для Obsidian, плюс
+/// правка и история мест: отмена с возвратом и стрелки «назад/вперёд»
+/// уехали сюда из шапки. Кнопок много, и это решение владельца: «все
+/// инструменты без скрытия, можно в несколько рядов». Лишнее убирается
+/// во вкладке «Панель инструментов».
+pub const DEFAULT_TOOLBAR: &[&str] = &[
+    "edit.undo",
+    "edit.redo",
+    "separator",
+    "view.back",
+    "view.forward",
+    "separator",
+    "md.heading-1",
+    "md.heading-2",
+    "md.heading-3",
+    "md.heading-4",
+    "md.heading-5",
+    "md.heading-6",
+    "separator",
+    "md.bold",
+    "md.italic",
+    "md.underline",
+    "md.strikethrough",
+    "md.highlight",
+    "md.code",
+    "separator",
+    "md.bullet-list",
+    "md.ordered-list",
+    "md.task-list",
+    "md.quote",
+    "separator",
+    "md.link",
+    "md.wikilink",
+    "md.image",
+    "separator",
+    "md.table",
+    "md.code-block",
+    "md.mermaid",
+    "md.divider",
+];
+
+impl Default for ToolbarSettings {
+    fn default() -> Self {
+        ToolbarSettings {
+            items: DEFAULT_TOOLBAR.iter().map(|item| (*item).to_owned()).collect(),
+            show: ToolbarShow::Text,
+            width: ToolbarWidth::Column,
+            size: ToolbarSize::Normal,
+        }
+    }
 }
 
 /// Умолчания пишутся руками, а не выводятся `derive(Default)`: у `bool`
@@ -199,8 +296,6 @@ impl Default for EditorSettings {
             indent_width: 4,
             invisibles: false,
             line_numbers: LineNumbers::Code,
-            markdown_bar: true,
-            markdown_bar_width: MarkdownBarWidth::Column,
             link_suggest: true,
             readable_width: true,
             live_preview: true,
@@ -233,6 +328,7 @@ impl Default for Settings {
             font: FontSettings::default(),
             editor: EditorSettings::default(),
             notes: NotesSettings::default(),
+            toolbar: ToolbarSettings::default(),
         }
     }
 }
@@ -317,10 +413,16 @@ pub fn parse(source: &str) -> Result<Loaded, SettingsError> {
 
     let mut problems = Vec::new();
 
+    let mut editor_table = take_table(&mut root, "editor", &mut problems);
+    let mut toolbar_table = take_table(&mut root, "toolbar", &mut problems);
+    retire_markdown_bar(&mut editor_table, &mut toolbar_table);
+
     let appearance = section(take_table(&mut root, "appearance", &mut problems), "appearance", &mut problems);
-    let editor = section(take_table(&mut root, "editor", &mut problems), "editor", &mut problems);
+    let editor = section(editor_table, "editor", &mut problems);
     let notes = section(take_table(&mut root, "notes", &mut problems), "notes", &mut problems);
     let font = font_section(take_table(&mut root, "font", &mut problems), &mut problems);
+    let mut toolbar: ToolbarSettings = section(toolbar_table, "toolbar", &mut problems);
+    toolbar.items = known_items(toolbar.items, &mut problems);
 
     // Что осталось — не наше. Раздел из будущей версии и опечатка в имени
     // раздела выглядят одинаково, и оба случая заслуживают слова: первый
@@ -345,9 +447,59 @@ pub fn parse(source: &str) -> Result<Loaded, SettingsError> {
             font,
             editor,
             notes,
+            toolbar,
         },
         problems,
     })
+}
+
+/// Ключи панели разметки переехали в `[toolbar]` (задача 102).
+///
+/// Один этап прежние имена читаются как псевдонимы и молча: они стоят
+/// в каждом файле, написанном по образцу до 0.15.0, и строка в полосе
+/// предупреждений при каждом запуске наказывала бы человека за файл,
+/// которого он не трогал. Переносится только то, что несёт смысл:
+///
+/// * `markdown_bar = false` — человек убрал панель, и она остаётся убранной;
+///   `true` было умолчанием образца, а прежнее «только над markdown» новое
+///   умолчание `text` расширяет по решению владельца;
+/// * `markdown_bar_width` — как есть: значения у ключей одни и те же.
+///
+/// Новый ключ, если он уже записан, сильнее старого.
+fn retire_markdown_bar(editor: &mut toml::Table, toolbar: &mut toml::Table) {
+    if let Some(shown) = editor.remove("markdown_bar")
+        && shown.as_bool() == Some(false)
+        && !toolbar.contains_key("show")
+    {
+        toolbar.insert("show".to_owned(), toml::Value::String("never".to_owned()));
+    }
+
+    if let Some(width) = editor.remove("markdown_bar_width")
+        && !toolbar.contains_key("width")
+    {
+        toolbar.insert("width".to_owned(), width);
+    }
+}
+
+/// Состав панели без того, чего нет в реестре команд.
+///
+/// Незнакомое имя — опечатка или команда из будущей версии; кнопка,
+/// которая ничего не делает, хуже отсутствующей, поэтому она пропускается
+/// и называется, как любой незнакомый ключ (Р-248).
+fn known_items(items: Vec<String>, problems: &mut Vec<String>) -> Vec<String> {
+    items
+        .into_iter()
+        .filter(|item| {
+            let known = TOOLBAR_WORDS.contains(&item.as_str())
+                || crate::keymap::COMMANDS.iter().any(|(id, _)| id == item);
+            if !known {
+                problems.push(format!(
+                    "[toolbar] items — команды «{item}» нет, кнопка пропущена"
+                ));
+            }
+            known
+        })
+        .collect()
 }
 
 /// Достать раздел из корня файла. Нет раздела — пустой: всё возьмётся
@@ -538,16 +690,6 @@ invisibles = false
 # остаётся: закладка рисуется там же, где рисовалась, свёртка — рядом.
 # Прозой считается только markdown; файл без языка номера сохраняет.
 line_numbers = "code"
-# Панель разметки над markdown-файлами: жирный, курсив, заголовки, списки,
-# ссылка и заготовки. Появляется только на markdown, в остальных файлах
-# её нет. Всё то же есть в палитре команд.
-markdown_bar = true
-# Чем меряется ширина панели разметки: "column" — колонкой читаемой ширины,
-# "full" — всей областью. По умолчанию "column": панель — кнопки для текста,
-# и стоять ей полагается над текстом, а не в левом углу, пока текст стоит
-# колонкой посередине. Там, где колонки нет, панель во всю ширину при любом
-# значении.
-markdown_bar_width = "column"
 
 # Держать текст markdown в колонке читаемой ширины и по центру окна.
 # Только markdown: в коде длина строки — часть смысла.
@@ -592,6 +734,26 @@ daily_template = ""
 # В шаблоне подставляются {{date}}, {{time}} и {{title}}; исполняемого кода
 # в шаблонах нет и не будет — это подстановка, а не макросы.
 templates = ""
+
+[toolbar]
+# Панель инструментов над текстом. Удобнее всего её собирать во вкладке
+# «Панель инструментов» окна параметров, но и здесь всё видно.
+#
+# Состав — список: идентификаторы команд (их видно во вкладке «Клавиши»)
+# и три служебных слова: "separator" — черта между группами, "spacer" —
+# распорка, всё после неё уезжает вправо, "path" — путь к открытому файлу.
+# Ключа нет — набор по умолчанию: отмена и возврат, назад и вперёд по местам
+# курсора и вся разметка markdown. Кнопка разметки над кодом не показывается.
+# items = ["edit.undo", "edit.redo", "separator", "md.bold", "md.italic"]
+
+# Над какими вкладками стоит панель: "always" — над всеми, "text" — над
+# кодом и заметками, "markdown" — только над заметками, "never" — нигде.
+show = "text"
+# Чем меряется ширина: "column" — колонкой читаемой ширины, "full" — всей
+# областью. Там, где колонки нет, панель во всю ширину при любом значении.
+width = "column"
+# Размер кнопок: "small", "normal" или "large".
+size = "normal"
 "#;
 
 /// Создать файл настроек, если его ещё нет.
@@ -894,10 +1056,6 @@ mod tests {
             loaded.settings.editor.auto_close,
             "автозакрытие включено по умолчанию"
         );
-        assert!(
-            loaded.settings.editor.markdown_bar,
-            "панель разметки включена по умолчанию"
-        );
         assert!(loaded.problems.is_empty(), "{:?}", loaded.problems);
     }
 
@@ -910,15 +1068,114 @@ mod tests {
         assert_eq!(loaded.settings.editor.line_numbers, LineNumbers::Code);
     }
 
-    /// Ширина панели разметки: ключа нет — «над колонкой». Умолчание
-    /// перечисления, как и у номеров строк, пишется руками.
+    /// Панель инструментов: раздела нет — набор по умолчанию, над текстом,
+    /// над колонкой, обычного размера.
     #[test]
-    fn markdown_bar_width_default_is_column() {
-        let loaded = read("schema = 1\n[editor]\nmarkdown_bar = true\n");
-        assert_eq!(
-            loaded.settings.editor.markdown_bar_width,
-            MarkdownBarWidth::Column
+    fn toolbar_defaults_without_the_section() {
+        let loaded = read("schema = 1\n");
+        let toolbar = &loaded.settings.toolbar;
+
+        assert_eq!(toolbar.items.len(), DEFAULT_TOOLBAR.len());
+        assert_eq!(toolbar.show, ToolbarShow::Text);
+        assert_eq!(toolbar.width, ToolbarWidth::Column);
+        assert_eq!(toolbar.size, ToolbarSize::Normal);
+    }
+
+    /// Набор по умолчанию целиком из того, что есть: каждая команда
+    /// в реестре, каждое служебное слово известно. Иначе новенький увидел бы
+    /// жалобу на файл, которого не трогал.
+    #[test]
+    fn default_toolbar_names_only_real_commands() {
+        let mut problems = Vec::new();
+        let items: Vec<String> = DEFAULT_TOOLBAR.iter().map(|item| (*item).to_owned()).collect();
+        let kept = known_items(items.clone(), &mut problems);
+
+        assert_eq!(kept, items);
+        assert!(problems.is_empty(), "{problems:?}");
+    }
+
+    /// Свой состав берётся как есть, в своём порядке.
+    #[test]
+    fn toolbar_items_come_from_the_file() {
+        let loaded = read(
+            r#"
+            schema = 1
+            [toolbar]
+            items = ["md.bold", "separator", "spacer", "path", "edit.undo"]
+            size = "large"
+        "#,
         );
+
+        assert_eq!(
+            loaded.settings.toolbar.items,
+            vec!["md.bold", "separator", "spacer", "path", "edit.undo"]
+        );
+        assert_eq!(loaded.settings.toolbar.size, ToolbarSize::Large);
+        assert!(loaded.problems.is_empty(), "{:?}", loaded.problems);
+    }
+
+    /// Незнакомая команда в составе называется и пропускается, соседние
+    /// кнопки остаются.
+    #[test]
+    fn unknown_toolbar_command_is_named_and_skipped() {
+        let loaded = read(
+            r#"
+            schema = 1
+            [toolbar]
+            items = ["md.bold", "md.blod", "md.italic"]
+        "#,
+        );
+
+        assert_eq!(loaded.settings.toolbar.items, vec!["md.bold", "md.italic"]);
+        assert!(named(&loaded.problems, &["[toolbar]", "md.blod"]));
+    }
+
+    /// Прежний ключ панели разметки читается как псевдоним и не жалуется:
+    /// он стоит в каждом файле, написанном по образцу до 0.15.0.
+    #[test]
+    fn old_markdown_bar_keys_are_read_silently() {
+        let loaded = read(
+            r#"
+            schema = 1
+            [editor]
+            markdown_bar = true
+            markdown_bar_width = "full"
+            wrap = true
+        "#,
+        );
+
+        assert!(loaded.problems.is_empty(), "{:?}", loaded.problems);
+        assert!(loaded.settings.editor.wrap);
+        // `true` было умолчанием образца и ничего не значит: остаётся
+        // новое умолчание.
+        assert_eq!(loaded.settings.toolbar.show, ToolbarShow::Text);
+        assert_eq!(loaded.settings.toolbar.width, ToolbarWidth::Full);
+    }
+
+    /// Убранная человеком панель остаётся убранной.
+    #[test]
+    fn hidden_markdown_bar_stays_hidden() {
+        let loaded = read("schema = 1\n[editor]\nmarkdown_bar = false\n");
+        assert_eq!(loaded.settings.toolbar.show, ToolbarShow::Never);
+    }
+
+    /// Новый ключ сильнее старого: его уже записало окно параметров.
+    #[test]
+    fn new_toolbar_keys_beat_the_old_ones() {
+        let loaded = read(
+            r#"
+            schema = 1
+            [editor]
+            markdown_bar = false
+            markdown_bar_width = "full"
+            [toolbar]
+            show = "markdown"
+            width = "column"
+        "#,
+        );
+
+        assert_eq!(loaded.settings.toolbar.show, ToolbarShow::Markdown);
+        assert_eq!(loaded.settings.toolbar.width, ToolbarWidth::Column);
     }
 
     /// Пустой файл — это все значения по умолчанию, а не ошибка.

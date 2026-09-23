@@ -40,15 +40,15 @@ export function wrapFor(ctx: ReadableContext): boolean {
   return ctx.wrap || readableColumn(ctx);
 }
 
-/** Значение настройки `[editor] markdown_bar_width`. */
-export type MarkdownBarWidth = 'column' | 'full';
+/** Значение настройки `[toolbar] width` (до задачи 102 — `[editor] markdown_bar_width`). */
+export type ToolbarWidth = 'column' | 'full';
 
-export interface MarkdownBarContext extends ReadableContext {
-  barWidth: MarkdownBarWidth;
+export interface ToolbarContext extends ReadableContext {
+  barWidth: ToolbarWidth;
 }
 
 /**
- * Ставить ли панель разметки над колонкой, а не во всю ширину области
+ * Ставить ли панель инструментов над колонкой, а не во всю ширину области
  * (задача 81, Р-215).
  *
  * **Колонка сильнее настройки, а не наоборот.** «Над колонкой» там, где
@@ -59,7 +59,7 @@ export interface MarkdownBarContext extends ReadableContext {
  * Само значение при этом не сбрасывается: выключили читаемую ширину,
  * включили обратно — панель вернулась к колонке.
  */
-export function markdownBarColumn(ctx: MarkdownBarContext): boolean {
+export function toolbarColumn(ctx: ToolbarContext): boolean {
   return readableColumn(ctx) && ctx.barWidth === 'column';
 }
 
@@ -67,6 +67,6 @@ export function markdownBarColumn(ctx: MarkdownBarContext): boolean {
  * Значение настройки из файла — в то, что понимает правило. Незнакомое
  * берёт умолчание молча: громко о нём уже сказало ядро при разборе файла.
  */
-export function markdownBarWidthOf(value: string | undefined): MarkdownBarWidth {
+export function toolbarWidthOf(value: string | undefined): ToolbarWidth {
   return value === 'full' ? 'full' : 'column';
 }

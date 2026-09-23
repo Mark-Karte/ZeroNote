@@ -3,7 +3,9 @@ import { EditorSelection, EditorState } from '@codemirror/state';
 
 import {
   insertBlock,
+  insertImage,
   insertLink,
+  SNIPPETS,
   toggleHeading,
   toggleOrdered,
   togglePrefix,
@@ -194,5 +196,63 @@ describe('заготовки', () => {
   it('на пустой строке не добавляют лишнего перевода', () => {
     const before = state('', 0);
     expect(apply(before, insertBlock(before, '---')).replace('|', '')).toBe('---');
+  });
+});
+
+describe('несимметричные обёртки (задача 102)', () => {
+  it('подчёркивание ставится тегом и снимается тем же нажатием', () => {
+    const before = state('слово', 0, 5);
+    const wrapped = apply(before, toggleWrap(before, '<u>', '</u>')).replace('|', '');
+    expect(wrapped).toBe('<u>слово</u>');
+
+    const again = state(wrapped, 3, 8);
+    expect(apply(again, toggleWrap(again, '<u>', '</u>')).replace('|', '')).toBe('слово');
+  });
+
+  it('теги внутри выделения тоже снимаются', () => {
+    const before = state('<u>слово</u>', 0, 12);
+    expect(apply(before, toggleWrap(before, '<u>', '</u>')).replace('|', '')).toBe('слово');
+  });
+
+  /** Пустые скобки с курсором внутри сразу зовут подсказку имён. */
+  it('вики-ссылка на пустом месте садит курсор между скобками', () => {
+    const before = state('см. ', 4);
+    expect(apply(before, toggleWrap(before, '[[', ']]'))).toBe('см. [[|]]');
+  });
+
+  it('вики-ссылка заворачивает слово под курсором', () => {
+    const before = state('см. Планы', 6);
+    expect(apply(before, toggleWrap(before, '[[', ']]')).replace('|', '')).toBe('см. [[Планы]]');
+  });
+});
+
+describe('картинка', () => {
+  it('без выделения садит курсор в круглые скобки: главное у картинки — путь', () => {
+    const before = state('', 0);
+    expect(apply(before, insertImage(before))).toBe('![](|)');
+  });
+
+  it('выделенное становится подписью', () => {
+    const before = state('схема', 0, 5);
+    expect(apply(before, insertImage(before))).toBe('![схема](|)');
+  });
+});
+
+describe('заголовки четвёртого уровня и глубже', () => {
+  it('ставятся и заменяют другой уровень', () => {
+    const before = state('## Раздел', 3);
+    expect(apply(before, toggleHeading(before, 5)).replace('|', '')).toBe('##### Раздел');
+  });
+
+  it('снимаются тем же уровнем', () => {
+    const before = state('###### Мелко', 8);
+    expect(apply(before, toggleHeading(before, 6)).replace('|', '')).toBe('Мелко');
+  });
+});
+
+describe('заготовка mermaid', () => {
+  /** Пустой блок `mermaid` Obsidian показывает ошибкой разбора. */
+  it('содержит годную схему, а не пустой блок', () => {
+    expect(SNIPPETS.mermaid).toMatch(/^```mermaid\n.+-->.+\n```$/s);
   });
 });

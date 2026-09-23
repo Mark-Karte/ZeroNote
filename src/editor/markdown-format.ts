@@ -22,6 +22,10 @@ export const SNIPPETS: Record<string, string> = {
   table: '| Столбец | Столбец |\n| --- | --- |\n|  |  |',
   'code-block': '```\n\n```',
   divider: '---',
+  // Схема рисуется в Obsidian, у нас — блоком кода с подписью языка.
+  // Заготовка — самая короткая годная схема, а не пустой блок: пустой
+  // `mermaid` в Obsidian показывает ошибку разбора.
+  mermaid: '```mermaid\nflowchart LR\n    A --> B\n```',
 };
 
 /**
@@ -37,7 +41,8 @@ export type Edit = {
 } | null;
 
 /**
- * Обёртка вокруг выделения: `**жирный**`, `*курсив*`, `==выделение==`.
+ * Обёртка вокруг выделения: `**жирный**`, `*курсив*`, `==выделение==`,
+ * а с задачи 102 и несимметричные — `<u>подчёркнутый</u>`, `[[ссылка]]`.
  *
  * Три случая, и все три встречаются каждый день:
  *
@@ -46,7 +51,7 @@ export type Edit = {
  * * выделения нет — берём слово под курсором, а если его нет, ставим пару
  *   знаков и оставляем курсор между ними.
  */
-export function toggleWrap(state: EditorState, marker: string): Edit {
+export function toggleWrap(state: EditorState, open: string, close: string = open): Edit {
   const doc = state.doc;
   const changes: ChangeSpec[] = [];
   let cursor: number | null = null;
@@ -61,37 +66,37 @@ export function toggleWrap(state: EditorState, marker: string): Edit {
         to = word.to;
       } else {
         // Пустое место: ставим пару и садимся между знаками.
-        changes.push({ from, insert: marker + marker });
-        cursor = from + marker.length;
+        changes.push({ from, insert: open + close });
+        cursor = from + open.length;
         continue;
       }
     }
 
-    const before = doc.sliceString(Math.max(0, from - marker.length), from);
-    const after = doc.sliceString(to, Math.min(doc.length, to + marker.length));
+    const before = doc.sliceString(Math.max(0, from - open.length), from);
+    const after = doc.sliceString(to, Math.min(doc.length, to + close.length));
 
-    if (before === marker && after === marker) {
+    if (before === open && after === close) {
       // Знаки снаружи выделения — самый частый случай: выделили слово
       // двойным щелчком, а звёздочки остались за границей.
-      changes.push({ from: from - marker.length, to: from });
-      changes.push({ from: to, to: to + marker.length });
+      changes.push({ from: from - open.length, to: from });
+      changes.push({ from: to, to: to + close.length });
       continue;
     }
 
     const text = doc.sliceString(from, to);
     if (
-      text.length >= marker.length * 2 &&
-      text.startsWith(marker) &&
-      text.endsWith(marker)
+      text.length >= open.length + close.length &&
+      text.startsWith(open) &&
+      text.endsWith(close)
     ) {
       // Знаки внутри выделения: выделили вместе со звёздочками.
-      changes.push({ from, to: from + marker.length });
-      changes.push({ from: to - marker.length, to });
+      changes.push({ from, to: from + open.length });
+      changes.push({ from: to - close.length, to });
       continue;
     }
 
-    changes.push({ from, insert: marker });
-    changes.push({ from: to, insert: marker });
+    changes.push({ from, insert: open });
+    changes.push({ from: to, insert: close });
   }
 
   if (changes.length === 0) return null;
@@ -246,6 +251,24 @@ export function insertLink(state: EditorState): Edit {
   return {
     changes: [{ from: range.from, to: range.to, insert: `[${text}]()` }],
     selection: { anchor: range.from + text.length + 3 },
+  };
+}
+
+/**
+ * Картинка `![подпись](путь)`.
+ *
+ * Курсор встаёт в круглые скобки всегда: у картинки главное — путь,
+ * подпись необязательна. Выделенный текст становится подписью.
+ * Встроить картинку по имени — `![[рисунок.png]]` — удобнее подсказкой
+ * после `![[` (Р-218), и у неё своя команда не нужна.
+ */
+export function insertImage(state: EditorState): Edit {
+  const range = state.selection.main;
+  const text = state.doc.sliceString(range.from, range.to);
+
+  return {
+    changes: [{ from: range.from, to: range.to, insert: `![${text}]()` }],
+    selection: { anchor: range.from + text.length + 4 },
   };
 }
 

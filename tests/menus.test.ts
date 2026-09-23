@@ -3,7 +3,6 @@ import {
   MENU,
   editorMenu,
   fieldMenu,
-  snippetMenu,
   tabMenu,
   treeMenu,
   type Command,
@@ -77,7 +76,6 @@ describe('пункты по командам реестра', () => {
       ...tabMenu({ modified: true, hasFile: true, text: true, others: 2, canSplit: true, hasClosed: false }, COMMANDS),
       ...treeMenu({ row: null }, COMMANDS),
       ...fieldMenu({ hasSelection: true, readOnly: false }, COMMANDS),
-      ...snippetMenu(COMMANDS),
     ];
 
     const referenced = ids(all).filter((id) => !id.startsWith('menu.'));

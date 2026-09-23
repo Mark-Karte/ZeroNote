@@ -5,10 +5,6 @@
   import { activeTab } from '../state/tabs.svelte';
   import { roots } from '../state/roots.svelte';
   import { quickOpen } from '../actions/project';
-  import { goBack, goForward } from '../actions/navigate';
-  import { canGoBack, canGoForward } from '../state/history.svelte';
-  import { commandList } from '../keymap/global.svelte';
-  import { labelOf } from '../keymap/binding';
 
   const tab = $derived(activeTab());
 
@@ -21,23 +17,12 @@
   /** Полный путь — подсказкой: крошки показывают не всё. */
   const fullPath = $derived(tab?.meta.path ?? '');
 
-  /**
-   * Кнопки истории мест (задача 85).
-   *
-   * Гаснут, а не исчезают (Р-189): пропадающая кнопка сдвигает соседние,
-   * и человек попадает не туда, куда целился. Подпись сочетания берётся
-   * из раскладки — сочетание переназначаемо, а подсказка врать не должна.
+  /*
+   * Стрелок истории мест здесь больше нет (задача 102): они уехали на панель
+   * инструментов вместе с отменой и возвратом. Владелец читал их как
+   * «отменить» и «вернуть», и в шапке они, по его словам, «не очень
+   * смотрятся»; на панели их можно убрать, переставить или оставить.
    */
-  const commands = $derived(commandList());
-
-  function hint(id: string, fallback: string): string {
-    const found = commands.find((command) => command.id === id);
-    if (!found) return fallback;
-    return found.binding ? `${found.title} · ${labelOf(found.binding)}` : found.title;
-  }
-
-  const back = $derived({ can: canGoBack(), hint: hint('view.back', 'Назад') });
-  const forward = $derived({ can: canGoForward(), hint: hint('view.forward', 'Вперёд') });
 </script>
 
 <!--
@@ -50,44 +35,33 @@
   бы в перетаскивание.
 -->
 <header class="titlebar" data-tauri-drag-region>
-  <div class="brand" data-tauri-drag-region>
-    <span class="mark"><Icon name="app.mark" /></span>
-    <span class="name">ZeroNote</span>
-  </div>
+  <div class="left" data-tauri-drag-region>
+    <div class="brand" data-tauri-drag-region>
+      <span class="mark"><Icon name="app.mark" /></span>
+      <span class="name">ZeroNote</span>
+    </div>
 
-  <div class="history">
-    <button
-      class="step"
-      type="button"
-      disabled={!back.can}
-      onclick={goBack}
-      title={back.hint}
-      aria-label="Назад по местам курсора"
-    >
-      <Icon name="cmd.back" />
-    </button>
-    <button
-      class="step"
-      type="button"
-      disabled={!forward.can}
-      onclick={goForward}
-      title={forward.hint}
-      aria-label="Вперёд по местам курсора"
-    >
-      <Icon name="cmd.forward" />
-    </button>
-  </div>
-
-  <div class="crumbs" title={fullPath} data-tauri-drag-region>
-    {#each crumbs as crumb, index (index)}
-      {#if index > 0}<span class="sep">/</span>{/if}
-      <span class="crumb" class:leaf={crumb.leaf}>{crumb.text}</span>
-    {/each}
+    <!-- Крошки обрезаются слева: конец пути — имя файла и папка над ним —
+         важнее начала, которое у всех файлов проекта одно и то же. -->
+    <div class="crumbs" title={fullPath} data-tauri-drag-region>
+      <bdi dir="ltr">
+        {#each crumbs as crumb, index (index)}
+          {#if index > 0}<span class="sep">/</span>{/if}<span
+            class="crumb"
+            class:leaf={crumb.leaf}>{crumb.text}</span
+          >
+        {/each}
+      </bdi>
+    </div>
   </div>
 
   <!--
     Поле по центру окна, а не по центру оставшегося места: крошки слева
     растут вместе с длиной пути, и поле съезжало бы вслед за ними.
+    С задачи 102 центр держит сетка, а не абсолютное положение: у поля
+    своя колонка, и крошки больше не могут уехать под него — раньше
+    длинный путь в неполном окне прятался за полем поиска (замечание
+    владельца).
   -->
   <button
     class="find"
@@ -100,20 +74,35 @@
     <kbd class="find-key">Ctrl P</kbd>
   </button>
 
-  <WindowControls />
+  <div class="right">
+    <WindowControls />
+  </div>
 </header>
 
 <style>
+  /* Три колонки: левая и правая поровну, поле поиска между ними — ровно
+     по центру окна при любой длине пути. */
   .titlebar {
-    position: relative;
-    display: flex;
+    display: grid;
     flex: none;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     align-items: center;
-    gap: var(--zn-space-4);
+    column-gap: var(--zn-space-4);
     height: var(--zn-control-titlebar-height);
     padding-inline-start: var(--zn-space-4);
     background-color: var(--zn-color-bg-surface);
     border-bottom: var(--zn-border-width) solid var(--zn-color-border-subtle);
+  }
+
+  .left {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: var(--zn-space-4);
+  }
+
+  .right {
+    justify-self: end;
   }
 
   .brand {
@@ -138,56 +127,22 @@
     font-weight: var(--zn-font-weight-strong);
   }
 
-  /* Стрелки стоят слева от крошек: они про путь, которым сюда пришли,
-     а крошки — про то, где мы сейчас. */
-  .history {
-    display: flex;
-    flex: none;
-    align-items: center;
-    gap: var(--zn-space-1);
-  }
-
-  .step {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: var(--zn-control-toolbar-button-size);
-    height: var(--zn-control-toolbar-button-size);
-    border: none;
-    border-radius: var(--zn-radius-md);
-    background: none;
-    color: var(--zn-color-fg-muted);
-    cursor: default;
-  }
-
-  .step:hover:not(:disabled) {
-    background-color: var(--zn-color-bg-hover);
-    color: var(--zn-color-fg-default);
-  }
-
-  /* Недоступная кнопка гаснет цветом, а не прозрачностью: прозрачность
-     смешала бы её с подложкой, а у нас три разных фона (Р-083). */
-  .step:disabled {
-    color: var(--zn-color-fg-subtle);
-  }
-
+  /* Путь обрезается слева (задача 102). Приём известный: блок пишется
+     справа налево, поэтому лишнее уходит за левый край и заменяется
+     многоточием, а сам путь внутри `<bdi dir="ltr">` читается как обычно.
+     Раньше обрезался конец — то есть ровно имя файла. */
   .crumbs {
-    display: flex;
     flex: 1;
     min-width: 0;
-    align-items: center;
-    gap: var(--zn-space-2);
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    direction: rtl;
+    text-align: left;
     color: var(--zn-color-fg-subtle);
     font-family: var(--zn-font-family-editor);
     font-size: var(--zn-font-size-ui-small);
-    white-space: nowrap;
-    overflow: hidden;
     pointer-events: none;
-  }
-
-  .crumb {
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 
   /* Имя файла ярче пути к нему: путь — это контекст, а файл — то, что открыто. */
@@ -196,14 +151,11 @@
   }
 
   .sep {
-    flex: none;
+    margin-inline: var(--zn-space-2);
     opacity: 0.6;
   }
 
   .find {
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
     display: flex;
     align-items: center;
     gap: var(--zn-space-2);

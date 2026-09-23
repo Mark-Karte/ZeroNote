@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  markdownBarColumn,
-  markdownBarWidthOf,
+  toolbarColumn,
+  toolbarWidthOf,
   readableColumn,
   wrapFor,
 } from '../src/editor/readable';
@@ -63,7 +63,7 @@ describe('перенос', () => {
  */
 describe('ширина панели разметки', () => {
   const bar = (readableWidth: boolean, barWidth: 'column' | 'full') =>
-    markdownBarColumn({ wrap: false, readableWidth, barWidth, ...md });
+    toolbarColumn({ wrap: false, readableWidth, barWidth, ...md });
 
   it('над колонкой, когда так велит настройка', () => {
     expect(bar(true, 'column')).toBe(true);
@@ -85,7 +85,7 @@ describe('ширина панели разметки', () => {
   /** Колонки не бывает у кода — но панели разметки там не бывает тоже. */
   it('у кода колонки нет', () => {
     expect(
-      markdownBarColumn({
+      toolbarColumn({
         wrap: false,
         readableWidth: true,
         barWidth: 'column',
@@ -97,12 +97,12 @@ describe('ширина панели разметки', () => {
 
 describe('значение ширины панели из файла', () => {
   it('читается как есть', () => {
-    expect(markdownBarWidthOf('column')).toBe('column');
-    expect(markdownBarWidthOf('full')).toBe('full');
+    expect(toolbarWidthOf('column')).toBe('column');
+    expect(toolbarWidthOf('full')).toBe('full');
   });
 
   it('без значения и на незнакомом даёт «над колонкой»', () => {
-    expect(markdownBarWidthOf(undefined)).toBe('column');
-    expect(markdownBarWidthOf('посередине')).toBe('column');
+    expect(toolbarWidthOf(undefined)).toBe('column');
+    expect(toolbarWidthOf('посередине')).toBe('column');
   });
 });

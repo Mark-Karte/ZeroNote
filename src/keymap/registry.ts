@@ -200,11 +200,20 @@ export const COMMANDS: Record<CommandId, () => void | Promise<unknown>> = {
   'md.strikethrough': inEditor(md.asCommand((state) => md.toggleWrap(state, '~~'))),
   'md.highlight': inEditor(md.asCommand((state) => md.toggleWrap(state, '=='))),
   'md.code': inEditor(md.asCommand((state) => md.toggleWrap(state, '`'))),
+  // Подчёркивания в markdown нет, Obsidian пишет его тегом — так же и мы.
+  'md.underline': inEditor(md.asCommand((state) => md.toggleWrap(state, '<u>', '</u>'))),
   'md.link': inEditor(md.asCommand(md.insertLink)),
+  // Пустые скобки `[[]]` с курсором внутри сразу зовут подсказку имён
+  // (задача 47): вставить ссылку и выбрать заметку — одно движение.
+  'md.wikilink': inEditor(md.asCommand((state) => md.toggleWrap(state, '[[', ']]'))),
+  'md.image': inEditor(md.asCommand(md.insertImage)),
 
   'md.heading-1': inEditor(md.asCommand((state) => md.toggleHeading(state, 1))),
   'md.heading-2': inEditor(md.asCommand((state) => md.toggleHeading(state, 2))),
   'md.heading-3': inEditor(md.asCommand((state) => md.toggleHeading(state, 3))),
+  'md.heading-4': inEditor(md.asCommand((state) => md.toggleHeading(state, 4))),
+  'md.heading-5': inEditor(md.asCommand((state) => md.toggleHeading(state, 5))),
+  'md.heading-6': inEditor(md.asCommand((state) => md.toggleHeading(state, 6))),
 
   'md.bullet-list': inEditor(md.asCommand((state) => md.togglePrefix(state, '- '))),
   'md.ordered-list': inEditor(md.asCommand(md.toggleOrdered)),
@@ -217,6 +226,9 @@ export const COMMANDS: Record<CommandId, () => void | Promise<unknown>> = {
   ),
   'md.divider': inEditor(
     md.asCommand((state) => md.insertBlock(state, md.SNIPPETS.divider!)),
+  ),
+  'md.mermaid': inEditor(
+    md.asCommand((state) => md.insertBlock(state, md.SNIPPETS.mermaid!)),
   ),
 };
 
