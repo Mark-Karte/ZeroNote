@@ -52,6 +52,11 @@ export interface SettingsState {
   path: string;
   /** Файл не разбирается — править нельзя, можно только смотреть. */
   broken: string | null;
+  /**
+   * Что из файла не применилось: незнакомые ключи, негодные значения
+   * (Р-248). Править это не мешает — остальное прочитано и действует.
+   */
+  problems: string[];
 }
 
 export const settingsState = (): Promise<SettingsState> => invoke('settings_state');

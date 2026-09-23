@@ -28,6 +28,9 @@ pub struct SettingsState {
     /// Файл не разбирается. Тогда окно показывает значения, но не даёт править:
     /// запись в непонятный файл стёрла бы то, что человек не дописал.
     pub broken: Option<String>,
+    /// Что из файла не применилось: незнакомые ключи, негодные значения
+    /// (Р-248). Править окно при этом не мешает — остальное прочитано.
+    pub problems: Vec<String>,
 }
 
 fn settings_path(state: &AppState) -> std::path::PathBuf {
@@ -38,15 +41,16 @@ fn settings_path(state: &AppState) -> std::path::PathBuf {
 pub fn settings_state(state: tauri::State<'_, AppState>) -> SettingsState {
     let path = settings_path(&state);
 
-    let (settings, broken) = match settings::load(&path) {
-        Ok(settings) => (settings, None),
-        Err(e) => (Settings::default(), Some(e.to_string())),
+    let (settings, broken, problems) = match settings::load_full(&path) {
+        Ok(loaded) => (loaded.settings, None, loaded.problems),
+        Err(e) => (Settings::default(), Some(e.to_string()), Vec::new()),
     };
 
     SettingsState {
         settings,
         path: path.display().to_string(),
         broken,
+        problems,
     }
 }
 
@@ -85,11 +89,12 @@ pub fn update_setting(
     }
     .map_err(|e| e.to_string())?;
 
-    // Итог обязан разбираться нашим же разбором. Проверка не лишняя: правка
-    // могла оказаться верной по TOML и неверной по смыслу — например, тема
-    // с именем, которого не бывает, или размер шрифта строкой. Записать такое
-    // значило бы сломать пользователю оформление руками окна параметров.
-    settings::parse(&updated).map_err(|e| e.to_string())?;
+    // Итог обязан разбираться нашим же разбором и не добавлять новых жалоб.
+    // Проверка не лишняя: правка могла оказаться верной по TOML и неверной
+    // по смыслу — например, плотность, которой не бывает, или размер шрифта
+    // строкой. Записать такое значило бы испортить файл руками окна
+    // параметров.
+    edit::verify(&source, &updated)?;
 
     // Атомарно, как и любой файл: настройки не наши, их правят руками
     // и кладут в git (инвариант 3).
@@ -133,7 +138,7 @@ mod tests {
         assert!(after.contains("theme = \"pine\""));
         assert!(after.contains("# Настройки ZeroNote."));
         assert_eq!(
-            settings::parse(&after).unwrap().appearance.theme,
+            settings::parse(&after).unwrap().settings.appearance.theme,
             "pine".to_owned()
         );
 
@@ -152,7 +157,9 @@ mod tests {
         )
         .expect("по TOML это верная правка");
 
-        // А по смыслу — нет, и команда обязана остановиться здесь.
-        assert!(settings::parse(&updated).is_err());
+        // А по смыслу — нет, и команда обязана остановиться здесь. Разбор
+        // файл больше не отвергает (Р-248), значит останавливает проверка
+        // правки: она сравнивает жалобы до и после.
+        assert!(edit::verify(source, &updated).is_err());
     }
 }

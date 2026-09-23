@@ -212,6 +212,30 @@ fn remove_keeping_comment(table: &mut Table, name: &str) {
     }
 }
 
+/// Проверить правку из окна параметров перед записью.
+///
+/// Итог обязан читаться нашим разбором **и не добавлять новых жалоб**.
+/// Второе стало нужно с Р-248: разбор больше не отвергает файл с негодным
+/// значением, а берёт вместо него умолчание — и без этой проверки окно
+/// параметров записало бы в файл «очень плотную» плотность, а человек
+/// увидел бы на экране обычную.
+///
+/// Сравнение «до и после», а не «жалоб нет вовсе»: опечатка, сделанная
+/// руками в другом ключе, не должна запирать всё окно. До Р-248 запирала —
+/// одна строка с ошибкой делала параметры только для чтения.
+pub fn verify(before: &str, after: &str) -> Result<(), String> {
+    let known: Vec<String> = crate::settings::parse(before)
+        .map(|loaded| loaded.problems)
+        .unwrap_or_default();
+
+    let loaded = crate::settings::parse(after).map_err(|e| e.to_string())?;
+
+    match loaded.problems.into_iter().find(|problem| !known.contains(problem)) {
+        Some(problem) => Err(problem),
+        None => Ok(()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -271,7 +295,8 @@ density = \"normal\"
         let out = set(source, &["font", "ui", "size"], &Setting::Number(15)).unwrap();
 
         let parsed = crate::settings::parse(&out).expect("итог должен разбираться");
-        assert_eq!(parsed.font.ui.size, Some(15));
+        assert_eq!(parsed.settings.font.ui.size, Some(15));
+        assert!(parsed.problems.is_empty(), "{:?}", parsed.problems);
         // Раздел напечатан один раз и полным путём, а не двумя заголовками.
         assert_eq!(out.matches('[').count(), 1, "{out}");
     }
@@ -384,9 +409,43 @@ family = \"Verdana\"
         .unwrap();
 
         let parsed = crate::settings::parse(&out).expect("итог должен разбираться");
-        assert_eq!(parsed.appearance.density, crate::theme::Density::Compact);
+        assert_eq!(parsed.settings.appearance.density, crate::theme::Density::Compact);
+        assert!(parsed.problems.is_empty(), "{:?}", parsed.problems);
         // Пояснения образца на месте.
         assert!(out.contains("# Настройки ZeroNote."));
         assert!(out.contains("# Плотность интерфейса"));
+    }
+
+    /// Годная правка проходит проверку.
+    #[test]
+    fn verify_accepts_a_good_edit() {
+        let before = "schema = 1\n[appearance]\ndensity = \"normal\"\n";
+        let after = set(before, &["appearance", "density"], &Setting::Text("compact".into())).unwrap();
+        assert_eq!(verify(before, &after), Ok(()));
+    }
+
+    /// Значение, верное по TOML, но неверное по смыслу, до файла не доходит —
+    /// и отказ называет, что не так.
+    #[test]
+    fn verify_rejects_a_nonsense_value() {
+        let before = "schema = 1\n[appearance]\ndensity = \"normal\"\n";
+        let after = set(
+            before,
+            &["appearance", "density"],
+            &Setting::Text("очень плотная".into()),
+        )
+        .expect("по TOML это верная правка");
+
+        let error = verify(before, &after).expect_err("по смыслу правка негодна");
+        assert!(error.contains("density"), "{error}");
+    }
+
+    /// Опечатка, сделанная руками в другом ключе, окно не запирает:
+    /// до Р-248 одна такая строка делала все параметры только для чтения.
+    #[test]
+    fn verify_ignores_a_typo_that_was_already_there() {
+        let before = "schema = 1\n[editor]\nwrapp = true\n[appearance]\ndensity = \"normal\"\n";
+        let after = set(before, &["appearance", "density"], &Setting::Text("compact".into())).unwrap();
+        assert_eq!(verify(before, &after), Ok(()));
     }
 }

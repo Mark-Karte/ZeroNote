@@ -47,10 +47,20 @@ pub fn build(
     let mut problems: Vec<String> = extra_notices.to_vec();
 
     let settings_path = data_dir.join("settings.toml");
-    let settings = match settings::load(&settings_path) {
-        Ok(settings) => settings,
+    let settings = match settings::load_full(&settings_path) {
+        Ok(loaded) => {
+            // Что не применилось — в полосу предупреждений, по строке
+            // на ключ (Р-248). Остальное работает.
+            problems.extend(
+                loaded
+                    .problems
+                    .into_iter()
+                    .map(|problem| format!("settings.toml: {problem}")),
+            );
+            loaded.settings
+        }
         Err(e) => {
-            // Испорченный файл не должен оставлять пользователя без интерфейса.
+            // Нечитаемый файл не должен оставлять пользователя без интерфейса.
             // Работаем на умолчаниях, но громко говорим почему.
             problems.push(e.to_string());
             settings::Settings::default()

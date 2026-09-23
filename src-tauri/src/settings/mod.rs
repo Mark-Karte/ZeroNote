@@ -3,9 +3,13 @@
 //! Файл — основной интерфейс настройки, а не выгрузка из окна параметров.
 //! Отсюда два следствия, заложенных в устройство модуля:
 //!
-//! * читаем терпимо — отсутствующий ключ берёт значение по умолчанию;
-//! * ошибаемся громко — опечатка в имени ключа называется по имени, а не
-//!   проглатывается с молчаливым «настройка не применилась».
+//! * читаем терпимо — отсутствующий ключ берёт значение по умолчанию,
+//!   а незнакомый ключ или негодное значение не отменяют остальных;
+//! * ошибаемся громко — всё, что не применилось, называется по имени,
+//!   а не проглатывается с молчаливым «настройка не применилась».
+//!
+//! Файл целиком отвергается только тогда, когда его нельзя прочитать вовсе:
+//! сломан сам TOML или версия формата чужая (Р-248).
 //!
 //! Здесь только чтение. Запись живёт в `edit.rs` и идёт через `toml_edit`,
 //! чтобы комментарии и порядок ключей пережили правку из окна параметров
@@ -20,34 +24,27 @@ use crate::theme::Density;
 
 /// Настройки целиком.
 ///
-/// **Незнакомый раздел не считается ошибкой, незнакомый ключ считается.**
-/// Разница не в строгости, а в том, кто эти файлы читает. Раздел появляется
-/// у новой версии — `[notes]` пришёл с задачей 90, — и старая версия,
-/// на которую откатились, обязана прочитать файл, а не объявить его
-/// испорченным и забыть заодно тему, шрифт и все настройки редактора. Тот же
-/// приём, что у снимка сессии: место для новых полей оставлено нарочно
-/// (Р-235).
+/// **Всё незнакомое называется, всё знакомое применяется** (Р-248). Раньше
+/// правило было строже: незнакомый ключ внутри известного раздела отвергал
+/// файл целиком (Р-235), и каждая новая настройка ломала откат на прошлую
+/// версию — та видела чужой ключ и забывала заодно тему, шрифт и все
+/// настройки редактора. Теперь ключ называется в предупреждении, а прочие
+/// значения работают.
 ///
-/// Ключ внутри известного раздела — другое дело: это опечатка человека,
-/// и о ней надо сказать по имени, а не молча взять умолчание. Поэтому
-/// `deny_unknown_fields` стоит на каждом разделе и не стоит здесь.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+/// `Deserialize` здесь нет нарочно: читать файл можно только через
+/// [`parse`], иначе строгое чтение вернулось бы в обход терпимого.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct Settings {
-    #[serde(default = "default_schema")]
     pub schema: u32,
-    #[serde(default)]
     pub appearance: AppearanceSettings,
-    #[serde(default)]
     pub font: FontSettings,
-    #[serde(default)]
     pub editor: EditorSettings,
-    #[serde(default)]
     pub notes: NotesSettings,
 }
 
 /// Заметки: то, что приложение создаёт само (задача 90).
 #[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields, default)]
+#[serde(default)]
 pub struct NotesSettings {
     /// Папка заметок — дом для записей рядом с проектами (задача 94).
     ///
@@ -70,7 +67,7 @@ pub struct NotesSettings {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields, default)]
+#[serde(default)]
 pub struct AppearanceSettings {
     /// `"system"` — следовать настройке Windows; иначе идентификатор темы.
     pub theme: String,
@@ -83,7 +80,7 @@ pub struct AppearanceSettings {
 /// Поведение редактора. Не оформление: перенос строк меняет то, как текст
 /// разложен, а не как он выглядит, и в теме ему места нет.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields, default)]
+#[serde(default)]
 pub struct EditorSettings {
     /// Переносить длинные строки по ширине окна. По умолчанию нет — так
     /// ведёт себя Notepad++, и для кода это верное умолчание.
@@ -213,13 +210,13 @@ impl Default for EditorSettings {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields, default)]
+#[serde(default)]
 pub struct FontSettings {
     pub ui: UiFont,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
-#[serde(deny_unknown_fields, default)]
+#[serde(default)]
 pub struct UiFont {
     /// `None` — значение из темы. Ключ просто отсутствует в файле.
     pub family: Option<String>,
@@ -227,10 +224,6 @@ pub struct UiFont {
 }
 
 pub const SETTINGS_SCHEMA: u32 = 1;
-
-fn default_schema() -> u32 {
-    SETTINGS_SCHEMA
-}
 
 impl Default for Settings {
     fn default() -> Self {
@@ -285,28 +278,204 @@ impl std::fmt::Display for SettingsError {
 
 impl std::error::Error for SettingsError {}
 
-pub fn parse(source: &str) -> Result<Settings, SettingsError> {
-    let settings: Settings =
+/// Прочитанные настройки и то, что из файла применить не удалось.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Loaded {
+    pub settings: Settings,
+    /// Незнакомые ключи и разделы, негодные значения — по строке на каждое.
+    /// Пустой список — файл прочитан целиком. Имени файла в строке нет:
+    /// его добавляет тот, кто показывает жалобу там, где оно нужно.
+    pub problems: Vec<String>,
+}
+
+/// Разбор файла настроек.
+///
+/// Ошибка — только когда файл нельзя прочитать вовсе: сломан сам TOML или
+/// версия формата не наша. Всё остальное — предупреждение в `problems`
+/// и значение по умолчанию на месте того, что не применилось.
+pub fn parse(source: &str) -> Result<Loaded, SettingsError> {
+    let mut root: toml::Table =
         toml::from_str(source).map_err(|e| SettingsError::Parse(e.message().to_owned()))?;
 
-    if settings.schema != SETTINGS_SCHEMA {
-        return Err(SettingsError::UnsupportedSchema {
-            found: settings.schema,
-        });
+    // Версия формата решает, как читать всё остальное, поэтому к ней
+    // терпимости нет: не число — файл не наш.
+    let schema = match root.remove("schema") {
+        None => SETTINGS_SCHEMA,
+        Some(toml::Value::Integer(n)) => u32::try_from(n).map_err(|_| {
+            SettingsError::Parse(format!("schema = {n} — версия формата не бывает такой"))
+        })?,
+        Some(other) => {
+            return Err(SettingsError::Parse(format!(
+                "schema должна быть числом, а в файле {}",
+                other.type_str()
+            )));
+        }
+    };
+    if schema != SETTINGS_SCHEMA {
+        return Err(SettingsError::UnsupportedSchema { found: schema });
     }
 
-    Ok(settings)
+    let mut problems = Vec::new();
+
+    let appearance = section(take_table(&mut root, "appearance", &mut problems), "appearance", &mut problems);
+    let editor = section(take_table(&mut root, "editor", &mut problems), "editor", &mut problems);
+    let notes = section(take_table(&mut root, "notes", &mut problems), "notes", &mut problems);
+    let font = font_section(take_table(&mut root, "font", &mut problems), &mut problems);
+
+    // Что осталось — не наше. Раздел из будущей версии и опечатка в имени
+    // раздела выглядят одинаково, и оба случая заслуживают слова: первый
+    // объясняет, почему после отката часть настроек не действует, второй —
+    // почему не действуют настройки из `[edtor]`.
+    for (key, value) in root {
+        if value.is_table() {
+            problems.push(format!(
+                "раздел [{key}] незнаком — пропущен"
+            ));
+        } else {
+            problems.push(format!(
+                "ключ «{key}» вне разделов незнаком — пропущен"
+            ));
+        }
+    }
+
+    Ok(Loaded {
+        settings: Settings {
+            schema,
+            appearance,
+            font,
+            editor,
+            notes,
+        },
+        problems,
+    })
+}
+
+/// Достать раздел из корня файла. Нет раздела — пустой: всё возьмётся
+/// по умолчанию. Раздел не таблицей (`editor = 5`) — тоже пустой,
+/// но со словом об этом.
+fn take_table(root: &mut toml::Table, name: &str, problems: &mut Vec<String>) -> toml::Table {
+    match root.remove(name) {
+        None => toml::Table::new(),
+        Some(toml::Value::Table(table)) => table,
+        Some(other) => {
+            problems.push(format!(
+                "[{name}] должен быть разделом, а в файле {} — взяты значения по умолчанию",
+                other.type_str()
+            ));
+            toml::Table::new()
+        }
+    }
+}
+
+/// Прочитать один раздел терпимо: по ключу, а не целиком.
+///
+/// Порядок такой. Сначала раздел разбирается целиком — это обычный случай,
+/// и он ничего не стоит. Не разобрался — значит, где-то негодное значение,
+/// и каждый ключ пробуется поодиночке: тот, на котором разбор падает,
+/// называется и выбрасывается, остальные применяются. Последним шагом
+/// разобранное пишется обратно в таблицу, и ключ файла, которого там
+/// не оказалось, — незнакомый: serde его молча пропустил.
+///
+/// Обратная запись вместо списка известных ключей — нарочно: список
+/// пришлось бы держать рядом со структурой руками, и первое же новое поле
+/// разошлось бы с ним молча. Здесь знает только сама структура.
+///
+/// `S` — тип раздела: разбирается из TOML, пишется обратно и умеет
+/// умолчание. Обобщение здесь ради одного: один и тот же порядок на пять
+/// разных разделов, а не пять копий одного цикла.
+fn section<S>(mut table: toml::Table, name: &str, problems: &mut Vec<String>) -> S
+where
+    S: serde::de::DeserializeOwned + serde::Serialize + Default,
+{
+    let whole: Result<S, _> = toml::Value::Table(table.clone()).try_into();
+    let value = match whole {
+        Ok(value) => value,
+        Err(_) => {
+            // Ключи перебираются по именам, собранным заранее: выбрасывать
+            // из таблицы, пока идёшь по ней же, нельзя.
+            let keys: Vec<String> = table.keys().cloned().collect();
+            for key in keys {
+                let mut single = toml::Table::new();
+                if let Some(value) = table.get(&key) {
+                    single.insert(key.clone(), value.clone());
+                }
+                if let Err(error) = toml::Value::Table(single).try_into::<S>() {
+                    problems.push(format!(
+                        "[{name}] {key} — {}; взято значение по умолчанию",
+                        error.message().trim()
+                    ));
+                    table.remove(&key);
+                }
+            }
+
+            // Поодиночке годны все оставшиеся — значит, годны и вместе.
+            // Раздел, где ключи негодны лишь в паре, у нас не бывает;
+            // случись он — умолчание целиком и слово об этом, а не паника.
+            match toml::Value::Table(table.clone()).try_into() {
+                Ok(value) => value,
+                Err(error) => {
+                    problems.push(format!(
+                        "[{name}] — {}; раздел взят по умолчанию",
+                        error.message().trim()
+                    ));
+                    S::default()
+                }
+            }
+        }
+    };
+
+    let known = match toml::Value::try_from(&value) {
+        Ok(toml::Value::Table(known)) => known,
+        _ => toml::Table::new(),
+    };
+    for key in table.keys() {
+        if !known.contains_key(key) {
+            problems.push(format!(
+                "в разделе [{name}] нет ключа «{key}» — строка пропущена"
+            ));
+        }
+    }
+
+    value
+}
+
+/// Раздел `[font]` вложенный: шрифт живёт в `[font.ui]`. Вложенный раздел
+/// читается своим ходом — иначе негодный `size` выбросил бы весь `[font.ui]`
+/// вместе с годным `family`.
+fn font_section(mut table: toml::Table, problems: &mut Vec<String>) -> FontSettings {
+    let ui: UiFont = match table.remove("ui") {
+        None => UiFont::default(),
+        Some(toml::Value::Table(inner)) => section(inner, "font.ui", problems),
+        Some(other) => {
+            problems.push(format!(
+                "[font.ui] должен быть разделом, а в файле {} — взяты значения по умолчанию",
+                other.type_str()
+            ));
+            UiFont::default()
+        }
+    };
+
+    // Всё прочее в `[font]` — незнакомое: своих ключей у раздела нет,
+    // только вложенный `ui`. Разбор здесь ради одного — назвать их.
+    let _: FontSettings = section(table, "font", problems);
+    FontSettings { ui }
 }
 
 /// Чтение с диска.
 ///
 /// Отсутствие файла — не ошибка: это первый запуск, берём значения по умолчанию.
-/// А вот испорченный файл — ошибка, и она должна дойти до пользователя, иначе
+/// А вот нечитаемый файл — ошибка, и она должна дойти до пользователя, иначе
 /// он будет чинить «не работает тема» вслепую.
 pub fn load(path: &Path) -> Result<Settings, SettingsError> {
+    load_full(path).map(|loaded| loaded.settings)
+}
+
+/// Чтение с диска вместе с тем, что из файла применить не удалось. Для тех,
+/// кто об этом говорит человеку: полосы предупреждений и окна параметров.
+pub fn load_full(path: &Path) -> Result<Loaded, SettingsError> {
     match std::fs::read_to_string(path) {
         Ok(source) => parse(&source),
-        Err(_) => Ok(Settings::default()),
+        Err(_) => Ok(Loaded::default()),
     }
 }
 
@@ -321,6 +490,8 @@ pub const DEFAULT_TEMPLATE: &str = r#"# Настройки ZeroNote.
 # на лету, перезапуск не нужен.
 #
 # Закомментированные ключи показывают значения по умолчанию.
+# Ключ, которого приложение не знает, и негодное значение называются
+# в полосе предупреждений вверху окна; всё остальное применяется.
 
 schema = 1
 
@@ -442,23 +613,38 @@ pub fn write_default_if_missing(path: &Path) -> std::io::Result<bool> {
 mod tests {
     use super::*;
 
-    /// Образец обязан разбираться и давать ровно значения по умолчанию.
-    /// Без этого теста комментарии в образце и код разъедутся незаметно.
-    #[test]
-    fn template_matches_defaults() {
-        let parsed = parse(DEFAULT_TEMPLATE).expect("образец должен разбираться");
-        assert_eq!(parsed, Settings::default());
+    /// Разобрать то, что обязано разобраться, и вернуть обе половины.
+    fn read(source: &str) -> Loaded {
+        parse(source).expect("файл должен читаться")
     }
 
-    /// Раздел из будущей версии не ломает файл (Р-235).
-    ///
-    /// Проверка про откат: 0.13.0 пишет `[notes]`, а 0.12.0 такого раздела
-    /// не знает. Отвергни она файл целиком — человек, откатившийся после
-    /// неудачного выпуска, получил бы вдобавок сброшенные тему, шрифт
-    /// и настройки редактора.
+    /// Хотя бы одна жалоба называет всё перечисленное.
+    fn named(problems: &[String], words: &[&str]) -> bool {
+        problems
+            .iter()
+            .any(|problem| words.iter().all(|word| problem.contains(word)))
+    }
+
+    /// Образец обязан разбираться, давать ровно значения по умолчанию
+    /// и не вызывать ни одной жалобы. Без этого теста комментарии в образце
+    /// и код разъедутся незаметно.
     #[test]
-    fn unknown_section_is_ignored_and_the_rest_applies() {
-        let parsed = parse(
+    fn template_matches_defaults() {
+        let loaded = read(DEFAULT_TEMPLATE);
+        assert_eq!(loaded.settings, Settings::default());
+        assert_eq!(loaded.problems, Vec::<String>::new());
+    }
+
+    /// Раздел из будущей версии не ломает файл (Р-235) — и называется (Р-248).
+    ///
+    /// Проверка про откат: новая версия пишет раздел, которого старая
+    /// не знает. Отвергни старая файл целиком — человек, откатившийся после
+    /// неудачного выпуска, получил бы вдобавок сброшенные тему и шрифт.
+    /// Назвать раздел — не придирка: так видно, почему часть настроек
+    /// после отката не действует.
+    #[test]
+    fn unknown_section_is_named_and_the_rest_applies() {
+        let loaded = read(
             r#"
             schema = 1
             [appearance]
@@ -466,61 +652,92 @@ mod tests {
             [snippets]
             folder = "шаблоны"
         "#,
-        )
-        .expect("незнакомый раздел не должен ломать файл");
+        );
         // Имя раздела латиницей не случайно: в TOML голый ключ — только
         // латиница, цифры, дефис и подчёркивание, и раздел с кириллицей
         // в имени был бы ошибкой разбора, а не «незнакомым разделом».
 
-        assert_eq!(parsed.appearance.theme, "contrast");
+        assert_eq!(loaded.settings.appearance.theme, "contrast");
+        assert!(named(&loaded.problems, &["[snippets]"]), "{:?}", loaded.problems);
     }
 
-    /// А вот опечатка в ключе известного раздела остаётся ошибкой: её пишет
-    /// человек, и молча взять умолчание значило бы не выполнить написанное.
+    /// **Главное обещание задачи 101**: незнакомый ключ в известном разделе
+    /// называется, а соседние ключи и другие разделы применяются.
+    ///
+    /// До Р-248 этот же файл отвергался целиком, и вместе с опечаткой
+    /// пропадали тема и все настройки редактора.
     #[test]
-    fn unknown_key_in_a_known_section_is_still_an_error() {
-        let error = parse(
+    fn unknown_key_is_named_and_the_rest_applies() {
+        let loaded = read(
             r#"
             schema = 1
+            [appearance]
+            theme = "contrast"
             [editor]
             wrapp = true
+            wrap = true
         "#,
-        )
-        .expect_err("опечатка в ключе должна быть названа");
+        );
 
-        assert!(error.to_string().contains("wrapp"), "{error}");
+        assert_eq!(loaded.settings.appearance.theme, "contrast");
+        assert!(loaded.settings.editor.wrap, "соседний ключ обязан примениться");
+        assert!(
+            named(&loaded.problems, &["[editor]", "wrapp"]),
+            "{:?}",
+            loaded.problems
+        );
+        assert_eq!(loaded.problems.len(), 1, "{:?}", loaded.problems);
     }
 
-    /// **Откат на 0.13.0 отвергнет файл с ключами задачи 94.**
+    /// Файл следующей версии читается этой. Ровно та беда, что предъявил
+    /// откат с 0.14.0 на 0.13.0: новая версия добавляет ключ в знакомый
+    /// раздел, и прошлая спотыкалась о него. С этой версии — нет.
+    #[test]
+    fn a_file_of_the_next_version_is_read() {
+        let loaded = read(
+            r#"
+            schema = 1
+            [notes]
+            vault = 'C:\Заметки'
+            calendar_start = "sunday"
+            [editor]
+            live_preview = false
+            toolbar_rows = 2
+        "#,
+        );
+
+        assert_eq!(loaded.settings.notes.vault, r"C:\Заметки");
+        assert!(!loaded.settings.editor.live_preview);
+        assert!(named(&loaded.problems, &["calendar_start"]));
+        assert!(named(&loaded.problems, &["toolbar_rows"]));
+    }
+
+    /// **Откат на 0.14.0 отвергнет файл с новыми ключами** — последний раз.
     ///
     /// Проверка разбором, а не рассуждением: структура прошлой версии
-    /// (`[notes]` с двумя ключами и `deny_unknown_fields`) читает наш образец
-    /// и обязана споткнуться о `vault`. Тест закрепляет **известную цену**
-    /// Р-235, а не желаемое поведение: раздел незнакомой версии пропускается,
-    /// а новый ключ в известном разделе — нет.
+    /// (`[notes]` с `deny_unknown_fields`) читает файл с новым ключом
+    /// и обязана споткнуться о него. Тест закрепляет **известную цену**:
+    /// терпимость появилась в этой версии, а прошлые остаются строгими,
+    /// и чинить их нечем — они уже у людей.
     ///
-    /// Что это значит для человека: после отката настройки не потеряются
-    /// (файл не переписывается), но применяться не будут, пока он не уберёт
-    /// новые ключи руками. Дублирование структуры здесь намеренное — так же,
-    /// как у снимка сессии: обещание не должно меняться вместе с кодом.
+    /// Что это значит для человека: после отката с 0.15.0 на 0.14.0
+    /// настройки не потеряются (файл не переписывается), но применяться
+    /// не будут, пока он не уберёт новые ключи руками. Дублирование
+    /// структуры здесь намеренное — так же, как у снимка сессии: обещание
+    /// не должно меняться вместе с кодом.
     #[test]
-    fn the_previous_version_stumbles_on_new_notes_keys() {
-        #[derive(serde::Deserialize)]
+    fn the_previous_version_still_stumbles_on_new_keys() {
+        #[derive(serde::Deserialize, Default)]
         #[serde(deny_unknown_fields, default)]
         struct OldNotes {
+            #[allow(dead_code)]
+            vault: String,
             #[allow(dead_code)]
             daily_folder: String,
             #[allow(dead_code)]
             daily_template: String,
-        }
-
-        impl Default for OldNotes {
-            fn default() -> Self {
-                OldNotes {
-                    daily_folder: String::new(),
-                    daily_template: String::new(),
-                }
-            }
+            #[allow(dead_code)]
+            templates: String,
         }
 
         #[derive(serde::Deserialize)]
@@ -530,13 +747,130 @@ mod tests {
             notes: OldNotes,
         }
 
-        let outcome = toml::from_str::<OldSettings>(DEFAULT_TEMPLATE);
-        let error = outcome.err().expect("0.13.0 обязана споткнуться о новый ключ");
-        let message = error.message();
-        assert!(
-            message.contains("vault") || message.contains("templates"),
-            "спотыкаться надо о новый ключ, а не о что-то ещё: {error}"
+        let source = "schema = 1\n[notes]\nnew_key = true\n";
+        let outcome = toml::from_str::<OldSettings>(source);
+        let error = outcome.err().expect("0.14.0 обязана споткнуться о новый ключ");
+        assert!(error.message().contains("new_key"), "{error}");
+
+        // А эта версия читает тот же файл и называет ключ.
+        let loaded = read(source);
+        assert!(named(&loaded.problems, &["new_key"]));
+    }
+
+    /// Негодное значение берёт умолчание и называется вместе с тем, что
+    /// можно было написать. Соседние ключи применяются.
+    #[test]
+    fn bad_value_takes_the_default_and_is_named() {
+        let loaded = read(
+            r#"
+            schema = 1
+            [editor]
+            line_numbers = "иногда"
+            wrap = true
+        "#,
         );
+
+        assert_eq!(loaded.settings.editor.line_numbers, LineNumbers::Code);
+        assert!(loaded.settings.editor.wrap);
+        assert!(
+            named(&loaded.problems, &["line_numbers", "code"]),
+            "жалоба должна называть ключ и допустимые значения: {:?}",
+            loaded.problems
+        );
+    }
+
+    /// Значение не того рода — строка вместо числа — то же самое.
+    #[test]
+    fn value_of_the_wrong_kind_is_named() {
+        let loaded = read(
+            r#"
+            schema = 1
+            [editor]
+            indent_width = "четыре"
+            auto_close = false
+        "#,
+        );
+
+        assert_eq!(loaded.settings.editor.indent_width, 4);
+        assert!(!loaded.settings.editor.auto_close);
+        assert!(named(&loaded.problems, &["indent_width"]));
+    }
+
+    /// Шрифт живёт во вложенном разделе, и негодный размер не отнимает
+    /// годного имени шрифта рядом с ним.
+    #[test]
+    fn bad_font_size_keeps_the_font_family() {
+        let loaded = read(
+            r#"
+            schema = 1
+            [font.ui]
+            family = "Segoe UI"
+            size = "крупный"
+        "#,
+        );
+
+        assert_eq!(loaded.settings.font.ui.family.as_deref(), Some("Segoe UI"));
+        assert_eq!(loaded.settings.font.ui.size, None);
+        assert!(named(&loaded.problems, &["[font.ui]", "size"]));
+    }
+
+    /// Опечатка во вложенном разделе называется с его полным именем.
+    #[test]
+    fn typo_inside_font_ui_is_named() {
+        let loaded = read(
+            r#"
+            schema = 1
+            [font.ui]
+            family = "Segoe UI"
+            sise = 14
+        "#,
+        );
+
+        assert_eq!(loaded.settings.font.ui.family.as_deref(), Some("Segoe UI"));
+        assert!(named(&loaded.problems, &["[font.ui]", "sise"]));
+    }
+
+    /// Незнакомое прямо в `[font]` — тоже называется.
+    #[test]
+    fn unknown_key_in_font_is_named() {
+        let loaded = read(
+            r#"
+            schema = 1
+            [font]
+            ligatures = true
+            [font.ui]
+            size = 15
+        "#,
+        );
+
+        assert_eq!(loaded.settings.font.ui.size, Some(15));
+        assert!(named(&loaded.problems, &["[font]", "ligatures"]));
+    }
+
+    /// Раздел, записанный не таблицей, берёт умолчания целиком — и об этом
+    /// сказано.
+    #[test]
+    fn section_that_is_not_a_table_is_named() {
+        let loaded = read(
+            r#"
+            schema = 1
+            editor = 5
+            [appearance]
+            theme = "dracula"
+        "#,
+        );
+
+        assert_eq!(loaded.settings.editor, EditorSettings::default());
+        assert_eq!(loaded.settings.appearance.theme, "dracula");
+        assert!(named(&loaded.problems, &["[editor]", "разделом"]));
+    }
+
+    /// Ключ вне разделов — почти наверняка потерянная строка раздела.
+    #[test]
+    fn stray_key_outside_sections_is_named() {
+        let loaded = read("schema = 1\nwrap = true\n");
+        assert!(named(&loaded.problems, &["wrap", "вне разделов"]));
+        assert!(!loaded.settings.editor.wrap, "без раздела ключ не применяется");
     }
 
     /// Настройка, которой в файле нет, берёт умолчание — и для автозакрытия
@@ -547,21 +881,24 @@ mod tests {
     /// файл настроек написан до появления этого ключа. То есть у всех.
     #[test]
     fn auto_close_is_on_when_the_key_is_missing() {
-        let parsed = parse(
+        let loaded = read(
             r#"
             schema = 1
             [editor]
             wrap = true
         "#,
-        )
-        .expect("файл должен разбираться");
+        );
 
-        assert!(parsed.editor.wrap);
-        assert!(parsed.editor.auto_close, "автозакрытие включено по умолчанию");
+        assert!(loaded.settings.editor.wrap);
         assert!(
-            parsed.editor.markdown_bar,
+            loaded.settings.editor.auto_close,
+            "автозакрытие включено по умолчанию"
+        );
+        assert!(
+            loaded.settings.editor.markdown_bar,
             "панель разметки включена по умолчанию"
         );
+        assert!(loaded.problems.is_empty(), "{:?}", loaded.problems);
     }
 
     /// Номера строк: ключа в файле нет — значит «только в коде», а не
@@ -569,100 +906,70 @@ mod tests {
     /// и ошибиться здесь так же легко.
     #[test]
     fn line_numbers_default_is_code() {
-        let parsed = parse(
-            r#"
-            schema = 1
-            [editor]
-            wrap = true
-        "#,
-        )
-        .expect("файл должен разбираться");
-
-        assert_eq!(parsed.editor.line_numbers, LineNumbers::Code);
-    }
-
-    /// Незнакомое значение называется вслух и вместе с тем, что можно было
-    /// написать. Молча взять умолчание — это «настройка не применилась»
-    /// без единого слова, ровно то, ради чего написан весь модуль.
-    #[test]
-    fn unknown_line_numbers_value_is_reported() {
-        let error = parse(
-            r#"
-            schema = 1
-            [editor]
-            line_numbers = "иногда"
-        "#,
-        )
-        .expect_err("незнакомое значение должно быть ошибкой");
-
-        let message = error.to_string();
-        assert!(
-            message.contains("code"),
-            "сообщение должно перечислять допустимые значения: {message}"
-        );
+        let loaded = read("schema = 1\n[editor]\nwrap = true\n");
+        assert_eq!(loaded.settings.editor.line_numbers, LineNumbers::Code);
     }
 
     /// Ширина панели разметки: ключа нет — «над колонкой». Умолчание
     /// перечисления, как и у номеров строк, пишется руками.
     #[test]
     fn markdown_bar_width_default_is_column() {
-        let parsed = parse(
-            r#"
-            schema = 1
-            [editor]
-            markdown_bar = true
-        "#,
-        )
-        .expect("файл должен разбираться");
-
-        assert_eq!(parsed.editor.markdown_bar_width, MarkdownBarWidth::Column);
+        let loaded = read("schema = 1\n[editor]\nmarkdown_bar = true\n");
+        assert_eq!(
+            loaded.settings.editor.markdown_bar_width,
+            MarkdownBarWidth::Column
+        );
     }
 
     /// Пустой файл — это все значения по умолчанию, а не ошибка.
     #[test]
     fn empty_file_yields_defaults() {
-        let parsed = parse("schema = 1").expect("минимальный файл должен разбираться");
-        assert_eq!(parsed, Settings::default());
+        let loaded = read("schema = 1");
+        assert_eq!(loaded.settings, Settings::default());
+        assert!(loaded.problems.is_empty());
+    }
+
+    /// Файл без строки о версии читается как файл этой версии: так его
+    /// читали и раньше.
+    #[test]
+    fn missing_schema_means_the_current_one() {
+        let loaded = read("[editor]\nwrap = true\n");
+        assert!(loaded.settings.editor.wrap);
+        assert_eq!(loaded.settings.schema, SETTINGS_SCHEMA);
     }
 
     /// Частичный файл дополняется умолчаниями, а не обнуляет остальное.
     #[test]
     fn partial_file_is_filled_with_defaults() {
-        let parsed = parse(
+        let loaded = read(
             r#"
             schema = 1
             [appearance]
             density = "compact"
         "#,
-        )
-        .expect("частичный файл должен разбираться");
-
-        assert_eq!(parsed.appearance.density, Density::Compact);
-        assert_eq!(parsed.appearance.theme, "system");
-        assert_eq!(parsed.appearance.light_theme, "light");
-    }
-
-    /// Опечатка называется по имени. Файл правят руками, и молчаливое
-    /// игнорирование ключа — худшее, что можно сделать.
-    #[test]
-    fn typo_in_key_is_reported() {
-        let error = parse(
-            r#"
-            schema = 1
-            [appearance]
-            densty = "compact"
-        "#,
-        )
-        .expect_err("опечатка должна быть ошибкой");
-
-        let message = error.to_string();
-        assert!(
-            message.contains("densty"),
-            "сообщение должно называть ключ: {message}"
         );
+
+        assert_eq!(loaded.settings.appearance.density, Density::Compact);
+        assert_eq!(loaded.settings.appearance.theme, "system");
+        assert_eq!(loaded.settings.appearance.light_theme, "light");
     }
 
-    /// Файл из будущей версии не применяется наполовину.
+    /// Сломанный TOML — по-прежнему ошибка файла целиком: прочитать из него
+    /// нечего, и притворяться, что прочитали половину, нельзя.
+    #[test]
+    fn broken_toml_is_still_an_error() {
+        let error = parse("schema = 1\n[editor\nwrap = true\n").expect_err("TOML сломан");
+        assert!(matches!(error, SettingsError::Parse(_)));
+    }
+
+    /// Версия формата решает, как читать остальное, и терпимости к ней нет.
+    #[test]
+    fn schema_must_be_a_number() {
+        assert!(matches!(parse("schema = \"1\""), Err(SettingsError::Parse(_))));
+        assert!(matches!(parse("schema = -1"), Err(SettingsError::Parse(_))));
+    }
+
+    /// Файл из будущей версии формата не применяется наполовину.
     #[test]
     fn future_schema_is_rejected() {
         assert_eq!(
@@ -676,6 +983,7 @@ mod tests {
     fn missing_file_yields_defaults() {
         let path = std::env::temp_dir().join("zeronote-нет-такого-файла.toml");
         assert_eq!(load(&path), Ok(Settings::default()));
+        assert_eq!(load_full(&path), Ok(Loaded::default()));
     }
 
     /// Существующий файл не перезаписывается: там могут быть правки и комментарии.

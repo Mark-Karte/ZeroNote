@@ -171,11 +171,29 @@
         <Icon name="status.warning" />
         {broken}
       </p>
-    {:else if settings.problem}
-      <p class="broken">
-        <Icon name="status.warning" />
-        {settings.problem}
-      </p>
+    {:else}
+      <!-- Что не применилось — списком, но окно при этом не запирается:
+           остальное прочитано и действует (Р-248). До задачи 101 одна
+           опечатка в любом ключе делала все параметры только для чтения. -->
+      {#if file && file.problems.length > 0}
+        <div class="broken problems">
+          <Icon name="status.warning" />
+          <div>
+            <p class="lead">Из settings.toml применилось не всё, остальное работает:</p>
+            <ul>
+              {#each file.problems as problem (problem)}
+                <li>{problem}</li>
+              {/each}
+            </ul>
+          </div>
+        </div>
+      {/if}
+      {#if settings.problem}
+        <p class="broken">
+          <Icon name="status.warning" />
+          {settings.problem}
+        </p>
+      {/if}
     {/if}
 
     {#if values}
@@ -705,6 +723,20 @@
     border: var(--zn-border-width) solid var(--zn-color-warning);
     border-radius: var(--zn-radius-lg);
     color: var(--zn-color-warning);
+  }
+
+  /* Список жалоб: значок у первой строки, а не посередине списка. */
+  .problems {
+    align-items: flex-start;
+  }
+
+  .problems .lead {
+    margin: 0;
+  }
+
+  .problems ul {
+    margin: var(--zn-space-1) 0 0 0;
+    padding-left: var(--zn-space-5);
   }
 
   .control.path {
