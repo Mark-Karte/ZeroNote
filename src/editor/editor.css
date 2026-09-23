@@ -302,7 +302,7 @@
  *
  * `> [!tip] Совет` — обычная цитата, у которой первая строка написана
  * в известном виде. Отсюда и вид: та же черта слева, что у цитаты, плюс
- * цвет роли и лёгкая заливка.
+ * свой цвет — из списка коллаутов (задача 103).
  *
  * Правила стоят ПОСЛЕ `.zn-quote` намеренно: строка callout-а — это и цитата
  * тоже, оба класса лежат на одном элементе и спорят за одну тень. Побеждает
@@ -327,25 +327,10 @@
   background-color: var(--zn-color-bg-block);
 }
 
-.cm-editor .zn-callout-note {
-  --callout-color: var(--zn-color-accent);
-}
-
-.cm-editor .zn-callout-tip {
-  --callout-color: var(--zn-color-success);
-}
-
-.cm-editor .zn-callout-warning {
-  --callout-color: var(--zn-color-warning);
-}
-
-.cm-editor .zn-callout-danger {
-  --callout-color: var(--zn-color-danger);
-}
-
-.cm-editor .zn-callout-quote {
-  --callout-color: var(--zn-color-syntax-quote);
-}
+/* Цвет карточки приходит свойством строки (`--callout-color` в атрибуте
+   `style`), а не классом роли: с задачи 103 ролей нет, цвет берётся
+   из списка человека и бывает своим `#rrggbb`. Что каждая роль темы ведёт
+   к объявленному токену, проверяет `tests/callouts.test.ts`. */
 
 /* Скругление только сверху у первой строки и снизу у последней: карточка
    собирается из строк, а не из одного блока — блок нельзя, строки редактора

@@ -3,6 +3,7 @@ import { EditorSelection, EditorState } from '@codemirror/state';
 
 import {
   insertBlock,
+  insertCallout,
   insertImage,
   insertLink,
   SNIPPETS,
@@ -254,5 +255,57 @@ describe('заготовка mermaid', () => {
   /** Пустой блок `mermaid` Obsidian показывает ошибкой разбора. */
   it('содержит годную схему, а не пустой блок', () => {
     expect(SNIPPETS.mermaid).toMatch(/^```mermaid\n.+-->.+\n```$/s);
+  });
+});
+
+describe('коллаут (задача 103)', () => {
+  it('на пустой строке ставит тип с подписью и садит курсор в тело', () => {
+    const before = state('', 0);
+    expect(apply(before, insertCallout(before, 'tip', 'Совет'))).toBe('> [!tip] Совет\n> |');
+  });
+
+  it('в конце абзаца встаёт со своей строки', () => {
+    const before = state('абзац', 5);
+    expect(apply(before, insertCallout(before, 'note', 'Заметка')).replace('|', '')).toBe(
+      'абзац\n> [!note] Заметка\n> ',
+    );
+  });
+
+  it('без подписи — только тип: своих слов мы не придумываем', () => {
+    const before = state('', 0);
+    expect(apply(before, insertCallout(before, 'bug', '')).replace('|', '')).toBe('> [!bug]\n> ');
+  });
+
+  it('выделенное становится телом, знак цитаты — на каждой строке', () => {
+    const doc = 'первый абзац\n\nвторой абзац';
+    const before = state(doc, 0, doc.length);
+    expect(apply(before, insertCallout(before, 'tip', 'Совет')).replace('|', '')).toBe(
+      '> [!tip] Совет\n> первый абзац\n>\n> второй абзац',
+    );
+  });
+
+  it('выделение до начала следующей строки ту строку не забирает', () => {
+    const doc = 'одна\nдругая';
+    const before = state(doc, 0, 5);
+    expect(apply(before, insertCallout(before, 'tip', 'Совет')).replace('|', '')).toBe(
+      '> [!tip] Совет\n> одна\nдругая',
+    );
+  });
+
+  /** Найдено на живом окне: строки `>` подряд — одна цитата. */
+  it('под другим коллаутом отделяется пустой строкой, а не сливается с ним', () => {
+    const doc = '> [!tip] Совет\n> текст\n';
+    const before = state(doc, doc.length);
+    expect(apply(before, insertCallout(before, 'note', 'Заметка')).replace('|', '')).toBe(
+      '> [!tip] Совет\n> текст\n\n> [!note] Заметка\n> ',
+    );
+  });
+
+  it('над цитатой тоже оставляет пустую строку', () => {
+    const doc = '\n> цитата';
+    const before = state(doc, 0);
+    expect(apply(before, insertCallout(before, 'note', '')).replace('|', '')).toBe(
+      '> [!note]\n> \n\n> цитата',
+    );
   });
 });

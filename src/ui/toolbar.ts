@@ -26,6 +26,7 @@ export type ToolbarSize = 'small' | 'normal' | 'large';
 
 export type ToolbarEntry =
   | { kind: 'command'; id: string }
+  | { kind: 'callout'; id: string }
   | { kind: 'separator' }
   | { kind: 'spacer' }
   | { kind: 'path' };
@@ -39,8 +40,12 @@ export interface ToolbarPlace {
   markdown: boolean;
 }
 
+/** Коллаут на панели пишется `callout:тип` (задача 103). */
+export const CALLOUT_PREFIX = 'callout:';
+
 export function entryOf(item: string): ToolbarEntry {
   if (item === 'separator' || item === 'spacer' || item === 'path') return { kind: item };
+  if (item.startsWith(CALLOUT_PREFIX)) return { kind: 'callout', id: item.slice(CALLOUT_PREFIX.length) };
   return { kind: 'command', id: item };
 }
 
@@ -113,10 +118,18 @@ export function toolbarShown(show: ToolbarShow, place: ToolbarPlace): boolean {
  * с другой чертой и не рядом с распоркой: черта у пустоты ничего
  * не разделяет.
  */
-export function visibleEntries(items: string[], place: ToolbarPlace): ToolbarEntry[] {
-  const kept = items
-    .map(entryOf)
-    .filter((entry) => entry.kind !== 'command' || fits(entry.id, place));
+export function visibleEntries(
+  items: string[],
+  place: ToolbarPlace,
+  /** Есть ли такой коллаут в списке: кнопку несуществующего не рисуем. */
+  hasCallout: (id: string) => boolean = () => true,
+): ToolbarEntry[] {
+  const kept = items.map(entryOf).filter((entry) => {
+    if (entry.kind === 'command') return fits(entry.id, place);
+    // Коллаут — разметка markdown, как и `md.*`.
+    if (entry.kind === 'callout') return place.tab === 'text' && place.markdown && hasCallout(entry.id);
+    return true;
+  });
 
   const out: ToolbarEntry[] = [];
   for (const entry of kept) {

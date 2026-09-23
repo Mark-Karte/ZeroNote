@@ -268,6 +268,10 @@ pub const DEFAULT_TOOLBAR: &[&str] = &[
     "md.code-block",
     "md.mermaid",
     "md.divider",
+    // Список коллаутов у курсора (задача 103): коллауты владелец просил
+    // «на тулбар», и одна кнопка со списком ставит любой из двадцати семи.
+    // Отдельные кнопки под свои коллауты ставятся из вкладки «Коллауты».
+    "md.callout",
 ];
 
 impl Default for ToolbarSettings {
@@ -486,11 +490,20 @@ fn retire_markdown_bar(editor: &mut toml::Table, toolbar: &mut toml::Table) {
 /// Незнакомое имя — опечатка или команда из будущей версии; кнопка,
 /// которая ничего не делает, хуже отсутствующей, поэтому она пропускается
 /// и называется, как любой незнакомый ключ (Р-248).
+///
+/// Коллаут на панели пишется `callout:тип` (задача 103). Здесь проверяется
+/// только вид записи: список коллаутов — свой файл, и разбор настроек его
+/// не читает. Кнопку коллаута, которого нет, не рисует панель и называет
+/// вкладка «Панель инструментов».
 fn known_items(items: Vec<String>, problems: &mut Vec<String>) -> Vec<String> {
     items
         .into_iter()
         .filter(|item| {
-            let known = TOOLBAR_WORDS.contains(&item.as_str())
+            let callout = item
+                .strip_prefix("callout:")
+                .is_some_and(crate::callouts::valid_id);
+            let known = callout
+                || TOOLBAR_WORDS.contains(&item.as_str())
                 || crate::keymap::COMMANDS.iter().any(|(id, _)| id == item);
             if !known {
                 problems.push(format!(
@@ -535,7 +548,7 @@ fn take_table(root: &mut toml::Table, name: &str, problems: &mut Vec<String>) ->
 /// `S` — тип раздела: разбирается из TOML, пишется обратно и умеет
 /// умолчание. Обобщение здесь ради одного: один и тот же порядок на пять
 /// разных разделов, а не пять копий одного цикла.
-fn section<S>(mut table: toml::Table, name: &str, problems: &mut Vec<String>) -> S
+pub(crate) fn section<S>(mut table: toml::Table, name: &str, problems: &mut Vec<String>) -> S
 where
     S: serde::de::DeserializeOwned + serde::Serialize + Default,
 {
@@ -1112,6 +1125,21 @@ mod tests {
         );
         assert_eq!(loaded.settings.toolbar.size, ToolbarSize::Large);
         assert!(loaded.problems.is_empty(), "{:?}", loaded.problems);
+    }
+
+    /// Коллаут на панели пишется `callout:тип` и проходит проверку вида.
+    #[test]
+    fn toolbar_takes_callouts() {
+        let loaded = read(
+            r#"
+            schema = 1
+            [toolbar]
+            items = ["callout:tip", "callout:", "callout:два слова"]
+        "#,
+        );
+
+        assert_eq!(loaded.settings.toolbar.items, vec!["callout:tip"]);
+        assert_eq!(loaded.problems.len(), 2, "{:?}", loaded.problems);
     }
 
     /// Незнакомая команда в составе называется и пропускается, соседние

@@ -63,6 +63,14 @@ export type IconName =
   | 'md.callout-warning'
   | 'md.callout-danger'
   | 'md.callout-quote'
+  | 'md.callout'
+  | 'md.callout-pencil'
+  | 'md.callout-clipboard'
+  | 'md.callout-todo'
+  | 'md.callout-flame'
+  | 'md.callout-question'
+  | 'md.callout-fail'
+  | 'md.callout-bug'
   | 'cmd.file-new'
   | 'cmd.save'
   | 'cmd.save-as'
@@ -271,6 +279,32 @@ const ICONS: Record<IconName, string> = {
   // похожих знака рядом означали бы, что карточки делают одно и то же.
   'md.callout-danger':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M9.2 1.8 4.2 8.9h3.2l-.6 5.3 5-7.1H8.6Z"/></svg>',
+  // Значки коллаутов Obsidian, которых не хватало (задача 103): тем же
+  // пером, что и прочие знаки карточек, — их выбирают рядом в одной сетке.
+  // Карточка с заголовком — команда «Коллаут…», а не какой-то один из них.
+  'md.callout':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2.2" y="3" width="11.6" height="10" rx="1.8"/><path d="M4.9 6.3h.01"/><path d="M6.8 6.3h4.4M4.9 9.6h6.3"/></svg>',
+  // Карандаш — заметка.
+  'md.callout-pencil':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M10.6 2.8 13.2 5.4 5.6 13H3v-2.6z"/><path d="M9.2 4.2l2.6 2.6"/></svg>',
+  // Планшет с зажимом — аннотация и сводка.
+  'md.callout-clipboard':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="3.4" y="3.2" width="9.2" height="10.6" rx="1.4"/><path d="M6.2 2.4h3.6v1.8H6.2z"/><path d="M5.8 7.8h4.4M5.8 10.4h3"/></svg>',
+  // Галочка в круге — задача.
+  'md.callout-todo':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.8"/><path d="M5.6 8.2 7.3 9.9l3.3-3.5"/></svg>',
+  // Пламя — совет, подсказка, важное.
+  'md.callout-flame':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2c1.8 2 3.8 4.2 3.8 7a3.8 3.8 0 0 1-7.6 0c0-1.5.6-2.7 1.6-3.8.2 1 .7 1.6 1.4 1.9C7 5.5 7.3 3.6 8 2z"/></svg>',
+  // Вопрос в круге — вопрос, помощь.
+  'md.callout-question':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.8"/><path d="M6.3 6.4a1.8 1.8 0 0 1 3.5.5c0 1.2-1.8 1.5-1.8 2.6"/><path d="M8 11.3v.1"/></svg>',
+  // Крест — неудача.
+  'md.callout-fail':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M4.2 4.2l7.6 7.6M11.8 4.2l-7.6 7.6"/></svg>',
+  // Жук — баг.
+  'md.callout-bug':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5.4" width="6" height="8" rx="3"/><path d="M8 7.6v5.6"/><path d="M5 8.4H2.8M5 11.2H2.8M11 8.4h2.2M11 11.2h2.2"/><path d="M6.4 5.6 5.4 3.4M9.6 5.6l1-2.2"/></svg>',
   // Кавычки — цитата.
   'md.callout-quote':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M6.2 4.6c-1.9.6-3 2.1-3 4.1 0 1.4.8 2.4 2 2.4s1.9-.8 1.9-1.9-.7-1.8-1.7-1.8h-.3c.1-.9.7-1.6 1.6-2Z"/><path d="M12.6 4.6c-1.9.6-3 2.1-3 4.1 0 1.4.8 2.4 2 2.4s1.9-.8 1.9-1.9-.7-1.8-1.7-1.8h-.3c.1-.9.7-1.6 1.6-2Z"/></svg>',

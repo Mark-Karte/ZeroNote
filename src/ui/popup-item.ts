@@ -1,3 +1,5 @@
+import type { IconName } from '../icons/registry';
+
 /** Пункт всплывающего меню. Отдельным файлом: типы из компонентов не импортируются. */
 export interface PopupItem {
   id: string;
@@ -25,4 +27,11 @@ export interface PopupItem {
   /** Необратимое действие: помечается цветом, как в модальном диалоге (Р-093). */
   danger?: boolean | undefined;
   hint?: string | undefined;
+  /**
+   * Свой значок пункта — для пунктов, у которых команды нет (коллауты,
+   * задача 103). У пункта-команды значок берётся из таблицы команд.
+   */
+  icon?: IconName | undefined;
+  /** Цвет значка выражением CSS: у коллаута он тот же, что у карточки. */
+  tint?: string | undefined;
 }

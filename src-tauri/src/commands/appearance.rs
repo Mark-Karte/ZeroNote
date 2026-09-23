@@ -67,6 +67,18 @@ pub fn build(
         }
     };
 
+    // Жалобы на файл коллаутов — в ту же полосу: превью рисует карточки
+    // по этому файлу, и опечатка в нём видна ровно там (задача 103).
+    match crate::callouts::load_full(&data_dir.join("callouts.toml")) {
+        Ok(loaded) => problems.extend(
+            loaded
+                .problems
+                .into_iter()
+                .map(|problem| format!("callouts.toml: {problem}")),
+        ),
+        Err(e) => problems.push(e.to_string()),
+    }
+
     let themes_dir = data_dir.join("themes");
     let (themes, theme_problems) = theme::available(&themes_dir);
     problems.extend(theme_problems);

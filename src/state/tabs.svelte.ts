@@ -75,6 +75,7 @@ import {
 // Подсказка про вкладки ничего не знает — всё, что ей нужно, приходит
 // аргументами. Поэтому обычный импорт, а не отложенный: круга здесь нет.
 import { reportContext } from './suggest.svelte';
+import { calloutLookup } from './callouts.svelte';
 
 /**
  * Вкладки и их содержимое.
@@ -785,6 +786,7 @@ function optionsFor(
     indent,
     invisibles: invisiblesEnabled(),
     livePreview: livePreviewOn({ livePreview: livePreviewEnabled(), markdown }),
+    callouts: calloutLookup(),
     lineNumbers: lineNumbersOn({ setting: lineNumbersSetting(), markdown }),
     bookmarks,
   };
@@ -855,11 +857,16 @@ function setIndentOf(tab: Tab, indent: Indent): void {
  * По вкладке, а не одним значением на всех: превью включается только
  * у markdown (Р-159), и у соседней вкладки с кодом отсек обязан остаться
  * пустым. Тот же ход, что у переноса с читаемой шириной.
+ *
+ * Зовётся и когда сменился список коллаутов (задача 103): превью получает
+ * его при сборке отсека, и пересборка отсека — единственный способ
+ * перерисовать карточки.
  */
 export function applyLivePreview(): void {
+  const callouts = calloutLookup();
   for (const tab of tabs.items) {
     if (!tab.editor) continue;
-    const extension = livePreviewExtension(livePreviewOf(tab), () => tab.meta.path);
+    const extension = livePreviewExtension(livePreviewOf(tab), () => tab.meta.path, callouts);
     reconfigure(tab, livePreviewCompartment.reconfigure(extension));
   }
 }

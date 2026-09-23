@@ -43,6 +43,7 @@ import {
 import { showReplace, undoReplace } from '../actions/replace';
 import { openDaily } from '../actions/daily';
 import { insertTemplate, newNoteFromTemplate } from '../actions/templates';
+import { pickCallout } from '../actions/callouts';
 import { findNext, findPrevious } from '../state/search.svelte';
 import { toggleInvisibles, toggleLivePreview, toggleWrap } from '../state/settings.svelte';
 import {
@@ -230,6 +231,7 @@ export const COMMANDS: Record<CommandId, () => void | Promise<unknown>> = {
   'md.mermaid': inEditor(
     md.asCommand((state) => md.insertBlock(state, md.SNIPPETS.mermaid!)),
   ),
+  'md.callout': () => void pickCallout(),
 };
 
 export function commandIds(): CommandId[] {

@@ -39,6 +39,7 @@ import { columnAt, indentUnitOf, type Indent } from './indent';
 import { folding } from './folding';
 import { invisibles } from './invisibles';
 import { livePreview } from './live-preview';
+import { lookupFor, type CalloutLookup } from './callouts';
 import { tablePreview } from './tables';
 import { wikilinks, type Target } from './wikilinks';
 import { linkSuggestions, type LinkContext } from './suggest';
@@ -201,11 +202,16 @@ export const livePreviewCompartment = new Compartment();
 export function livePreviewExtension(
   enabled: boolean,
   sourcePath: () => string | null = () => null,
+  callouts: CalloutLookup = lookupFor([]),
 ): Extension {
   // Две части, и разделены они не по вкусу: таблица заменяется через границу
   // строк, а такое украшение меняет высоту документа. От плагина CodeMirror
   // его не принимает — только от поля состояния (задача 73).
-  return enabled ? [livePreview(sourcePath), tablePreview()] : [];
+  //
+  // Список коллаутов приходит сюда, а не читается превью из общего места:
+  // сменился список — отсек пересобирается (`applyLivePreview`), и карточки
+  // перерисовываются вместе с ним.
+  return enabled ? [livePreview(sourcePath, callouts), tablePreview()] : [];
 }
 
 /**
@@ -259,6 +265,8 @@ export interface EditorOptions {
   invisibles: boolean;
   /** Прятать ли знаки разметки: markdown и включённая настройка. */
   livePreview: boolean;
+  /** Как рисовать коллауты: из списка человека (задача 103). */
+  callouts: CalloutLookup;
   /** Показывать ли номера строк: решает настройка и язык вкладки (Р-213). */
   lineNumbers: boolean;
   /** Номера строк с закладками — из сессии. Для нового буфера пусто. */
@@ -306,7 +314,9 @@ export function extensionsFor(meta: Buffer, options: EditorOptions): Extension[]
     // верное умолчание. Значение приходит из настроек, переключается на лету.
     wrapCompartment.of(options.wrap ? EditorView.lineWrapping : []),
     invisiblesCompartment.of(invisiblesExtension(options.invisibles)),
-    livePreviewCompartment.of(livePreviewExtension(options.livePreview, options.sourcePath)),
+    livePreviewCompartment.of(
+      livePreviewExtension(options.livePreview, options.sourcePath, options.callouts),
+    ),
 
     // Подсветка парной скобки. Пару ищет разбор языка: скобка внутри строки
     // или комментария парой не считается. Где дерева нет — простым просмотром

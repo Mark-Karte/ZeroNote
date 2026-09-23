@@ -17,6 +17,7 @@
   } from '../state/settings.svelte';
   import { toolbarColumn } from '../editor/readable';
   import { toolbarShown, visibleEntries, type ToolbarPlace } from './toolbar';
+  import { calloutById } from '../state/callouts.svelte';
   import { dropTarget } from '../state/tab-drag.svelte';
 
   /**
@@ -48,7 +49,9 @@
    * где одна разметка, не остаётся ничего, и черта под пустотой
    * сообщала бы только о том, что панель есть.
    */
-  const entries = $derived(visibleEntries(toolbarItems(), place));
+  const entries = $derived(
+    visibleEntries(toolbarItems(), place, (id) => calloutById(id) !== null),
+  );
   const showToolbar = $derived(
     tab !== null && toolbarShown(toolbarShow(), place) && entries.length > 0,
   );

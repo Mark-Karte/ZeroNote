@@ -5,7 +5,7 @@ import type { Template } from '../ipc/notes';
 import { askInput } from '../state/modal.svelte';
 import { showMenuAt } from '../state/menu.svelte';
 import { vaultRoot } from '../state/roots.svelte';
-import { editorView } from '../editor/current';
+import { caretPoint, editorView } from '../editor/current';
 import { activeTab } from '../state/tabs.svelte';
 import { refreshDirs } from '../state/tree.svelte';
 import { noteCreated } from '../state/notes.svelte';
@@ -37,20 +37,6 @@ function stemOf(path: string | null | undefined): string {
 }
 
 /**
- * Где показать список заготовок.
- *
- * У курсора, если открыт текст: вставка происходит именно туда, и список,
- * выехавший в другом углу окна, заставлял бы искать глазами, куда именно
- * попадёт текст. Без редактора — по центру окна.
- */
-function listPoint(): { x: number; y: number } {
-  const view = editorView();
-  const at = view?.coordsAtPos(view.state.selection.main.head);
-  if (at) return { x: at.left, y: at.bottom + 4 };
-  return { x: window.innerWidth / 2, y: window.innerHeight / 3 };
-}
-
-/**
  * Показать список заготовок и позвать `use` для выбранной.
  *
  * Список — меню: заготовок у человека несколько штук, и отдельный экран
@@ -75,7 +61,7 @@ async function pickTemplate(use: (template: Template) => Promise<void>): Promise
     return;
   }
 
-  const point = listPoint();
+  const point = caretPoint();
   showMenuAt(
     point,
     items.map((template) => ({ id: template.path, label: template.name })),

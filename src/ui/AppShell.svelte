@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { callouts, startCallouts } from '../state/callouts.svelte';
   import { onMount, onDestroy, untrack } from 'svelte';
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
@@ -117,6 +118,8 @@
   $effect(() => {
     const preview = livePreviewEnabled();
     void preview;
+    // Список коллаутов — туда же: карточки рисует превью (задача 103).
+    void callouts.state;
     untrack(() => applyLivePreview());
   });
 
@@ -149,6 +152,7 @@
 
   onMount(async () => {
     void startSettings();
+    void startCallouts();
 
     for (const problem of await loadKeymap()) {
       restoreNotices.push(problem);

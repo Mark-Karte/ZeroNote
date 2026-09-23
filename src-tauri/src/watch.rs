@@ -38,6 +38,9 @@ fn snapshot(data_dir: &Path) -> Snapshot {
 
     record(data_dir.join("settings.toml"));
     record(data_dir.join("keymap.toml"));
+    // Коллауты рисует превью, и правка файла руками обязана доехать
+    // до карточек без перезапуска (задача 103).
+    record(data_dir.join("callouts.toml"));
 
     if let Ok(entries) = std::fs::read_dir(data_dir.join("themes")) {
         let mut theme_files: Vec<PathBuf> = entries

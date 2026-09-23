@@ -3,6 +3,7 @@ import { EditorSelection, EditorState } from '@codemirror/state';
 import { ensureSyntaxTree } from '@codemirror/language';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 
+import { lookupFor } from '../src/editor/callouts';
 import { decorateLivePreview, livePreviewOn } from '../src/editor/live-preview';
 import { highlightMark } from '../src/editor/markdown-highlight';
 import { languages } from '../src/editor/markdown-code';
@@ -298,7 +299,6 @@ describe('живое превью: знаки вокруг текста', () => 
       iter.next();
     }
 
-    expect(lines.get(1)).toContain('zn-callout-tip');
     expect(lines.get(1)).toContain('zn-callout-first');
     expect(lines.get(2)).toContain('zn-callout-last');
     // Пустая строка за цитатой в карточку не входит.
@@ -367,5 +367,30 @@ describe('живое превью: знаки вокруг текста', () => 
     expect(livePreviewOn({ livePreview: true, markdown: true })).toBe(true);
     expect(livePreviewOn({ livePreview: true, markdown: false })).toBe(false);
     expect(livePreviewOn({ livePreview: false, markdown: true })).toBe(false);
+  });
+
+  /**
+   * Цвет и значок — из списка коллаутов (задача 103), свойством строки,
+   * а не классом роли.
+   */
+  it('коллаут берёт цвет из списка человека', () => {
+    const doc = '> [!bug] Дефект\n> текст\n\n';
+    const editor = state(doc, doc.length);
+    const lookup = lookupFor([
+      { id: 'bug', title: 'Баг', icon: 'md.callout-bug', color: 'danger' },
+    ]);
+    const set = decorateLivePreview(editor, [{ from: 0, to: editor.doc.length }], () => null, lookup);
+
+    let style = '';
+    const iter = set.iter();
+    while (iter.value !== null) {
+      const spec = iter.value.spec as { class?: string; attributes?: { style?: string } };
+      if (typeof spec.class === 'string' && spec.class.startsWith('zn-callout')) {
+        style = spec.attributes?.style ?? '';
+      }
+      iter.next();
+    }
+
+    expect(style).toBe('--callout-color: var(--zn-color-danger)');
   });
 });

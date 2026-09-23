@@ -10,6 +10,9 @@
   import type { Tab } from '../state/tabs.svelte';
   import { crumbsFor } from './crumbs';
   import { dimmed, textLabelOf, type ToolbarEntry, type ToolbarSize } from './toolbar';
+  import { calloutById } from '../state/callouts.svelte';
+  import { cssColorOf, iconOf } from '../editor/callouts';
+  import { insertCalloutOf } from '../actions/callouts';
 
   /**
    * Панель инструментов (задача 102).
@@ -97,6 +100,23 @@
             <Icon name={icon} />
           {/if}
         </button>
+      {:else if entry.kind === 'callout'}
+        <!-- Коллаут — своя кнопка на каждый тип (задача 103): значок того же
+             цвета, что карточка, подпись из списка человека. -->
+        {@const callout = calloutById(entry.id)}
+        {#if callout}
+          <button
+            class="key"
+            type="button"
+            title={`Коллаут: ${callout.title || callout.id}`}
+            aria-label={`Коллаут: ${callout.title || callout.id}`}
+            style:color={cssColorOf(callout.color)}
+            onmousedown={keepFocus}
+            onclick={() => insertCalloutOf(callout.id)}
+          >
+            <Icon name={iconOf(callout.icon)} />
+          </button>
+        {/if}
       {:else if entry.kind === 'separator'}
         <span class="separator" aria-hidden="true"></span>
       {:else if entry.kind === 'spacer'}

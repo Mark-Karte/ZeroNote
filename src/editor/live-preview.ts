@@ -10,7 +10,8 @@ import {
 } from '@codemirror/view';
 
 import { icon } from '../icons/registry';
-import { CALLOUT_ICON, parseCallout, type CalloutKind } from './callouts';
+import { lookupFor, parseCallout, type CalloutLookup } from './callouts';
+import type { IconName } from '../icons/registry';
 import { EmbedWidget, ImageWidget, embedIsImage, localTarget } from './images';
 import { TaskBox, taskState } from './tasks';
 import { linkTarget, wikilinkSpans } from './wikilinks';
@@ -75,20 +76,22 @@ const calloutTitle = Decoration.mark({ class: 'zn-callout-title' });
  * `Decoration.replace` подменяет показ (Р-160).
  */
 class CalloutIcon extends WidgetType {
-  constructor(readonly kind: CalloutKind) {
+  constructor(readonly name: IconName) {
     super();
   }
 
   /** Без этого узел пересоздаётся на каждой пересборке украшений. */
   override eq(other: CalloutIcon): boolean {
-    return other.kind === this.kind;
+    return other.name === this.name;
   }
 
   override toDOM(): HTMLElement {
     const span = document.createElement('span');
     span.className = 'zn-callout-icon';
-    // Разметка из собственного реестра значков, а не из файла пользователя.
-    span.innerHTML = icon(CALLOUT_ICON[this.kind]);
+    // Разметка из собственного реестра значков, а не из файла пользователя:
+    // из файла приходит только имя, и незнакомое имя становится значком
+    // заметки ещё в `lookupFor`. Цвет значок берёт у строки карточки.
+    span.innerHTML = icon(this.name);
     return span;
   }
 }
@@ -123,6 +126,12 @@ export function decorateLivePreview(
    * `null` — заметку ещё не сохранили, и считать не от чего.
    */
   sourcePath: () => string | null = () => null,
+  /**
+   * Как рисовать коллаут данного типа (задача 103). Список человека живёт
+   * в `data/callouts.toml`; по умолчанию — пустой, и любой тип рисуется
+   * значком заметки.
+   */
+  callouts: CalloutLookup = lookupFor([]),
 ): DecorationSet {
   const found: Range<Decoration>[] = [];
   const tree = syntaxTree(state);
@@ -298,15 +307,24 @@ export function decorateLivePreview(
           // что у блоков кода и у цитат.
           const last = doc.lineAt(Math.min(Math.max(node.from, node.to - 1), range.to));
 
+          // Цвет — свойством строки, а не классом роли: ролей больше нет,
+          // цвет берётся из списка человека и бывает своим `#rrggbb`.
+          const style = callouts(marker.type);
+
           for (let number = first.number; number <= last.number; number += 1) {
             if (carded.has(number)) continue;
             carded.add(number);
 
-            const parts = ['zn-callout', `zn-callout-${marker.kind}`];
+            const parts = ['zn-callout'];
             if (number === first.number) parts.push('zn-callout-first');
             if (number === last.number) parts.push('zn-callout-last');
 
-            found.push(Decoration.line({ class: parts.join(' ') }).range(doc.line(number).from));
+            found.push(
+              Decoration.line({
+                class: parts.join(' '),
+                attributes: { style: `--callout-color: ${style.color}` },
+              }).range(doc.line(number).from),
+            );
           }
 
           const markFrom = first.from + marker.from;
@@ -314,7 +332,7 @@ export function decorateLivePreview(
 
           if (!touched(state, first)) {
             found.push(
-              Decoration.replace({ widget: new CalloutIcon(marker.kind) }).range(markFrom, markTo),
+              Decoration.replace({ widget: new CalloutIcon(style.icon) }).range(markFrom, markTo),
             );
           }
           if (markTo < first.to) {
@@ -377,13 +395,21 @@ export function decorateLivePreview(
  * Пересборка идёт и на смену выделения — без этого правило строки под
  * курсором не работает вовсе.
  */
-export function livePreview(sourcePath: () => string | null = () => null) {
+export function livePreview(
+  sourcePath: () => string | null = () => null,
+  callouts: CalloutLookup = lookupFor([]),
+) {
   return ViewPlugin.fromClass(
     class {
       decorations: DecorationSet;
 
       constructor(view: EditorView) {
-        this.decorations = decorateLivePreview(view.state, view.visibleRanges, sourcePath);
+        this.decorations = decorateLivePreview(
+          view.state,
+          view.visibleRanges,
+          sourcePath,
+          callouts,
+        );
       }
 
       update(update: ViewUpdate) {
@@ -403,6 +429,7 @@ export function livePreview(sourcePath: () => string | null = () => null) {
             update.view.state,
             update.view.visibleRanges,
             sourcePath,
+            callouts,
           );
         }
       }

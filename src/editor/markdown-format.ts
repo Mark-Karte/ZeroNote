@@ -294,6 +294,69 @@ export function insertBlock(state: EditorState, block: string): Edit {
   };
 }
 
+/**
+ * Коллаут `> [!тип] Подпись` (задача 103).
+ *
+ * Без выделения — со своей строки, курсор на пустой строке тела: писать
+ * начинают именно там. С выделением — задетые строки целиком становятся
+ * телом, и знак цитаты ставится на каждую: абзацы, разделённые пустой
+ * строкой, остаются внутри коллаута (пустая строка становится `>`), как
+ * в плагине владельца.
+ */
+export function insertCallout(state: EditorState, type: string, title: string): Edit {
+  const range = state.selection.main;
+  const head = title ? `> [!${type}] ${title}` : `> [!${type}]`;
+  const { doc } = state;
+
+  /**
+   * Строка цитаты рядом — значит, без пустой строки коллаут слился бы с ней:
+   * строки `>` подряд — это одна цитата, и в CommonMark, и в Obsidian.
+   * Найдено на живом окне: вставленный сразу под другим коллаутом
+   * становился его продолжением.
+   */
+  const quote = (number: number): boolean =>
+    number >= 1 && number <= doc.lines && /^\s*>/.test(doc.line(number).text);
+
+  if (range.empty) {
+    const line = doc.lineAt(range.from);
+    const alone = line.text.trim() === '';
+    // На пустой строке блок встаёт на её место, иначе — строкой ниже.
+    const above = alone ? line.number - 1 : line.number;
+    const below = line.number + 1;
+
+    let block = `${head}\n> `;
+    if (quote(above)) block = `\n${block}`;
+    const insert = alone ? block : `\n${block}`;
+    const at = alone ? line.from : line.to;
+    const tail = quote(below) ? '\n' : '';
+
+    return {
+      changes: [{ from: at, to: alone ? line.to : at, insert: insert + tail }],
+      selection: { anchor: at + insert.length },
+    };
+  }
+
+  const first = doc.lineAt(range.from);
+  // Выделение, кончающееся в самом начале строки, эту строку не задевает:
+  // так выглядит выделение нескольких строк целиком тройным щелчком.
+  const lastPos = range.to > range.from && doc.lineAt(range.to).from === range.to ? range.to - 1 : range.to;
+  const last = doc.lineAt(Math.max(range.from, lastPos));
+
+  const body = doc
+    .sliceString(first.from, last.to)
+    .split('\n')
+    .map((text) => (text.trim() === '' ? '>' : `> ${text}`))
+    .join('\n');
+  const lead = quote(first.number - 1) ? '\n' : '';
+  const insert = `${lead}${head}\n${body}`;
+  const tail = quote(last.number + 1) ? '\n' : '';
+
+  return {
+    changes: [{ from: first.from, to: last.to, insert: insert + tail }],
+    selection: { anchor: first.from + insert.length },
+  };
+}
+
 /** Превратить правку в команду редактора. */
 export function asCommand(make: (state: EditorState) => Edit) {
   return (view: EditorView): boolean => {

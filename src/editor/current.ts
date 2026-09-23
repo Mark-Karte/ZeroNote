@@ -31,6 +31,18 @@ export function editorView(): EditorView | null {
   return views.get(layout.activePane) ?? null;
 }
 
+/**
+ * Где показать список, который вставляет текст: у курсора, если открыт
+ * текст, — вставка идёт именно туда, и список в другом углу окна заставлял
+ * бы искать глазами, куда попадёт текст. Без редактора — по центру окна.
+ */
+export function caretPoint(): { x: number; y: number } {
+  const view = editorView();
+  const at = view?.coordsAtPos(view.state.selection.main.head);
+  if (at) return { x: at.left, y: at.bottom + 4 };
+  return { x: window.innerWidth / 2, y: window.innerHeight / 3 };
+}
+
 export function editorViewOf(pane: number): EditorView | null {
   return views.get(pane) ?? null;
 }

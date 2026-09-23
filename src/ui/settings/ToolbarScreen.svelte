@@ -3,7 +3,9 @@
   import { iconForCommand } from '../../icons/commands';
   import { commandList } from '../../keymap/global.svelte';
   import { put, settings } from '../../state/settings.svelte';
-  import { textLabelOf } from '../toolbar';
+  import { CALLOUT_PREFIX, textLabelOf } from '../toolbar';
+  import { calloutById } from '../../state/callouts.svelte';
+  import { cssColorOf, iconOf } from '../../editor/callouts';
 
   /**
    * Вкладка «Панель инструментов» (задача 102).
@@ -32,11 +34,25 @@
     path: { title: 'Путь к файлу', note: 'обрезается слева: имя файла видно всегда' },
   };
 
+  /** Коллаут на панели — `callout:тип` (задача 103). */
+  function calloutOf(item: string) {
+    return item.startsWith(CALLOUT_PREFIX) ? calloutById(item.slice(CALLOUT_PREFIX.length)) : null;
+  }
+
   function titleOf(item: string): string {
+    if (item.startsWith(CALLOUT_PREFIX)) {
+      const callout = calloutOf(item);
+      return callout ? `Коллаут: ${callout.title || callout.id}` : 'Коллаута нет в списке';
+    }
     return WORDS[item]?.title ?? titles.get(item) ?? item;
   }
 
   function noteOf(item: string): string {
+    if (item.startsWith(CALLOUT_PREFIX) && !calloutOf(item)) {
+      // Кнопку несуществующего коллаута панель не рисует — здесь её видно,
+      // чтобы было что убрать.
+      return `${item} — тип удалён из списка коллаутов, кнопка не показывается`;
+    }
     return WORDS[item]?.note ?? item;
   }
 
@@ -172,6 +188,10 @@
               <span class="gap"></span>
             {:else if item === 'path'}
               <Icon name="file.text" />
+            {:else if calloutOf(item)}
+              <span style:color={cssColorOf(calloutOf(item)!.color)}>
+                <Icon name={iconOf(calloutOf(item)!.icon)} />
+              </span>
             {:else if textLabelOf(item)}
               <span class="label">{textLabelOf(item)}</span>
             {:else if iconForCommand(item)}

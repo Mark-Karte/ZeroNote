@@ -10,6 +10,7 @@
   import KeysScreen from './KeysScreen.svelte';
   import ThemesScreen from './ThemesScreen.svelte';
   import ToolbarScreen from './ToolbarScreen.svelte';
+  import CalloutsScreen from './CalloutsScreen.svelte';
   import { updates, checkForUpdates } from '../../state/updates.svelte';
 
   /**
@@ -32,7 +33,7 @@
    * пять настроек оформления. Разделение просил владелец: «чтобы не мусорить
    * в основных настройках».
    */
-  let tab = $state<'general' | 'themes' | 'keys' | 'toolbar'>('general');
+  let tab = $state<'general' | 'themes' | 'keys' | 'toolbar' | 'callouts'>('general');
 
   const file = $derived(settings.state);
   const values = $derived(file?.settings);
@@ -133,7 +134,9 @@
             ? 'Темы · Образцы · Своя тема из файла'
             : tab === 'toolbar'
               ? 'Состав · Показ · Размер · раздел [toolbar] в settings.toml'
-              : 'Горячие клавиши · keymap.toml'}
+              : tab === 'callouts'
+                ? 'Тип · Подпись · Значок · Цвет · callouts.toml'
+                : 'Горячие клавиши · keymap.toml'}
       </p>
     </header>
 
@@ -173,12 +176,22 @@
       >
         Панель инструментов
       </button>
+      <button
+        class="tab"
+        class:current={tab === 'callouts'}
+        type="button"
+        onclick={() => (tab = 'callouts')}
+      >
+        Коллауты
+      </button>
     </div>
 
     {#if tab === 'keys'}
       <KeysScreen />
     {:else if tab === 'toolbar'}
       <ToolbarScreen />
+    {:else if tab === 'callouts'}
+      <CalloutsScreen />
     {:else if tab === 'themes'}
       <ThemesScreen />
     {:else}

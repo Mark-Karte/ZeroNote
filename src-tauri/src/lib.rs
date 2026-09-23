@@ -4,6 +4,7 @@
 //! из интеграционных тестов в `tests/` без запуска приложения.
 
 pub mod bench;
+pub mod callouts;
 pub mod cli;
 pub mod clipboard;
 pub mod commands;
@@ -71,6 +72,11 @@ fn prepare_state() -> AppState {
         && let Err(e) = std::fs::write(&keymap_file, keymap::DEFAULT_TEMPLATE)
     {
         notices.push(format!("не удалось создать keymap.toml: {e}"));
+    }
+    // Коллауты — тот же приём: образец с двадцатью семью типами Obsidian
+    // (задача 103). Существующий файл не трогаем никогда.
+    if let Err(e) = callouts::write_default_if_missing(&data_dir.path.join("callouts.toml")) {
+        notices.push(format!("не удалось создать callouts.toml: {e}"));
     }
     if let Err(e) = std::fs::create_dir_all(data_dir.themes_dir()) {
         notices.push(format!("не удалось создать папку тем: {e}"));
@@ -166,6 +172,9 @@ pub fn run() {
             commands::keymap::reset_binding,
             commands::keymap::reset_keymap,
             commands::settings::settings_state,
+            commands::callouts::callouts_state,
+            commands::callouts::save_callout,
+            commands::callouts::remove_callout,
             commands::settings::update_setting,
             commands::files::startup_paths,
             commands::files::recent_files,

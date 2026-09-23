@@ -141,6 +141,7 @@ const ICON_FOR: Record<string, IconName> = {
   'md.code-block': 'md.code-block',
   'md.divider': 'md.divider',
   'md.mermaid': 'md.mermaid',
+  'md.callout': 'md.callout',
 
   // Пункты, действующие на то, по чему щёлкнули.
   'menu.open': 'file.text',

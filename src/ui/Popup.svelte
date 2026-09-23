@@ -135,9 +135,11 @@
       <!-- Место под значок занято всегда: иначе подписи разъезжались бы
            от строки к строке. Выбранный пункт показывает галочку вместо
            значка — так устроены меню Windows, и так место не удваивается. -->
-      <span class="mark" class:checked={item.checked}>
+      <span class="mark" class:checked={item.checked} style:color={item.tint}>
         {#if item.checked}
           <Icon name="action.check" />
+        {:else if item.icon}
+          <Icon name={item.icon} />
         {:else if iconForCommand(item.id)}
           <Icon name={iconForCommand(item.id)!} />
         {/if}
