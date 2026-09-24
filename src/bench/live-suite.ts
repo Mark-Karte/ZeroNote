@@ -2,6 +2,7 @@ import { tick } from 'svelte';
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { syntaxTree, type LanguageSupport } from '@codemirror/language';
+import { SearchQuery, setSearchQuery } from '@codemirror/search';
 
 import { languageById } from '../editor/langs';
 import { editorView, editorViewOf } from '../editor/current';
@@ -213,6 +214,7 @@ async function measureBare(support: LanguageSupport, doc: string): Promise<Sampl
 async function openRealTab(
   doc: string,
   born: (id: number) => void,
+  languageId = 'cpp',
 ): Promise<{ id: number; view: EditorView }> {
   // Сначала дожидаемся конца восстановления сессии. Иначе оно заменит список
   // вкладок целиком уже после того, как мы создали свою, — и мерить будем
@@ -247,7 +249,7 @@ async function openRealTab(
   }
   // Буфер без файла на диске имени языка не подсказывает, а мерить надо
   // с подсветкой: без неё сравнение с базовой линией теряет смысл.
-  setLanguage(id, 'cpp');
+  setLanguage(id, languageId);
 
   // Состояние доезжает до представления эффектом Svelte, а тот выполняется
   // не сразу. `tick` — документированный способ дождаться, а не надеяться,
@@ -360,6 +362,49 @@ async function measureMirror(real: { id: number; view: EditorView }): Promise<Sa
   }
 }
 
+/**
+ * Ввод в markdown с превью через настоящую вкладку (приёмка этапа 15).
+ *
+ * Строки выше печатают в код. Этап 15 положил на путь ввода markdown
+ * своё: подсветку строки курсора, которая гаснет при выделении (задача
+ * 100), свою подсветку совпадений поиска (там же), панель инструментов
+ * над текстом (задача 102) и коллауты из файла (задача 103). Стенд
+ * подсветки печатает мимо приложения и ничего этого не видит, поэтому
+ * здесь — настоящая вкладка с превью, и дважды: без запроса поиска
+ * и с запросом, который находится в каждом абзаце.
+ *
+ * Мерится до вкладки с кодом: закрытие этой вкладки сделает активной
+ * соседнюю, и дальше стенду нужна вкладка, открытая последней.
+ */
+async function measureMarkdown(): Promise<{ plain: Samples; searched: Samples }> {
+  let id: number | null = null;
+  try {
+    const real = await openRealTab(
+      MARKDOWN_SAMPLE.repeat(MARKDOWN_REPEAT),
+      (born) => {
+        id = born;
+      },
+      'markdown',
+    );
+    await toMiddle(real.view);
+    const plain = await typeInto(real.view);
+
+    // Тот же запрос, что ставит панель поиска по файлу: подсветка
+    // совпадений строится по видимым отрезкам на каждую правку.
+    real.view.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search: 'Текст' })) });
+    await nextFrame();
+    const searched = await typeInto(real.view);
+    real.view.dispatch({ effects: setSearchQuery.of(new SearchQuery({ search: '' })) });
+
+    return { plain, searched };
+  } finally {
+    if (id !== null) await close(id);
+  }
+}
+
+/** Сколько раз повторить образец markdown: около мегабайта, как у кода. */
+const MARKDOWN_REPEAT = 4000;
+
 export async function runLiveSuite(): Promise<Result> {
   const language = languageById('cpp');
   if (!language) throw new Error('в реестре нет языка cpp');
@@ -377,6 +422,10 @@ export async function runLiveSuite(): Promise<Result> {
     // База: тот же ввод, но мимо приложения. Разница со следующей строкой
     // и есть цена вкладки, строки состояния и перерисовки.
     rows.push(row('мимо приложения, в покое', await measureBare(support, doc)));
+
+    const markdown = await measureMarkdown();
+    rows.push(row('markdown с превью, через вкладку', markdown.plain));
+    rows.push(row('markdown с превью и запросом поиска', markdown.searched));
 
     const real = await openRealTab(doc, (id) => {
       tabId = id;
@@ -461,6 +510,9 @@ export function formatMarkdown(result: Result): string {
   lines.push('что приложение делает на каждое изменение: обновление вкладки,');
   lines.push('пересчёт строки состояния, работа Svelte, отрисовка. Первая строка —');
   lines.push('тот же ввод мимо приложения; разница с ней и есть цена обвязки.');
+  lines.push('Строки markdown — около мегабайта заметок с таблицей и коллаутом:');
+  lines.push('превью, подсветка строки курсора, панель над текстом; во второй —');
+  lines.push('ещё и запрос поиска по файлу, найденный в каждом абзаце.');
   lines.push('Меньше времени кадра «до кадра» быть не может — свойство экрана.');
   return lines.join('\n');
 }

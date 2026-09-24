@@ -948,6 +948,101 @@ mod tests {
         assert!(named(&loaded.problems, &["new_key"]));
     }
 
+    /// Откат 0.15.0 → 0.14.0 на свежей установке (приёмка этапа 15).
+    ///
+    /// Разделы 0.14.0 списаны с метки `v0.14.0`: у каждого раздела
+    /// `deny_unknown_fields`, у корня — нет, поэтому незнакомый раздел
+    /// пропускается, а незнакомый ключ в знакомом разделе отвергает файл.
+    /// Значения — `toml::Value`: вопрос здесь в именах ключей, а не в типах.
+    ///
+    /// Первая половина — обещание: образец, который кладёт 0.15.0, 0.14.0
+    /// читает. `[toolbar]` для неё незнакомый раздел, `[font.editor]` в
+    /// образце закомментирован. Вторая — известная цена: кто выбрал шрифт
+    /// редактора, получит у 0.14.0 отказ, и об этом сказано в заметках.
+    #[test]
+    fn the_previous_version_reads_a_fresh_file_of_this_one() {
+        type Loose = Option<toml::Value>;
+
+        #[derive(serde::Deserialize, Default)]
+        #[serde(deny_unknown_fields, default)]
+        #[allow(dead_code)]
+        struct OldAppearance {
+            theme: Loose,
+            light_theme: Loose,
+            dark_theme: Loose,
+            density: Loose,
+        }
+
+        #[derive(serde::Deserialize, Default)]
+        #[serde(deny_unknown_fields, default)]
+        #[allow(dead_code)]
+        struct OldEditor {
+            wrap: Loose,
+            auto_close: Loose,
+            indent_style: Loose,
+            indent_width: Loose,
+            invisibles: Loose,
+            line_numbers: Loose,
+            markdown_bar: Loose,
+            markdown_bar_width: Loose,
+            link_suggest: Loose,
+            readable_width: Loose,
+            live_preview: Loose,
+            autosave: Loose,
+        }
+
+        #[derive(serde::Deserialize, Default)]
+        #[serde(deny_unknown_fields, default)]
+        #[allow(dead_code)]
+        struct OldNotes {
+            vault: Loose,
+            daily_folder: Loose,
+            daily_template: Loose,
+            templates: Loose,
+        }
+
+        #[derive(serde::Deserialize, Default)]
+        #[serde(deny_unknown_fields, default)]
+        #[allow(dead_code)]
+        struct OldUiFont {
+            family: Loose,
+            size: Loose,
+        }
+
+        #[derive(serde::Deserialize, Default)]
+        #[serde(deny_unknown_fields, default)]
+        #[allow(dead_code)]
+        struct OldFont {
+            ui: OldUiFont,
+        }
+
+        #[derive(serde::Deserialize)]
+        #[allow(dead_code)]
+        struct OldSettings {
+            schema: u32,
+            #[serde(default)]
+            appearance: OldAppearance,
+            #[serde(default)]
+            font: OldFont,
+            #[serde(default)]
+            editor: OldEditor,
+            #[serde(default)]
+            notes: OldNotes,
+        }
+
+        // В образце уже есть `[toolbar]` с ключами — для 0.14.0 это чужой
+        // раздел целиком, и она его пропускает.
+        assert!(DEFAULT_TEMPLATE.contains("\n[toolbar]\n"));
+        toml::from_str::<OldSettings>(DEFAULT_TEMPLATE)
+            .expect("0.14.0 обязана прочитать образец 0.15.0");
+
+        let with_editor_font = "schema = 1\n[font.editor]\nfamily = \"Consolas\"\n";
+        let error = toml::from_str::<OldSettings>(with_editor_font)
+            .err()
+            .expect("шрифт редактора — новый ключ в знакомом разделе, 0.14.0 споткнётся");
+        assert!(error.message().contains("editor"), "{error}");
+    }
+
     /// Негодное значение берёт умолчание и называется вместе с тем, что
     /// можно было написать. Соседние ключи применяются.
     #[test]
