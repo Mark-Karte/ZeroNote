@@ -168,6 +168,8 @@ pub fn run() {
             commands::appearance::theme_samples,
             commands::appearance::create_theme,
             commands::appearance::open_themes_dir,
+            commands::appearance::theme_editor,
+            commands::appearance::set_theme_value,
             commands::settings::open_default_apps,
             commands::keymap::keymap_state,
             commands::keymap::set_binding,

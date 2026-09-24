@@ -78,3 +78,72 @@ export function createTheme(id: string): Promise<ThemeInfo> {
 export function openThemesDir(): Promise<void> {
   return invoke('open_themes_dir');
 }
+
+/** Что не прошло проверку читаемости (Р-078, Р-143) — те же правила, что у теста встроенных тем. */
+export interface Finding {
+  kind: 'contrast' | 'distance' | 'unchecked';
+  /** Токен, который проверяли: текст или первый из пары цветов. */
+  token: string;
+  /** Фон, на котором читали, или второй цвет пары. */
+  against: string;
+  /** Отношение контраста или расстояние в Lab. */
+  value: number;
+  need: number;
+}
+
+export interface PaletteEntry {
+  key: string;
+  /** Действующее значение: из файла темы, из встроенной пары или выведенное. */
+  value: string;
+  /** Задано в файле темы. */
+  own: boolean;
+  /** Выведено из других цветов палитры, а не задано. */
+  derived: boolean;
+}
+
+export interface TokenEntry {
+  /** Полное имя: `color-bg-canvas`. */
+  name: string;
+  /** Раздел файла темы: `color`. */
+  section: string;
+  /** Ключ в разделе: `bg-canvas`. */
+  key: string;
+  /** Значение слоя токенов при нынешней плотности, до темы. */
+  default: string;
+  /** Переопределение из файла темы. */
+  own: string | null;
+  /** Что стоит на экране. */
+  resolved: string;
+}
+
+/** Тема для правки в редакторе тем (задача 105). */
+export interface ThemeEditorState {
+  id: string;
+  name: string;
+  appearance: Appearance;
+  /** Встроенная не правится — правят свою копию. */
+  builtin: boolean;
+  path: string | null;
+  palette: PaletteEntry[];
+  tokens: TokenEntry[];
+  findings: Finding[];
+  /** Тема не собирается — почему. */
+  problem: string | null;
+}
+
+export function themeEditor(id: string, density: Density): Promise<ThemeEditorState> {
+  return invoke<ThemeEditorState>('theme_editor', { id, density });
+}
+
+/**
+ * Записать одно значение в файл своей темы; `null` — убрать, вернув
+ * умолчание. Правка, ломающая тему, отвергается словами.
+ */
+export function setThemeValue(
+  id: string,
+  section: string,
+  key: string,
+  value: string | null,
+): Promise<void> {
+  return invoke('set_theme_value', { id, section, key, value });
+}

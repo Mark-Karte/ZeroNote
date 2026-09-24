@@ -92,6 +92,13 @@ pub fn set(source: &str, path: &[&str], value: &Setting) -> Result<String, EditE
 
     let (last, parents) = path.split_last().expect("путь к настройке не бывает пустым");
 
+    // Новая таблица встаёт в конец файла. Без явного места `toml_edit`
+    // ставит её сразу за соседкой — `[font.editor]` за `[font.ui]`, — но
+    // комментарии под заголовком без ключей принадлежат **следующему**
+    // заголовку, и пояснения к `[font.ui]` оказались бы под `[font.editor]`
+    // (найдено на задаче 105). В конце файла чужих комментариев нет.
+    let mut next_position = last_position(document.as_item()) + 1;
+
     // Спускаемся по таблицам, создавая недостающие. `item` каждый раз
     // указывает на текущий уровень; заимствование переносится с одного
     // уровня на следующий, поэтому цикл, а не рекурсия.
@@ -106,6 +113,8 @@ pub fn set(source: &str, path: &[&str], value: &Setting) -> Result<String, EditE
             // в файле появиться не должно.
             let mut fresh = Table::new();
             fresh.set_implicit(true);
+            fresh.set_position(Some(next_position));
+            next_position += 1;
             table.insert(key, Item::Table(fresh));
         }
 
@@ -147,6 +156,19 @@ pub fn set(source: &str, path: &[&str], value: &Setting) -> Result<String, EditE
     Ok(document.to_string())
 }
 
+/// Наибольшее место таблицы в файле — чтобы новая встала после всех.
+fn last_position(item: &Item) -> isize {
+    let Some(table) = item.as_table() else {
+        return 0;
+    };
+    table
+        .iter()
+        .map(|(_, child)| last_position(child))
+        .chain(table.position())
+        .max()
+        .unwrap_or(0)
+}
+
 /// Убрать ключ. Нужно настройкам вида «не задано — значит из темы»:
 /// пустое поле шрифта означает не пустую строку, а отсутствие ключа.
 pub fn unset(source: &str, path: &[&str]) -> Result<String, EditError> {
@@ -183,7 +205,7 @@ pub fn unset(source: &str, path: &[&str]) -> Result<String, EditError> {
 /// Поэтому перед удалением оформление снимается и приписывается следующему
 /// ключу. Если удаляемый ключ последний в разделе, приписать некому — тогда
 /// он остаётся у предыдущего, в конце строки.
-fn remove_keeping_comment(table: &mut Table, name: &str) {
+pub(crate) fn remove_keeping_comment(table: &mut Table, name: &str) {
     let prefix = table
         .key(name)
         .and_then(|key| key.leaf_decor().prefix())
@@ -485,4 +507,33 @@ family = \"Verdana\"
         let again = set(&out, &["toolbar", "items"], &items).unwrap();
         assert_eq!(again, out);
     }
+
+    /// Новый раздел — в конце файла (задача 105). Комментарии под
+    /// `[font.ui]` принадлежат следующему заголовку, и раздел, вставленный
+    /// сразу за `[font.ui]`, забрал бы их себе.
+    #[test]
+    fn new_nested_table_goes_to_the_end() {
+        let out = set(
+            crate::settings::DEFAULT_TEMPLATE,
+            &["font", "editor", "family"],
+            &Setting::Text("Consolas".into()),
+        )
+        .unwrap();
+
+        assert!(out.trim_end().ends_with("[font.editor]\nfamily = \"Consolas\""), "{out}");
+        let ui = out.find("[font.ui]").unwrap();
+        let comment = out.find("# Шрифт интерфейса").unwrap();
+        assert!(ui < comment && comment < out.find("\n[editor]").unwrap());
+
+        let loaded = crate::settings::parse(&out).unwrap();
+        assert_eq!(loaded.settings.font.editor.family.as_deref(), Some("Consolas"));
+        assert!(loaded.problems.is_empty(), "{:?}", loaded.problems);
+
+        // Второй ключ того же раздела ложится к первому, а не в новый раздел.
+        let size = set(&out, &["font", "editor", "size"], &Setting::Number(15)).unwrap();
+        // В образце `[font.editor]` упомянут и в комментариях — считаем заголовки.
+        assert_eq!(size.matches("\n[font.editor]\n").count(), 1);
+        assert!(size.trim_end().ends_with("family = \"Consolas\"\nsize = 15"), "{size}");
+    }
 }
+

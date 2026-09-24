@@ -8,7 +8,7 @@
   import { showAbout } from '../../actions/about';
   import { version } from '../../version';
   import KeysScreen from './KeysScreen.svelte';
-  import ThemesScreen from './ThemesScreen.svelte';
+  import AppearanceScreen from './AppearanceScreen.svelte';
   import ToolbarScreen from './ToolbarScreen.svelte';
   import CalloutsScreen from './CalloutsScreen.svelte';
   import { updates, checkForUpdates } from '../../state/updates.svelte';
@@ -33,31 +33,11 @@
    * пять настроек оформления. Разделение просил владелец: «чтобы не мусорить
    * в основных настройках».
    */
-  let tab = $state<'general' | 'themes' | 'keys' | 'toolbar' | 'callouts'>('general');
+  let tab = $state<'general' | 'appearance' | 'keys' | 'toolbar' | 'callouts'>('general');
 
   const file = $derived(settings.state);
   const values = $derived(file?.settings);
   const broken = $derived(file?.broken ?? null);
-
-  /** Пустая строка в поле шрифта означает «как в теме», то есть убрать ключ. */
-  function fontFamily(text: string): void {
-    const trimmed = text.trim();
-    void put(['font', 'ui', 'family'], trimmed === '' ? null : trimmed);
-  }
-
-  function fontSize(text: string): void {
-    const trimmed = text.trim();
-    if (trimmed === '') {
-      void put(['font', 'ui', 'size'], null);
-      return;
-    }
-    const size = Number.parseInt(trimmed, 10);
-    // Число вне разумного диапазона в файл не пойдёт: интерфейс с шрифтом
-    // в два пикселя починить через этот же интерфейс уже не выйдет.
-    if (Number.isFinite(size) && size >= 8 && size <= 32) {
-      void put(['font', 'ui', 'size'], size);
-    }
-  }
 
   async function openFile(): Promise<void> {
     if (file) await openDropped([file.path]);
@@ -129,9 +109,9 @@
       <h1 class="title">Параметры</h1>
       <p class="subtitle">
         {tab === 'general'
-          ? 'Оформление · Шрифт · Файл настроек · О программе'
-          : tab === 'themes'
-            ? 'Темы · Образцы · Своя тема из файла'
+          ? 'Редактор · Заметки · Файл настроек · О программе'
+          : tab === 'appearance'
+            ? 'Тема · Плотность · Шрифты · Редактор темы'
             : tab === 'toolbar'
               ? 'Состав · Показ · Размер · раздел [toolbar] в settings.toml'
               : tab === 'callouts'
@@ -151,11 +131,11 @@
       </button>
       <button
         class="tab"
-        class:current={tab === 'themes'}
+        class:current={tab === 'appearance'}
         type="button"
-        onclick={() => (tab = 'themes')}
+        onclick={() => (tab = 'appearance')}
       >
-        Темы
+        Оформление
       </button>
       <button
         class="tab"
@@ -192,8 +172,8 @@
       <ToolbarScreen />
     {:else if tab === 'callouts'}
       <CalloutsScreen />
-    {:else if tab === 'themes'}
-      <ThemesScreen />
+    {:else if tab === 'appearance'}
+      <AppearanceScreen />
     {:else}
     {#if broken}
       <p class="broken">
@@ -227,24 +207,6 @@
 
     {#if values}
       <div class="rows" class:frozen={broken !== null}>
-        <div class="row">
-          <div class="what">
-            <span class="name">Плотность интерфейса</span>
-            <span class="note">
-              Компактная уменьшает высоты строк, отступы и размер шрифта.
-            </span>
-          </div>
-          <select
-            class="control"
-            disabled={broken !== null}
-            value={values.appearance.density}
-            onchange={(e) => put(['appearance', 'density'], e.currentTarget.value)}
-          >
-            <option value="normal">Обычная</option>
-            <option value="compact">Компактная</option>
-          </select>
-        </div>
-
         <div class="row">
           <div class="what">
             <span class="name">Перенос длинных строк</span>
@@ -551,38 +513,6 @@
           </div>
         </div>
 
-        <div class="row">
-          <div class="what">
-            <span class="name">Шрифт интерфейса</span>
-            <span class="note">Пусто — из темы. Шрифт редактора задаёт тема.</span>
-          </div>
-          <input
-            class="control text"
-            type="text"
-            disabled={broken !== null}
-            value={values.font.ui.family ?? ''}
-            placeholder="как в теме"
-            spellcheck="false"
-            onchange={(e) => fontFamily(e.currentTarget.value)}
-          />
-        </div>
-
-        <div class="row">
-          <div class="what">
-            <span class="name">Размер шрифта интерфейса</span>
-            <span class="note">От 8 до 32 пикселей. Пусто — из темы.</span>
-          </div>
-          <input
-            class="control number"
-            type="number"
-            min="8"
-            max="32"
-            disabled={broken !== null}
-            value={values.font.ui.size ?? ''}
-            placeholder="как в теме"
-            onchange={(e) => fontSize(e.currentTarget.value)}
-          />
-        </div>
       </div>
 
       <!-- Файл — основной интерфейс настройки, а это окно — надстройка над ним.
@@ -817,10 +747,6 @@
 
   .control:disabled {
     color: var(--zn-color-fg-subtle);
-  }
-
-  .number {
-    min-width: var(--zn-control-tab-min-width);
   }
 
   .card {

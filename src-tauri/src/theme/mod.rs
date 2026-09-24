@@ -5,6 +5,8 @@
 //! Ни одного правила выбора цвета на стороне интерфейса нет — это то же самое
 //! разделение обязанностей, что и с файловым вводом-выводом.
 
+pub mod editor;
+pub mod readability;
 pub mod tokens;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -73,6 +75,8 @@ pub enum ThemeError {
     UnknownPaletteKey { token: String, key: String },
     UnclosedReference { token: String, value: String },
     Io(String),
+    /// Правка из редактора тем негодна сама по себе (задача 105).
+    Invalid(String),
 }
 
 impl std::fmt::Display for ThemeError {
@@ -94,13 +98,28 @@ impl std::fmt::Display for ThemeError {
                 write!(f, "в значении токена {token} не закрыта ссылка: {value}")
             }
             ThemeError::Io(message) => write!(f, "ошибка чтения темы: {message}"),
+            ThemeError::Invalid(message) => write!(f, "{message}"),
         }
     }
 }
 
 impl std::error::Error for ThemeError {}
 
+/// Разделы переопределений токенов — в порядке файла темы. Имя раздела
+/// становится префиксом имени токена: `[color] bg-canvas` → `color-bg-canvas`.
+pub const SECTIONS: [&str; 9] = [
+    "color", "font", "space", "radius", "border", "shadow", "motion", "z", "control",
+];
+
 impl ThemeFile {
+    /// Раздел переопределений по имени.
+    pub fn section(&self, name: &str) -> Option<&BTreeMap<String, String>> {
+        self.sections()
+            .into_iter()
+            .find(|(prefix, _)| *prefix == name)
+            .map(|(_, table)| table)
+    }
+
     /// Разделы переопределений вместе с их префиксами.
     ///
     /// Возвращаются заимствованные ссылки: копировать таблицы незачем, они
@@ -308,6 +327,94 @@ fn block_overlay(canvas: &str, raised: &str) -> Option<String> {
     ))
 }
 
+/// Значение токена до выбора человека: переопределение темы, а если его
+/// нет — умолчание из слоя токенов. Ссылки на палитру не раскрыты.
+///
+/// Нужно там, где выбор человека ложится поверх темы, но тему не отменяет:
+/// шрифт, которого нет в системе, должен уступить шрифту темы, а не
+/// умолчанию браузера.
+pub fn token_value(theme: &ThemeFile, name: &str, density: Density) -> Option<String> {
+    for (prefix, section) in theme.sections() {
+        if let Some(key) = name.strip_prefix(prefix).and_then(|rest| rest.strip_prefix('-'))
+            && let Some(value) = section.get(key)
+        {
+            return Some(value.clone());
+        }
+    }
+
+    layer_default(name, density)
+}
+
+/// Значение слоя токенов, до темы: база, метрики нужной плотности,
+/// семантические роли. Ссылки на палитру не раскрыты.
+pub(crate) fn layer_default(name: &str, density: Density) -> Option<String> {
+    let metrics = match density {
+        Density::Normal => tokens::METRICS_NORMAL,
+        Density::Compact => tokens::METRICS_COMPACT,
+    };
+    tokens::BASE
+        .iter()
+        .chain(metrics)
+        .chain(tokens::SEMANTIC_COLORS)
+        .find(|(token, _)| *token == name)
+        .map(|(_, value)| (*value).to_owned())
+}
+
+/// Действующая палитра темы: своё поверх встроенной темы того же вида,
+/// плюс выведенная подложка блока.
+///
+/// Пользовательская тема может задать только часть палитры: недостающие
+/// цвета берутся из встроенной темы того же вида. Так тема из пяти строк
+/// остаётся работоспособной и не разваливается на неописанных ролях.
+///
+/// Подложка утопленного блока выводится из палитры, если тема не задала
+/// её сама (Р-246). Не вышло разобрать цвета — остаётся прежний
+/// непрозрачный `bg-0`: тихо потерять подложку хуже, чем потерять
+/// прозрачность.
+///
+/// Отдельной функцией ради редактора тем (задача 105): он показывает
+/// ровно ту палитру, из которой собирается тема, и вторая сборка разошлась
+/// бы с первой.
+pub(crate) fn effective_palette(theme: &ThemeFile) -> BTreeMap<String, String> {
+    let mut palette = builtin(theme.appearance).palette;
+    for (key, value) in &theme.palette {
+        palette.insert(key.clone(), value.clone());
+    }
+
+    if !palette.contains_key("bg-block") {
+        let canvas = palette.get("bg-0").cloned().unwrap_or_default();
+        let raised = palette.get("bg-2").cloned().unwrap_or_default();
+        let derived = block_overlay(&canvas, &raised).unwrap_or(canvas);
+        palette.insert("bg-block".to_owned(), derived);
+    }
+
+    palette
+}
+
+/// Семейство шрифта, выбранное человеком, с шрифтом темы запасным.
+///
+/// Человек пишет имя — `Fira Code`, — а в CSS это список: без запасного
+/// шрифта отсутствующий в системе дал бы умолчание браузера, то есть
+/// засечки в редакторе кода. Имя берётся в кавычки; написанное списком
+/// (с запятой или уже в кавычках) остаётся как есть — это выбор того,
+/// кто знает, что пишет.
+pub fn font_family_with_fallback(chosen: &str, fallback: &str) -> String {
+    let chosen = chosen.trim();
+    let written = if chosen.contains(',') || chosen.starts_with('\'') || chosen.starts_with('"') {
+        chosen.to_owned()
+    } else if chosen.contains('\'') {
+        format!("\"{chosen}\"")
+    } else {
+        format!("'{chosen}'")
+    };
+
+    if fallback.trim().is_empty() {
+        written
+    } else {
+        format!("{written}, {fallback}")
+    }
+}
+
 /// Итоговая таблица «имя токена → значение CSS» без пользовательских
 /// переопределений. Отдельная функция только ради краткости в тестах.
 pub fn resolve(theme: &ThemeFile, density: Density) -> Result<BTreeMap<String, String>, ThemeError> {
@@ -364,23 +471,7 @@ pub fn resolve_with(
         values.insert(name.clone(), value.clone());
     }
 
-    // Пользовательская тема может задать только часть палитры: недостающие
-    // цвета берутся из встроенной темы того же вида. Так тема из пяти строк
-    // остаётся работоспособной и не разваливается на неописанных ролях.
-    let mut palette = builtin(theme.appearance).palette;
-    for (key, value) in &theme.palette {
-        palette.insert(key.clone(), value.clone());
-    }
-
-    // Подложка утопленного блока выводится из палитры, если тема не задала
-    // её сама. Не вышло разобрать цвета — остаётся прежний непрозрачный
-    // `bg-0`: тихо потерять подложку хуже, чем потерять прозрачность.
-    if !palette.contains_key("bg-block") {
-        let canvas = palette.get("bg-0").cloned().unwrap_or_default();
-        let raised = palette.get("bg-2").cloned().unwrap_or_default();
-        let derived = block_overlay(&canvas, &raised).unwrap_or(canvas);
-        palette.insert("bg-block".to_owned(), derived);
-    }
+    let palette = effective_palette(theme);
 
     let mut resolved = BTreeMap::new();
     for (name, value) in values {
@@ -866,225 +957,79 @@ mod tests {
         assert_eq!(values["color-bg-block"], "rebeccapurple");
     }
 
-    /// Составляющие цвета `#rrggbb`, приведённые из значения, каким его хранит
-    /// файл, к значению, каким его видит глаз (гамма-коррекция наоборот).
-    fn linear(hex: &str) -> [f64; 3] {
-        let hex = hex.trim_start_matches('#');
-        assert_eq!(hex.len(), 6, "ожидался цвет вида #rrggbb, получено: {hex}");
-
-        let channel = |from: usize| {
-            let raw = u8::from_str_radix(&hex[from..from + 2], 16)
-                .unwrap_or_else(|_| panic!("не цвет: {hex}")) as f64
-                / 255.0;
-            if raw <= 0.04045 {
-                raw / 12.92
-            } else {
-                ((raw + 0.055) / 1.055).powf(2.4)
-            }
-        };
-
-        [channel(0), channel(2), channel(4)]
-    }
-
-    /// Относительная яркость цвета по формуле WCAG 2: составляющие складываются
-    /// с весами, потому что зелёный человек различает лучше синего почти
-    /// на порядок.
-    fn luminance(hex: &str) -> f64 {
-        let [r, g, b] = linear(hex);
-        0.2126 * r + 0.7152 * g + 0.0722 * b
-    }
-
-    /// Цвет в координатах CIE Lab: светлота и две оси цветности.
-    ///
-    /// Нужен для второго правила Р-143 — «цвета подсветки различимы между
-    /// собой». Отношение контраста для этого не годится: у двух цветов разного
-    /// оттенка, но одной яркости оно равно единице, хотя глаз различает их
-    /// прекрасно. Lab устроен обратно: расстояние в нём примерно соответствует
-    /// тому, насколько цвета кажутся разными.
-    ///
-    /// Белая точка — D65, та же, что подразумевает sRGB.
-    fn lab(hex: &str) -> [f64; 3] {
-        let [r, g, b] = linear(hex);
-
-        let x = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047;
-        let y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-        let z = (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883;
-
-        let f = |t: f64| {
-            if t > 0.008856 {
-                t.cbrt()
-            } else {
-                7.787 * t + 16.0 / 116.0
-            }
-        };
-
-        [
-            116.0 * f(y) - 16.0,
-            500.0 * (f(x) - f(y)),
-            200.0 * (f(y) - f(z)),
-        ]
-    }
-
-    /// Расстояние между цветами в Lab (ΔE по формуле 1976 года).
-    ///
-    /// Формулу взяли самую простую из трёх существующих: более поздние точнее
-    /// возле порога «глаз едва замечает разницу», а нам нужен порог намного
-    /// выше — «это очевидно разные цвета».
-    fn delta_e(a: &str, b: &str) -> f64 {
-        let (x, y) = (lab(a), lab(b));
-        ((x[0] - y[0]).powi(2) + (x[1] - y[1]).powi(2) + (x[2] - y[2]).powi(2)).sqrt()
-    }
-
-    /// Отношение контраста двух цветов: от 1 (одинаковые) до 21 (чёрный и белый).
-    fn contrast(a: &str, b: &str) -> f64 {
-        let (x, y) = (luminance(a), luminance(b));
-        let (light, dark) = if x > y { (x, y) } else { (y, x) };
-        (light + 0.05) / (dark + 0.05)
-    }
-
-    /// Шесть цветов подсветки. Роли, у которых свой цвет в палитре; остальные
-    /// (операторы, знаки препинания, заголовки) берут цвет обычного текста
-    /// и проверяются вместе с ним.
-    const SYNTAX: [&str; 6] = [
-        "color-syntax-keyword",
-        "color-syntax-string",
-        "color-syntax-comment",
-        "color-syntax-number",
-        "color-syntax-type",
-        "color-syntax-function",
-    ];
-
-    /// Насколько цвета подсветки обязаны отличаться друг от друга.
-    ///
-    /// Порог выбран по замерам, а не на глаз. Жёлтый `#e5c07b` и оранжевый
-    /// `#e8a05c` — расхождение 18, и в тексте они читаются как один цвет;
-    /// у пар, которые глаз уверенно делит, расхождение начинается с 24.
-    /// Двадцать — граница между этими двумя случаями.
-    const SYNTAX_MIN_DELTA: f64 = 20.0;
-
-    /// Текст во всех встроенных темах обязан быть читаемым.
+    /// Текст во всех встроенных темах обязан быть читаемым, а цвета
+    /// подсветки — различимыми (Р-078, Р-143).
     ///
     /// Тема, где серое по серому, — это не дело вкуса, а неработающая тема,
     /// и заметить такое глазами можно только на своём экране при своём
-    /// освещении. Пороги взяты из WCAG: 7:1 для основного текста, 4,5:1 —
-    /// для второстепенного и для того, что несёт смысл цветом, 3:1 — для
-    /// самого тихого (номера строк, знаки препинания в коде, подсказки
-    /// в пустых полях).
-    ///
-    /// Проверяются все три фона, а не два. Подложка окна (`color-bg-canvas`)
-    /// раньше считалась поверхностью без текста — это было неверно: на ней
-    /// лежат поля ввода внутри панелей и блоки кода в markdown (Р-083).
-    ///
-    /// Цвета подсветки — отдельным списком (Р-143). До этой проверки тест
-    /// не смотрел на них вовсе: он мерил шесть ролей интерфейса, ни одна
-    /// из которых не цвет кода, и тема с нечитаемым кодом проходила его
-    /// с полным правом.
+    /// освещении. Правила — в `readability.rs`: с задачи 105 ими же судит
+    /// редактор тем, и тест зовёт ту же функцию, что окно.
     #[test]
     fn builtin_themes_are_readable() {
         for (id, source) in BUILTIN {
             let theme = parse(source).expect("тема должна разбираться");
-            let t = resolve(&theme, Density::Normal).expect("тема должна собраться");
+            let tokens = resolve(&theme, Density::Normal).expect("тема должна собраться");
 
-            for bg in ["color-bg-surface", "color-bg-raised", "color-bg-canvas"] {
-                let back = &t[bg];
-
-                let main = contrast(&t["color-fg-default"], back);
-                assert!(main >= 7.0, "{id}: основной текст на {bg} даёт {main:.1}:1");
-
-                for role in [
-                    "color-fg-muted",
-                    "color-accent",
-                    "color-danger",
-                    "color-warning",
-                    "color-success",
-                ] {
-                    let ratio = contrast(&t[role], back);
-                    assert!(ratio >= 4.5, "{id}: {role} на {bg} даёт {ratio:.1}:1");
-                }
-
-                let subtle = contrast(&t["color-fg-subtle"], back);
-                assert!(subtle >= 3.0, "{id}: тихий текст на {bg} даёт {subtle:.1}:1");
-            }
-
-            // Код читают там же, где текст: в рабочей области и на подложке —
-            // ею залит блок кода внутри markdown.
-            for bg in ["color-bg-raised", "color-bg-canvas"] {
-                let back = &t[bg];
-                for role in SYNTAX {
-                    let ratio = contrast(&t[role], back);
-                    assert!(ratio >= 4.5, "{id}: {role} на {bg} даёт {ratio:.1}:1");
-                }
-            }
-
-            // Надпись на кнопке, залитой акцентом. Здесь ошибаются чаще всего:
-            // белый по светлому акценту выглядит нарядно и не читается.
-            let on_accent = contrast(&t["color-fg-on-accent"], &t["color-accent"]);
+            let findings = readability::check(&tokens);
             assert!(
-                on_accent >= 4.5,
-                "{id}: текст на акценте даёт {on_accent:.1}:1"
+                findings.is_empty(),
+                "{id}: {}",
+                findings
+                    .iter()
+                    .map(|f| format!("{:?} {} / {}: {:.1} < {}", f.kind, f.token, f.against, f.value, f.need))
+                    .collect::<Vec<_>>()
+                    .join("; ")
             );
         }
     }
 
-    /// Второе правило Р-143, и оно важнее первого: цвета подсветки обязаны
-    /// отличаться **друг от друга**.
-    ///
-    /// Шесть цветов, каждый из которых читается на фоне, но все шесть —
-    /// оттенки одного, пройдут проверку читаемости и провалят задачу. Именно
-    /// так и выглядит «плохо видно подсветку»: не тускло, а неразличимо.
+    /// Имя шрифта берётся в кавычки, шрифт темы дописывается запасным;
+    /// написанное списком остаётся как есть.
     #[test]
-    fn builtin_syntax_colours_differ_from_each_other() {
-        for (id, source) in BUILTIN {
-            let theme = parse(source).expect("тема должна разбираться");
-            let t = resolve(&theme, Density::Normal).expect("тема должна собраться");
+    fn chosen_font_keeps_the_theme_font_as_fallback() {
+        let theme_font = "'JetBrains Mono', monospace";
 
-            for (i, first) in SYNTAX.iter().enumerate() {
-                for second in &SYNTAX[i + 1..] {
-                    let distance = delta_e(&t[*first], &t[*second]);
-                    assert!(
-                        distance >= SYNTAX_MIN_DELTA,
-                        "{id}: {first} и {second} расходятся на {distance:.0} — \
-                         в тексте это один цвет"
-                    );
-                }
-            }
-        }
-    }
-
-    /// Порог обязан срабатывать: проверка, которая не может провалиться,
-    /// выглядит точно так же, как проверка, которая проходит.
-    #[test]
-    fn readability_check_rejects_unreadable_theme() {
-        // Серый по чуть более светлому серому — 1,7:1.
-        assert!(contrast("#808080", "#9a9a9a") < 4.5);
-        // Чёрный по белому — предел шкалы.
-        assert!((contrast("#000000", "#ffffff") - 21.0).abs() < 0.01);
-    }
-
-    /// То же самое для различимости, и случай взят настоящий: шесть голубых
-    /// оттенков, каждый из которых **проходит** проверку читаемости на тёмном
-    /// фоне. Первое правило их пропускает, второе обязано остановить.
-    #[test]
-    fn distinctness_check_rejects_palette_of_one_hue() {
-        let shades = [
-            "#8ab4f8", "#93b9f8", "#9cbef9", "#a5c3f9", "#aec8fa", "#b7cdfa",
-        ];
-
-        for shade in shades {
-            let ratio = contrast(shade, "#1a1b26");
-            assert!(ratio >= 4.5, "оттенок {shade} должен быть читаемым");
-        }
-
-        let worst = shades
-            .iter()
-            .enumerate()
-            .flat_map(|(i, first)| shades[i + 1..].iter().map(move |second| delta_e(first, second)))
-            .fold(f64::MAX, f64::min);
-
-        assert!(
-            worst < SYNTAX_MIN_DELTA,
-            "оттенки одного цвета обязаны проваливать проверку, а расходятся на {worst:.0}"
+        assert_eq!(
+            font_family_with_fallback("Fira Code", theme_font),
+            "'Fira Code', 'JetBrains Mono', monospace"
         );
+        assert_eq!(
+            font_family_with_fallback("  Consolas ", theme_font),
+            "'Consolas', 'JetBrains Mono', monospace"
+        );
+        assert_eq!(
+            font_family_with_fallback("'Iosevka', Consolas", theme_font),
+            "'Iosevka', Consolas, 'JetBrains Mono', monospace"
+        );
+        assert_eq!(
+            font_family_with_fallback("O'Neil Sans", ""),
+            "\"O'Neil Sans\""
+        );
+    }
+
+    /// Значение до выбора человека: сначала тема, потом слой токенов.
+    #[test]
+    fn token_value_prefers_the_theme_override() {
+        let theme = parse(
+            r##"
+            schema = 1
+            id = "t"
+            name = "T"
+            appearance = "dark"
+
+            [font]
+            family-editor = "'Iosevka', monospace"
+        "##,
+        )
+        .unwrap();
+
+        assert_eq!(
+            token_value(&theme, "font-family-editor", Density::Normal).as_deref(),
+            Some("'Iosevka', monospace")
+        );
+        assert_eq!(token_value(&theme, "space-3", Density::Normal).as_deref(), Some("8px"));
+        assert_eq!(token_value(&theme, "color-bg-canvas", Density::Normal).as_deref(), Some("{palette.bg-0}"));
+        assert_eq!(token_value(&theme, "нет-такого", Density::Normal), None);
     }
 
     /// Тема, выбранная по идентификатору, — это именно она, а не запасная.

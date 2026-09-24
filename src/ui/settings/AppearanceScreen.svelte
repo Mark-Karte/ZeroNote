@@ -1,5 +1,7 @@
 <script lang="ts">
   import Icon from '../Icon.svelte';
+  import FontsPanel from './FontsPanel.svelte';
+  import ThemeEditor from './ThemeEditor.svelte';
   import { settings, put } from '../../state/settings.svelte';
   import { appearance, refresh } from '../../theme/store.svelte';
   import * as ipc from '../../ipc/appearance';
@@ -7,12 +9,14 @@
   import { choiceFor, followsSystem, grouped, stateOf, type ThemeSelection } from './themes';
 
   /**
-   * Вкладка «Темы».
+   * Вкладка «Оформление» (до задачи 105 — «Темы»).
    *
    * Тема, которой у нас нет, не должна быть задачей разработки (Р-147):
    * механика темы-файла есть с этапа 3, не хватало места, где это видно.
-   * Отсюда три вещи на экране: список с образцом, «создать свою на основе
-   * этой» и «открыть папку тем».
+   * Отсюда на экране: список с образцом, «создать свою на основе этой»,
+   * «открыть папку тем». С задачи 105 — ещё плотность и шрифты, которые
+   * переехали сюда из «Настроек», и редактор темы: вид окна собран
+   * в одном месте.
    *
    * Образец рисуется настоящими цветами темы, а не описанием: проверку
    * читаемости мы прогоняем только на встроенных, и у чужой темы единственный
@@ -87,6 +91,10 @@
     await apply('theme', mode === 'system' ? 'system' : selection.currentId);
   }
 
+  async function setDensity(value: string): Promise<void> {
+    await apply('density', value);
+  }
+
   async function createFrom(): Promise<void> {
     problem = null;
     try {
@@ -135,6 +143,22 @@
     >
       <option value="fixed">Выбранная ниже</option>
       <option value="system">Как в Windows</option>
+    </select>
+  </div>
+
+  <div class="mode">
+    <div class="what">
+      <span class="name">Плотность интерфейса</span>
+      <span class="note">Компактная уменьшает высоты строк, отступы и размер шрифта.</span>
+    </div>
+    <select
+      class="control"
+      disabled={broken !== null}
+      value={values?.appearance.density ?? 'normal'}
+      onchange={(e) => void setDensity(e.currentTarget.value)}
+    >
+      <option value="normal">Обычная</option>
+      <option value="compact">Компактная</option>
     </select>
   </div>
 
@@ -211,11 +235,16 @@
   </div>
 
   <p class="hint">
-    Тема — файл TOML в папке тем. Копия сохраняет пояснения к палитре, и её
-    можно править как обычный текст: сохраните файл — окно перерисуется само.
-    Проверку читаемости мы прогоняем только на встроенных темах, так что
-    за своей смотрите глазами.
+    Тема — файл TOML в папке тем. Копия сохраняет пояснения к палитре;
+    править её можно ниже или как обычный текст — сохраните файл, и окно
+    перерисуется само.
   </p>
+
+  <hr class="divider" />
+  <FontsPanel />
+
+  <hr class="divider" />
+  <ThemeEditor oncopy={() => void createFrom()} />
 </div>
 
 <style>
@@ -445,5 +474,13 @@
     margin: 0;
     color: var(--zn-color-fg-subtle);
     font-size: var(--zn-font-size-ui-small);
+  }
+
+  /* Части вкладки делит черта, а не зазор (Р-149). */
+  .divider {
+    width: 100%;
+    margin: var(--zn-space-2) 0;
+    border: none;
+    border-top: var(--zn-border-width) solid var(--zn-color-border-subtle);
   }
 </style>

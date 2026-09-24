@@ -308,15 +308,20 @@ impl Default for EditorSettings {
     }
 }
 
+/// Шрифты — настройка человека, а не темы (задача 105, решение владельца):
+/// тема задаёт умолчание, выбор человека его перекрывает и не меняется
+/// вместе с темой.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct FontSettings {
-    pub ui: UiFont,
+    pub ui: FontChoice,
+    pub editor: FontChoice,
 }
 
+/// Шрифт одного места: интерфейса или редактора.
 #[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
-pub struct UiFont {
+pub struct FontChoice {
     /// `None` — значение из темы. Ключ просто отсутствует в файле.
     pub family: Option<String>,
     pub size: Option<u32>,
@@ -351,7 +356,8 @@ impl Default for AppearanceSettings {
 impl Default for FontSettings {
     fn default() -> Self {
         FontSettings {
-            ui: UiFont::default(),
+            ui: FontChoice::default(),
+            editor: FontChoice::default(),
         }
     }
 }
@@ -604,26 +610,30 @@ where
     value
 }
 
-/// Раздел `[font]` вложенный: шрифт живёт в `[font.ui]`. Вложенный раздел
-/// читается своим ходом — иначе негодный `size` выбросил бы весь `[font.ui]`
-/// вместе с годным `family`.
+/// Раздел `[font]` вложенный: шрифты живут в `[font.ui]` и `[font.editor]`.
+/// Каждый вложенный раздел читается своим ходом — иначе негодный `size`
+/// выбросил бы весь раздел вместе с годным `family`.
 fn font_section(mut table: toml::Table, problems: &mut Vec<String>) -> FontSettings {
-    let ui: UiFont = match table.remove("ui") {
-        None => UiFont::default(),
-        Some(toml::Value::Table(inner)) => section(inner, "font.ui", problems),
-        Some(other) => {
-            problems.push(format!(
-                "[font.ui] должен быть разделом, а в файле {} — взяты значения по умолчанию",
-                other.type_str()
-            ));
-            UiFont::default()
+    let mut choice = |name: &str| -> FontChoice {
+        match table.remove(name) {
+            None => FontChoice::default(),
+            Some(toml::Value::Table(inner)) => section(inner, &format!("font.{name}"), problems),
+            Some(other) => {
+                problems.push(format!(
+                    "[font.{name}] должен быть разделом, а в файле {} — взяты значения по умолчанию",
+                    other.type_str()
+                ));
+                FontChoice::default()
+            }
         }
     };
+    let ui = choice("ui");
+    let editor = choice("editor");
 
     // Всё прочее в `[font]` — незнакомое: своих ключей у раздела нет,
-    // только вложенный `ui`. Разбор здесь ради одного — назвать их.
+    // только вложенные `ui` и `editor`. Разбор здесь ради одного — назвать их.
     let _: FontSettings = section(table, "font", problems);
-    FontSettings { ui }
+    FontSettings { ui, editor }
 }
 
 /// Чтение с диска.
@@ -678,9 +688,15 @@ dark_theme = "dark"
 density = "normal"
 
 [font.ui]
-# Шрифт интерфейса. Если ключа нет — берётся из темы (по умолчанию системный).
+# Шрифт интерфейса. Если ключа нет — берётся из темы. Не нашёлся в системе —
+# на экране останется шрифт темы. Правится и во вкладке «Оформление».
 # family = "Segoe UI"
 # size = 13
+
+# Шрифт редактора — так же, раздел [font.editor]:
+# [font.editor]
+# family = "Cascadia Mono"
+# size = 14
 
 [editor]
 # Переносить длинные строки по ширине окна.
@@ -1020,6 +1036,27 @@ mod tests {
 
         assert_eq!(loaded.settings.font.ui.size, Some(15));
         assert!(named(&loaded.problems, &["[font]", "ligatures"]));
+    }
+
+    /// Шрифт редактора читается так же, как шрифт интерфейса (задача 105),
+    /// и негодное значение в одном разделе не трогает другой.
+    #[test]
+    fn editor_font_is_read_like_the_ui_one() {
+        let loaded = read(
+            r#"
+            schema = 1
+            [font.ui]
+            family = "Segoe UI"
+            [font.editor]
+            family = "Cascadia Mono"
+            size = "крупный"
+        "#,
+        );
+
+        assert_eq!(loaded.settings.font.ui.family.as_deref(), Some("Segoe UI"));
+        assert_eq!(loaded.settings.font.editor.family.as_deref(), Some("Cascadia Mono"));
+        assert_eq!(loaded.settings.font.editor.size, None);
+        assert!(named(&loaded.problems, &["[font.editor]", "size"]));
     }
 
     /// Раздел, записанный не таблицей, берёт умолчания целиком — и об этом

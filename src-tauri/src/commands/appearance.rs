@@ -110,19 +110,30 @@ pub fn build(
         }
     };
 
-    // Настройки шрифта интерфейса ложатся поверх темы: выбранный пользователем
-    // шрифт не должен сбрасываться при смене темы.
-    let mut overrides: BTreeMap<String, String> = BTreeMap::new();
-    if let Some(family) = &settings.font.ui.family
-        && !family.trim().is_empty()
-    {
-        overrides.insert("font-family-ui".to_owned(), family.clone());
-    }
-    if let Some(size) = settings.font.ui.size {
-        overrides.insert("font-size-ui".to_owned(), format!("{size}px"));
-    }
-
     let density = settings.appearance.density;
+
+    // Шрифты человека ложатся поверх темы: выбранный шрифт не должен
+    // сбрасываться при смене темы (задача 105). Шрифт темы остаётся
+    // запасным — не нашёлся выбранный, на экране будет он.
+    let mut overrides: BTreeMap<String, String> = BTreeMap::new();
+    let places = [
+        (&settings.font.ui, "font-family-ui", "font-size-ui"),
+        (&settings.font.editor, "font-family-editor", "font-size-editor"),
+    ];
+    for (choice, family_token, size_token) in places {
+        if let Some(family) = &choice.family
+            && !family.trim().is_empty()
+        {
+            let fallback = theme::token_value(&selected, family_token, density).unwrap_or_default();
+            overrides.insert(
+                family_token.to_owned(),
+                theme::font_family_with_fallback(family, &fallback),
+            );
+        }
+        if let Some(size) = choice.size {
+            overrides.insert(size_token.to_owned(), format!("{size}px"));
+        }
+    }
 
     let (tokens, theme_id, theme_name, appearance) =
         match theme::resolve_with(&selected, density, &overrides) {
@@ -203,6 +214,40 @@ pub fn open_themes_dir(state: tauri::State<'_, AppState>) -> Result<(), String> 
     let dir = state.data_dir.themes_dir();
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     crate::fsx::reveal::reveal(&dir).map_err(|e| e.to_string())
+}
+
+/// Тема для правки в редакторе тем (задача 105).
+///
+/// Плотность приходит из окна: от неё зависят умолчания метрик, и показывать
+/// надо те, что на экране.
+#[tauri::command]
+pub fn theme_editor(
+    state: tauri::State<'_, AppState>,
+    id: String,
+    density: Density,
+) -> Result<theme::editor::EditorState, String> {
+    theme::editor::editor_state(&state.data_dir.themes_dir(), &id, density).map_err(|e| e.to_string())
+}
+
+/// Записать одно значение в файл своей темы; `None` — убрать, вернув
+/// умолчание.
+///
+/// Встроенная тема не правится: она в двоичном файле приложения. Правка,
+/// после которой тема не собралась бы, не пишется. Запись атомарная, как
+/// у настроек (инвариант 3); окно перерисуется от слежения за папкой тем.
+#[tauri::command]
+pub fn set_theme_value(
+    state: tauri::State<'_, AppState>,
+    id: String,
+    section: String,
+    key: String,
+    value: Option<String>,
+) -> Result<(), String> {
+    let (path, source) = theme::editor::user_theme(&state.data_dir.themes_dir(), &id)
+        .ok_or_else(|| "Встроенную тему не правим — сделайте свою на основе этой.".to_owned())?;
+    let updated = theme::editor::set_value(&source, &section, &key, value.as_deref())
+        .map_err(|e| e.to_string())?;
+    crate::fsx::atomic_save::save(&path, updated.as_bytes()).map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
@@ -337,7 +382,8 @@ bg-0 = "#010203"
         let _ = fs::remove_dir_all(&dir);
     }
 
-    /// Шрифт из настроек ложится поверх темы.
+    /// Шрифт из настроек ложится поверх темы, а шрифт темы остаётся
+    /// запасным: не нашёлся выбранный — на экране он, а не засечки браузера.
     #[test]
     fn ui_font_from_settings_overrides_theme() {
         let dir = temp_dir("font");
@@ -349,8 +395,32 @@ bg-0 = "#010203"
 
         let state = build(&dir, true, true, &[]);
 
-        assert_eq!(state.tokens["font-family-ui"], "Verdana");
+        let family = &state.tokens["font-family-ui"];
+        assert!(family.starts_with("'Verdana', "), "{family}");
+        assert!(family.contains("IBM Plex Sans"), "шрифт темы пропал: {family}");
         assert_eq!(state.tokens["font-size-ui"], "17px");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// Шрифт редактора — такая же настройка (задача 105).
+    #[test]
+    fn editor_font_from_settings_overrides_theme() {
+        let dir = temp_dir("editor-font");
+        fs::write(
+            dir.join("settings.toml"),
+            "schema = 1\n[font.editor]\nfamily = \"Cascadia Code\"\nsize = 16\n",
+        )
+        .unwrap();
+
+        let state = build(&dir, true, true, &[]);
+
+        let family = &state.tokens["font-family-editor"];
+        assert!(family.starts_with("'Cascadia Code', "), "{family}");
+        assert!(family.contains("JetBrains Mono"), "шрифт темы пропал: {family}");
+        assert_eq!(state.tokens["font-size-editor"], "16px");
+        // Интерфейс не задет.
+        assert!(!state.tokens["font-family-ui"].contains("Cascadia"));
+        assert!(state.problems.is_empty(), "{:?}", state.problems);
         let _ = fs::remove_dir_all(&dir);
     }
 

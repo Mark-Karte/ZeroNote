@@ -8,6 +8,12 @@ import { invoke } from '@tauri-apps/api/core';
  * Переименуй мы его для фронтенда — пришлось бы держать два имени одному
  * и тому же и помнить, какое где.
  */
+/** Шрифт одного места; `null` — из темы (задача 105). */
+export interface FontChoice {
+  family: string | null;
+  size: number | null;
+}
+
 export interface Settings {
   schema: number;
   appearance: {
@@ -17,10 +23,8 @@ export interface Settings {
     density: 'normal' | 'compact';
   };
   font: {
-    ui: {
-      family: string | null;
-      size: number | null;
-    };
+    ui: FontChoice;
+    editor: FontChoice;
   };
   editor: {
     wrap: boolean;
