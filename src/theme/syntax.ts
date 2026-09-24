@@ -1,5 +1,5 @@
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
-import { tags } from '@lezer/highlight';
+import { tags, type Tag } from '@lezer/highlight';
 import type { Extension } from '@codemirror/state';
 
 /**
@@ -17,20 +17,32 @@ import type { Extension } from '@codemirror/state';
 
 const c = (name: string): string => `var(--zn-color-syntax-${name})`;
 
-export const zeronoteHighlight = HighlightStyle.define([
-  { tag: [tags.keyword, tags.modifier, tags.controlKeyword], color: c('keyword') },
-  { tag: [tags.string, tags.special(tags.string), tags.character], color: c('string') },
-  { tag: [tags.comment, tags.lineComment, tags.blockComment], color: c('comment') },
-  { tag: [tags.number, tags.bool, tags.atom, tags.literal], color: c('number') },
+/**
+ * Роли кода: какие теги разбора каким токеном красятся.
+ *
+ * Список один на редактор и на вывод HTML (задача 108): в редакторе роль
+ * становится цветом, в выводе — классом `zn-syn-роль`, который красит
+ * стиль документа тем же токеном. Два списка разошлись бы молча, и код
+ * на бумаге был бы раскрашен иначе, чем на экране.
+ */
+export const CODE_ROLES: ReadonlyArray<{ tag: Tag | Tag[]; role: string }> = [
+  { tag: [tags.keyword, tags.modifier, tags.controlKeyword], role: 'keyword' },
+  { tag: [tags.string, tags.special(tags.string), tags.character], role: 'string' },
+  { tag: [tags.comment, tags.lineComment, tags.blockComment], role: 'comment' },
+  { tag: [tags.number, tags.bool, tags.atom, tags.literal], role: 'number' },
   {
     tag: [tags.typeName, tags.className, tags.namespace, tags.standard(tags.typeName)],
-    color: c('type'),
+    role: 'type',
   },
-  { tag: [tags.function(tags.variableName), tags.macroName], color: c('function') },
-  { tag: [tags.operator, tags.derefOperator, tags.compareOperator], color: c('operator') },
-  { tag: [tags.variableName, tags.propertyName, tags.attributeName], color: c('variable') },
-  { tag: [tags.punctuation, tags.bracket, tags.separator], color: c('punctuation') },
-  { tag: tags.invalid, color: c('invalid') },
+  { tag: [tags.function(tags.variableName), tags.macroName], role: 'function' },
+  { tag: [tags.operator, tags.derefOperator, tags.compareOperator], role: 'operator' },
+  { tag: [tags.variableName, tags.propertyName, tags.attributeName], role: 'variable' },
+  { tag: [tags.punctuation, tags.bracket, tags.separator], role: 'punctuation' },
+  { tag: tags.invalid, role: 'invalid' },
+];
+
+export const zeronoteHighlight = HighlightStyle.define([
+  ...CODE_ROLES.map(({ tag, role }) => ({ tag, color: c(role) })),
 
   // Markdown и разметка. Здесь работает не цвет, а начертание: заголовок
   // отличается весом, курсив — наклоном. У заголовка это единственное

@@ -53,6 +53,14 @@ export function readTag(text: string): TagMark | null {
   return { name, closing: match[1] === '/' };
 }
 
+/**
+ * `<br>`, `<br/>`, `<br />` — перенос строки. Только для вывода HTML:
+ * превью разорвать строку посреди строки не может.
+ */
+export function isBreak(text: string): boolean {
+  return /^<br\s*\/?>$/i.test(text);
+}
+
 /** Тег на своём месте в документе. */
 export interface PlacedTag {
   from: number;

@@ -65,31 +65,16 @@ export const LANGUAGES: Language[] = [
     label: 'Markdown',
     extensions: ['md', 'markdown', 'mdx'],
     load: async () => {
-      const [
-        { markdown, markdownLanguage },
-        { languages },
-        { codeBlocks },
-        { quotes },
-        { highlightMark },
-        { LanguageSupport },
-      ] = await Promise.all([
-        import('@codemirror/lang-markdown'),
-        import('./markdown-code'),
-        import('./code-blocks'),
-        import('./quotes'),
-        import('./markdown-highlight'),
-        import('@codemirror/language'),
-      ]);
-      // Код внутри блоков подсвечивается своим языком: в заметках
-      // разработчика блоки кода — обычное дело, и без подсветки они
-      // выглядят чужеродно.
-      const md = markdown({
-        base: markdownLanguage,
-        codeLanguages: languages,
-        // Выделение `==так==`: его ставит наша панель разметки, а в GFM
-        // такого узла нет (задача 57).
-        extensions: [highlightMark],
-      });
+      const [{ markdownSupport }, { codeBlocks }, { quotes }, { LanguageSupport }] =
+        await Promise.all([
+          import('./markdown-language'),
+          import('./code-blocks'),
+          import('./quotes'),
+          import('@codemirror/language'),
+        ]);
+      // Разбор — общий с выводом HTML для печати и экспорта (задача 108):
+      // напечатанное обязано разбираться так же, как показанное.
+      const md = markdownSupport();
       // Оформление блоков едет вместе с разбором markdown, а не в общем наборе
       // расширений: в файле `.rs` весь текст и так код, выделять в нём нечего.
       return new LanguageSupport(md.language, [

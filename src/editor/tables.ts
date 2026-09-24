@@ -3,7 +3,11 @@ import { StateField, type EditorState, type Extension, type Range } from '@codem
 import type { SyntaxNode } from '@lezer/common';
 import { Decoration, EditorView, WidgetType, type DecorationSet } from '@codemirror/view';
 
+import { Renderer, alignmentsFrom, type Align } from '../html/markdown';
+import { Source } from '../html/source';
+import { lookupFor } from './callouts';
 import { touched } from './live-preview';
+import { wikilinkSpans } from './wikilinks';
 
 /**
  * Таблицы в живом превью markdown: `| столбец | столбец |` показывается сеткой.
@@ -19,20 +23,24 @@ import { touched } from './live-preview';
  * строит из них разметку.
  */
 
-/** Как выровнен столбец. `null` — как получится, то есть по левому краю. */
-export type Align = 'left' | 'center' | 'right' | null;
-
-/** Кусок ячейки: текст и тег, в который его завернуть. */
-export interface CellPart {
-  text: string;
-  /** `null` — обычный текст. */
-  tag: string | null;
-}
-
+/**
+ * Ячейка: где начинается в документе (от начала таблицы) и что в ней.
+ *
+ * Содержимое — HTML строчного вывода (задача 108), того же, что печатает
+ * и экспортирует заметку. До задачи 108 у ячейки был свой разбор на пять
+ * тегов, и он расходился с превью текста: `[[ссылка]]` выходила `[ссылка]`,
+ * `<u>` — тегами, пустая ячейка сдвигала столбцы. Одна реализация на оба
+ * места — тот же довод, что у Р-222.
+ */
 export interface Cell {
   /** Смещение начала ячейки от начала таблицы. */
   at: number;
-  parts: CellPart[];
+  /**
+   * Разметка ячейки. Безопасна для `innerHTML`: весь текст экранирован,
+   * сырой HTML — только белый список без атрибутов (Р-262), ссылок нет
+   * (`links: false`), картинок без готовых байтов тоже — они исходником.
+   */
+  html: string;
 }
 
 export interface TableModel {
@@ -44,55 +52,6 @@ export interface TableModel {
 }
 
 /**
- * Разметка внутри ячейки, которую превью показывает, а не пишет.
- *
- * Список короче, чем у строчного превью в тексте, и это сознательно: ячейка —
- * место для слова, а не для абзаца. Вложенность разбирается на один уровень;
- * `**жирный с `кодом`**` покажет код обычными знаками внутри жирного. Ошибкой
- * это не будет — так в файле и написано.
- */
-const TAG: Record<string, string> = {
-  StrongEmphasis: 'strong',
-  Emphasis: 'em',
-  Strikethrough: 'del',
-  Highlight: 'mark',
-  InlineCode: 'code',
-};
-
-/** Знаки, которые внутри этих узлов не показываются. */
-const MARKS = new Set([
-  'EmphasisMark',
-  'StrikethroughMark',
-  'HighlightMark',
-  'CodeMark',
-  'LinkMark',
-  'URL',
-]);
-
-/**
- * Как записано выравнивание в разделительной строке.
- *
- * `|:---|:--:|---:|` — левое, по центру, правое. Чистая функция: правило
- * маленькое, а ошибиться в двоеточиях легко.
- */
-export function alignmentsFrom(delimiter: string): Align[] {
-  return delimiter
-    .split('|')
-    // Крайние пустые куски — от палок по краям строки, а не столбцы.
-    .slice(1, -1)
-    .map((part) => {
-      const text = part.trim();
-      const left = text.startsWith(':');
-      const right = text.endsWith(':');
-
-      if (left && right) return 'center';
-      if (right) return 'right';
-      if (left) return 'left';
-      return null;
-    });
-}
-
-/**
  * Прочитать таблицу из дерева разбора.
  *
  * `null` — узел не таблица или в нём нет ни одной строки: рисовать сетку
@@ -101,6 +60,22 @@ export function alignmentsFrom(delimiter: string): Align[] {
 export function readTable(state: EditorState, node: SyntaxNode): TableModel | null {
   const start = node.from;
   const { doc } = state;
+  const source = doc.sliceString(node.from, node.to);
+
+  // Вывод видит только кусок таблицы, но со смещениями документа: копировать
+  // всю заметку ради одной таблицы незачем. Вики-ссылки ищутся там же.
+  const renderer = new Renderer(
+    new Source(source, start),
+    wikilinkSpans(source).map((span) => ({ ...span, from: span.from + start, to: span.to + start })),
+    { images: new Map(), code: new Map() },
+    {
+      callouts: lookupFor([]),
+      // Ссылка в окне приложения увела бы само окно по адресу.
+      links: false,
+      // Картинка в ячейке остаётся исходником: превью без байтов.
+      missingImage: 'source',
+    },
+  );
 
   let align: Align[] = [];
   let head: Cell[] = [];
@@ -113,82 +88,20 @@ export function readTable(state: EditorState, node: SyntaxNode): TableModel | nu
     }
     if (child.name !== 'TableHeader' && child.name !== 'TableRow') continue;
 
-    const cells = readRow(state, child, start);
-    if (child.name === 'TableHeader') head = cells;
-    else rows.push(cells);
+    const cells = renderer.cells(child).map((cell) => ({ at: cell.at - start, html: cell.html }));
+    if (child.name === 'TableHeader') {
+      head = cells;
+    } else {
+      // Лишние ячейки сверх заголовка GFM отбрасывает — так же, как вывод
+      // для печати. Недостающие сетка оставляет пустыми сама.
+      if (head.length > 0) cells.length = Math.min(cells.length, head.length);
+      rows.push(cells);
+    }
   }
 
   if (head.length === 0 && rows.length === 0) return null;
 
-  return {
-    align,
-    head,
-    rows,
-    source: doc.sliceString(node.from, node.to),
-  };
-}
-
-function readRow(state: EditorState, row: SyntaxNode, start: number): Cell[] {
-  const cells: Cell[] = [];
-
-  for (let cell = row.firstChild; cell; cell = cell.nextSibling) {
-    if (cell.name !== 'TableCell') continue;
-    cells.push({ at: cell.from - start, parts: readCell(state, cell) });
-  }
-
-  return cells;
-}
-
-/**
- * Разобрать ячейку на куски.
- *
- * Внутрь известных узлов не спускаемся: нужен их текст без знаков, а не их
- * устройство. Ссылка показывается своим текстом — как и в обычном превью.
- */
-function readCell(state: EditorState, cell: SyntaxNode): CellPart[] {
-  const parts: CellPart[] = [];
-  const { doc } = state;
-  let pos = cell.from;
-
-  const plain = (to: number): void => {
-    if (to > pos) parts.push({ text: doc.sliceString(pos, to), tag: null });
-  };
-
-  syntaxTree(state).iterate({
-    from: cell.from,
-    to: cell.to,
-    enter(node) {
-      if (node.from < cell.from || node.to > cell.to) return;
-
-      const tag = TAG[node.name];
-      const link = node.name === 'Link';
-      if (!tag && !link) return;
-
-      plain(node.from);
-      parts.push({ text: withoutMarks(state, node.node), tag: tag ?? null });
-      pos = node.to;
-      return false;
-    },
-  });
-
-  plain(cell.to);
-  return parts;
-}
-
-/** Текст узла без своих знаков разметки. */
-function withoutMarks(state: EditorState, node: SyntaxNode): string {
-  const { doc } = state;
-  let text = '';
-  let pos = node.from;
-
-  for (let child = node.firstChild; child; child = child.nextSibling) {
-    if (!MARKS.has(child.name)) continue;
-    if (child.from > pos) text += doc.sliceString(pos, child.from);
-    pos = child.to;
-  }
-
-  if (pos < node.to) text += doc.sliceString(pos, node.to);
-  return text.trim();
+  return { align, head, rows, source };
 }
 
 /**
@@ -274,15 +187,9 @@ export class TableWidget extends WidgetType {
       const align = this.model.align[index];
       if (align) element.style.textAlign = align;
 
-      for (const part of cell.parts) {
-        if (part.tag === null) {
-          element.append(part.text);
-        } else {
-          const wrap = document.createElement(part.tag);
-          wrap.textContent = part.text;
-          element.append(wrap);
-        }
-      }
+      // Разметка из нашего же вывода, а не из файла как есть: текст
+      // экранирован, сырой HTML — белым списком без атрибутов (Р-262).
+      element.innerHTML = cell.html;
 
       const at = this.start + cell.at;
       element.addEventListener('mousedown', (event) => {

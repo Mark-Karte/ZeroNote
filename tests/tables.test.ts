@@ -3,13 +3,9 @@ import { EditorSelection, EditorState } from '@codemirror/state';
 import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 
-import {
-  alignmentsFrom,
-  readTable,
-  tableDecorations,
-  type TableModel,
-} from '../src/editor/tables';
+import { readTable, tableDecorations, type TableModel } from '../src/editor/tables';
 import { languages } from '../src/editor/markdown-code';
+import { alignmentsFrom } from '../src/html/markdown';
 
 /**
  * Таблицы в живом превью.
@@ -45,9 +41,9 @@ function parse(doc: string): TableModel | null {
   return model;
 }
 
-/** Текст ячейки целиком — из кусков, на которые её разобрали. */
-function text(cell: { parts: { text: string }[] }): string {
-  return cell.parts.map((part) => part.text).join('');
+/** Текст ячейки без разметки — то, что прочтёт глаз. */
+function text(cell: { html: string }): string {
+  return cell.html.replace(/<[^>]+>/g, '');
 }
 
 const SIMPLE = ['| Что | Сколько |', '| --- | --- |', '| Яблоки | 5 |', '| Груши | 12 |', '', ''].join(
@@ -66,6 +62,11 @@ describe('выравнивание столбцов', () => {
   /** Палки по краям — не столбцы, и считать их за столбцы нельзя. */
   it('крайние палки не считаются столбцами', () => {
     expect(alignmentsFrom('| --- | --- | --- |')).toHaveLength(3);
+  });
+
+  /** GFM палок по краям не требует (задача 108). */
+  it('строка без крайних палок — те же столбцы', () => {
+    expect(alignmentsFrom(':--|--:')).toEqual(['left', 'right']);
   });
 });
 
@@ -108,7 +109,9 @@ describe('разбор таблицы', () => {
 
   /**
    * Знаки внутри ячейки не показываются, а действуют, — как и везде
-   * в превью. Ссылка показывается своим текстом.
+   * в превью. Ссылка показывается своим текстом: `<a>` в окне приложения
+   * увёл бы само окно по адресу. Разметку ячейки даёт вывод HTML
+   * задачи 108 — тот же, что печатает заметку.
    */
   it('снимает знаки разметки внутри ячейки', () => {
     const doc = [
@@ -122,12 +125,35 @@ describe('разбор таблицы', () => {
 
     const model = parse(doc)!;
 
-    expect(model.rows[0]!.map(text)).toEqual(['жирный', 'код']);
-    expect(model.rows[0]![0]!.parts[0]!.tag).toBe('strong');
-    expect(model.rows[0]![1]!.parts[0]!.tag).toBe('code');
+    expect(model.rows[0]!.map((cell) => cell.html)).toEqual([
+      '<strong>жирный</strong>',
+      '<code>код</code>',
+    ]);
+    expect(model.rows[1]!.map((cell) => cell.html)).toEqual(['ссылка', '<del>зачёркнутый</del>']);
+  });
 
-    expect(model.rows[1]!.map(text)).toEqual(['ссылка', 'зачёркнутый']);
-    expect(model.rows[1]![1]!.parts[0]!.tag).toBe('del');
+  /**
+   * До задачи 108 у ячейки был свой разбор, и три вещи в нём расходились
+   * с превью текста: вики-ссылка выходила `[ссылкой]`, `<u>` — тегами,
+   * а пустая ячейка сдвигала столбцы влево.
+   */
+  it('вики-ссылка, строчный HTML и пустая ячейка — как в тексте', () => {
+    const doc = [
+      '| а | б | в |',
+      '| --- | --- | --- |',
+      '| [[Заметка]] |  | <u>под</u> |',
+      '',
+      '',
+    ].join('\n');
+
+    const model = parse(doc)!;
+    expect(model.rows[0]!.map((cell) => cell.html)).toEqual(['Заметка', '', '<u>под</u>']);
+  });
+
+  /** Разметка ячейки уходит в `innerHTML`: из файла не исполняется ничего. */
+  it('сырой HTML в ячейке — текстом', () => {
+    const doc = ['| а |', '| --- |', '| <img src=x onerror=alert(1)> |', '', ''].join('\n');
+    expect(parse(doc)!.rows[0]![0]!.html).toBe('&lt;img src=x onerror=alert(1)&gt;');
   });
 
   /** Рваная строка — не повод отказываться от таблицы. */
