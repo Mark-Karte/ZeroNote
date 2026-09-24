@@ -37,6 +37,19 @@ export function fetchAppearance(systemDark: boolean): Promise<AppearanceState> {
 }
 
 /** Исходник встроенной темы — чтобы взять её за основу для своей. */
+/** Оформление для бумаги (задача 109): светлая тема пары, обычная плотность. */
+export interface PrintAppearance {
+  /** Имя токена без `--zn-` → значение CSS. */
+  tokens: Record<string, string>;
+  themeName: string;
+  /** Что пошло не так, как настроено: тема пары не нашлась или тёмная. */
+  problems: string[];
+}
+
+export function printAppearance(): Promise<PrintAppearance> {
+  return invoke('print_appearance');
+}
+
 export function builtinThemeSource(appearance: Appearance): Promise<string> {
   return invoke<string>('builtin_theme_source', { appearance });
 }

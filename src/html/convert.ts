@@ -137,13 +137,24 @@ export async function markdownToHtml(text: string, context: ConvertContext): Pro
 }
 
 /** Файл кода целиком: печать `.rs`, `.cpp`, `.txt`. */
-export async function codeToHtml(text: string, languageId: string | null): Promise<Converted> {
+export async function codeToHtml(
+  text: string,
+  languageId: string | null,
+  /** С номерами строк — как на экране у этой вкладки. */
+  numbered = false,
+): Promise<Converted> {
   if (text.length > CODE_LIMIT) {
     throw new TooLarge(`файл больше ${mib(CODE_LIMIT)} — такой объём вывод не собирает`);
   }
   const language = languageById(languageId);
   const parser = language ? (await language.load()).language.parser : null;
-  return { html: codeBlock(highlightedLines(text, parser), language?.id ?? null), problems: [] };
+  // Перевод строки в конце файла — признак конца, а не строка: без этого
+  // на бумаге последней шла бы пустая строка со своим номером.
+  const body = text.endsWith('\n') ? text.slice(0, -1) : text;
+  return {
+    html: codeBlock(highlightedLines(body, parser), language?.id ?? null, numbered),
+    problems: [],
+  };
 }
 
 /**

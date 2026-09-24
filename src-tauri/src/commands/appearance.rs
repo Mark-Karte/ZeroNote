@@ -111,29 +111,7 @@ pub fn build(
     };
 
     let density = settings.appearance.density;
-
-    // Шрифты человека ложатся поверх темы: выбранный шрифт не должен
-    // сбрасываться при смене темы (задача 105). Шрифт темы остаётся
-    // запасным — не нашёлся выбранный, на экране будет он.
-    let mut overrides: BTreeMap<String, String> = BTreeMap::new();
-    let places = [
-        (&settings.font.ui, "font-family-ui", "font-size-ui"),
-        (&settings.font.editor, "font-family-editor", "font-size-editor"),
-    ];
-    for (choice, family_token, size_token) in places {
-        if let Some(family) = &choice.family
-            && !family.trim().is_empty()
-        {
-            let fallback = theme::token_value(&selected, family_token, density).unwrap_or_default();
-            overrides.insert(
-                family_token.to_owned(),
-                theme::font_family_with_fallback(family, &fallback),
-            );
-        }
-        if let Some(size) = choice.size {
-            overrides.insert(size_token.to_owned(), format!("{size}px"));
-        }
-    }
+    let overrides = font_overrides(&settings, &selected, density);
 
     let (tokens, theme_id, theme_name, appearance) =
         match theme::resolve_with(&selected, density, &overrides) {
@@ -163,6 +141,112 @@ pub fn build(
         portable,
         problems,
     }
+}
+
+/// Шрифты человека поверх темы.
+///
+/// Выбранный шрифт не должен сбрасываться при смене темы (задача 105) —
+/// и при печати тоже (задача 109). Шрифт темы остаётся запасным: не нашёлся
+/// выбранный, будет он.
+fn font_overrides(
+    settings: &settings::Settings,
+    selected: &theme::ThemeFile,
+    density: Density,
+) -> BTreeMap<String, String> {
+    let mut overrides: BTreeMap<String, String> = BTreeMap::new();
+    let places = [
+        (&settings.font.ui, "font-family-ui", "font-size-ui"),
+        (&settings.font.editor, "font-family-editor", "font-size-editor"),
+    ];
+    for (choice, family_token, size_token) in places {
+        if let Some(family) = &choice.family
+            && !family.trim().is_empty()
+        {
+            let fallback = theme::token_value(selected, family_token, density).unwrap_or_default();
+            overrides.insert(
+                family_token.to_owned(),
+                theme::font_family_with_fallback(family, &fallback),
+            );
+        }
+        if let Some(size) = choice.size {
+            overrides.insert(size_token.to_owned(), format!("{size}px"));
+        }
+    }
+    overrides
+}
+
+/// Оформление для бумаги (задача 109).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrintAppearance {
+    /// Имя токена без префикса `--zn-` → значение CSS.
+    pub tokens: BTreeMap<String, String>,
+    pub theme_name: String,
+    /// Что пошло не так, как настроено. Печать при этом идёт.
+    pub problems: Vec<String>,
+}
+
+/// Тема для печати и экспорта: **бумага всегда светлая**.
+///
+/// Берётся светлая тема пары «Как в Windows» (`light_theme`) — независимо
+/// от того, какая тема сейчас на экране: тёмный фон на бумаге — это тонер
+/// и нечитаемый текст. Решение владельца (вопрос 3 плана этапа 16).
+///
+/// Темы нет или она тёмная — встроенная светлая, и об этом сказано словами:
+/// в паре может стоять тема, которой давно нет (у владельца там `sepia`,
+/// убранная на этапе 8), и молча печатать «не той» было бы враньём.
+///
+/// Плотность — всегда обычная: она про тесноту окна, а не про бумагу.
+/// Шрифты человека — поверх, как на экране.
+pub fn build_print(data_dir: &std::path::Path) -> PrintAppearance {
+    let mut problems = Vec::new();
+    // Нечитаемый файл настроек уже назван полосой предупреждений; печать
+    // идёт на умолчаниях и второй раз о нём не говорит.
+    let settings = settings::load(&data_dir.join("settings.toml")).unwrap_or_default();
+    let requested = settings.appearance.light_theme.clone();
+
+    let selected = match theme::load_by_id(&data_dir.join("themes"), &requested) {
+        Some(found) if found.appearance == Appearance::Light => found,
+        Some(found) => {
+            problems.push(format!(
+                "тема «{}» тёмная — для бумаги взята встроенная светлая",
+                found.name
+            ));
+            theme::builtin(Appearance::Light)
+        }
+        None => {
+            problems.push(format!(
+                "светлой темы «{requested}» нет — для бумаги взята встроенная светлая"
+            ));
+            theme::builtin(Appearance::Light)
+        }
+    };
+
+    let density = Density::Normal;
+    let overrides = font_overrides(&settings, &selected, density);
+    match theme::resolve_with(&selected, density, &overrides) {
+        Ok(tokens) => PrintAppearance {
+            tokens,
+            theme_name: selected.name.clone(),
+            problems,
+        },
+        Err(e) => {
+            problems.push(format!("тема «{}»: {e} — для бумаги взята встроенная светлая", selected.id));
+            let safe = theme::builtin(Appearance::Light);
+            let tokens = theme::resolve(&safe, density)
+                .expect("встроенная тема обязана собираться, это проверено тестом");
+            PrintAppearance {
+                tokens,
+                theme_name: safe.name.clone(),
+                problems,
+            }
+        }
+    }
+}
+
+#[tauri::command]
+pub fn print_appearance(state: tauri::State<'_, AppState>) -> PrintAppearance {
+    build_print(&state.data_dir.path)
 }
 
 #[tauri::command]
@@ -276,6 +360,64 @@ mod tests {
         assert_eq!(state.theme_id, "dark");
         assert!(state.problems.is_empty(), "{:?}", state.problems);
         assert!(!state.tokens.is_empty());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// Бумага светлая, даже когда на экране тёмная тема (задача 109).
+    #[test]
+    fn print_takes_the_light_theme_of_the_pair() {
+        let dir = temp_dir("print-light");
+        fs::write(
+            dir.join("settings.toml"),
+            "schema = 1\n[appearance]\ntheme = \"dark\"\ndensity = \"compact\"\n",
+        )
+        .unwrap();
+
+        let print = build_print(&dir);
+        let light = theme::resolve(&theme::builtin(Appearance::Light), Density::Normal).unwrap();
+
+        assert!(print.problems.is_empty(), "{:?}", print.problems);
+        assert_eq!(print.tokens["color-bg-raised"], light["color-bg-raised"]);
+        // Плотность — про тесноту окна, а не про бумагу.
+        assert_eq!(print.tokens["space-3"], light["space-3"]);
+        assert_eq!(print.tokens["space-print-page"], "20mm");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// В паре может стоять тема, которой нет (у владельца — `sepia`,
+    /// убранная на этапе 8), или тёмная. Печать идёт встроенной светлой
+    /// и говорит об этом.
+    #[test]
+    fn print_falls_back_to_builtin_light_and_says_why() {
+        let dir = temp_dir("print-fallback");
+
+        fs::write(dir.join("settings.toml"), "schema = 1\n[appearance]\nlight_theme = \"sepia\"\n").unwrap();
+        let missing = build_print(&dir);
+        assert!(missing.problems.iter().any(|p| p.contains("«sepia» нет")), "{:?}", missing.problems);
+
+        fs::write(dir.join("settings.toml"), "schema = 1\n[appearance]\nlight_theme = \"dracula\"\n").unwrap();
+        let dark = build_print(&dir);
+        assert!(dark.problems.iter().any(|p| p.contains("тёмная")), "{:?}", dark.problems);
+
+        let light = theme::resolve(&theme::builtin(Appearance::Light), Density::Normal).unwrap();
+        assert_eq!(missing.tokens["color-fg-default"], light["color-fg-default"]);
+        assert_eq!(dark.tokens["color-fg-default"], light["color-fg-default"]);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// Шрифт редактора, выбранный человеком, едет и на бумагу.
+    #[test]
+    fn print_keeps_the_chosen_editor_font() {
+        let dir = temp_dir("print-font");
+        fs::write(
+            dir.join("settings.toml"),
+            "schema = 1\n[font.editor]\nfamily = \"Consolas\"\nsize = 12\n",
+        )
+        .unwrap();
+
+        let print = build_print(&dir);
+        assert!(print.tokens["font-family-editor"].starts_with("'Consolas', "));
+        assert_eq!(print.tokens["font-size-editor"], "12px");
         let _ = fs::remove_dir_all(&dir);
     }
 

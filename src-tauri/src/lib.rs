@@ -164,6 +164,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::about::webview_version,
             commands::appearance::appearance_state,
+            commands::appearance::print_appearance,
             commands::appearance::builtin_theme_source,
             commands::appearance::theme_samples,
             commands::appearance::create_theme,

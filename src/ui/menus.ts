@@ -148,6 +148,12 @@ export interface TabMenuContext {
   canSplit: boolean;
   /** Есть ли что возвращать: в этом сеансе закрывали вкладку с файлом. */
   hasClosed: boolean;
+  /**
+   * Почему вкладку не напечатать (задача 109). `null` — можно. Причина
+   * идёт в подсказку: PDF печатает своя программа, и об этом лучше сказать,
+   * чем молча погасить пункт.
+   */
+  printBlocked: string | null;
 }
 
 export function tabMenu(ctx: TabMenuContext, commands: Command[]): PopupItem[] {
@@ -172,6 +178,10 @@ export function tabMenu(ctx: TabMenuContext, commands: Command[]): PopupItem[] {
       hint: nothingToSave,
     }),
     fromCommand(commands, 'file.save-as', { disabled: !ctx.text, hint: nothingToSave }),
+    fromCommand(commands, 'file.print', {
+      disabled: ctx.printBlocked !== null,
+      hint: ctx.printBlocked ?? undefined,
+    }),
 
     fromCommand(commands, 'file.close-tab', { divider: true }),
     {

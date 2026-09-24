@@ -22,11 +22,16 @@ const highlighter = tagHighlighter(
 );
 
 /**
- * Код строками: каждая строка — `<span class="zn-line">`.
+ * Код строками: каждая строка — `<span class="zn-line">`, блоком.
  *
  * Строками, а не одним текстом, — ради номеров строк при печати файла кода:
  * их рисует счётчик CSS, и в тексте документа номеров нет. Скопированный
  * из напечатанного код не приносит с собой цифр.
+ *
+ * Строка — блок, и перевода строки между ними нет (задача 109): у длинной
+ * строки, перенесённой на бумаге, хвост встаёт под текстом, а не под
+ * номером. Перевод строки между блоками внутри `<pre>` дал бы пустую
+ * строку; пустая строка кода держит высоту своим `<br>`.
  *
  * `parser` — `null`, когда язык не узнан: тогда текст без раскраски.
  */
@@ -53,13 +58,18 @@ export function highlightedLines(code: string, parser: Parser | null): string {
   }
   lines.push(line);
 
-  return lines.map((text) => `<span class="zn-line">${text}</span>`).join('\n');
+  return lines.map((text) => `<span class="zn-line">${text === '' ? '<br>' : text}</span>`).join('');
 }
 
-/** Блок кода целиком: `<pre>` с языком в атрибуте, если он есть. */
-export function codeBlock(lines: string, language: string | null): string {
+/**
+ * Блок кода целиком: `<pre>` с языком в атрибуте, если он есть.
+ * `numbered` — с номерами строк: у файла кода их рисует стиль документа
+ * по тому же правилу, что на экране (Р-213, Р-214).
+ */
+export function codeBlock(lines: string, language: string | null, numbered = false): string {
   const lang = language ? ` data-lang="${escapeHtml(language)}"` : '';
-  return `<pre class="zn-code"${lang}><code>${lines}</code></pre>`;
+  const cls = numbered ? 'zn-code zn-code-numbered' : 'zn-code';
+  return `<pre class="${cls}"${lang}><code>${lines}</code></pre>`;
 }
 
 /**

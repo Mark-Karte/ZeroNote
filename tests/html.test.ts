@@ -258,16 +258,16 @@ describe('код', () => {
 
   it('в цитате без знаков цитаты, в списке без отступа пункта', async () => {
     expect(await html('> ```\n> a\n>\n> b\n> ```\n')).toContain(
-      '<code><span class="zn-line">a</span>\n<span class="zn-line"></span>\n<span class="zn-line">b</span></code>',
+      '<code><span class="zn-line">a</span><span class="zn-line"><br></span><span class="zn-line">b</span></code>',
     );
     expect(await html('- пункт\n  ```\n  code\n    глубже\n  ```\n')).toContain(
-      '<span class="zn-line">code</span>\n<span class="zn-line">  глубже</span>',
+      '<span class="zn-line">code</span><span class="zn-line">  глубже</span>',
     );
   });
 
   it('блок отступом', async () => {
     expect(await html('текст\n\n    a\n      b\n')).toContain(
-      '<pre class="zn-code"><code><span class="zn-line">a</span>\n<span class="zn-line">  b</span></code></pre>',
+      '<pre class="zn-code"><code><span class="zn-line">a</span><span class="zn-line">  b</span></code></pre>',
     );
   });
 
@@ -275,7 +275,12 @@ describe('код', () => {
     const out = await codeToHtml('fn main() {\n}\n', 'rust');
     expect(out.html).toMatch(/^<pre class="zn-code" data-lang="rust"><code>/);
     expect(out.html).toContain('<span class="zn-syn-keyword">fn</span>');
-    expect(out.html.match(/class="zn-line"/g)?.length).toBe(3);
+    // Две строки, а не три: перевод строки в конце файла — признак конца,
+    // и пустой пронумерованной строки на бумаге быть не должно.
+    expect(out.html.match(/class="zn-line"/g)?.length).toBe(2);
+    expect((await codeToHtml('a\n\n', null, true)).html).toBe(
+      '<pre class="zn-code zn-code-numbered"><code><span class="zn-line">a</span><span class="zn-line"><br></span></code></pre>',
+    );
     expect((await codeToHtml('<a>', null)).html).toBe(
       '<pre class="zn-code"><code><span class="zn-line">&lt;a&gt;</span></code></pre>',
     );

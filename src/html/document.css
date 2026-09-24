@@ -1,0 +1,335 @@
+/*
+ * Стиль документа — вывода HTML на бумаге и в экспортированном файле
+ * (задачи 109 и 110).
+ *
+ * Один на оба места: печать вставляет его в окно, экспорт кладёт в файл.
+ * Всё — токенами (`--zn-*`), как везде: печать задаёт на контейнере
+ * токены светлой темы пары (бумага всегда светлая, решение владельца),
+ * экспорт — объявляет их в том же файле. Ни одного зашитого цвета
+ * и размера: тест токенов проверяет и этот файл.
+ *
+ * Вид — как у превью (правило задачи 108): тот же шрифт редактора,
+ * те же размеры заголовков, та же подложка блоков кода и коллаутов,
+ * тот же цвет ролей подсветки. Отличие одно — отступы между блоками:
+ * на бумаге их нет у строк редактора, и текст слипся бы.
+ */
+
+.zn-doc {
+  color: var(--zn-color-fg-default);
+  background-color: var(--zn-color-bg-raised);
+  font-family: var(--zn-font-family-editor);
+  font-size: var(--zn-font-size-editor);
+  line-height: var(--zn-font-line-height-editor);
+  /* Длинное слово без пробелов — адрес, путь — переносится, а не уезжает
+     за край листа: у бумаги нет прокрутки. */
+  overflow-wrap: anywhere;
+  /* Без лигатур: у шрифта редактора `//` и `->` сливаются в один знак,
+     и текст, скопированный из PDF, выходит с `/` вместо `//` — найдено
+     на первом же сохранённом листе. */
+  font-variant-ligatures: none;
+}
+
+.zn-doc > :first-child {
+  margin-top: 0;
+}
+
+.zn-doc p,
+.zn-doc ul,
+.zn-doc ol,
+.zn-doc blockquote,
+.zn-doc pre,
+.zn-doc table,
+.zn-doc hr,
+.zn-doc .zn-callout,
+.zn-doc .zn-source,
+.zn-doc .zn-picture {
+  margin-top: 0;
+  margin-bottom: var(--zn-space-4);
+}
+
+/* --- Заголовки: цвет и вес — как в превью, размер — у первых трёх. --- */
+
+.zn-doc h1,
+.zn-doc h2,
+.zn-doc h3,
+.zn-doc h4,
+.zn-doc h5,
+.zn-doc h6 {
+  color: var(--zn-color-syntax-heading);
+  font-size: inherit;
+  font-weight: var(--zn-font-weight-strong);
+  line-height: var(--zn-font-line-height-ui);
+  margin-top: var(--zn-space-6);
+  margin-bottom: var(--zn-space-3);
+  /* Заголовок в самом низу страницы, а текст — на следующей, читается
+     как обрыв. */
+  break-after: avoid;
+}
+
+.zn-doc h1 {
+  font-size: var(--zn-font-size-editor-heading-1);
+}
+
+.zn-doc h2 {
+  font-size: var(--zn-font-size-editor-heading-2);
+}
+
+.zn-doc h3 {
+  font-size: var(--zn-font-size-editor-heading-3);
+}
+
+/* --- Строчная разметка. --- */
+
+.zn-doc strong {
+  color: var(--zn-color-syntax-strong);
+  font-weight: var(--zn-font-weight-strong);
+}
+
+.zn-doc em {
+  color: var(--zn-color-syntax-emphasis);
+}
+
+.zn-doc a {
+  color: var(--zn-color-syntax-link);
+}
+
+/* `<mark>` и `==выделение==` — подложкой выделения темы, как в превью;
+   у браузера `<mark>` чёрный по жёлтому при любой теме. */
+.zn-doc mark {
+  background-color: var(--zn-color-bg-selected);
+  border-radius: var(--zn-radius-sm);
+  color: inherit;
+}
+
+.zn-doc code {
+  background-color: var(--zn-color-bg-canvas);
+  border-radius: var(--zn-radius-sm);
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.zn-doc kbd {
+  background-color: var(--zn-color-bg-canvas);
+  border-radius: var(--zn-radius-sm);
+  box-shadow: inset 0 0 0 var(--zn-border-width) var(--zn-color-border-default);
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.zn-doc hr {
+  border: none;
+  border-top: var(--zn-border-width) solid var(--zn-color-border-default);
+}
+
+/* --- Цитата и коллаут: черта слева, как в превью. --- */
+
+.zn-doc blockquote {
+  margin-left: 0;
+  margin-right: 0;
+  padding-left: var(--zn-space-4);
+  border-left: var(--zn-border-width-thick) solid var(--zn-color-syntax-quote);
+  color: var(--zn-color-syntax-quote);
+}
+
+.zn-doc .zn-callout {
+  padding: var(--zn-space-3) var(--zn-space-4);
+  border-left: var(--zn-border-width-thick) solid var(--callout-color);
+  border-radius: var(--zn-radius-md);
+  background-color: var(--zn-color-bg-block);
+  break-inside: avoid;
+}
+
+.zn-doc .zn-callout-title {
+  display: flex;
+  align-items: center;
+  gap: var(--zn-space-2);
+  color: var(--callout-color);
+  font-weight: var(--zn-font-weight-strong);
+}
+
+.zn-doc .zn-callout-body {
+  margin-top: var(--zn-space-3);
+}
+
+.zn-doc .zn-callout-body > :last-child {
+  margin-bottom: 0;
+}
+
+.zn-doc .zn-callout-icon,
+.zn-doc .zn-task {
+  display: inline-flex;
+  flex: none;
+  vertical-align: text-bottom;
+  width: var(--zn-control-icon-size);
+  height: var(--zn-control-icon-size);
+}
+
+.zn-doc .zn-callout-icon svg,
+.zn-doc .zn-task svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* --- Списки и задачи. --- */
+
+.zn-doc ul,
+.zn-doc ol {
+  padding-left: var(--zn-space-6);
+}
+
+.zn-doc li > ul,
+.zn-doc li > ol {
+  margin-bottom: 0;
+}
+
+/* У пункта-задачи маркер списка заменён значком. */
+.zn-doc .zn-task-item {
+  list-style: none;
+}
+
+.zn-doc .zn-task {
+  margin-right: var(--zn-space-1);
+  color: var(--zn-color-fg-muted);
+}
+
+.zn-doc .zn-task-item-done .zn-task {
+  color: var(--zn-color-accent);
+}
+
+.zn-doc .zn-task-text-done {
+  color: var(--zn-color-fg-subtle);
+  text-decoration: line-through;
+}
+
+/* --- Код. --- */
+
+.zn-doc pre {
+  padding: var(--zn-space-3) var(--zn-space-4);
+  border: var(--zn-border-width) solid var(--zn-color-border-subtle);
+  border-radius: var(--zn-radius-md);
+  background-color: var(--zn-color-bg-block);
+  font-family: inherit;
+  /* Перенос, а не прокрутка: у бумаги её нет. Хвост длинной строки встаёт
+     под текстом — строка кода блоком. */
+  white-space: pre-wrap;
+}
+
+.zn-doc pre code {
+  background-color: transparent;
+}
+
+.zn-doc .zn-line {
+  display: block;
+}
+
+/*
+ * Номера строк у файла кода (задача 109) — счётчиком, а не текстом:
+ * скопированный с листа код не приносит цифр. Номер стоит в поле слева,
+ * хвост перенесённой строки — под текстом, а не под номером.
+ */
+.zn-doc .zn-code-numbered {
+  counter-reset: zn-line;
+}
+
+.zn-doc .zn-code-numbered .zn-line {
+  position: relative;
+  padding-left: calc(var(--zn-space-6) + var(--zn-space-4));
+}
+
+.zn-doc .zn-code-numbered .zn-line::before {
+  counter-increment: zn-line;
+  content: counter(zn-line);
+  position: absolute;
+  left: 0;
+  width: var(--zn-space-6);
+  text-align: right;
+  color: var(--zn-color-fg-subtle);
+}
+
+/* Роли подсветки — те же токены, что у редактора (`CODE_ROLES`). */
+.zn-doc .zn-syn-keyword {
+  color: var(--zn-color-syntax-keyword);
+}
+
+.zn-doc .zn-syn-string {
+  color: var(--zn-color-syntax-string);
+}
+
+.zn-doc .zn-syn-comment {
+  color: var(--zn-color-syntax-comment);
+}
+
+.zn-doc .zn-syn-number {
+  color: var(--zn-color-syntax-number);
+}
+
+.zn-doc .zn-syn-type {
+  color: var(--zn-color-syntax-type);
+}
+
+.zn-doc .zn-syn-function {
+  color: var(--zn-color-syntax-function);
+}
+
+.zn-doc .zn-syn-operator {
+  color: var(--zn-color-syntax-operator);
+}
+
+.zn-doc .zn-syn-variable {
+  color: var(--zn-color-syntax-variable);
+}
+
+.zn-doc .zn-syn-punctuation {
+  color: var(--zn-color-syntax-punctuation);
+}
+
+.zn-doc .zn-syn-invalid {
+  color: var(--zn-color-syntax-invalid);
+}
+
+/* Сырой HTML блоком — текстом, строками, как написан. */
+.zn-doc .zn-source {
+  white-space: pre-wrap;
+}
+
+/* --- Таблица. --- */
+
+.zn-doc table {
+  border-collapse: collapse;
+}
+
+.zn-doc th,
+.zn-doc td {
+  padding: var(--zn-space-1) var(--zn-space-3);
+  border: var(--zn-border-width) solid var(--zn-color-border-subtle);
+  text-align: left;
+  vertical-align: top;
+}
+
+.zn-doc th {
+  background-color: var(--zn-color-bg-canvas);
+  font-weight: var(--zn-font-weight-strong);
+}
+
+/* Строка таблицы не рвётся между страницами. */
+.zn-doc tr {
+  break-inside: avoid;
+}
+
+/* --- Картинки. --- */
+
+.zn-doc img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Картинка отдельной вкладкой — на весь лист, но не больше его. */
+.zn-doc .zn-picture {
+  text-align: center;
+}
+
+.zn-doc .zn-picture img {
+  max-height: 95vh;
+  object-fit: contain;
+}

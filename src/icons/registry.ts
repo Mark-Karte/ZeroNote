@@ -74,6 +74,7 @@ export type IconName =
   | 'cmd.file-new'
   | 'cmd.save'
   | 'cmd.save-as'
+  | 'cmd.print'
   | 'cmd.save-all'
   | 'cmd.close-all'
   | 'cmd.close-others'
@@ -343,6 +344,9 @@ const ICONS: Record<IconName, string> = {
   // Та же дискета с пером: сохранить под другим именем.
   'cmd.save-as':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"><path d="M2.8 3.6A1.4 1.4 0 0 1 4.2 2.2h6.2L13.2 5v3.2"/><path d="M2.8 3.6v8.8a1.4 1.4 0 0 0 1.4 1.4h3.4"/><path d="M5.4 2.2v3.2h3.4V2.2"/><path d="M13.9 10.2 11 13.1l-1.6.4.4-1.6 2.9-2.9a.75.75 0 0 1 1.2 1.2z"/></svg>',
+  // Принтер: лоток сверху, корпус, лист снизу (задача 109).
+  'cmd.print':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"><path d="M4.6 5.4V2.2h6.8v3.2"/><path d="M4.6 11.4H3.2A1.2 1.2 0 0 1 2 10.2V6.6a1.2 1.2 0 0 1 1.2-1.2h9.6A1.2 1.2 0 0 1 14 6.6v3.6a1.2 1.2 0 0 1-1.2 1.2h-1.4"/><path d="M4.6 9.2h6.8v4.6H4.6z"/><path d="M11.4 7.4h.4" stroke-linecap="round"/></svg>',
   // Две дискеты внахлёст — как два листа у копирования.
   'cmd.save-all':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"><path d="M11.2 3.4V3A1.4 1.4 0 0 0 9.8 1.6H3.4A1.4 1.4 0 0 0 2 3v6.4a1.4 1.4 0 0 0 1.4 1.4h.8"/><path d="M5.6 5.8a1.2 1.2 0 0 1 1.2-1.2h4.4L14 7.2v5.2a1.2 1.2 0 0 1-1.2 1.2H6.8a1.2 1.2 0 0 1-1.2-1.2z"/><path d="M7.8 13.6v-3.2h3.6v3.2"/></svg>',
