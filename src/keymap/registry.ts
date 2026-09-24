@@ -23,6 +23,7 @@ import {
 } from '../actions/files';
 import { showAbout } from '../actions/about';
 import { printActive } from '../actions/print';
+import { exportHtmlActive } from '../actions/export';
 import { checkForUpdates } from '../state/updates.svelte';
 import { copySelection, cutSelection, pasteIntoEditor } from '../actions/clipboard';
 import { goBack, goForward, goToLineDialog, findInTab } from '../actions/navigate';
@@ -95,6 +96,7 @@ export const COMMANDS: Record<CommandId, () => void | Promise<unknown>> = {
   'file.close-tab': closeActiveTab,
   'file.close-all': closeAllTabs,
   'file.print': printActive,
+  'file.export-html': exportHtmlActive,
 
   // Не `inEditor`: в области с зеркалом история пуста, и отмена считается
   // на главном состоянии буфера (Р-209).

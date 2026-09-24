@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { cannotPrint } from '../src/actions/print';
-import { pageMargin, pageTitle, printStyles } from '../src/print/print';
+import { pageTitle } from '../src/html/tab';
+import { pageMargin, printStyles } from '../src/print/print';
 import type { Tab } from '../src/state/tabs.svelte';
 
 /**

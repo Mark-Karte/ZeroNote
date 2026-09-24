@@ -154,6 +154,8 @@ export interface TabMenuContext {
    * чем молча погасить пункт.
    */
   printBlocked: string | null;
+  /** Почему вкладку не экспортировать (задача 110). `null` — можно. */
+  exportBlocked: string | null;
 }
 
 export function tabMenu(ctx: TabMenuContext, commands: Command[]): PopupItem[] {
@@ -181,6 +183,10 @@ export function tabMenu(ctx: TabMenuContext, commands: Command[]): PopupItem[] {
     fromCommand(commands, 'file.print', {
       disabled: ctx.printBlocked !== null,
       hint: ctx.printBlocked ?? undefined,
+    }),
+    fromCommand(commands, 'file.export-html', {
+      disabled: ctx.exportBlocked !== null,
+      hint: ctx.exportBlocked ?? undefined,
     }),
 
     fromCommand(commands, 'file.close-tab', { divider: true }),

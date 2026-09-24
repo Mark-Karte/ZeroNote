@@ -1,14 +1,9 @@
 import documentCss from '../html/document.css?inline';
 import printCss from './print.css?inline';
 
-import { lineNumbersOn } from '../editor/line-numbers';
-import { codeToHtml, markdownToHtml, type Converted } from '../html/convert';
-import { escapeHtml } from '../html/escape';
+import { documentFor, isMarkdownTab, pageTitle } from '../html/tab';
 import { printAppearance } from '../ipc/appearance';
-import { imageSource, previewEmbed, previewImage } from '../ipc/files';
-import { calloutLookup } from '../state/callouts.svelte';
-import { lineNumbersSetting } from '../state/settings.svelte';
-import { languageOf, type Tab } from '../state/tabs.svelte';
+import type { Tab } from '../state/tabs.svelte';
 
 /**
  * Печать (задача 109).
@@ -44,38 +39,6 @@ export function pageMargin(value: string | undefined): string {
 /** Весь стиль печати одним текстом: документ, режим печати, поле страницы. */
 export function printStyles(margin: string): string {
   return `${documentCss}\n${printCss}\n@page { margin: ${pageMargin(margin)}; }\n`;
-}
-
-/**
- * Документ для вкладки: заметка — как её показывает превью, код — строками
- * с раскраской и номерами (как на экране у этой вкладки), картинка —
- * на лист.
- *
- * Заметка печатается документом, даже когда превью выключено: печать —
- * «отдать на бумагу», как экспорт, и одна команда не должна давать разное
- * в зависимости от переключателя вида на экране.
- */
-export async function documentFor(tab: Tab): Promise<Converted> {
-  if (tab.meta.kind === 'image') {
-    const source = tab.image?.source ?? (await imageSource(tab.meta.id));
-    const alt = escapeHtml(tab.meta.title);
-    return { html: `<div class="zn-picture"><img src="${escapeHtml(source)}" alt="${alt}"></div>`, problems: [] };
-  }
-
-  const text = tab.editor?.state.doc.toString() ?? '';
-  const language = languageOf(tab);
-
-  if (language?.id === 'markdown') {
-    return markdownToHtml(text, {
-      callouts: calloutLookup(),
-      sourcePath: tab.meta.path,
-      loadImage: previewImage,
-      loadEmbed: previewEmbed,
-    });
-  }
-
-  const numbered = lineNumbersOn({ setting: lineNumbersSetting(), markdown: false });
-  return codeToHtml(text, language?.id ?? null, numbered);
 }
 
 /**
@@ -142,19 +105,10 @@ export async function printDocument(html: string, title: string): Promise<string
   return appearance.problems;
 }
 
-/**
- * Заголовок листа: его диалог ставит в колонтитул, а «Сохранить в формате
- * PDF» — в имя файла. Заметка — без `.md`: «План.pdf», а не «План.md.pdf»;
- * у кода расширение — часть имени, `main.rs` остаётся `main.rs`.
- */
-export function pageTitle(name: string, markdown: boolean): string {
-  return markdown ? name.replace(/\.(md|markdown|mdx)$/i, '') : name;
-}
-
 /** Напечатать вкладку. Возвращает, что пошло не так, как настроено. */
 export async function printTab(tab: Tab): Promise<string[]> {
   const built = await documentFor(tab);
-  const markdown = tab.meta.kind === 'text' && languageOf(tab)?.id === 'markdown';
-  const themeProblems = await printDocument(built.html, pageTitle(tab.meta.title, markdown));
+  const title = pageTitle(tab.meta.title, isMarkdownTab(tab));
+  const themeProblems = await printDocument(built.html, title);
   return [...themeProblems, ...built.problems];
 }

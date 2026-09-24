@@ -9,6 +9,7 @@ pub mod appearance;
 pub mod callouts;
 pub mod edits;
 pub mod entries;
+pub mod export;
 pub mod files;
 pub mod index;
 pub mod keymap;
