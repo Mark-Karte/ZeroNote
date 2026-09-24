@@ -1,5 +1,6 @@
 import { syntaxTree } from '@codemirror/language';
 import type { EditorState, Line, Range } from '@codemirror/state';
+import type { SyntaxNode } from '@lezer/common';
 import {
   Decoration,
   ViewPlugin,
@@ -13,6 +14,7 @@ import { icon } from '../icons/registry';
 import { lookupFor, parseCallout, type CalloutLookup } from './callouts';
 import type { IconName } from '../icons/registry';
 import { EmbedWidget, ImageWidget, embedIsImage, localTarget } from './images';
+import { pairTags, readTag, type InlineTag, type PlacedTag } from './inline-html';
 import { TaskBox, taskState } from './tasks';
 import { linkTarget, wikilinkSpans } from './wikilinks';
 
@@ -67,6 +69,18 @@ const doneText = Decoration.mark({ class: 'zn-task-text-done' });
 
 /** Остаток первой строки callout-а — его заголовок. */
 const calloutTitle = Decoration.mark({ class: 'zn-callout-title' });
+
+/**
+ * Текст между парой строчных тегов (задача 107): `<u>…</u>` подчёркнут,
+ * `<kbd>…</kbd>` — клавишей. Класс по имени тега, вид — в `editor.css`.
+ */
+const tagText: Record<InlineTag, Decoration> = {
+  u: Decoration.mark({ class: 'zn-html-u' }),
+  sub: Decoration.mark({ class: 'zn-html-sub' }),
+  sup: Decoration.mark({ class: 'zn-html-sup' }),
+  kbd: Decoration.mark({ class: 'zn-html-kbd' }),
+  mark: Decoration.mark({ class: 'zn-html-mark' }),
+};
 
 /**
  * Значок callout-а: рисуется вместо знака `[!tip]`.
@@ -205,6 +219,36 @@ export function decorateLivePreview(
   // строка иначе получила бы два фона. Первый — внешний — выигрывает.
   const carded = new Set<number>();
 
+  // Узлы, чьи строчные теги уже разобраны на пары. Пары ищутся среди детей
+  // одного родителя — абзаца, заголовка, жирного, — и родитель разбирается
+  // целиком при встрече первого тега, а не по видимому куску: иначе
+  // `<u>` над краем экрана остался бы без пары, и `</u>` торчал бы исходником.
+  const tagged = new Set<string>();
+
+  /** Спрятать пары строчных тегов у родителя и оформить текст между ними. */
+  const decorateTags = (parent: SyntaxNode): void => {
+    const key = `${parent.name}:${parent.from}`;
+    if (tagged.has(key)) return;
+    tagged.add(key);
+
+    const placed: PlacedTag[] = [];
+    for (const child of parent.getChildren('HTMLTag')) {
+      const tag = readTag(doc.sliceString(child.from, child.to));
+      if (tag) placed.push({ from: child.from, to: child.to, tag });
+    }
+
+    for (const pair of pairTags(placed)) {
+      // Оформление — всегда, как жирный под курсором остаётся жирным
+      // (задача 57); прячутся только сами теги и только вне строки курсора
+      // (Р-158).
+      if (pair.open.to < pair.close.from) {
+        found.push(tagText[pair.name].range(pair.open.to, pair.close.from));
+      }
+      hide(pair.open.from, pair.open.to);
+      hide(pair.close.from, pair.close.to);
+    }
+  };
+
   for (const range of ranges) {
     tree.iterate({
       from: range.from,
@@ -222,6 +266,13 @@ export function decorateLivePreview(
         // Знаки вокруг куска текста: `**`, `*`, `~~`, `==`, обратная кавычка.
         if (MARKS.has(node.name)) {
           if (parent && INLINE.has(parent.name)) hide(node.from, node.to);
+          return;
+        }
+
+        // Строчный HTML из белого списка: `<u>текст</u>` — подчёркнутым
+        // текстом (задача 107). Всё прочее остаётся исходником.
+        if (node.name === 'HTMLTag') {
+          if (parent) decorateTags(parent);
           return;
         }
 

@@ -403,6 +403,51 @@
 }
 
 /*
+ * Строчный HTML в живом превью (задача 107): текст между парой тегов
+ * из белого списка, сами теги спрятаны. Список — `editor/inline-html.ts`.
+ */
+.cm-editor .zn-html-u {
+  text-decoration: underline;
+}
+
+/*
+ * Индексы — как их рисует сам браузер тегам `<sub>` и `<sup>`: смещение
+ * и шрифт «на ступень меньше» родителя. Нулевая высота строки у куска
+ * нужна, чтобы смещение не раздвигало строку: CodeMirror мерит высоты
+ * строк, и строка с индексом прыгала бы на пару пикселей.
+ */
+.cm-editor .zn-html-sub,
+.cm-editor .zn-html-sup {
+  font-size: smaller;
+  line-height: 0;
+}
+
+.cm-editor .zn-html-sub {
+  vertical-align: sub;
+}
+
+.cm-editor .zn-html-sup {
+  vertical-align: super;
+}
+
+/*
+ * Клавиша: рамка тенью, а не бордюром, и без отступов — как у строчного
+ * кода: бордюр и отступы сдвинули бы соседние знаки, а на строке курсора
+ * столбцы должны стоять на месте.
+ */
+.cm-editor .zn-html-kbd {
+  background-color: var(--zn-color-bg-canvas);
+  border-radius: var(--zn-radius-sm);
+  box-shadow: inset 0 0 0 var(--zn-border-width) var(--zn-color-border-default);
+}
+
+/* `<mark>` — то же, что `==выделение==` (`theme/syntax.ts`). */
+.cm-editor .zn-html-mark {
+  background-color: var(--zn-color-bg-selected);
+  border-radius: var(--zn-radius-sm);
+}
+
+/*
  * Горизонтальная черта в живом превью (задача 65).
  *
  * Строка `---` теряет дефисы и получает черту. Это отменяет правило задачи 57

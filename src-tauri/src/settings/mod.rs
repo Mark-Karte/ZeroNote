@@ -423,15 +423,11 @@ pub fn parse(source: &str) -> Result<Loaded, SettingsError> {
 
     let mut problems = Vec::new();
 
-    let mut editor_table = take_table(&mut root, "editor", &mut problems);
-    let mut toolbar_table = take_table(&mut root, "toolbar", &mut problems);
-    retire_markdown_bar(&mut editor_table, &mut toolbar_table);
-
     let appearance = section(take_table(&mut root, "appearance", &mut problems), "appearance", &mut problems);
-    let editor = section(editor_table, "editor", &mut problems);
+    let editor = section(take_table(&mut root, "editor", &mut problems), "editor", &mut problems);
     let notes = section(take_table(&mut root, "notes", &mut problems), "notes", &mut problems);
     let font = font_section(take_table(&mut root, "font", &mut problems), &mut problems);
-    let mut toolbar: ToolbarSettings = section(toolbar_table, "toolbar", &mut problems);
+    let mut toolbar: ToolbarSettings = section(take_table(&mut root, "toolbar", &mut problems), "toolbar", &mut problems);
     toolbar.items = known_items(toolbar.items, &mut problems);
 
     // Что осталось — не наше. Раздел из будущей версии и опечатка в имени
@@ -461,34 +457,6 @@ pub fn parse(source: &str) -> Result<Loaded, SettingsError> {
         },
         problems,
     })
-}
-
-/// Ключи панели разметки переехали в `[toolbar]` (задача 102).
-///
-/// Один этап прежние имена читаются как псевдонимы и молча: они стоят
-/// в каждом файле, написанном по образцу до 0.15.0, и строка в полосе
-/// предупреждений при каждом запуске наказывала бы человека за файл,
-/// которого он не трогал. Переносится только то, что несёт смысл:
-///
-/// * `markdown_bar = false` — человек убрал панель, и она остаётся убранной;
-///   `true` было умолчанием образца, а прежнее «только над markdown» новое
-///   умолчание `text` расширяет по решению владельца;
-/// * `markdown_bar_width` — как есть: значения у ключей одни и те же.
-///
-/// Новый ключ, если он уже записан, сильнее старого.
-fn retire_markdown_bar(editor: &mut toml::Table, toolbar: &mut toml::Table) {
-    if let Some(shown) = editor.remove("markdown_bar")
-        && shown.as_bool() == Some(false)
-        && !toolbar.contains_key("show")
-    {
-        toolbar.insert("show".to_owned(), toml::Value::String("never".to_owned()));
-    }
-
-    if let Some(width) = editor.remove("markdown_bar_width")
-        && !toolbar.contains_key("width")
-    {
-        toolbar.insert("width".to_owned(), width);
-    }
 }
 
 /// Состав панели без того, чего нет в реестре команд.
@@ -1290,52 +1258,31 @@ mod tests {
         assert!(named(&loaded.problems, &["[toolbar]", "md.blod"]));
     }
 
-    /// Прежний ключ панели разметки читается как псевдоним и не жалуется:
-    /// он стоит в каждом файле, написанном по образцу до 0.15.0.
+    /// Прежние ключи панели разметки больше не псевдонимы (задача 107,
+    /// как обещал Р-250): они называются, как любой незнакомый ключ,
+    /// и ничего не значат — даже `markdown_bar = false` панель не прячет.
+    /// Остальной раздел применяется (Р-248).
+    ///
+    /// Цена названа и принята владельцем: образцы 0.9.0…0.14.0 клали эти
+    /// ключи включёнными, и у каждого, кто ставил такую версию с нуля,
+    /// полоса будет говорить о них, пока строки не удалят руками.
     #[test]
-    fn old_markdown_bar_keys_are_read_silently() {
-        let loaded = read(
-            r#"
-            schema = 1
-            [editor]
-            markdown_bar = true
-            markdown_bar_width = "full"
-            wrap = true
-        "#,
-        );
-
-        assert!(loaded.problems.is_empty(), "{:?}", loaded.problems);
-        assert!(loaded.settings.editor.wrap);
-        // `true` было умолчанием образца и ничего не значит: остаётся
-        // новое умолчание.
-        assert_eq!(loaded.settings.toolbar.show, ToolbarShow::Text);
-        assert_eq!(loaded.settings.toolbar.width, ToolbarWidth::Full);
-    }
-
-    /// Убранная человеком панель остаётся убранной.
-    #[test]
-    fn hidden_markdown_bar_stays_hidden() {
-        let loaded = read("schema = 1\n[editor]\nmarkdown_bar = false\n");
-        assert_eq!(loaded.settings.toolbar.show, ToolbarShow::Never);
-    }
-
-    /// Новый ключ сильнее старого: его уже записало окно параметров.
-    #[test]
-    fn new_toolbar_keys_beat_the_old_ones() {
+    fn retired_markdown_bar_keys_are_named_and_ignored() {
         let loaded = read(
             r#"
             schema = 1
             [editor]
             markdown_bar = false
             markdown_bar_width = "full"
-            [toolbar]
-            show = "markdown"
-            width = "column"
+            wrap = true
         "#,
         );
 
-        assert_eq!(loaded.settings.toolbar.show, ToolbarShow::Markdown);
-        assert_eq!(loaded.settings.toolbar.width, ToolbarWidth::Column);
+        assert!(loaded.settings.editor.wrap);
+        assert!(named(&loaded.problems, &["[editor]", "«markdown_bar»"]));
+        assert!(named(&loaded.problems, &["[editor]", "«markdown_bar_width»"]));
+        assert_eq!(loaded.problems.len(), 2, "{:?}", loaded.problems);
+        assert_eq!(loaded.settings.toolbar, ToolbarSettings::default());
     }
 
     /// Пустой файл — это все значения по умолчанию, а не ошибка.

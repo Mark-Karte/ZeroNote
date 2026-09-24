@@ -1,9 +1,18 @@
 <script lang="ts">
+  import { listen } from '@tauri-apps/api/event';
   import Icon from '../Icon.svelte';
   import { dailyNotesOfMonth } from '../../ipc/notes';
+  import { TREE_CHANGED } from '../../ipc/tree';
   import { openDaily, stamp } from '../../actions/daily';
   import { notes } from '../../state/notes.svelte';
-  import { monthGrid, monthKey, monthLabel, shiftMonth, type Cell } from '../calendar';
+  import {
+    monthGrid,
+    monthKey,
+    monthLabel,
+    shiftMonth,
+    touchesFolder,
+    type Cell,
+  } from '../calendar';
 
   /**
    * Календарь ежедневных заметок (задача 97).
@@ -21,17 +30,24 @@
   let year = $state(Number(today.slice(0, 4)));
   let month = $state(Number(today.slice(5, 7)));
   let written: number[] = $state([]);
+  /** Папка ежедневных заметок из последнего ответа ядра. Не реактивна:
+   *  на неё смотрит только слушатель события, а рисовать по ней нечего. */
+  let folder = '';
 
   const weeks = $derived(monthGrid(year, month));
 
   /**
-   * Список записанных дней перечитывается при смене месяца и после того,
-   * как заметку создали. Наблюдателя за папкой здесь нет намеренно: пометки
-   * меняются от наших же действий, а календарь занимает угол панели.
+   * Список записанных дней перечитывается при смене месяца, после того как
+   * заметку создали мы, и когда наблюдатель за корнями говорит, что в папке
+   * ежедневных заметок что-то изменилось (задача 107) — так виден и файл,
+   * созданный другой программой. Своего наблюдателя у календаря нет: папка
+   * дома и так под наблюдением, календарь только слушает.
    */
   async function refresh(): Promise<void> {
     try {
-      written = await dailyNotesOfMonth(monthKey(year, month));
+      const answer = await dailyNotesOfMonth(monthKey(year, month));
+      folder = answer.folder;
+      written = answer.days;
     } catch {
       written = [];
     }
@@ -45,6 +61,30 @@
     void month;
     void notes.created;
     void refresh();
+  });
+
+  $effect(() => {
+    // Подписки живут, пока календарь на экране. `listen` отвечает обещанием,
+    // и панель могут закрыть раньше, чем оно разрешится, — тогда отписка
+    // делается сразу по приходу.
+    let closed = false;
+    const stops: Array<() => void> = [];
+    const keep = (stop: () => void): void => {
+      if (closed) stop();
+      else stops.push(stop);
+    };
+
+    void listen<string[]>(TREE_CHANGED, (event) => {
+      if (touchesFolder(event.payload, folder)) void refresh();
+    }).then(keep);
+    // Правка настроек могла переместить саму папку ежедневных заметок:
+    // старая папка больше не наша, и следить надо за новой.
+    void listen('appearance-changed', () => void refresh()).then(keep);
+
+    return () => {
+      closed = true;
+      for (const stop of stops) stop();
+    };
   });
 
   function step(delta: number): void {

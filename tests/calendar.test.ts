@@ -7,6 +7,7 @@ import {
   monthKey,
   monthLabel,
   shiftMonth,
+  touchesFolder,
 } from '../src/ui/calendar';
 
 /**
@@ -72,5 +73,30 @@ describe('раскладка месяца', () => {
       const june = monthGrid(2026, 6);
       expect(june[0]?.[0]).toEqual({ day: 1, date: '2026-06-01', inMonth: true });
     });
+  });
+});
+
+/**
+ * Календарь слушает наблюдатель за корнями (задача 107): перечитывает
+ * месяц, только когда событие называет папку ежедневных заметок.
+ */
+describe('событие наблюдателя', () => {
+  const folder = String.raw`C:\Users\user\Notes\Дневник`;
+
+  it('узнаёт свою папку без оглядки на регистр и косую черту', () => {
+    expect(touchesFolder([String.raw`C:\Users\user\Notes\Дневник`], folder)).toBe(true);
+    expect(touchesFolder([String.raw`c:\users\USER\notes\дневник`], folder)).toBe(true);
+    expect(touchesFolder(['C:/Users/user/Notes/Дневник/'], folder)).toBe(true);
+  });
+
+  it('не отзывается на соседние и вложенные папки', () => {
+    expect(touchesFolder([String.raw`C:\Users\user\Notes`], folder)).toBe(false);
+    expect(touchesFolder([String.raw`C:\Users\user\Notes\Дневник\архив`], folder)).toBe(false);
+    expect(touchesFolder([String.raw`C:\Users\user\Notes\Дневник-2`], folder)).toBe(false);
+    expect(touchesFolder([], folder)).toBe(false);
+  });
+
+  it('молчит, пока папка не известна', () => {
+    expect(touchesFolder([String.raw`C:\Users\user\Notes\Дневник`], '')).toBe(false);
   });
 });

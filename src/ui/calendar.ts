@@ -112,3 +112,22 @@ export function monthGrid(year: number, month: number): Cell[][] {
 
   return weeks;
 }
+
+/** Путь для сравнения: Windows не различает регистр и косую черту. */
+function folderKey(path: string): string {
+  return path.replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase();
+}
+
+/**
+ * Касается ли событие наблюдателя папки ежедневных заметок (задача 107).
+ *
+ * Наблюдатель за корнями называет папки, в которых что-то изменилось; если
+ * среди них папка ежедневных, календарь перечитывает месяц. Так он видит
+ * и заметку, созданную другой программой, — до задачи 107 она появлялась
+ * только при смене месяца.
+ */
+export function touchesFolder(changed: readonly string[], folder: string): boolean {
+  if (folder === '') return false;
+  const key = folderKey(folder);
+  return changed.some((dir) => folderKey(dir) === key);
+}

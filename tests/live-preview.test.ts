@@ -394,3 +394,67 @@ describe('живое превью: знаки вокруг текста', () => 
     expect(style).toBe('--callout-color: var(--zn-color-danger)');
   });
 });
+
+describe('строчный HTML (задача 107)', () => {
+  /** Какой кусок текста получил какой класс оформления. */
+  function styled(doc: string, cursor = doc.length): Array<[string, string]> {
+    const editor = state(doc, cursor);
+    const set = decorateLivePreview(editor, [{ from: 0, to: editor.doc.length }]);
+    const out: Array<[string, string]> = [];
+    const iter = set.iter();
+    while (iter.value !== null) {
+      const spec = iter.value.spec as { class?: string };
+      if (spec.class?.startsWith('zn-html-')) {
+        out.push([spec.class, editor.doc.sliceString(iter.from, iter.to)]);
+      }
+      iter.next();
+    }
+    return out;
+  }
+
+  /** `<u>` вставляет наша же кнопка подчёркивания (задача 102). */
+  it('подчёркнутое показывается без тегов', () => {
+    const doc = 'это <u>важно</u> знать\n\n';
+    expect(shown(doc, doc.length)).toBe('это важно знать\n\n');
+    expect(styled(doc)).toEqual([['zn-html-u', 'важно']]);
+  });
+
+  it('клавиша, индексы и пометка — тем же путём', () => {
+    const doc = 'нажмите <kbd>Ctrl</kbd>, H<sub>2</sub>O, x<sup>2</sup>, <mark>тут</mark>\n\n';
+    expect(shown(doc, doc.length)).toBe('нажмите Ctrl, H2O, x2, тут\n\n');
+    expect(styled(doc).map(([name]) => name)).toEqual([
+      'zn-html-kbd',
+      'zn-html-sub',
+      'zn-html-sup',
+      'zn-html-mark',
+    ]);
+  });
+
+  /** Р-158: под курсором теги видны, оформление остаётся, как у жирного. */
+  it('на строке курсора теги видны, оформление остаётся', () => {
+    const doc = 'это <u>важно</u>\n\n';
+    expect(shown(doc, 0)).toBe(doc);
+    expect(styled(doc, 0)).toEqual([['zn-html-u', 'важно']]);
+  });
+
+  it('тег с атрибутом и незнакомый тег остаются исходником', () => {
+    const doc = '<u class="x">а</u> и <span>б</span>\n\n';
+    expect(shown(doc, doc.length)).toBe(doc);
+    expect(styled(doc)).toEqual([]);
+  });
+
+  it('тег без пары остаётся исходником', () => {
+    const doc = 'начало <u>и без конца\n\n';
+    expect(shown(doc, doc.length)).toBe(doc);
+  });
+
+  /** Пара ищется внутри своего родителя, и жирный вокруг ей не мешает. */
+  it('работает внутри жирного и вокруг него', () => {
+    const doc = '**<u>а</u>** и <u>**б**</u>\n\n';
+    expect(shown(doc, doc.length)).toBe('а и б\n\n');
+    expect(styled(doc)).toEqual([
+      ['zn-html-u', 'а'],
+      ['zn-html-u', '**б**'],
+    ]);
+  });
+});

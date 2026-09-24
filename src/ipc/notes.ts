@@ -19,13 +19,24 @@ export interface DailyNote {
 export const openDailyNote = (date: string, time: string): Promise<DailyNote> =>
   invoke('open_daily_note', { date, time });
 
+/** Ответ календарю: что помечать и за какой папкой следить. */
+export interface DailyMonth {
+  /**
+   * Папка ежедневных заметок в том виде, в каком её называет наблюдатель
+   * за корнями (задача 107). С ней сверяется событие `tree-changed`.
+   */
+  folder: string;
+  /** Номера дней месяца, за которые заметка написана. */
+  days: number[];
+}
+
 /**
  * За какие дни месяца заметки уже написаны (задача 97).
  *
- * Месяц — `ГГГГ-ММ`, ответ — номера дней. Месяц считает окно: у ядра нет
- * часового пояса, как и с датой заметки на сегодня.
+ * Месяц — `ГГГГ-ММ`, ответ — номера дней и сама папка. Месяц считает окно:
+ * у ядра нет часового пояса, как и с датой заметки на сегодня.
  */
-export const dailyNotesOfMonth = (month: string): Promise<number[]> =>
+export const dailyNotesOfMonth = (month: string): Promise<DailyMonth> =>
   invoke('daily_notes_of_month', { month });
 
 /** Заготовка: имя для списка и путь для чтения (задача 95). */

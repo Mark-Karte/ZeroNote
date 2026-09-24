@@ -93,19 +93,49 @@ fn ensure(folder: &Path, name: &str, template: &str, fields: &Fields) -> Fallibl
     })
 }
 
+/// Ответ календарю: что помечать и за какой папкой следить.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DailyMonth {
+    /// Папка ежедневных заметок в том виде, в каком о ней говорит наблюдатель
+    /// за корнями (задача 107). Календарь сверяет с ней событие
+    /// `tree-changed` и перечитывает месяц, только когда событие про неё.
+    pub folder: String,
+    /// Номера дней месяца, за которые заметка написана.
+    pub days: Vec<u32>,
+}
+
 /// За какие дни месяца заметки уже написаны.
 ///
 /// Месяц приходит в виде `2026-09` — от окна, как и дата: у ядра нет
 /// часового пояса, и «текущий месяц» оно посчитать не может. Ответ — номера
 /// дней, а не пути: календарю нужно знать, что помечать, а открывать он
 /// будет той же командой, что и «заметка на сегодня».
+///
+/// Папка уезжает в ответе, а не считается окном: правила о ней (путь внутри
+/// дома, абсолютный путь сам по себе, Р-238) живут здесь, и вторая их копия
+/// во фронтенде разошлась бы молча.
 #[tauri::command]
-pub fn daily_notes_of_month(state: tauri::State<'_, AppState>, month: String) -> Vec<u32> {
+pub fn daily_notes_of_month(state: tauri::State<'_, AppState>, month: String) -> DailyMonth {
     let settings = crate::settings::load(&state.data_dir.settings_file()).unwrap_or_default();
     let vault = crate::model::vault::path_of(&settings.notes.vault, &state.data_dir.path);
     let folder = crate::model::vault::daily_folder(&settings.notes.daily_folder, &vault);
 
-    let Ok(entries) = std::fs::read_dir(&folder) else {
+    // Наблюдатель называет папки путями от корня, а корень хранится
+    // развёрнутым (`root::normalize`: без коротких имён, в регистре диска).
+    // Папка из настроек приводится к тому же виду — иначе `C:\Users\user`
+    // и `C:\Users\USER~1` оказались бы разными папками.
+    let watched = crate::model::root::normalize(&folder);
+
+    DailyMonth {
+        folder: watched.to_string_lossy().into_owned(),
+        days: written_days(&folder, &month),
+    }
+}
+
+/// Какие дни месяца уже записаны в папке. Папки нет — ни одного.
+fn written_days(folder: &Path, month: &str) -> Vec<u32> {
+    let Ok(entries) = std::fs::read_dir(folder) else {
         // Папки может не быть вовсе — ни одной заметки ещё не написали.
         // Это не ошибка: календарь просто покажет месяц без пометок.
         return Vec::new();
@@ -117,7 +147,7 @@ pub fn daily_notes_of_month(state: tauri::State<'_, AppState>, month: String) ->
         .map(|entry| entry.file_name().to_string_lossy().into_owned())
         .collect();
 
-    days_of(&names, &month)
+    days_of(&names, month)
 }
 
 /// Какие дни месяца встречаются среди имён. Отдельно — ради проверяемости.
@@ -315,6 +345,23 @@ mod tests {
     fn a_partial_month_matches_nothing() {
         let names = vec!["Заметка 2026-10-05.md".to_owned()];
         assert!(days_of(&names, "2026-1").is_empty());
+    }
+
+    /// Днём считается файл в самой папке: папка с именем заметки и заметка
+    /// во вложенной папке календарь не помечают. Папки нет — дней нет,
+    /// и это не ошибка.
+    #[test]
+    fn written_days_are_files_in_the_folder_itself() {
+        let dir = temp_dir("daily-month");
+        std::fs::write(dir.join("Заметка 2026-09-25.md"), "").unwrap();
+        std::fs::create_dir(dir.join("Заметка 2026-09-24.md")).unwrap();
+        std::fs::create_dir(dir.join("архив")).unwrap();
+        std::fs::write(dir.join("архив").join("Заметка 2026-09-23.md"), "").unwrap();
+
+        assert_eq!(written_days(&dir, "2026-09"), vec![25]);
+        assert!(written_days(&dir.join("нет такой"), "2026-09").is_empty());
+
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     /// Заготовками считаются только текстовые файлы: читать чужой двоичный
