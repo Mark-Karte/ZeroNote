@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { CheckOutcome, DownloadOutcome } from '../src/ipc/update';
 import { askChoice, modal } from '../src/state/modal.svelte';
 import {
   checkForUpdates,
@@ -12,40 +13,47 @@ import type { DownloadEvent } from '../src/ui/download';
 /**
  * Обновление на глазах (задача 104).
  *
- * Настоящую загрузку проверить можно только выпуском, поэтому здесь плагин
- * подменён: события приходят от теста, а тест смотрит, что в это время
+ * Настоящую загрузку проверить можно только выпуском, поэтому здесь команды
+ * ядра подменены: события приходят от теста, а тест смотрит, что в это время
  * показывает диалог. Главное — три шага в верном порядке, отказ на каждом
- * называется своими словами, и ход работы не пропадает, если посреди
- * загрузки всплыл другой вопрос.
+ * называется своими словами, отмена снимает загрузку и ничего не ставит,
+ * а ход работы не пропадает, если посреди загрузки всплыл другой вопрос.
  */
 
-const { check } = vi.hoisted(() => ({ check: vi.fn() }));
-vi.mock('@tauri-apps/plugin-updater', () => ({ check }));
+const ipc = vi.hoisted(() => ({
+  checkUpdate: vi.fn(),
+  downloadUpdate: vi.fn(),
+  cancelUpdate: vi.fn(),
+  installUpdate: vi.fn(),
+}));
+vi.mock('../src/ipc/update', () => ipc);
 
-/** Поддельное обновление: загрузкой управляет тест. */
-function fakeUpdate() {
+/** Неразрывный пробел: им длительности склеены с единицами. */
+const NBSP = String.fromCharCode(0xa0);
+
+const FOUND: CheckOutcome = { kind: 'found', version: '0.15.0', notes: 'Заметки к выпуску' };
+
+/** Поддельная загрузка: ходом и концом управляет тест, отмена — как в ядре. */
+function fakeDownload() {
   let onEvent: (event: DownloadEvent) => void = () => {};
-  let finish: () => void = () => {};
+  let settle: (outcome: DownloadOutcome) => void = () => {};
   let fail: (error: unknown) => void = () => {};
 
-  const update = {
-    version: '0.15.0',
-    body: 'Заметки к выпуску',
-    download: vi.fn((callback: (event: DownloadEvent) => void, _options?: { timeout?: number }) => {
+  ipc.downloadUpdate.mockImplementation(
+    (_timeout: number, callback: (event: DownloadEvent) => void) => {
       onEvent = callback;
-      return new Promise<void>((resolve, reject) => {
-        finish = resolve;
+      return new Promise<DownloadOutcome>((resolve, reject) => {
+        settle = resolve;
         fail = reject;
       });
-    }),
-    // На Windows установка завершает процесс — обещание не разрешается никогда.
-    install: vi.fn(() => new Promise<void>(() => {})),
-  };
+    },
+  );
+  // Ядро снимает задачу и отвечает на загрузку «отменено».
+  ipc.cancelUpdate.mockImplementation(async () => settle('cancelled'));
 
   return {
-    update,
     send: (event: DownloadEvent) => onEvent(event),
-    finish: () => finish(),
+    finish: () => settle('ready'),
     fail: (error: unknown) => fail(error),
   };
 }
@@ -58,17 +66,19 @@ async function answer(title: string, id: string): Promise<void> {
 
 /** Начать установку и дождаться начала загрузки. */
 async function startInstall() {
-  const fake = fakeUpdate();
-  check.mockResolvedValue(fake.update);
+  const fake = fakeDownload();
+  ipc.checkUpdate.mockResolvedValue(FOUND);
 
-  void checkForUpdates();
+  const done = checkForUpdates();
   await answer('Есть новая версия', 'install');
-  await vi.waitFor(() => expect(fake.update.download).toHaveBeenCalled());
-  return fake;
+  await vi.waitFor(() => expect(ipc.downloadUpdate).toHaveBeenCalled());
+  return { ...fake, done };
 }
 
 beforeEach(() => {
-  check.mockReset();
+  for (const mock of Object.values(ipc)) mock.mockReset();
+  // На Windows установка завершает процесс — обещание не разрешается никогда.
+  ipc.installUpdate.mockReturnValue(new Promise<void>(() => {}));
   updates.busy = false;
   modal.request = null;
   modal.progress = null;
@@ -82,8 +92,8 @@ describe('обновление', () => {
   it('у проверки и у загрузки есть срок', async () => {
     const fake = await startInstall();
 
-    expect(check).toHaveBeenCalledWith({ timeout: CHECK_TIMEOUT_MS });
-    expect(fake.update.download.mock.calls[0]?.[1]).toEqual({ timeout: DOWNLOAD_TIMEOUT_MS });
+    expect(ipc.checkUpdate).toHaveBeenCalledWith(CHECK_TIMEOUT_MS);
+    expect(ipc.downloadUpdate.mock.calls[0]?.[0]).toBe(DOWNLOAD_TIMEOUT_MS);
     fake.finish();
   });
 
@@ -106,46 +116,101 @@ describe('обновление', () => {
     fake.send({ event: 'Finished' });
     expect(modal.progress?.step).toBe(1);
     expect(modal.progress?.fraction).toBe(1);
-    expect(fake.update.install).not.toHaveBeenCalled();
+    expect(ipc.installUpdate).not.toHaveBeenCalled();
 
     fake.finish();
-    await vi.waitFor(() => expect(fake.update.install).toHaveBeenCalled());
+    await vi.waitFor(() => expect(ipc.installUpdate).toHaveBeenCalled());
     expect(modal.progress?.step).toBe(2);
-    // Кнопок нет: прервать установку нечем, и обещать это нельзя.
     expect(modal.request).toBeNull();
+  });
+
+  /** Отменить можно, пока идёт загрузка; подпись и установку — нет. */
+  it('кнопка отмены есть только во время загрузки', async () => {
+    const fake = await startInstall();
+    expect(modal.progress?.cancel).toBeTypeOf('function');
+
+    fake.send({ event: 'Finished' });
+    expect(modal.progress?.cancel).toBeNull();
+
+    fake.finish();
+    await vi.waitFor(() => expect(ipc.installUpdate).toHaveBeenCalled());
+    expect(modal.progress?.cancel).toBeNull();
+  });
+
+  it('отмена снимает загрузку, закрывает окно и ничего не ставит', async () => {
+    const fake = await startInstall();
+    fake.send({ event: 'Started', data: { contentLength: 1000 } });
+    fake.send({ event: 'Progress', data: { chunkLength: 100 } });
+
+    modal.progress?.cancel?.();
+    await fake.done;
+
+    expect(ipc.cancelUpdate).toHaveBeenCalledOnce();
+    expect(modal.progress).toBeNull();
+    // Отменили сами — сообщать не о чем.
+    expect(modal.request).toBeNull();
+    expect(ipc.installUpdate).not.toHaveBeenCalled();
+    expect(updates.busy).toBe(false);
+  });
+
+  /**
+   * Отмена нажата в тот миг, когда загрузка уже кончилась: ядро ответило
+   * «готово», но человек сказал «не надо» — ставить нельзя.
+   */
+  it('отмена сильнее «готово», пришедшего следом', async () => {
+    const fake = await startInstall();
+    ipc.cancelUpdate.mockResolvedValue(undefined);
+
+    modal.progress?.cancel?.();
+    expect(modal.progress?.detail).toBe('Отменяю загрузку…');
+    fake.finish();
+    await fake.done;
+
+    expect(ipc.installUpdate).not.toHaveBeenCalled();
+    expect(modal.progress).toBeNull();
   });
 
   it('отказ загрузки называется загрузкой, и ход работы закрывается', async () => {
     const fake = await startInstall();
     fake.send({ event: 'Started', data: { contentLength: 1000 } });
-    fake.fail(new Error('operation timed out'));
+    fake.fail('operation timed out');
 
     await vi.waitFor(() => expect(modal.request?.title).toBe('Не удалось скачать обновление'));
     expect(modal.request?.text).toContain('Ничего не установлено.');
     expect(modal.request?.text).toContain('operation timed out');
     expect(modal.progress).toBeNull();
-    expect(fake.update.install).not.toHaveBeenCalled();
+    expect(ipc.installUpdate).not.toHaveBeenCalled();
   });
 
   it('отказ после последнего куска — это подпись', async () => {
     const fake = await startInstall();
     fake.send({ event: 'Finished' });
-    fake.fail(new Error('signature mismatch'));
+    fake.fail('signature mismatch');
 
     await vi.waitFor(() =>
       expect(modal.request?.title).toBe('Обновление не прошло проверку подписи'),
     );
-    expect(fake.update.install).not.toHaveBeenCalled();
+    expect(ipc.installUpdate).not.toHaveBeenCalled();
   });
 
   it('отказ запуска установщика называется им и советует страницу выпусков', async () => {
     const fake = await startInstall();
-    fake.update.install.mockRejectedValueOnce(new Error('access denied'));
+    ipc.installUpdate.mockRejectedValueOnce('access denied');
     fake.send({ event: 'Finished' });
     fake.finish();
 
     await vi.waitFor(() => expect(modal.request?.title).toBe('Не удалось запустить установщик'));
     expect(modal.request?.text).toContain('github.com/Mark-Karte/ZeroNote/releases');
+  });
+
+  /** Сообщение, опоздавшее к ответу ядра, шаг назад не отматывает. */
+  it('опоздавший «Finished» не возвращает подпись после установки', async () => {
+    const fake = await startInstall();
+    fake.finish();
+    await vi.waitFor(() => expect(ipc.installUpdate).toHaveBeenCalled());
+
+    fake.send({ event: 'Finished' });
+    expect(modal.progress?.step).toBe(2);
   });
 
   /**
@@ -157,7 +222,9 @@ describe('обновление', () => {
     const fake = await startInstall();
     const progress = modal.progress;
 
-    const asked = askChoice('Файл изменён', 'Перечитать?', [{ id: 'ok', label: 'Да', primary: true }]);
+    const asked = askChoice('Файл изменён', 'Перечитать?', [
+      { id: 'ok', label: 'Да', primary: true },
+    ]);
     expect(modal.request?.title).toBe('Файл изменён');
     expect(modal.progress).toBe(progress);
 
@@ -169,14 +236,13 @@ describe('обновление', () => {
   });
 
   it('«Не сейчас» ничего не скачивает', async () => {
-    const fake = fakeUpdate();
-    check.mockResolvedValue(fake.update);
+    ipc.checkUpdate.mockResolvedValue(FOUND);
 
     const done = checkForUpdates();
     await answer('Есть новая версия', 'later');
     await done;
 
-    expect(fake.update.download).not.toHaveBeenCalled();
+    expect(ipc.downloadUpdate).not.toHaveBeenCalled();
     expect(modal.progress).toBeNull();
     expect(updates.busy).toBe(false);
   });
@@ -186,7 +252,7 @@ describe('проверка', () => {
   /** На хорошей сети ответ приходит за доли секунды — мелькнувший диалог был бы шумом. */
   it('быстрый ответ не показывает ожидания', async () => {
     vi.useFakeTimers();
-    check.mockResolvedValue(null);
+    ipc.checkUpdate.mockResolvedValue({ kind: 'upToDate' });
 
     void checkForUpdates();
     await vi.advanceTimersByTimeAsync(0);
@@ -197,8 +263,8 @@ describe('проверка', () => {
 
   it('затянувшаяся показывает ожидание со сроком и убирает его с ответом', async () => {
     vi.useFakeTimers();
-    let respond: (value: null) => void = () => {};
-    check.mockReturnValue(new Promise((resolve) => (respond = resolve)));
+    let respond: (value: CheckOutcome) => void = () => {};
+    ipc.checkUpdate.mockReturnValue(new Promise((resolve) => (respond = resolve)));
 
     void checkForUpdates();
     await vi.advanceTimersByTimeAsync(399);
@@ -206,18 +272,33 @@ describe('проверка', () => {
 
     await vi.advanceTimersByTimeAsync(3_001);
     expect(modal.progress?.title).toBe('Проверяю обновления');
-    expect(modal.progress?.detail.replaceAll('\u00a0', ' ')).toBe(
-      'Жду ответа 3 с — не дольше 30 с.',
-    );
+    expect(modal.progress?.detail.replaceAll(NBSP, ' ')).toBe('Жду ответа 3 с — не дольше 30 с.');
 
-    respond(null);
+    respond({ kind: 'upToDate' });
     await vi.advanceTimersByTimeAsync(0);
     expect(modal.progress).toBeNull();
     expect(modal.request?.title).toBe('Обновлений нет');
   });
 
+  it('отменённая проверка молчит', async () => {
+    vi.useFakeTimers();
+    let respond: (value: CheckOutcome) => void = () => {};
+    ipc.checkUpdate.mockReturnValue(new Promise((resolve) => (respond = resolve)));
+    ipc.cancelUpdate.mockImplementation(async () => respond({ kind: 'cancelled' }));
+
+    const done = checkForUpdates();
+    await vi.advanceTimersByTimeAsync(1_000);
+    modal.progress?.cancel?.();
+    await vi.advanceTimersByTimeAsync(0);
+    await done;
+
+    expect(ipc.cancelUpdate).toHaveBeenCalledOnce();
+    expect(modal.progress).toBeNull();
+    expect(modal.request).toBeNull();
+  });
+
   it('отказ проверки называется проверкой', async () => {
-    check.mockRejectedValue(new Error('dns error'));
+    ipc.checkUpdate.mockRejectedValue('dns error');
 
     void checkForUpdates();
     await vi.waitFor(() => expect(modal.request?.title).toBe('Не удалось проверить обновления'));

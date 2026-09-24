@@ -32,7 +32,16 @@
   }
 
   function onKeyDown(event: KeyboardEvent): void {
-    if (!request) return;
+    // У хода работы Escape — это «Отмена», как у кнопки; нет кнопки —
+    // нет и отмены.
+    if (!request) {
+      if (event.key === 'Escape' && progress?.cancel) {
+        event.preventDefault();
+        event.stopPropagation();
+        progress.cancel();
+      }
+      return;
+    }
 
     if (event.key === 'Escape') {
       event.preventDefault();
@@ -156,6 +165,13 @@
             <p class="warning">{progress.warning}</p>
           {/if}
         </div>
+        <!-- Фокус не на кнопке, а на диалоге: Enter по привычке не должен
+             снимать загрузку, которую ждали. -->
+        {#if progress.cancel}
+          <div class="buttons">
+            <button class="button" type="button" onclick={progress.cancel}>Отмена</button>
+          </div>
+        {/if}
       {/if}
     </div>
   </div>
@@ -250,6 +266,10 @@
     display: flex;
     flex-direction: column;
     gap: var(--zn-space-3);
+  }
+
+  .progress + .buttons {
+    margin-top: var(--zn-space-4);
   }
 
   .steps {

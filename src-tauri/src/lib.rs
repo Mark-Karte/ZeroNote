@@ -125,6 +125,8 @@ pub fn run() {
         // «проверить обновления» (Р-118). Фоновой проверки нет и не будет.
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(app_state)
+        // Найденная версия, скачанный пакет и ручка отмены (Р-257).
+        .manage(commands::update::UpdateState::default())
         .setup(move |app| {
             // `app.handle()` даёт ручку к приложению, которую можно передать
             // в другой поток. Клонируем её, потому что сам `app` остаётся здесь.
@@ -175,6 +177,10 @@ pub fn run() {
             commands::callouts::callouts_state,
             commands::callouts::save_callout,
             commands::callouts::remove_callout,
+            commands::update::check_update,
+            commands::update::download_update,
+            commands::update::cancel_update,
+            commands::update::install_update,
             commands::settings::update_setting,
             commands::files::startup_paths,
             commands::files::recent_files,

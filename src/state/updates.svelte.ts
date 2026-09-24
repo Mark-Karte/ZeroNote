@@ -1,5 +1,10 @@
-import { check, type Update } from '@tauri-apps/plugin-updater';
-
+import {
+  cancelUpdate,
+  checkUpdate,
+  downloadUpdate,
+  installUpdate,
+  type CheckOutcome,
+} from '../ipc/update';
 import { askChoice, showProgress } from '../state/modal.svelte';
 import {
   downloadView,
@@ -19,9 +24,10 @@ import { version } from '../version';
  * расписания: приложение, которое ходит в сеть само, обязано об этом
  * спрашивать, а мы обошлись без вопроса, обойдясь без хождения.
  *
- * Запрос делает ядро, а не вебвью: плагин обновлений работает на стороне
- * Rust. Поэтому политика безопасности окна остаётся прежней — вебвью
- * по-прежнему не открывает ни одного соединения.
+ * Запрос делает ядро, а не вебвью (`commands/update.rs`). Поэтому политика
+ * безопасности окна остаётся прежней — вебвью по-прежнему не открывает
+ * ни одного соединения. Там же живёт отмена: снять загрузку умеет только
+ * ядро (Р-257).
  *
  * Между «нашлась новая версия» и «ставим» стоит человек: сначала вопрос
  * с номером версии и описанием, и только по второму нажатию — загрузка.
@@ -39,10 +45,10 @@ export const updates = $state<{ busy: boolean }>({ busy: false });
 export const CHECK_TIMEOUT_MS = 30_000;
 
 /**
- * Срок у загрузки — страховка, а не ожидание: без неё загрузка без данных
- * висела бы вечно, а прервать её нельзя. Срок общий, от запроса до последнего
- * байта (так устроен клиент плагина), поэтому щедрый: установщик в шесть
- * мебибайт за пятнадцать минут — это семь килобайт в секунду.
+ * Срок у загрузки — страховка для того, кто ушёл от экрана: без неё загрузка
+ * без данных висела бы вечно. Срок общий, от запроса до последнего байта
+ * (так устроен клиент плагина), поэтому щедрый: установщик в шесть мебибайт
+ * за пятнадцать минут — это семь килобайт в секунду.
  */
 export const DOWNLOAD_TIMEOUT_MS = 15 * 60_000;
 
@@ -100,22 +106,25 @@ export async function checkForUpdates(): Promise<void> {
   updates.busy = true;
 
   try {
-    let found: Update | null;
+    let found: CheckOutcome;
     try {
-      found = await whileChecking(check({ timeout: CHECK_TIMEOUT_MS }));
+      found = await whileChecking(checkUpdate(CHECK_TIMEOUT_MS));
     } catch (error) {
       await report('Не удалось проверить обновления', error, 'Проверьте подключение к сети.');
       return;
     }
 
-    if (!found) {
+    // Отменили сами — сказать нечего.
+    if (found.kind === 'cancelled') return;
+
+    if (found.kind === 'upToDate') {
       await askChoice('Обновлений нет', `У вас последняя версия — ${version}.`, [
         { id: 'ok', label: 'Хорошо', primary: true, cancel: true },
       ]);
       return;
     }
 
-    const notes = found.body?.trim();
+    const notes = found.notes?.trim();
     const answer = await askChoice(
       'Есть новая версия',
       `Вышла ${found.version}, у вас ${version}.` +
@@ -130,7 +139,7 @@ export async function checkForUpdates(): Promise<void> {
 
     if (answer !== 'install') return;
 
-    await install(found);
+    await install(found.version);
   } finally {
     updates.busy = false;
   }
@@ -156,6 +165,7 @@ async function whileChecking<T>(request: Promise<T>): Promise<T> {
       fraction: null,
       detail: waitingText(Date.now() - started, CHECK_TIMEOUT_MS),
       warning: '',
+      cancel: () => void cancelUpdate(),
     });
     close = shown.close;
     tick = setInterval(() => {
@@ -175,31 +185,46 @@ async function whileChecking<T>(request: Promise<T>): Promise<T> {
 /**
  * Скачать, проверить подпись, поставить — на глазах.
  *
- * Загрузка и установка — два вызова, а не `downloadAndInstall`, и ради
- * трёх шагов на экране это необходимо: плагин сообщает `Finished` после
- * последнего куска, но **до** проверки подписи, а о конце проверки
- * сообщает только возвратом из `download`. Установка на Windows запускает
- * установщик и завершает процесс — сюда управление уже не вернётся.
+ * Загрузка и установка — два вызова, и ради трёх шагов на экране это
+ * необходимо: плагин сообщает `Finished` после последнего куска, но **до**
+ * проверки подписи, а о конце проверки сообщает только возвратом
+ * из загрузки. Установка на Windows запускает установщик и завершает
+ * процесс — сюда управление уже не вернётся.
  *
- * Отмены нет: плагин не умеет прерывать загрузку. Взамен — срок и слова
- * о тишине в сети со сроком, через который загрузка сдастся сама.
+ * Отменить можно, пока идёт загрузка: ядро снимает её, и соединение
+ * закрывается (Р-257). Проверку подписи и установку — нельзя: первая идёт
+ * на месте за доли секунды, вторая заменяет само приложение.
  */
-async function install(found: Update): Promise<void> {
+async function install(target: string): Promise<void> {
   const { view, close } = showProgress({
-    title: `Обновление до ${found.version}`,
+    title: `Обновление до ${target}`,
     text:
-      'Прервать загрузку нельзя — так устроен механизм обновления. Когда всё ' +
-      'скачается, окно закроется, установщик покажет свой ход, и ZeroNote ' +
-      'откроется снова.',
+      'Когда всё скачается, окно закроется, установщик покажет свой ход, ' +
+      'и ZeroNote откроется снова. Отменить можно, пока идёт загрузка.',
     steps: [...STEPS],
     step: 0,
     fraction: null,
     detail: '',
     warning: '',
+    cancel: null,
   });
+
+  // Отмена видна сразу, не дожидаясь ответа ядра: кнопка гаснет, а строка
+  // говорит, что происходит. Снимается загрузка мгновенно — задача
+  // просыпается ради отмены, даже если сеть молчит.
+  let cancelling = false;
+  view.cancel = () => {
+    cancelling = true;
+    view.cancel = null;
+    view.warning = '';
+    view.detail = 'Отменяю загрузку…';
+    void cancelUpdate();
+  };
 
   let download = startDownload(Date.now());
   const render = (): void => {
+    // Сообщение, опоздавшее к концу загрузки, шаг назад не отматывает.
+    if (view.step !== 0 || cancelling) return;
     const shown = downloadView(download, Date.now(), DOWNLOAD_TIMEOUT_MS);
     view.fraction = shown.fraction;
     view.detail = shown.amount;
@@ -209,32 +234,39 @@ async function install(found: Update): Promise<void> {
   const tick = setInterval(render, TICK_MS);
 
   try {
-    await found.download(
-      (event: DownloadEvent) => {
-        download = onDownloadEvent(download, event, Date.now());
-        if (event.event !== 'Finished') {
-          render();
-          return;
-        }
+    const outcome = await downloadUpdate(DOWNLOAD_TIMEOUT_MS, (event: DownloadEvent) => {
+      download = onDownloadEvent(download, event, Date.now());
+      if (event.event !== 'Finished') {
+        render();
+        return;
+      }
+      if (view.step !== 0 || cancelling) return;
 
-        // Последний кусок пришёл — дальше подпись. Секунды больше не нужны:
-        // проверка идёт на месте и не зависит от сети.
-        clearInterval(tick);
-        view.step = 1;
-        view.fraction = 1;
-        view.warning = '';
-        view.detail = finishedText(download, Date.now());
-      },
-      { timeout: DOWNLOAD_TIMEOUT_MS },
-    );
+      // Последний кусок пришёл — дальше подпись. Секунды больше не нужны:
+      // проверка идёт на месте и не зависит от сети. Отменять уже нечего.
+      clearInterval(tick);
+      view.step = 1;
+      view.fraction = 1;
+      view.warning = '';
+      view.cancel = null;
+      view.detail = finishedText(download, Date.now());
+    });
 
     clearInterval(tick);
+    // Отмена, нажатая в тот миг, когда загрузка уже кончилась, всё равно
+    // отмена: ядро успело ответить «готово», но человек сказал «не надо».
+    if (outcome === 'cancelled' || cancelling) {
+      close();
+      return;
+    }
+
     view.step = 2;
     view.fraction = 1;
     view.warning = '';
+    view.cancel = null;
     view.detail = 'Подпись сошлась. Запускаю установщик — окно сейчас закроется.';
 
-    await found.install();
+    await installUpdate();
   } catch (error) {
     clearInterval(tick);
     const failure = FAILURES[view.step] ?? DOWNLOAD_FAILED;

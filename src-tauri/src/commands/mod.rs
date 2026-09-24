@@ -18,3 +18,4 @@ pub mod roots;
 pub mod session;
 pub mod settings;
 pub mod tree;
+pub mod update;
