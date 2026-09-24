@@ -1,9 +1,15 @@
 <script lang="ts">
+  import Icon from './Icon.svelte';
   import { modal } from '../state/modal.svelte';
 
   const request = $derived(modal.request);
+  // Вопрос, пришедший посреди работы, встаёт поверх хода работы, а ответ
+  // на него возвращает ход на место (задача 104).
+  const progress = $derived(modal.request ? null : modal.progress);
+  const shown = $derived(request ?? progress);
   let primaryButton = $state<HTMLButtonElement | null>(null);
   let field = $state<HTMLInputElement | null>(null);
+  let dialog = $state<HTMLDivElement | null>(null);
   let value = $state('');
 
   function pick(id: string | null): void {
@@ -17,7 +23,11 @@
   }
 
   function cancel(): void {
-    const fallback = request?.choices.find((c) => c.cancel);
+    // Ход работы закрывает тот, кто её ведёт: прервать её отсюда нельзя,
+    // а закрытое окно при идущей работе выглядело бы как отмена.
+    if (!request) return;
+
+    const fallback = request.choices.find((c) => c.cancel);
     pick(fallback ? fallback.id : null);
   }
 
@@ -44,13 +54,18 @@
   // Фокус уводится в диалог: иначе клавиатура продолжает работать с редактором
   // под ним, а Enter и Escape до диалога не доходят. При наличии поля ввода
   // фокус достаётся ему — печатать сразу удобнее, чем сначала целиться мышью.
+  //
+  // У хода работы кнопок нет, и фокус получает сам диалог: иначе нажатые
+  // буквы уходили бы в текст под ним.
   $effect(() => {
-    if (!request) return;
+    if (!shown) return;
     if (field) {
       field.focus();
       field.select();
     } else if (primaryButton) {
       primaryButton.focus();
+    } else if (dialog) {
+      dialog.focus();
     }
   });
 
@@ -64,43 +79,84 @@
      и без этого Escape ушёл бы ей, а не диалогу. -->
 <svelte:window onkeydowncapture={onKeyDown} />
 
-{#if request}
+{#if shown}
   <div class="layer">
     <!-- Затемнение отдельным слоем, чтобы прозрачность не досталась
          содержимому диалога. -->
     <button class="backdrop" type="button" aria-label="Закрыть" onclick={cancel}
     ></button>
 
-    <div class="dialog" role="dialog" aria-modal="true" aria-label={request.title}>
-      <h2 class="title">{request.title}</h2>
-      <p class="text">{request.text}</p>
-      {#if request.input}
-        <input class="field" type="text" bind:this={field} bind:value />
-      {/if}
-      <div class="buttons">
-        {#each request.choices as choice (choice.id)}
-          {#if choice.primary}
-            <button
-              class="button primary"
-              class:danger={choice.danger}
-              type="button"
-              bind:this={primaryButton}
-              onclick={() => pick(choice.id)}
-            >
-              {choice.label}
-            </button>
-          {:else}
-            <button
-              class="button"
-              class:danger={choice.danger}
-              type="button"
-              onclick={() => pick(choice.id)}
-            >
-              {choice.label}
-            </button>
+    <div
+      class="dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-label={shown.title}
+      tabindex="-1"
+      bind:this={dialog}
+    >
+      <h2 class="title">{shown.title}</h2>
+      <p class="text">{shown.text}</p>
+      {#if request}
+        {#if request.input}
+          <input class="field" type="text" bind:this={field} bind:value />
+        {/if}
+        <div class="buttons">
+          {#each request.choices as choice (choice.id)}
+            {#if choice.primary}
+              <button
+                class="button primary"
+                class:danger={choice.danger}
+                type="button"
+                bind:this={primaryButton}
+                onclick={() => pick(choice.id)}
+              >
+                {choice.label}
+              </button>
+            {:else}
+              <button
+                class="button"
+                class:danger={choice.danger}
+                type="button"
+                onclick={() => pick(choice.id)}
+              >
+                {choice.label}
+              </button>
+            {/if}
+          {/each}
+        </div>
+      {:else if progress}
+        <div class="progress" aria-live="polite">
+          {#if progress.steps.length > 0}
+            <ol class="steps">
+              {#each progress.steps as step, index (index)}
+                <li
+                  class="step"
+                  class:done={index < progress.step}
+                  class:current={index === progress.step}
+                >
+                  <span class="mark">
+                    {#if index < progress.step}
+                      <Icon name="action.check" />
+                    {/if}
+                  </span>
+                  {step}
+                </li>
+              {/each}
+            </ol>
           {/if}
-        {/each}
-      </div>
+          <!-- Без длины полоски нет вовсе: пустая дорожка честнее бегунка,
+               который изображает ход, не зная его. -->
+          {#if progress.fraction !== null}
+            <div class="track">
+              <div class="fill" style:--done={progress.fraction}></div>
+            </div>
+          {/if}
+          <p class="detail">{progress.detail}</p>
+          {#if progress.warning}
+            <p class="warning">{progress.warning}</p>
+          {/if}
+        </div>
+      {/if}
     </div>
   </div>
 {/if}
@@ -151,6 +207,12 @@
     animation: rise var(--zn-motion-duration-normal) var(--zn-motion-easing);
   }
 
+  /* Фокус у диалога только ради клавиатуры (ход работы без кнопок), рамка
+     вокруг всего окна ничего не сообщает. */
+  .dialog:focus {
+    outline: none;
+  }
+
   @keyframes fade {
     from {
       opacity: 0;
@@ -182,6 +244,76 @@
     min-height: 0;
     color: var(--zn-color-fg-muted);
     white-space: pre-line;
+  }
+
+  .progress {
+    display: flex;
+    flex-direction: column;
+    gap: var(--zn-space-3);
+  }
+
+  .steps {
+    display: flex;
+    flex-direction: column;
+    gap: var(--zn-space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  /* Будущий шаг приглушён, текущий — обычным текстом и весом, пройденный —
+     обычным текстом с галочкой. Так видно и где мы, и что ещё впереди:
+     «устанавливаю» после «скачиваю» и есть ответ на «сколько ещё ждать». */
+  .step {
+    display: flex;
+    align-items: center;
+    gap: var(--zn-space-3);
+    color: var(--zn-color-fg-subtle);
+  }
+
+  .step.done {
+    color: var(--zn-color-fg-default);
+  }
+
+  .step.current {
+    color: var(--zn-color-fg-default);
+    font-weight: var(--zn-font-weight-strong);
+  }
+
+  .mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--zn-control-icon-size);
+    height: var(--zn-control-icon-size);
+    color: var(--zn-color-success);
+  }
+
+  .track {
+    height: var(--zn-control-progress-height);
+    overflow: hidden;
+    border-radius: var(--zn-radius-sm);
+    background-color: var(--zn-color-bg-canvas);
+  }
+
+  /* Ширина — масштабом, а не свойством `width`: сотни кусков за загрузку
+     не пересчитывают раскладку диалога. Доля приходит свойством `--done`. */
+  .fill {
+    height: 100%;
+    background-color: var(--zn-color-accent);
+    transform: scaleX(var(--done));
+    transform-origin: left;
+  }
+
+  .detail {
+    margin: 0;
+    color: var(--zn-color-fg-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .warning {
+    margin: 0;
+    color: var(--zn-color-warning);
   }
 
   .field {

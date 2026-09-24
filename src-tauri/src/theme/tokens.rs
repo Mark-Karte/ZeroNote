@@ -151,6 +151,8 @@ pub const METRICS_NORMAL: &[(&str, &str)] = &[
     // Карточка темы в параметрах: ширина, при которой в образец помещается
     // строка кода из трёх слов, а в окно — три-четыре карточки в ряд.
     ("control-theme-card-width", "180px"),
+    // Дорожка полоски хода работы (задача 104): загрузка обновления.
+    ("control-progress-height", "6px"),
 ];
 
 /// Метрики компактной плотности.
@@ -202,6 +204,7 @@ pub const METRICS_COMPACT: &[(&str, &str)] = &[
     ("control-strip-width", "42px"),
     ("control-strip-button-size", "32px"),
     ("control-theme-card-width", "160px"),
+    ("control-progress-height", "4px"),
 ];
 
 /// Семантические роли, выраженные через палитру.

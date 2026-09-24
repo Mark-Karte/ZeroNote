@@ -30,6 +30,26 @@ export interface Choice {
   danger?: boolean;
 }
 
+/**
+ * Ход долгой работы: шаги, полоска, строка под ней (задача 104).
+ *
+ * Меняется на месте тем, кто работу ведёт, — диалог перерисовывается сам.
+ */
+export interface ProgressView {
+  title: string;
+  text: string;
+  /** Шаги по порядку: пройденные отмечены, текущий выделен, будущие приглушены. */
+  steps: string[];
+  /** Номер текущего шага в `steps`. */
+  step: number;
+  /** Доля от 0 до 1; `null` — полоски нет, длина работы неизвестна. */
+  fraction: number | null;
+  /** Строка под полоской: байты, проценты, секунды. */
+  detail: string;
+  /** Предупреждение цветом внимания — например, тишина в сети. */
+  warning: string;
+}
+
 export interface ModalRequest {
   title: string;
   text: string;
@@ -39,7 +59,18 @@ export interface ModalRequest {
   resolve: (id: string | null) => void;
 }
 
-export const modal = $state<{ request: ModalRequest | null }>({ request: null });
+/**
+ * Вопрос и ход работы живут порознь (задача 104).
+ *
+ * Ход работы — не вопрос: ответа у него нет, и закрывает его тот, кто работу
+ * ведёт. Вопрос, пришедший посреди работы (файл изменился на диске), встаёт
+ * поверх, а ответ на него возвращает ход работы на место. Живи они в одном
+ * месте, вопрос стёр бы ход работы, и загрузка шла бы дальше невидимой.
+ */
+export const modal = $state<{ request: ModalRequest | null; progress: ProgressView | null }>({
+  request: null,
+  progress: null,
+});
 
 /**
  * Задать вопрос и дождаться ответа.
@@ -80,6 +111,33 @@ export function askInput(
       { id: 'ok', label: confirm, primary: true },
     ],
   });
+}
+
+/**
+ * Показать ход работы.
+ *
+ * Возвращает то, что видно на экране, — менять поля `view` на месте, — и
+ * `close`. Кнопки отмены нет нарочно: такой диалог ставится там, где работу
+ * прервать нельзя, а кнопка, которая закрывает окно, но не останавливает
+ * работу, обещала бы то, чего не делает. Escape и щелчок мимо его тоже
+ * не закрывают.
+ *
+ * `close` закрывает только свой ход работы: если его уже сменил другой,
+ * тот остаётся на месте.
+ */
+export function showProgress(initial: ProgressView): { view: ProgressView; close: () => void } {
+  modal.progress = initial;
+
+  // Читаем обратно из состояния: изменения должен видеть диалог, а видит он
+  // отслеживаемую копию, а не объект, переданный сюда.
+  const view = modal.progress as ProgressView;
+
+  return {
+    view,
+    close: () => {
+      if (modal.progress === view) modal.progress = null;
+    },
+  };
 }
 
 function open(request: Omit<ModalRequest, 'resolve'>): Promise<string | null> {
