@@ -1,5 +1,6 @@
 import { notify } from '../state/notices.svelte';
 import { activeTab, type Tab } from '../state/tabs.svelte';
+import { cannotPrint } from './print';
 
 /**
  * Экспорт для чужих глаз (задача 110).
@@ -28,6 +29,31 @@ export function cannotExport(tab: Tab | null): string | null {
   }
 }
 
+/**
+ * Почему вкладку не экспортировать в PDF. `null` — можно.
+ *
+ * Правила те же, что у печати: PDF — это печать в файл. Картинку можно —
+ * лист с ней отдают так же, как бумажный.
+ */
+export function cannotExportPdf(tab: Tab | null): string | null {
+  return cannotPrint(tab);
+}
+
+type Exported = { path: string; problems: string[] } | null;
+
+/** Общий ответ обоих экспортов: где файл и что не вошло. */
+async function run(label: string, work: () => Promise<Exported>): Promise<void> {
+  try {
+    const done = await work();
+    if (done === null) return;
+    const tail = done.problems.length > 0 ? ` ${done.problems.join('; ')}` : '';
+    notify(`Сохранено: ${done.path}.${tail}`);
+  } catch (error) {
+    // Слишком большой файл (`TooLarge`) говорит о себе сам.
+    notify(`${label} не удался: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
 export async function exportHtmlActive(): Promise<void> {
   const tab = activeTab();
   const reason = cannotExport(tab);
@@ -36,14 +62,16 @@ export async function exportHtmlActive(): Promise<void> {
     return;
   }
 
-  try {
-    const { exportTabAsHtml } = await import('../export/html');
-    const done = await exportTabAsHtml(tab);
-    if (done === null) return;
-    const tail = done.problems.length > 0 ? ` ${done.problems.join('; ')}` : '';
-    notify(`Сохранено: ${done.path}.${tail}`);
-  } catch (error) {
-    // Слишком большой файл (`TooLarge`) говорит о себе сам.
-    notify(`Экспорт не удался: ${error instanceof Error ? error.message : String(error)}`);
+  await run('Экспорт', async () => (await import('../export/html')).exportTabAsHtml(tab));
+}
+
+export async function exportPdfActive(): Promise<void> {
+  const tab = activeTab();
+  const reason = cannotExportPdf(tab);
+  if (reason !== null || tab === null) {
+    if (reason !== null) notify(reason);
+    return;
   }
+
+  await run('Экспорт в PDF', async () => (await import('../export/pdf')).exportTabAsPdf(tab));
 }

@@ -13,6 +13,7 @@ pub mod index;
 pub mod keymap;
 pub mod markdown;
 pub mod model;
+pub mod pdf;
 pub mod project;
 pub mod replace;
 pub mod session;
@@ -166,6 +167,7 @@ pub fn run() {
             commands::appearance::appearance_state,
             commands::appearance::print_appearance,
             commands::export::write_html_export,
+            commands::export::export_pdf,
             commands::appearance::builtin_theme_source,
             commands::appearance::theme_samples,
             commands::appearance::create_theme,

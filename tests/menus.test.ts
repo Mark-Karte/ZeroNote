@@ -21,6 +21,7 @@ const COMMANDS: Command[] = [
   { id: 'file.save-as', title: 'Сохранить как', binding: 'ctrl+alt+s' },
   { id: 'file.print', title: 'Печать…', binding: null },
   { id: 'file.export-html', title: 'Экспорт в HTML…', binding: null },
+  { id: 'file.export-pdf', title: 'Экспорт в PDF…', binding: null },
   { id: 'file.close-tab', title: 'Закрыть вкладку', binding: 'ctrl+w' },
   { id: 'file.close-all', title: 'Закрыть все вкладки', binding: 'ctrl+shift+w' },
   { id: 'view.close-pane', title: 'Закрыть область', binding: null },
@@ -75,7 +76,7 @@ describe('пункты по командам реестра', () => {
     const known = new Set(commandIds());
     const all = [
       ...editorMenu({ ...EDITOR, markdown: true }, COMMANDS),
-      ...tabMenu({ modified: true, hasFile: true, text: true, others: 2, canSplit: true, hasClosed: false, printBlocked: null, exportBlocked: null }, COMMANDS),
+      ...tabMenu({ modified: true, hasFile: true, text: true, others: 2, canSplit: true, hasClosed: false, printBlocked: null, exportBlocked: null, pdfBlocked: null }, COMMANDS),
       ...treeMenu({ row: null }, COMMANDS),
       ...fieldMenu({ hasSelection: true, readOnly: false }, COMMANDS),
     ];
@@ -153,7 +154,7 @@ describe('меню редактора', () => {
 describe('меню вкладки', () => {
   it('гасит сохранение, когда сохранять нечего', () => {
     const items = tabMenu(
-      { modified: false, hasFile: true, text: true, others: 1, canSplit: true, hasClosed: false, printBlocked: null, exportBlocked: null },
+      { modified: false, hasFile: true, text: true, others: 1, canSplit: true, hasClosed: false, printBlocked: null, exportBlocked: null, pdfBlocked: null },
       COMMANDS,
     );
     expect(item(items, 'file.save').disabled).toBe(true);
@@ -161,7 +162,7 @@ describe('меню вкладки', () => {
 
   it('гасит «закрыть другие», когда вкладка одна', () => {
     const items = tabMenu(
-      { modified: true, hasFile: true, text: true, others: 0, canSplit: true, hasClosed: false, printBlocked: null, exportBlocked: null },
+      { modified: true, hasFile: true, text: true, others: 0, canSplit: true, hasClosed: false, printBlocked: null, exportBlocked: null, pdfBlocked: null },
       COMMANDS,
     );
     expect(item(items, MENU.closeOthers).disabled).toBe(true);
@@ -170,7 +171,7 @@ describe('меню вкладки', () => {
   /** У буфера без файла нет ни пути, ни места в проводнике. Имя есть всегда. */
   it('гасит путь и проводник у буфера без файла', () => {
     const items = tabMenu(
-      { modified: true, hasFile: false, text: true, others: 1, canSplit: true, hasClosed: false, printBlocked: null, exportBlocked: null },
+      { modified: true, hasFile: false, text: true, others: 1, canSplit: true, hasClosed: false, printBlocked: null, exportBlocked: null, pdfBlocked: null },
       COMMANDS,
     );
     expect(item(items, MENU.copyPath).disabled).toBe(true);
@@ -188,7 +189,7 @@ describe('меню вкладки', () => {
    */
   it('гасит сохранение у вкладки, которая не текст', () => {
     const items = tabMenu(
-      { modified: false, hasFile: false, text: false, others: 1, canSplit: true, hasClosed: false, printBlocked: null, exportBlocked: null },
+      { modified: false, hasFile: false, text: false, others: 1, canSplit: true, hasClosed: false, printBlocked: null, exportBlocked: null, pdfBlocked: null },
       COMMANDS,
     );
 
@@ -213,6 +214,7 @@ describe('меню вкладки', () => {
         hasClosed: false,
         printBlocked: 'PDF печатается своей программой',
         exportBlocked: 'PDF отдают самим файлом',
+        pdfBlocked: 'PDF печатается своей программой',
       },
       COMMANDS,
     );
@@ -220,13 +222,15 @@ describe('меню вкладки', () => {
     expect(item(blocked, 'file.print').hint).toBe('PDF печатается своей программой');
     expect(item(blocked, 'file.export-html').disabled).toBe(true);
     expect(item(blocked, 'file.export-html').hint).toBe('PDF отдают самим файлом');
+    expect(item(blocked, 'file.export-pdf').disabled).toBe(true);
 
     const open = tabMenu(
-      { modified: false, hasFile: true, text: true, others: 1, canSplit: true, hasClosed: false, printBlocked: null, exportBlocked: null },
+      { modified: false, hasFile: true, text: true, others: 1, canSplit: true, hasClosed: false, printBlocked: null, exportBlocked: null, pdfBlocked: null },
       COMMANDS,
     );
     expect(item(open, 'file.print').disabled).toBe(false);
     expect(item(open, 'file.export-html').disabled).toBe(false);
+    expect(item(open, 'file.export-pdf').disabled).toBe(false);
   });
 });
 

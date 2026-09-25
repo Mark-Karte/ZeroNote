@@ -156,6 +156,8 @@ export interface TabMenuContext {
   printBlocked: string | null;
   /** Почему вкладку не экспортировать (задача 110). `null` — можно. */
   exportBlocked: string | null;
+  /** Почему вкладку не экспортировать в PDF (задача 111). `null` — можно. */
+  pdfBlocked: string | null;
 }
 
 export function tabMenu(ctx: TabMenuContext, commands: Command[]): PopupItem[] {
@@ -187,6 +189,10 @@ export function tabMenu(ctx: TabMenuContext, commands: Command[]): PopupItem[] {
     fromCommand(commands, 'file.export-html', {
       disabled: ctx.exportBlocked !== null,
       hint: ctx.exportBlocked ?? undefined,
+    }),
+    fromCommand(commands, 'file.export-pdf', {
+      disabled: ctx.pdfBlocked !== null,
+      hint: ctx.pdfBlocked ?? undefined,
     }),
 
     fromCommand(commands, 'file.close-tab', { divider: true }),

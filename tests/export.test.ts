@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { cannotExport } from '../src/actions/export';
+import { cannotExport, cannotExportPdf } from '../src/actions/export';
 import { exportPage, exportPath, tokenBlock } from '../src/export/html';
+import { pdfPath } from '../src/export/pdf';
 import type { Tab } from '../src/state/tabs.svelte';
 
 /**
@@ -28,6 +29,22 @@ describe('что экспортируется', () => {
     expect(cannotExport(tab('pdf'))).toContain('самим файлом');
     expect(cannotExport(tab('settings'))).toContain('не документ');
     expect(cannotExport(tab('text', true))).toContain('упрощённом режиме');
+  });
+});
+
+describe('экспорт в PDF (задача 111)', () => {
+  /** PDF — печать в файл: правила те же, что у печати, картинку можно. */
+  it('текст и картинка — да, PDF и параметры — нет', () => {
+    expect(cannotExportPdf(tab('text'))).toBeNull();
+    expect(cannotExportPdf(tab('image'))).toBeNull();
+    expect(cannotExportPdf(tab('pdf'))).toContain('своей программой');
+    expect(cannotExportPdf(tab('settings'))).toContain('не документ');
+  });
+
+  it('рядом с файлом: заметка без .md, код — с расширением', () => {
+    expect(pdfPath('C:\\заметки\\План.md', 'План.md', true)).toBe('C:\\заметки\\План.pdf');
+    expect(pdfPath('C:\\src\\main.rs', 'main.rs', false)).toBe('C:\\src\\main.rs.pdf');
+    expect(pdfPath(null, 'Без имени 1', false)).toBe('Без имени 1.pdf');
   });
 });
 

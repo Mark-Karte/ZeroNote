@@ -17,7 +17,7 @@
   import { canSplitPane } from './pane-size';
   import { hasClosed } from '../state/closed.svelte';
   import { cannotPrint } from '../actions/print';
-  import { cannotExport } from '../actions/export';
+  import { cannotExport, cannotExportPdf } from '../actions/export';
   import type { PaneNode } from '../ipc/layout';
   // Закрытие идёт через действие, а не напрямую через состояние: только там
   // спрашивают про несохранённые правки.
@@ -226,6 +226,7 @@
           hasClosed: hasClosed(),
           printBlocked: cannotPrint(tab),
           exportBlocked: cannotExport(tab),
+          pdfBlocked: cannotExportPdf(tab),
         },
         commandList(),
       ),

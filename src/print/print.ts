@@ -41,19 +41,23 @@ export function printStyles(margin: string): string {
   return `${documentCss}\n${printCss}\n@page { margin: ${pageMargin(margin)}; }\n`;
 }
 
+/** Документ, поставленный в окно для печати. */
+export interface Mounted {
+  /** Что пошло не так, как настроено: тема пары не нашлась или тёмная. */
+  problems: string[];
+  /** Убрать документ из окна. Можно звать сколько угодно раз. */
+  unmount: () => void;
+}
+
 /**
- * Напечатать документ.
+ * Поставить документ в окно — для печати через диалог и для PDF одной
+ * командой (задача 111): печатает его один и тот же движок WebView2.
  *
- * Документ встаёт в окно контейнером рядом с приложением, на контейнере —
+ * Документ встаёт контейнером рядом с приложением, на контейнере —
  * токены светлой темы (бумага светлая всегда, решение владельца). Режим
- * печати прячет всё, кроме контейнера. Заголовок окна на время печати —
- * имя файла: его диалог ставит в колонтитул.
- *
- * Убирается всё по `afterprint` — он приходит и после печати, и после
- * отмены. Если диалог не откроется вовсе, скрытый контейнер останется
- * до следующей печати, и та его заменит.
+ * печати прячет всё, кроме контейнера; на экране контейнера не видно.
  */
-export async function printDocument(html: string, title: string): Promise<string[]> {
+export async function mountDocument(html: string): Promise<Mounted> {
   const appearance = await printAppearance();
 
   document.getElementById(ROOT_ID)?.remove();
@@ -81,28 +85,46 @@ export async function printDocument(html: string, title: string): Promise<string
   document.head.append(style);
   document.body.append(root);
 
-  // Картинки строками `data:` раскодируются не сразу, а предпросмотр
-  // снимается с того, что уже нарисовано: без ожидания на листе вышли бы
-  // пустые рамки.
+  // Картинки строками `data:` раскодируются не сразу, а лист снимается
+  // с того, что уже нарисовано: без ожидания на нём вышли бы пустые рамки.
   await Promise.all(
     Array.from(root.querySelectorAll('img')).map((image) => image.decode().catch(() => undefined)),
   );
   await document.fonts.ready;
+
+  return {
+    problems: appearance.problems,
+    unmount: () => {
+      root.remove();
+      style.remove();
+    },
+  };
+}
+
+/**
+ * Напечатать документ через диалог WebView2.
+ *
+ * Заголовок окна на время печати — имя файла: его диалог ставит
+ * в колонтитул. Убирается всё по `afterprint` — он приходит и после
+ * печати, и после отмены. Если диалог не откроется вовсе, скрытый
+ * контейнер останется до следующей печати, и та его заменит.
+ */
+export async function printDocument(html: string, title: string): Promise<string[]> {
+  const mounted = await mountDocument(html);
 
   const previousTitle = document.title;
   document.title = title;
   window.addEventListener(
     'afterprint',
     () => {
-      root.remove();
-      style.remove();
+      mounted.unmount();
       document.title = previousTitle;
     },
     { once: true },
   );
 
   window.print();
-  return appearance.problems;
+  return mounted.problems;
 }
 
 /** Напечатать вкладку. Возвращает, что пошло не так, как настроено. */

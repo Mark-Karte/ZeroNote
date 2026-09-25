@@ -10,3 +10,10 @@ import { invoke } from '@tauri-apps/api/core';
 /** Записать экспортированный HTML. Путь — из диалога сохранения. */
 export const writeHtmlExport = (path: string, html: string): Promise<void> =>
   invoke('write_html_export', { path, html });
+
+/**
+ * Напечатать в PDF документ, который окно уже поставило в режим печати
+ * (задача 111). `title` — в шапку каждой страницы.
+ */
+export const exportPdf = (path: string, title: string): Promise<void> =>
+  invoke('export_pdf', { path, title });

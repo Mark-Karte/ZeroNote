@@ -29,6 +29,7 @@ const ICON_FOR: Record<string, IconName> = {
   'file.save-all': 'cmd.save-all',
   'file.print': 'cmd.print',
   'file.export-html': 'cmd.export-html',
+  'file.export-pdf': 'cmd.export-pdf',
   'file.close-tab': 'tab.close',
   'file.close-all': 'cmd.close-all',
 
