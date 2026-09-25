@@ -9,6 +9,7 @@ public class H {
   [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
   [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, IntPtr extra);
   [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+  [DllImport("user32.dll")] public static extern void mouse_event(uint f, uint dx, uint dy, uint d, IntPtr e);
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
   public struct RECT { public int Left, Top, Right, Bottom; }
 }
@@ -35,5 +36,9 @@ $theirs = [H]::GetWindowThreadProcessId($hwnd, [IntPtr]::Zero)
 $r = New-Object H+RECT
 [void][H]::GetWindowRect($hwnd, [ref]$r)
 [void][H]::SetCursorPos(($r.Left + [int]$args[0]), ($r.Top + [int]$args[1]))
+# Перенос указателя сам по себе вебвью о наведении не сообщает: подсветка
+# кнопки окна на снимке не появлялась (после выпуска 0.16.0). Движение
+# на ноль пикселей — настоящее событие ввода, и `:hover` срабатывает.
+[H]::mouse_event(0x0001, 0, 0, 0, [IntPtr]::Zero)
 Start-Sleep -Milliseconds 500
 Write-Output "наведено"
