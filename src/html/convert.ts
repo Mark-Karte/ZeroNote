@@ -91,18 +91,24 @@ export async function markdownToHtml(
   const spans = wikilinkSpans(text);
   const problems: string[] = [];
 
-  // Блоки кода и картинки по дереву. Внутрь блоков кода не спускаемся:
-  // картинка в примере кода — это текст примера. Frontmatter — туда же:
-  // `![[обложка.png]]` в служебном поле не выводится, и грузить её незачем.
+  // Блоки кода и картинки по дереву. Внутрь кода не спускаемся:
+  // картинка в примере кода — это текст примера. Отдельно — где вставки
+  // `![[…]]` не считаются: в коде, строчном коде и frontmatter. Служебное
+  // поле не выводится, и грузить из него картинку незачем.
   const blocks: SyntaxNode[] = [];
+  const verbatim: SyntaxNode[] = [];
   const paths = new Set<string>();
   tree.iterate({
     enter(node) {
-      if (node.name === 'FencedCode' || node.name === 'CodeBlock' || node.name === 'Frontmatter') {
+      if (node.name === 'FencedCode' || node.name === 'CodeBlock') {
         blocks.push(node.node);
+        verbatim.push(node.node);
         return false;
       }
-      if (node.name === 'InlineCode') return false;
+      if (node.name === 'InlineCode' || node.name === 'Frontmatter') {
+        verbatim.push(node.node);
+        return false;
+      }
       if (node.name === 'Image') {
         const url = node.node.getChild('URL');
         const link = url ? localTarget(text.slice(url.from, url.to)) : null;
@@ -112,12 +118,12 @@ export async function markdownToHtml(
     },
   });
 
-  const insideCode = (at: number): boolean =>
-    blocks.some((block) => at >= block.from && at < block.to);
+  const insideVerbatim = (at: number): boolean =>
+    verbatim.some((node) => at >= node.from && at < node.to);
   const embeds = new Set<string>();
   for (const span of spans) {
     const target = linkTarget(span.inner);
-    if (span.embed && embedIsImage(target) && !insideCode(span.from)) embeds.add(target);
+    if (span.embed && embedIsImage(target) && !insideVerbatim(span.from)) embeds.add(target);
   }
 
   const source = new Source(text);

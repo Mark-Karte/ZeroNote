@@ -58,6 +58,9 @@ const INLINE = new Set(['Emphasis', 'StrongEmphasis', 'Strikethrough', 'Highligh
  */
 const MARKS = new Set(['EmphasisMark', 'StrikethroughMark', 'HighlightMark', 'CodeMark']);
 
+/** Узлы, чьё содержимое показывается как есть: вики-ссылок в них нет. */
+const VERBATIM = new Set(['FencedCode', 'CodeBlock', 'InlineCode', 'Frontmatter']);
+
 /** Пустая замена: место знака не занимает ничего. */
 const hidden = Decoration.replace({});
 
@@ -158,12 +161,21 @@ export function decorateLivePreview(
     found.push(hidden.range(from, to));
   };
 
-  // Frontmatter показывается исходником целиком (задача 114). Узлов внутри
-  // него нет, и дерево не тронет ничего само, а вики-ссылки ищутся
-  // по тексту — без этой границы в `up: "[[Родитель]]"` спрятались бы
-  // скобки. Узел бывает только первым в документе.
-  const first = tree.topNode.firstChild;
-  const frontEnd = first && first.name === 'Frontmatter' ? first.to : 0;
+  /**
+   * Место внутри того, что показывается как есть: кода или frontmatter.
+   *
+   * Вики-ссылки ищутся по тексту, а не по дереву, и без этой проверки
+   * превью прятало скобки и там: `[[nodiscard]]` в блоке C++ выходило
+   * словом `nodiscard`, а `up: "[[Родитель]]"` во frontmatter — без
+   * скобок. В коде ссылок нет по правилу ядра (Р-069), frontmatter
+   * показывается исходником (Р-274).
+   */
+  const verbatim = (at: number): boolean => {
+    for (let node: SyntaxNode | null = tree.resolveInner(at, 1); node; node = node.parent) {
+      if (VERBATIM.has(node.name)) return true;
+    }
+    return false;
+  };
 
   // Вики-ссылки разбираются первыми: их знаки не в дереве, а внутри `[[…]]`
   // лежит чужой узел `Link`, который иначе спрятался бы наполовину.
@@ -175,7 +187,7 @@ export function decorateLivePreview(
     for (const span of wikilinkSpans(text)) {
       const from = range.from + span.from;
       const to = range.from + span.to;
-      if (from < frontEnd) continue;
+      if (verbatim(from)) continue;
       wiki.push({ from, to });
 
       // `![[рисунок.png]]` показывается картинкой — целиком, вместе

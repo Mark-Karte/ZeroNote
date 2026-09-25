@@ -338,6 +338,19 @@ describe('frontmatter и пределы', () => {
     expect(out.html).toBe('<hr>\n<h2>Раздел</h2>\n<p>текст</p>');
   });
 
+  /** В строчном коде `![[рис.png]]` — пример записи, а не картинка. */
+  it('вставка в строчном коде не грузится', async () => {
+    const asked: string[] = [];
+    const out = await markdownToHtml('пишется `![[рис.png]]`\n', context({
+      loadEmbed: async (target) => {
+        asked.push(target);
+        return 'data:image/png;base64,AAAA';
+      },
+    }));
+    expect(out.html).toBe('<p>пишется <code>![[рис.png]]</code></p>');
+    expect(asked).toEqual([]);
+  });
+
   /** `![[обложка]]` в служебном поле не выводится — и не грузится. */
   it('вставка из frontmatter не грузится', async () => {
     const asked: string[] = [];
