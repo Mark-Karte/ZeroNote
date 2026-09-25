@@ -2,6 +2,9 @@ import { message } from '@tauri-apps/plugin-dialog';
 import type { EditorView } from '@codemirror/view';
 import { copiedText, pasteSpec } from '../editor/clipboard';
 import { clipboardText } from '../ipc/clipboard';
+import { editorView } from '../editor/current';
+import { notify } from '../state/notices.svelte';
+import { activeTab } from '../state/tabs.svelte';
 
 /**
  * Работа с буфером обмена — со стороны действий.
@@ -25,6 +28,38 @@ import { clipboardText } from '../ipc/clipboard';
  * к внутренностям чужой библиотеки, что дороже самого изъяна.
  */
 let lastLinewise: string | null = null;
+
+/**
+ * Копировать с оформлением (задача 112): выделение или, если его нет,
+ * весь файл — в буфер двумя форматами, HTML и исходным текстом.
+ *
+ * Сам вывод грузится по команде (`export/copy.ts`): в стартовый кусок
+ * он не едет. Ответ словами — отдельная команда должна сказать, что
+ * сделала, в отличие от `Ctrl+C`, который знают все.
+ */
+export async function copyRichActive(): Promise<void> {
+  const tab = activeTab();
+  const view = editorView();
+  if (!tab?.editor || !view) {
+    notify('Копировать с оформлением можно текст — заметку или код');
+    return;
+  }
+  if (tab.meta.large) {
+    notify('Файл открыт в упрощённом режиме — с оформлением он не копируется');
+    return;
+  }
+
+  try {
+    const { copyRich } = await import('../export/copy');
+    const done = await copyRich(tab, view.state.selection.ranges);
+    const what = done.whole ? 'Весь файл скопирован с оформлением' : 'Скопировано с оформлением';
+    const tail = done.problems.length > 0 ? `. ${done.problems.join('; ')}` : '';
+    notify(`${what}${tail}`);
+  } catch (error) {
+    // Слишком большой файл (`TooLarge`) говорит о себе сам.
+    notify(`Не скопировалось: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
 
 /** Положить строку в буфер обмена. Возвращает `false`, если не вышло. */
 export async function copyText(text: string): Promise<boolean> {

@@ -43,6 +43,8 @@ export function printStyles(margin: string): string {
 
 /** Документ, поставленный в окно для печати. */
 export interface Mounted {
+  /** Сам документ в окне — копирование берёт с него вычисленный стиль. */
+  article: HTMLElement;
   /** Что пошло не так, как настроено: тема пары не нашлась или тёмная. */
   problems: string[];
   /** Убрать документ из окна. Можно звать сколько угодно раз. */
@@ -57,7 +59,7 @@ export interface Mounted {
  * токены светлой темы (бумага светлая всегда, решение владельца). Режим
  * печати прячет всё, кроме контейнера; на экране контейнера не видно.
  */
-export async function mountDocument(html: string): Promise<Mounted> {
+export async function mountDocument(html: string, copy = false): Promise<Mounted> {
   const appearance = await printAppearance();
 
   document.getElementById(ROOT_ID)?.remove();
@@ -78,7 +80,9 @@ export async function mountDocument(html: string): Promise<Mounted> {
   // сырой HTML — белым списком без атрибутов (Р-262), адреса — знакомых
   // схем (Р-264).
   const article = document.createElement('article');
-  article.className = 'zn-doc';
+  // `copy` — документ для буфера обмена (задача 112): шрифт текста
+  // получателя, моноширинный только у кода (`.zn-copy` в стиле документа).
+  article.className = copy ? 'zn-doc zn-copy' : 'zn-doc';
   article.innerHTML = html;
   root.append(article);
 
@@ -93,6 +97,7 @@ export async function mountDocument(html: string): Promise<Mounted> {
   await document.fonts.ready;
 
   return {
+    article,
     problems: appearance.problems,
     unmount: () => {
       root.remove();

@@ -25,7 +25,7 @@ import { showAbout } from '../actions/about';
 import { printActive } from '../actions/print';
 import { exportHtmlActive, exportPdfActive } from '../actions/export';
 import { checkForUpdates } from '../state/updates.svelte';
-import { copySelection, cutSelection, pasteIntoEditor } from '../actions/clipboard';
+import { copyRichActive, copySelection, cutSelection, pasteIntoEditor } from '../actions/clipboard';
 import { goBack, goForward, goToLineDialog, findInTab } from '../actions/navigate';
 import {
   addRootDialog,
@@ -109,6 +109,7 @@ export const COMMANDS: Record<CommandId, () => void | Promise<unknown>> = {
   // попадают пункт меню, палитра и переназначенное сочетание.
   'edit.cut': inEditorAsync(cutSelection),
   'edit.copy': inEditorAsync(copySelection),
+  'edit.copy-rich': copyRichActive,
   'edit.paste': inEditorAsync(pasteIntoEditor),
 
   'edit.select-all': inEditor(edit.selectAll),

@@ -77,6 +77,7 @@ export type IconName =
   | 'cmd.print'
   | 'cmd.export-html'
   | 'cmd.export-pdf'
+  | 'cmd.copy-rich'
   | 'cmd.save-all'
   | 'cmd.close-all'
   | 'cmd.close-others'
@@ -356,6 +357,10 @@ const ICONS: Record<IconName, string> = {
   // уходит файлом (задача 111). От страницы HTML отличается содержимым.
   'cmd.export-pdf':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round" stroke-linecap="round"><path d="M9.4 2H4.2A1.2 1.2 0 0 0 3 3.2v9.6A1.2 1.2 0 0 0 4.2 14h7.6a1.2 1.2 0 0 0 1.2-1.2V5.6z"/><path d="M9.4 2v3.6H13"/><path d="M8 7.4v4.4M6.2 10l1.8 1.8L9.8 10"/></svg>',
+  // Два листа, как у копирования, на переднем — буква: с оформлением
+  // (задача 112).
+  'cmd.copy-rich':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round" stroke-linecap="round"><path d="M10.6 4.6V3.4A1.4 1.4 0 0 0 9.2 2H3.4A1.4 1.4 0 0 0 2 3.4v5.8a1.4 1.4 0 0 0 1.4 1.4h1.2"/><rect x="5.4" y="5.4" width="8.6" height="8.6" rx="1.4"/><path d="M7.8 12.2l1.9-4.8 1.9 4.8M8.4 10.8h2.6"/></svg>',
   // Две дискеты внахлёст — как два листа у копирования.
   'cmd.save-all':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"><path d="M11.2 3.4V3A1.4 1.4 0 0 0 9.8 1.6H3.4A1.4 1.4 0 0 0 2 3v6.4a1.4 1.4 0 0 0 1.4 1.4h.8"/><path d="M5.6 5.8a1.2 1.2 0 0 1 1.2-1.2h4.4L14 7.2v5.2a1.2 1.2 0 0 1-1.2 1.2H6.8a1.2 1.2 0 0 1-1.2-1.2z"/><path d="M7.8 13.6v-3.2h3.6v3.2"/></svg>',

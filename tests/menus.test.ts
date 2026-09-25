@@ -29,6 +29,7 @@ const COMMANDS: Command[] = [
   { id: 'edit.redo', title: 'Повторить', binding: 'ctrl+y' },
   { id: 'edit.cut', title: 'Вырезать', binding: 'ctrl+x' },
   { id: 'edit.copy', title: 'Копировать', binding: 'ctrl+c' },
+  { id: 'edit.copy-rich', title: 'Копировать с оформлением', binding: null },
   { id: 'edit.paste', title: 'Вставить', binding: 'ctrl+v' },
   { id: 'edit.select-all', title: 'Выделить всё', binding: 'ctrl+a' },
   { id: 'search.find', title: 'Найти', binding: 'ctrl+f' },

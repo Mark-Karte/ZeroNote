@@ -38,6 +38,7 @@ const ICON_FOR: Record<string, IconName> = {
   'edit.redo': 'cmd.redo',
   'edit.cut': 'cmd.cut',
   'edit.copy': 'action.copy',
+  'edit.copy-rich': 'cmd.copy-rich',
   'edit.paste': 'cmd.paste',
   'edit.select-all': 'cmd.select-all',
   'edit.select-line': 'cmd.select-line',

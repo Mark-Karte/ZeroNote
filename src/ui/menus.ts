@@ -104,6 +104,9 @@ export function editorMenu(ctx: EditorMenuContext, commands: Command[]): PopupIt
 
     fromCommand(commands, 'edit.cut', { divider: true, disabled: ctx.readOnly }),
     fromCommand(commands, 'edit.copy'),
+    // С оформлением — рядом с обычным: это тот же вопрос «что положить
+    // в буфер», и искать ответ будут здесь (задача 112).
+    fromCommand(commands, 'edit.copy-rich'),
     fromCommand(commands, 'edit.paste', { disabled: ctx.readOnly }),
 
     fromCommand(commands, 'edit.select-all', { divider: true }),
