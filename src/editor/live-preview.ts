@@ -158,6 +158,13 @@ export function decorateLivePreview(
     found.push(hidden.range(from, to));
   };
 
+  // Frontmatter показывается исходником целиком (задача 114). Узлов внутри
+  // него нет, и дерево не тронет ничего само, а вики-ссылки ищутся
+  // по тексту — без этой границы в `up: "[[Родитель]]"` спрятались бы
+  // скобки. Узел бывает только первым в документе.
+  const first = tree.topNode.firstChild;
+  const frontEnd = first && first.name === 'Frontmatter' ? first.to : 0;
+
   // Вики-ссылки разбираются первыми: их знаки не в дереве, а внутри `[[…]]`
   // лежит чужой узел `Link`, который иначе спрятался бы наполовину.
   const wiki: { from: number; to: number }[] = [];
@@ -168,6 +175,7 @@ export function decorateLivePreview(
     for (const span of wikilinkSpans(text)) {
       const from = range.from + span.from;
       const to = range.from + span.to;
+      if (from < frontEnd) continue;
       wiki.push({ from, to });
 
       // `![[рисунок.png]]` показывается картинкой — целиком, вместе

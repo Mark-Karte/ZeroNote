@@ -5,7 +5,7 @@ import type { CalloutLookup } from '../editor/callouts';
 import { embedIsImage, localTarget } from '../editor/images';
 import { languageById } from '../editor/langs';
 import { languages } from '../editor/markdown-code';
-import { markdownSupport } from '../editor/markdown-language';
+import { fragmentParser, markdownSupport } from '../editor/markdown-language';
 import { linkTarget, wikilinkSpans } from '../editor/wikilinks';
 import { codeBlock, highlightedLines } from './code';
 import { Renderer, blockBody, blockInfo, imageKey } from './markdown';
@@ -63,53 +63,49 @@ export interface Converted {
 /** Слишком большой файл — отказ словами, а не долгая работа. */
 export class TooLarge extends Error {}
 
-/**
- * Где кончается frontmatter — служебные поля файла, а не текст.
- *
- * Правило то же, что в ядре (`markdown/front.rs`): первая строка ровно
- * `---`, закрывает строка из трёх и больше дефисов. Незакрытая ограда
- * frontmatter не делает — это просто черта.
- */
-export function frontmatterEnd(text: string): number {
-  if (!/^---\r?\n/.test(text)) return 0;
-  const fence = /^-{3,}[ \t]*\r?$/gm;
-  fence.lastIndex = text.indexOf('\n') + 1;
-  const close = fence.exec(text);
-  if (!close) return 0;
-  const lineEnd = text.indexOf('\n', close.index);
-  return lineEnd < 0 ? text.length : lineEnd + 1;
-}
-
 /** Размер по-человечески: «2 МиБ». */
 function mib(size: number): string {
   return `${Math.round((size / 1024 / 1024) * 10) / 10} МиБ`.replace('.', ',');
 }
 
-/** Заметка markdown в HTML. */
-export async function markdownToHtml(text: string, context: ConvertContext): Promise<Converted> {
+/**
+ * Заметка markdown в HTML.
+ *
+ * `fragment` — текст не файл целиком, а кусок из его середины (выделение
+ * при копировании): тогда frontmatter в нём не ищется — он бывает только
+ * в начале файла.
+ */
+export async function markdownToHtml(
+  text: string,
+  context: ConvertContext,
+  { fragment = false }: { fragment?: boolean } = {},
+): Promise<Converted> {
   if (text.length > MARKDOWN_LIMIT) {
     throw new TooLarge(`заметка больше ${mib(MARKDOWN_LIMIT)} — такой объём вывод не собирает`);
   }
 
-  const body = text.slice(frontmatterEnd(text));
-  const tree = markdownSupport().language.parser.parse(body);
-  const spans = wikilinkSpans(body);
+  // Frontmatter — узел того же разбора, что у превью (задача 114): рендер
+  // его пропускает, а не отрезает строкой по своему правилу.
+  const parser = fragment ? fragmentParser() : markdownSupport().language.parser;
+  const tree = parser.parse(text);
+  const spans = wikilinkSpans(text);
   const problems: string[] = [];
 
   // Блоки кода и картинки по дереву. Внутрь блоков кода не спускаемся:
-  // картинка в примере кода — это текст примера.
+  // картинка в примере кода — это текст примера. Frontmatter — туда же:
+  // `![[обложка.png]]` в служебном поле не выводится, и грузить её незачем.
   const blocks: SyntaxNode[] = [];
   const paths = new Set<string>();
   tree.iterate({
     enter(node) {
-      if (node.name === 'FencedCode' || node.name === 'CodeBlock') {
+      if (node.name === 'FencedCode' || node.name === 'CodeBlock' || node.name === 'Frontmatter') {
         blocks.push(node.node);
         return false;
       }
       if (node.name === 'InlineCode') return false;
       if (node.name === 'Image') {
         const url = node.node.getChild('URL');
-        const link = url ? localTarget(body.slice(url.from, url.to)) : null;
+        const link = url ? localTarget(text.slice(url.from, url.to)) : null;
         if (link !== null) paths.add(link);
       }
       return undefined;
@@ -124,7 +120,7 @@ export async function markdownToHtml(text: string, context: ConvertContext): Pro
     if (span.embed && embedIsImage(target) && !insideCode(span.from)) embeds.add(target);
   }
 
-  const source = new Source(body);
+  const source = new Source(text);
   const code = await highlightBlocks(blocks, source);
   const images = await loadImages(paths, embeds, context, problems);
 

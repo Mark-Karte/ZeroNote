@@ -7,7 +7,6 @@ import {
   MARKDOWN_LIMIT,
   TooLarge,
   codeToHtml,
-  frontmatterEnd,
   markdownToHtml,
   type ConvertContext,
 } from '../src/html/convert';
@@ -317,13 +316,39 @@ describe('таблицы', () => {
 
 describe('frontmatter и пределы', () => {
   it('служебные поля не выводятся', async () => {
-    expect(frontmatterEnd('---\ntags: [a]\n---\nтело\n')).toBe(18);
     expect(await html('---\ntags: [a]\n---\nтело\n')).toBe('<p>тело</p>');
   });
 
-  it('черта посреди текста и незакрытая ограда — не frontmatter', () => {
-    expect(frontmatterEnd('текст\n---\nа\n---\n')).toBe(0);
-    expect(frontmatterEnd('---\nбез конца\n')).toBe(0);
+  /**
+   * Правило одно с превью (задача 114, Р-274): черта посреди текста —
+   * черта, незакрытая ограда в первой строке тянется до конца файла,
+   * как незакрытый блок кода.
+   */
+  it('черта посреди текста — черта, незакрытая ограда — до конца', async () => {
+    expect(await html('текст\n\n---\nа\n---\n')).toBe('<p>текст</p>\n<hr>\n<h2>а</h2>');
+    expect(await html('---\nбез конца\n\n# и дальше\n')).toBe('');
+  });
+
+  /**
+   * Выделение из середины заметки — кусок, а не файл: `---` в его начале
+   * черта. Иначе выделение от черты вниз копировалось бы пустотой.
+   */
+  it('в куске из середины frontmatter не ищется', async () => {
+    const out = await markdownToHtml('---\n## Раздел\n\nтекст\n', context(), { fragment: true });
+    expect(out.html).toBe('<hr>\n<h2>Раздел</h2>\n<p>текст</p>');
+  });
+
+  /** `![[обложка]]` в служебном поле не выводится — и не грузится. */
+  it('вставка из frontmatter не грузится', async () => {
+    const asked: string[] = [];
+    const out = await markdownToHtml('---\ncover: "![[рис.png]]"\n---\nтело\n', context({
+      loadEmbed: async (target) => {
+        asked.push(target);
+        return 'data:image/png;base64,AAAA';
+      },
+    }));
+    expect(out.html).toBe('<p>тело</p>');
+    expect(asked).toEqual([]);
   });
 
   it('слишком большой файл — отказ словами', async () => {

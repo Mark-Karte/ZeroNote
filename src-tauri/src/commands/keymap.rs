@@ -16,9 +16,14 @@ use crate::state::AppState;
 pub struct KeymapState {
     /// Сочетание в приведённом виде → идентификатор команды.
     pub bindings: BTreeMap<String, String>,
-    /// Все команды с человеческими названиями — для будущего окна параметров.
+    /// Все команды с человеческими названиями — для редактора клавиш.
     pub commands: Vec<CommandInfo>,
-    /// Что не так с файлом раскладки. Пустой список — всё в порядке.
+    /// Файл раскладки не читается вовсе: сломан TOML или чужая версия.
+    /// Тогда действуют умолчания, а редактор клавиш не правит — запись
+    /// поверх стёрла бы то, что человек не дописал (Р-089).
+    pub broken: Option<String>,
+    /// Что из файла не применилось, по строке на запись (Р-248). Остальное
+    /// действует, и редактор клавиш правит как обычно.
     pub problems: Vec<String>,
 }
 
@@ -39,28 +44,15 @@ pub struct CommandInfo {
 
 /// Сборка раскладки, отделённая от путей ради тестов.
 pub fn build(data_dir: &std::path::Path) -> KeymapState {
-    let mut problems = Vec::new();
-
-    let user = match std::fs::read_to_string(data_dir.join("keymap.toml")) {
+    let (bindings, broken, problems) = match std::fs::read_to_string(data_dir.join("keymap.toml")) {
         Ok(source) => match keymap::parse(&source) {
-            Ok(file) => Some(file),
-            Err(e) => {
-                // Испорченный файл не должен оставлять пользователя без
-                // горячих клавиш вовсе: работаем на умолчаниях и говорим почему.
-                problems.push(e.to_string());
-                None
-            }
+            Ok(loaded) => (loaded.bindings, None, loaded.problems),
+            // Испорченный файл не должен оставлять пользователя без
+            // горячих клавиш вовсе: работаем на умолчаниях и говорим почему.
+            Err(e) => (keymap::defaults(), Some(e.to_string()), Vec::new()),
         },
         // Файла нет — это нормально, действует раскладка по умолчанию.
-        Err(_) => None,
-    };
-
-    let bindings = match keymap::resolve(user.as_ref()) {
-        Ok(bindings) => bindings,
-        Err(e) => {
-            problems.push(e.to_string());
-            keymap::resolve(None).expect("умолчания обязаны собираться")
-        }
+        Err(_) => (keymap::defaults(), None, Vec::new()),
     };
 
     let commands = keymap::COMMANDS
@@ -80,6 +72,7 @@ pub fn build(data_dir: &std::path::Path) -> KeymapState {
     KeymapState {
         bindings,
         commands,
+        broken,
         problems,
     }
 }
@@ -116,11 +109,10 @@ fn source_for_edit(state: &AppState) -> Result<String, String> {
 /// Раскладка возвращается, а не ожидается от слежения за файлами: событие
 /// придёт и так, но с задержкой в полсекунды, и всё это время окно параметров
 /// показывало бы вчерашнее сочетание рядом с только что нажатым.
-fn write(state: &AppState, updated: String) -> Result<KeymapState, String> {
-    // Итог обязан разбираться и собираться нашим же кодом. Проверка не лишняя:
-    // правка могла оказаться верной по TOML и неверной по смыслу.
-    let file = keymap::parse(&updated).map_err(|e| e.to_string())?;
-    keymap::resolve(Some(&file)).map_err(|e| e.to_string())?;
+fn write(state: &AppState, before: &str, updated: String) -> Result<KeymapState, String> {
+    // Итог обязан разбираться нашим же кодом и не добавлять жалоб. Проверка
+    // не лишняя: правка могла оказаться верной по TOML и неверной по смыслу.
+    edit::verify(before, &updated)?;
 
     atomic_save::save(&keymap_path(state), updated.as_bytes()).map_err(|e| e.to_string())?;
 
@@ -137,7 +129,7 @@ pub fn set_binding(
     let source = source_for_edit(&state)?;
     let updated =
         edit::assign(&source, &command, binding.as_deref()).map_err(|e| e.to_string())?;
-    write(&state, updated)
+    write(&state, &source, updated)
 }
 
 /// Вернуть команде умолчание.
@@ -148,7 +140,7 @@ pub fn reset_binding(
 ) -> Result<KeymapState, String> {
     let source = source_for_edit(&state)?;
     let updated = edit::reset(&source, &command).map_err(|e| e.to_string())?;
-    write(&state, updated)
+    write(&state, &source, updated)
 }
 
 /// Убрать все переназначения разом.
@@ -156,7 +148,7 @@ pub fn reset_binding(
 pub fn reset_keymap(state: tauri::State<'_, AppState>) -> Result<KeymapState, String> {
     let source = source_for_edit(&state)?;
     let updated = edit::reset_all(&source).map_err(|e| e.to_string())?;
-    write(&state, updated)
+    write(&state, &source, updated)
 }
 
 #[cfg(test)]
@@ -197,24 +189,28 @@ mod tests {
         let state = build(&dir);
 
         assert_eq!(state.bindings["ctrl+s"], "file.save");
-        assert!(!state.problems.is_empty());
+        assert!(state.broken.is_some());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    /// Опечатка в имени команды тоже не должна ломать раскладку целиком.
+    /// Опечатка в имени команды не ломает раскладку: пропускается только
+    /// её строка, соседняя действует, и файл не считается испорченным —
+    /// редактор клавиш правит его как обычно (Р-248).
     #[test]
-    fn unknown_command_falls_back_and_reports() {
+    fn unknown_command_is_skipped_and_reported() {
         let dir = temp_dir("typo");
         std::fs::write(
             dir.join("keymap.toml"),
-            "schema = 1\n[bindings]\n\"ctrl+d\" = \"edit.duplicate-lines\"\n",
+            "schema = 1\n[bindings]\n\"ctrl+d\" = \"edit.duplicate-lines\"\n\"ctrl+alt+q\" = \"file.save\"\n",
         )
         .unwrap();
 
         let state = build(&dir);
 
-        // Опечатка отвергнута, действует умолчание.
+        // Опечатка отвергнута, действует умолчание; соседняя строка — своя.
         assert_eq!(state.bindings["ctrl+d"], "edit.add-cursor-next");
+        assert_eq!(state.bindings["ctrl+alt+q"], "file.save");
+        assert!(state.broken.is_none());
         assert!(
             state.problems.iter().any(|p| p.contains("duplicate-lines")),
             "{:?}",
@@ -236,6 +232,7 @@ mod tests {
 
         assert_eq!(state.bindings["ctrl+shift+d"], "edit.delete-line");
         assert!(state.problems.is_empty());
+        assert!(state.broken.is_none());
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

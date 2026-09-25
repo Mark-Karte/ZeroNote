@@ -1,5 +1,8 @@
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
+import type { Parser } from '@lezer/common';
+import type { MarkdownParser } from '@lezer/markdown';
 
+import { frontmatter } from './frontmatter';
 import { languages } from './markdown-code';
 import { highlightMark } from './markdown-highlight';
 
@@ -19,7 +22,21 @@ export function markdownSupport() {
     // блоки кода — обычное дело, и без подсветки они выглядят чужеродно.
     codeLanguages: languages,
     // Выделение `==так==`: его ставит наша панель разметки, а в GFM такого
-    // узла нет (задача 57).
-    extensions: [highlightMark],
+    // узла нет (задача 57). Frontmatter — узлом, а не своим поиском
+    // по тексту у каждого потребителя (задача 114).
+    extensions: [highlightMark, frontmatter],
+  });
+}
+
+/**
+ * Разбор куска из середины заметки — для копирования выделения.
+ *
+ * Тот же разбор без frontmatter: он бывает только в начале файла, а кусок
+ * начинается где угодно. Выделение от черты `---` вниз иначе ушло бы
+ * в служебные поля целиком — незакрытый frontmatter тянется до конца.
+ */
+export function fragmentParser(): Parser {
+  return (markdownSupport().language.parser as MarkdownParser).configure({
+    remove: ['Frontmatter'],
   });
 }

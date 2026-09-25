@@ -27,18 +27,25 @@ export type { CommandInfo, KeymapState };
 const keymap = $state<{
   bindings: Record<string, string>;
   titles: CommandInfo[];
-  /** Что не так с файлом раскладки. Редактор клавиш при непустом не правит. */
+  /** Файл раскладки не читается вовсе. Редактор клавиш при этом не правит. */
+  broken: string | null;
+  /** Что из файла не применилось (Р-248). Править это не мешает. */
   problems: string[];
-}>({ bindings: {}, titles: [], problems: [] });
+}>({ bindings: {}, titles: [], broken: null, problems: [] });
 
 /** Раскладка целиком — редактору клавиш, чтобы искать занятые сочетания. */
 export function currentBindings(): Record<string, string> {
   return keymap.bindings;
 }
 
-/** Жалоба на файл раскладки или `null`. */
-export function keymapProblem(): string | null {
-  return keymap.problems[0] ?? null;
+/** Почему файл раскладки не читается вовсе, или `null`. */
+export function keymapBroken(): string | null {
+  return keymap.broken;
+}
+
+/** Строки файла раскладки, которые не применились. */
+export function keymapProblems(): string[] {
+  return keymap.problems;
 }
 
 /**
@@ -56,6 +63,7 @@ export function commandTable(): CommandInfo[] {
 export function applyKeymap(state: KeymapState): void {
   keymap.bindings = state.bindings;
   keymap.titles = state.commands;
+  keymap.broken = state.broken;
   keymap.problems = state.problems;
 }
 
@@ -150,7 +158,13 @@ export async function loadKeymap(): Promise<string[]> {
   const state = await ipc.keymapState();
   applyKeymap(state);
 
-  const problems = [...state.problems];
+  // В полосе строка называет файл, как у настроек и коллаутов: полоса
+  // общая, и «команды нет» без имени файла не сказало бы, где её искать.
+  // Жалоба на испорченный файл называет его сама.
+  const problems = [
+    ...(state.broken === null ? [] : [state.broken]),
+    ...state.problems.map((problem) => `keymap.toml: ${problem}`),
+  ];
 
   // Сочетание, указывающее на команду без обработчика, не сделает ничего —
   // и понять почему будет неоткуда. Тест сверяет списки при сборке, но

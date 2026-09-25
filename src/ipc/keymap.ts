@@ -20,6 +20,9 @@ export interface KeymapState {
   /** Сочетание в приведённом виде → идентификатор команды. */
   bindings: Record<string, string>;
   commands: CommandInfo[];
+  /** Файл не читается вовсе — действуют умолчания, правка заперта. */
+  broken: string | null;
+  /** Что из файла не применилось, по строке на запись; остальное действует. */
   problems: string[];
 }
 

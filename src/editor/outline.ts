@@ -1,5 +1,7 @@
 import type { Text } from '@codemirror/state';
 
+import { frontmatterLines } from './frontmatter';
+
 /**
  * Оглавление документа: заголовки markdown списком.
  *
@@ -76,26 +78,21 @@ function heading(line: string): { level: number; text: string } | null {
 export function outlineOf(doc: Text): Heading[] {
   const out: Heading[] = [];
 
+  // Правило frontmatter — то же, что у узла разбора (`frontmatter.ts`,
+  // задача 114): оглавление в дерево не смотрит, но и своего правила
+  // не держит. До задачи 114 оно было своим и расходилось с выводом HTML.
+  const front = frontmatterLines(doc.iterLines());
+
   let position = 0;
   let number = 0;
   let inFence: string | null = null;
-  let front: 'maybe' | 'inside' | 'done' = 'maybe';
 
   for (const line of doc.iterLines()) {
     number += 1;
     const start = position;
     position += line.length + 1;
 
-    if (front !== 'done') {
-      if (front === 'maybe') {
-        // Ограда frontmatter — только самая первая строка файла.
-        front = number === 1 && line.trimEnd() === '---' ? 'inside' : 'done';
-        if (front === 'inside') continue;
-      } else {
-        if (line.trimEnd() === '---') front = 'done';
-        continue;
-      }
-    }
+    if (number <= front) continue;
 
     const marker = fence(line);
     if (inFence !== null) {

@@ -245,14 +245,22 @@ export async function copyRich(
 ): Promise<{ whole: boolean; problems: string[] }> {
   const doc = tab.editor?.state.doc.toString() ?? '';
   const { text, whole } = pickText(doc, ranges);
+  // Выделение с первой строки файла начинается там же, где frontmatter,
+  // и служебные поля в нём пропускаются, как при печати. Выделение
+  // из середины — кусок, и `---` в его начале — черта (задача 114).
+  const fragment = !whole && !ranges.some((range) => range.to > range.from && range.from === 0);
 
   const built = isMarkdownTab(tab)
-    ? await markdownToHtml(text, {
-        callouts: calloutLookup(),
-        sourcePath: tab.meta.path,
-        loadImage: previewImage,
-        loadEmbed: previewEmbed,
-      })
+    ? await markdownToHtml(
+        text,
+        {
+          callouts: calloutLookup(),
+          sourcePath: tab.meta.path,
+          loadImage: previewImage,
+          loadEmbed: previewEmbed,
+        },
+        { fragment },
+      )
     : await codeToHtml(text, languageOf(tab)?.id ?? null);
 
   const mounted = await mountDocument(built.html, true);

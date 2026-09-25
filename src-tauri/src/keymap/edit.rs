@@ -107,14 +107,30 @@ fn keys_of(table: &Table, command: &str) -> Vec<String> {
         .collect()
 }
 
+/// Ключи таблицы, которые записывают это сочетание, — в любом виде.
+///
+/// Человек пишет `"Ctrl+S"`, окно параметров — `"ctrl+s"`, и для разбора
+/// это одно сочетание. Искать ключ буквально значило бы не заметить
+/// строку человека: правка дописала бы вторую рядом, и какая из двух
+/// действует, решал бы порядок ключей (задача 114 называет это вслух).
+fn keys_for(table: &Table, binding: &str) -> Vec<String> {
+    table
+        .iter()
+        .filter(|(key, _)| normalize(key).as_deref() == Some(binding))
+        .map(|(key, _)| key.to_owned())
+        .collect()
+}
+
 /// Занято ли сочетание в файле какой-нибудь командой.
 ///
 /// Пустая строка не занятость, а наоборот — снятие умолчания.
 fn claimed(table: &Table, binding: &str) -> bool {
-    table
-        .get(binding)
-        .and_then(Item::as_str)
-        .is_some_and(|command| !command.is_empty())
+    keys_for(table, binding).iter().any(|key| {
+        table
+            .get(key)
+            .and_then(Item::as_str)
+            .is_some_and(|command| !command.is_empty())
+    })
 }
 
 /// Назначить команде сочетание. `None` означает «снять вовсе».
@@ -152,7 +168,9 @@ pub fn assign(source: &str, command: &str, binding: Option<&str>) -> Result<Stri
     }
 
     if let Some(wanted) = &wanted {
-        table.remove(wanted);
+        for key in keys_for(table, wanted) {
+            table.remove(&key);
+        }
     }
 
     for default in &defaults {
@@ -192,8 +210,10 @@ pub fn reset(source: &str, command: &str) -> Result<String, EditError> {
     for default in &defaults {
         // Снятие умолчания — это пустая строка. Если по этому сочетанию
         // стоит чужая команда, она там не случайно.
-        if table.get(default).and_then(Item::as_str) == Some("") {
-            table.remove(default);
+        for key in keys_for(table, default) {
+            if table.get(&key).and_then(Item::as_str) == Some("") {
+                table.remove(&key);
+            }
         }
     }
 
@@ -211,15 +231,37 @@ pub fn reset_all(source: &str) -> Result<String, EditError> {
     Ok(document.to_string())
 }
 
+/// Годится ли итог правки к записи.
+///
+/// Требование то же, что у настроек (`settings::edit::verify`): итог
+/// обязан разбираться и **не добавлять новых жалоб**. «Жалоб нет вовсе»
+/// было бы слишком строго — опечатка, сделанная руками в другой строке,
+/// заперла бы окно параметров, а терпимость (Р-248) затем и нужна, чтобы
+/// одна строка не отнимала всё остальное.
+pub fn verify(before: &str, after: &str) -> Result<(), String> {
+    let known: Vec<String> = super::parse(before)
+        .map(|loaded| loaded.problems)
+        .unwrap_or_default();
+
+    let loaded = super::parse(after).map_err(|e| e.to_string())?;
+
+    match loaded.problems.into_iter().find(|problem| !known.contains(problem)) {
+        Some(problem) => Err(problem),
+        None => Ok(()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::keymap;
 
-    /// Разобрать итог так же, как это сделает приложение.
+    /// Разобрать итог так же, как это сделает приложение. Жалоб у итога
+    /// правки быть не должно: окно параметров пишет только годное.
     fn resolved(source: &str) -> std::collections::BTreeMap<String, String> {
-        let file = keymap::parse(source).expect("итог правки обязан разбираться");
-        keymap::resolve(Some(&file)).expect("итог правки обязан собираться")
+        let loaded = keymap::parse(source).expect("итог правки обязан разбираться");
+        assert!(loaded.problems.is_empty(), "{:?}\n{source}", loaded.problems);
+        loaded.bindings
     }
 
     const EMPTY: &str = "schema = 1\n\n[bindings]\n";
@@ -349,6 +391,47 @@ mod tests {
 
         assert_eq!(resolved(&out)["ctrl+alt+q"], "file.save");
         assert!(out.contains("# Горячие клавиши ZeroNote."), "{out}");
+    }
+
+    /// Человек записал сочетание по-своему — `"Ctrl+S"`. Шаг 3 не должен
+    /// принять его за свободное: запись `"ctrl+s" = ""` рядом отняла бы
+    /// сочетание у команды, которой его отдали. До задачи 114 ключ искался
+    /// буквально, и так и выходило — молча.
+    #[test]
+    fn a_binding_written_by_hand_in_another_case_is_recognised() {
+        let source = "schema = 1\n[bindings]\n\"Ctrl+S\" = \"file.save-all\"\n";
+
+        let out = assign(source, "file.save", Some("ctrl+alt+q")).unwrap();
+        let map = resolved(&out);
+
+        assert_eq!(map["ctrl+s"], "file.save-all", "чужое сочетание не тронуто: {out}");
+        assert_eq!(map["ctrl+alt+q"], "file.save");
+    }
+
+    /// Назначение сочетания, записанного человеком по-своему, заменяет его
+    /// строку, а не дописывает вторую.
+    #[test]
+    fn assigning_replaces_a_hand_written_line() {
+        let source = "schema = 1\n[bindings]\n\"Ctrl+Alt+Q\" = \"file.open\"\n";
+
+        let out = assign(source, "file.save", Some("ctrl+alt+q")).unwrap();
+
+        assert_eq!(resolved(&out)["ctrl+alt+q"], "file.save");
+        assert!(!out.contains("Ctrl+Alt+Q"), "{out}");
+    }
+
+    /// Итог правки не добавляет жалоб — но и не обязан убирать чужие:
+    /// опечатка, сделанная руками в другой строке, окно не запирает.
+    #[test]
+    fn verify_tolerates_old_problems_and_refuses_new_ones() {
+        let typo = "schema = 1\n[bindings]\n\"ctrl+d\" = \"edit.duplicate-lines\"\n";
+
+        let out = assign(typo, "file.save", Some("ctrl+alt+q")).unwrap();
+        assert_eq!(verify(typo, &out), Ok(()));
+
+        let worse = format!("{out}\"ctrl+alt+w\" = \"file.nothing\"\n");
+        assert!(verify(typo, &worse).unwrap_err().contains("file.nothing"));
+        assert!(verify(typo, "= = =").is_err());
     }
 
     #[test]

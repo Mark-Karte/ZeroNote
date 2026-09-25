@@ -315,12 +315,16 @@ const NAMED_KEYS: &[&str] = &[
     "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f11", "f12",
 ];
 
+/// Файл раскладки нельзя прочитать вовсе.
+///
+/// Только два случая, как у настроек (Р-248): сломан сам TOML или версия
+/// формата чужая. Опечатка в команде или в сочетании — не ошибка файла,
+/// а строка в `Loaded::problems`: до задачи 114 одна такая строка
+/// отвергала раскладку целиком, и каждая новая команда ломала откат.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum KeymapError {
     Parse(String),
     UnsupportedSchema { found: u32 },
-    UnknownCommand { binding: String, command: String },
-    BadBinding { binding: String },
 }
 
 impl std::fmt::Display for KeymapError {
@@ -333,13 +337,6 @@ impl std::fmt::Display for KeymapError {
                 f,
                 "версия формата раскладки {found} не поддерживается, ожидается {KEYMAP_SCHEMA}"
             ),
-            KeymapError::UnknownCommand { binding, command } => write!(
-                f,
-                "сочетание {binding}: неизвестная команда «{command}»"
-            ),
-            KeymapError::BadBinding { binding } => {
-                write!(f, "не удалось разобрать сочетание «{binding}»")
-            }
         }
     }
 }
@@ -348,14 +345,15 @@ impl std::error::Error for KeymapError {}
 
 pub const KEYMAP_SCHEMA: u32 = 1;
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct KeymapFile {
-    pub schema: u32,
-    /// Сочетание → команда. Пустая строка снимает сочетание, назначенное
-    /// по умолчанию: без этого от ненужной привязки нельзя было бы избавиться.
-    #[serde(default)]
+/// Прочитанная раскладка и то, что из файла применить не удалось.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Loaded {
+    /// Итог: умолчания плюс правки из файла. Сочетание в приведённом
+    /// виде → команда.
     pub bindings: BTreeMap<String, String>,
+    /// По строке на каждую непринятую запись. Имени файла в строке нет:
+    /// его добавляет тот, кто показывает, — как у настроек.
+    pub problems: Vec<String>,
 }
 
 /// Привести сочетание к единому виду: `ctrl+alt+shift+клавиша`.
@@ -415,57 +413,115 @@ fn known_commands() -> Vec<&'static str> {
     COMMANDS.iter().map(|(id, _)| *id).collect()
 }
 
-pub fn parse(source: &str) -> Result<KeymapFile, KeymapError> {
-    let file: KeymapFile =
-        toml::from_str(source).map_err(|e| KeymapError::Parse(e.message().to_owned()))?;
-
-    if file.schema != KEYMAP_SCHEMA {
-        return Err(KeymapError::UnsupportedSchema {
-            found: file.schema,
-        });
-    }
-
-    Ok(file)
+/// Раскладка без файла пользователя.
+pub fn defaults() -> BTreeMap<String, String> {
+    DEFAULTS
+        .iter()
+        .map(|(binding, command)| {
+            let normalized = normalize(binding).expect("умолчания обязаны разбираться");
+            (normalized, (*command).to_owned())
+        })
+        .collect()
 }
 
-/// Итоговая раскладка: умолчания плюс правки пользователя.
-pub fn resolve(user: Option<&KeymapFile>) -> Result<BTreeMap<String, String>, KeymapError> {
-    let known = known_commands();
-    let mut result: BTreeMap<String, String> = BTreeMap::new();
+/// Разбор файла раскладки: умолчания плюс то, что в файле годно.
+///
+/// Правило то же, что у настроек (Р-248): **всё незнакомое называется, всё
+/// знакомое применяется**. Строка с незнакомой командой, неразборчивым
+/// сочетанием или не строкой вместо команды пропускается со словом о ней,
+/// и на её месте действует умолчание; остальные строки работают. Ошибка —
+/// только когда из файла нечего взять: сломан TOML или версия чужая.
+///
+/// Разбор идёт по таблице TOML, а не в структуру через serde: serde
+/// отверг бы файл целиком на первом же значении не того вида.
+pub fn parse(source: &str) -> Result<Loaded, KeymapError> {
+    let mut root: toml::Table =
+        toml::from_str(source).map_err(|e| KeymapError::Parse(e.message().to_owned()))?;
 
-    for (binding, command) in DEFAULTS {
-        let normalized = normalize(binding).expect("умолчания обязаны разбираться");
-        result.insert(normalized, (*command).to_owned());
+    // Версия формата решает, как читать остальное, — к ней терпимости нет.
+    // Её отсутствие — не ошибка: как и в настройках, это текущая версия.
+    let schema = match root.remove("schema") {
+        None => KEYMAP_SCHEMA,
+        Some(toml::Value::Integer(n)) => u32::try_from(n).map_err(|_| {
+            KeymapError::Parse(format!("schema = {n} — версия формата не бывает такой"))
+        })?,
+        Some(other) => {
+            return Err(KeymapError::Parse(format!(
+                "schema должна быть числом, а в файле {}",
+                other.type_str()
+            )));
+        }
+    };
+    if schema != KEYMAP_SCHEMA {
+        return Err(KeymapError::UnsupportedSchema { found: schema });
     }
 
-    let Some(user) = user else {
-        return Ok(result);
+    let known = known_commands();
+    let mut problems = Vec::new();
+    let mut bindings = defaults();
+
+    let table = match root.remove("bindings") {
+        None => toml::Table::new(),
+        Some(toml::Value::Table(table)) => table,
+        Some(other) => {
+            problems.push(format!(
+                "bindings должен быть разделом, а в файле {} — действует раскладка по умолчанию",
+                other.type_str()
+            ));
+            toml::Table::new()
+        }
     };
 
-    for (binding, command) in &user.bindings {
-        let Some(normalized) = normalize(binding) else {
-            return Err(KeymapError::BadBinding {
-                binding: binding.clone(),
-            });
-        };
+    // Какая строка файла уже задала это сочетание. Одно сочетание можно
+    // записать по-разному — `Ctrl+D` и `ctrl+d`, — и тогда какая из строк
+    // действует, решает порядок ключей в таблице, а не человек. Молчать
+    // об этом значило бы оставить его гадать, почему правка не работает.
+    let mut written: BTreeMap<String, String> = BTreeMap::new();
 
-        // Пустая команда снимает сочетание.
-        if command.is_empty() {
-            result.remove(&normalized);
+    for (binding, command) in table {
+        let toml::Value::String(command) = command else {
+            problems.push(format!(
+                "сочетание «{binding}»: команда пишется строкой, а в файле {} — строка пропущена",
+                command.type_str()
+            ));
+            continue;
+        };
+        let Some(normalized) = normalize(&binding) else {
+            problems.push(format!("сочетание «{binding}» не разбирается — строка пропущена"));
+            continue;
+        };
+        // Пустая команда — не опечатка, а снятие умолчания.
+        if !command.is_empty() && !known.contains(&command.as_str()) {
+            problems.push(format!(
+                "сочетание «{binding}»: команды «{command}» нет — строка пропущена"
+            ));
             continue;
         }
 
-        if !known.contains(&command.as_str()) {
-            return Err(KeymapError::UnknownCommand {
-                binding: normalized,
-                command: command.clone(),
-            });
+        if let Some(earlier) = written.insert(normalized.clone(), binding.clone()) {
+            problems.push(format!(
+                "сочетание {normalized} записано дважды, «{earlier}» и «{binding}» — действует «{binding}»"
+            ));
         }
 
-        result.insert(normalized, command.clone());
+        if command.is_empty() {
+            bindings.remove(&normalized);
+        } else {
+            bindings.insert(normalized, command);
+        }
     }
 
-    Ok(result)
+    // Что осталось — не наше. Раздел из будущей версии и опечатка
+    // (`[bindigns]`) выглядят одинаково, и оба случая заслуживают слова.
+    for (key, value) in root {
+        if value.is_table() {
+            problems.push(format!("раздел [{key}] незнаком — пропущен"));
+        } else {
+            problems.push(format!("ключ «{key}» незнаком — пропущен"));
+        }
+    }
+
+    Ok(Loaded { bindings, problems })
 }
 
 /// Образец файла раскладки, который кладётся при первом запуске.
@@ -561,7 +617,7 @@ mod tests {
 
     #[test]
     fn user_binding_overrides_default() {
-        let file = parse(
+        let loaded = parse(
             r#"
             schema = 1
             [bindings]
@@ -570,17 +626,17 @@ mod tests {
         )
         .unwrap();
 
-        let map = resolve(Some(&file)).unwrap();
-        assert_eq!(map["ctrl+d"], "edit.delete-line");
+        assert_eq!(loaded.bindings["ctrl+d"], "edit.delete-line");
         // Остальное не тронуто.
-        assert_eq!(map["ctrl+s"], "file.save");
+        assert_eq!(loaded.bindings["ctrl+s"], "file.save");
+        assert!(loaded.problems.is_empty(), "{:?}", loaded.problems);
     }
 
     /// Снять стандартное сочетание должно быть можно: иначе от мешающей
     /// привязки не избавиться.
     #[test]
     fn empty_command_unbinds() {
-        let file = parse(
+        let loaded = parse(
             r#"
             schema = 1
             [bindings]
@@ -589,59 +645,168 @@ mod tests {
         )
         .unwrap();
 
-        let map = resolve(Some(&file)).unwrap();
-        assert!(!map.contains_key("ctrl+l"));
+        assert!(!loaded.bindings.contains_key("ctrl+l"));
+        assert!(loaded.problems.is_empty(), "{:?}", loaded.problems);
     }
 
-    /// Опечатка в имени команды называется по имени, а не игнорируется.
+    /// Главное требование задачи 114 (Р-248 для раскладки): опечатка
+    /// в одной строке называется по имени, а остальные строки работают.
+    /// До неё эта же строка отвергала файл целиком, и своё сочетание
+    /// `Ctrl+Alt+Q` пропадало вместе с опечаткой.
     #[test]
-    fn unknown_command_is_reported() {
-        let file = parse(
+    fn unknown_command_is_named_and_the_rest_applies() {
+        let loaded = parse(
             r#"
             schema = 1
             [bindings]
             "ctrl+d" = "edit.duplicate-lines"
+            "ctrl+alt+q" = "file.save"
         "#,
         )
         .unwrap();
 
-        let error = resolve(Some(&file)).expect_err("должна быть ошибка");
-        let message = error.to_string();
+        // Опечатка пропущена — на её месте умолчание.
+        assert_eq!(loaded.bindings["ctrl+d"], "edit.add-cursor-next");
+        // Соседняя строка действует.
+        assert_eq!(loaded.bindings["ctrl+alt+q"], "file.save");
+        assert_eq!(loaded.problems.len(), 1, "{:?}", loaded.problems);
         assert!(
-            message.contains("edit.duplicate-lines"),
-            "сообщение должно называть команду: {message}"
+            loaded.problems[0].contains("edit.duplicate-lines"),
+            "жалоба должна называть команду: {:?}",
+            loaded.problems
         );
     }
 
+    /// Откат на прошлую версию: файл, где назначена команда, которой в ней
+    /// ещё нет. Так выглядела бы раскладка 0.16.0, прочитанная 0.15.0, —
+    /// приёмка этапа 16 нашла, что строгая версия отвергает её целиком.
     #[test]
-    fn bad_binding_is_reported() {
-        let file = parse(
+    fn a_command_from_a_newer_version_does_not_break_the_file() {
+        let loaded = parse(
+            r#"
+            schema = 1
+            [bindings]
+            "ctrl+alt+e" = "file.export-to-the-future"
+            "ctrl+shift+d" = "edit.delete-line"
+            "ctrl+l" = ""
+        "#,
+        )
+        .unwrap();
+
+        assert_eq!(loaded.bindings["ctrl+shift+d"], "edit.delete-line");
+        assert!(!loaded.bindings.contains_key("ctrl+l"));
+        assert!(!loaded.bindings.contains_key("ctrl+alt+e"));
+        assert_eq!(loaded.problems.len(), 1, "{:?}", loaded.problems);
+    }
+
+    #[test]
+    fn bad_binding_is_named_and_skipped() {
+        let loaded = parse(
             r#"
             schema = 1
             [bindings]
             "ctrl+нет" = "file.save"
+            "ctrl+alt+q" = "file.open"
         "#,
         )
         .unwrap();
 
-        assert!(matches!(
-            resolve(Some(&file)),
-            Err(KeymapError::BadBinding { .. })
-        ));
+        assert_eq!(loaded.bindings["ctrl+alt+q"], "file.open");
+        // Команда, чью строку пропустили, осталась на своём умолчании.
+        assert_eq!(loaded.bindings["ctrl+s"], "file.save");
+        assert_eq!(loaded.problems.len(), 1, "{:?}", loaded.problems);
+        assert!(loaded.problems[0].contains("ctrl+нет"), "{:?}", loaded.problems);
+    }
+
+    /// Значение не того вида — строка, а не весь файл: serde отверг бы
+    /// раскладку на первом же числе.
+    #[test]
+    fn a_value_that_is_not_a_string_is_named_and_skipped() {
+        let loaded = parse(
+            r#"
+            schema = 1
+            [bindings]
+            "ctrl+d" = 5
+            "ctrl+alt+q" = "file.save"
+        "#,
+        )
+        .unwrap();
+
+        assert_eq!(loaded.bindings["ctrl+d"], "edit.add-cursor-next");
+        assert_eq!(loaded.bindings["ctrl+alt+q"], "file.save");
+        assert_eq!(loaded.problems.len(), 1, "{:?}", loaded.problems);
+        assert!(loaded.problems[0].contains("integer"), "{:?}", loaded.problems);
+    }
+
+    #[test]
+    fn bindings_that_are_not_a_table_leave_the_defaults() {
+        let loaded = parse("schema = 1\nbindings = 5\n").unwrap();
+
+        assert_eq!(loaded.bindings, defaults());
+        assert_eq!(loaded.problems.len(), 1, "{:?}", loaded.problems);
+    }
+
+    /// Раздел из будущей версии и опечатка в имени раздела выглядят
+    /// одинаково — называются оба, как у настроек.
+    #[test]
+    fn unknown_keys_and_sections_are_named() {
+        let loaded = parse(
+            r#"
+            schema = 1
+            chords = true
+            [bindigns]
+            "ctrl+alt+q" = "file.save"
+            [bindings]
+            "ctrl+alt+w" = "file.open"
+        "#,
+        )
+        .unwrap();
+
+        assert_eq!(loaded.bindings["ctrl+alt+w"], "file.open");
+        assert!(!loaded.bindings.contains_key("ctrl+alt+q"));
+        assert_eq!(loaded.problems.len(), 2, "{:?}", loaded.problems);
+        assert!(loaded.problems.iter().any(|p| p.contains("[bindigns]")), "{:?}", loaded.problems);
+        assert!(loaded.problems.iter().any(|p| p.contains("chords")), "{:?}", loaded.problems);
+    }
+
+    /// Одно сочетание двумя строками: какая действует, решает порядок
+    /// ключей, а не человек, — значит, об этом надо сказать.
+    #[test]
+    fn a_binding_written_twice_is_named() {
+        let loaded = parse(
+            r#"
+            schema = 1
+            [bindings]
+            "Ctrl+Alt+Q" = "file.open"
+            "ctrl+alt+q" = "file.save"
+        "#,
+        )
+        .unwrap();
+
+        assert_eq!(loaded.problems.len(), 1, "{:?}", loaded.problems);
+        let problem = &loaded.problems[0];
+        assert!(problem.contains("записано дважды"), "{problem}");
+        // Жалоба называет ту строку, что действует, — и это правда.
+        let acting = &loaded.bindings["ctrl+alt+q"];
+        let line = if acting == "file.save" { "«ctrl+alt+q»" } else { "«Ctrl+Alt+Q»" };
+        assert!(problem.ends_with(&format!("действует {line}")), "{problem} / {acting}");
     }
 
     /// Образец должен разбираться и не менять раскладку по умолчанию.
     #[test]
     fn template_parses_and_changes_nothing() {
-        let file = parse(DEFAULT_TEMPLATE).expect("образец должен разбираться");
-        assert_eq!(resolve(Some(&file)).unwrap(), resolve(None).unwrap());
+        let loaded = parse(DEFAULT_TEMPLATE).expect("образец должен разбираться");
+        assert_eq!(loaded.bindings, defaults());
+        assert!(loaded.problems.is_empty(), "{:?}", loaded.problems);
     }
 
+    /// Файл без версии — текущая версия, как у настроек. Сломанный TOML
+    /// и чужая версия — единственное, что отвергает файл целиком.
     #[test]
-    fn future_schema_is_rejected() {
-        assert_eq!(
-            parse("schema = 77"),
-            Err(KeymapError::UnsupportedSchema { found: 77 })
-        );
+    fn only_broken_toml_and_a_foreign_schema_reject_the_file() {
+        assert!(parse("[bindings]\n\"ctrl+alt+q\" = \"file.save\"\n").is_ok());
+        assert_eq!(parse("schema = 77"), Err(KeymapError::UnsupportedSchema { found: 77 }));
+        assert!(matches!(parse("schema = \"один\""), Err(KeymapError::Parse(_))));
+        assert!(matches!(parse("= = ="), Err(KeymapError::Parse(_))));
     }
 }

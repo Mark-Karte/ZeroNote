@@ -164,8 +164,10 @@ export class Renderer {
         // сохраняются: это чаще всего разметка, и склеенная в одну строку
         // она не читается.
         return `<p class="zn-source">${escapeHtml(this.text(node.from, node.to))}</p>`;
-      // Служебное, а не текст: комментарий автора, определение ссылки,
-      // знак цитаты между блоками.
+      // Служебное, а не текст: служебные поля файла (Р-264, узел —
+      // с задачи 114), комментарий автора, определение ссылки, знак
+      // цитаты между блоками.
+      case 'Frontmatter':
       case 'CommentBlock':
       case 'ProcessingInstructionBlock':
       case 'LinkReference':
