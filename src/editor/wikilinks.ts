@@ -1,5 +1,7 @@
 import { Decoration, EditorView, ViewPlugin, type DecorationSet } from '@codemirror/view';
-import { RangeSetBuilder, StateEffect } from '@codemirror/state';
+import { RangeSetBuilder, StateEffect, type EditorState } from '@codemirror/state';
+import { language, syntaxTree } from '@codemirror/language';
+import type { SyntaxNode, Tree } from '@lezer/common';
 
 import { resolveLinks } from '../ipc/index';
 
@@ -13,6 +15,13 @@ import { resolveLinks } from '../ipc/index';
  *
  * Обходятся только видимые строки: документ может быть на десять мегабайт,
  * а на экране всегда полсотни строк.
+ *
+ * **Только в markdown и не в коде** — правило ядра (Р-069), решение
+ * владельца после задачи 114. До этого подсветка работала в любом файле:
+ * `[[nodiscard]]` в `.cpp` выглядел висячей ссылкой, и Ctrl+щелчок создал
+ * бы заметку `nodiscard.md`; `#include` в блоке кода был тегом. Язык
+ * смотрится у состояния, а не у вкладки: ручная смена языка в строке
+ * состояния меняет его отсек, и расширение видит это само.
  *
  * Переход — Ctrl+щелчок (решение Р-070). Простой щелчок оставлен установке
  * курсора: режима просмотра у нас нет, текст всегда редактируется, и увести
@@ -119,8 +128,32 @@ export function linkTarget(inner: string): string {
   return withoutHeading.trim();
 }
 
+/** Узлы кода: внутри них нет ни ссылок, ни тегов (Р-069). */
+export const CODE_NODES: ReadonlySet<string> = new Set(['FencedCode', 'CodeBlock', 'InlineCode']);
+
+/** Лежит ли место внутри узла одного из этих видов. */
+export function insideNode(tree: Tree, pos: number, names: ReadonlySet<string>): boolean {
+  for (let node: SyntaxNode | null = tree.resolveInner(pos, 1); node; node = node.parent) {
+    if (names.has(node.name)) return true;
+  }
+  return false;
+}
+
+/**
+ * Бывают ли в этом документе ссылки и теги: только в markdown.
+ *
+ * Пока язык не приехал (он грузится по требованию, Р-066), ответ «нет»:
+ * расширение перерисуется, когда отсек языка сменится.
+ */
+export function linksLive(state: EditorState): boolean {
+  return state.facet(language)?.name === 'markdown';
+}
+
 function decorate(view: EditorView, source: string | null, unknown: Set<string>): DecorationSet {
+  if (!linksLive(view.state)) return Decoration.none;
+
   const builder = new RangeSetBuilder<Decoration>();
+  const tree = syntaxTree(view.state);
 
   for (const { from, to } of view.visibleRanges) {
     const text = view.state.doc.sliceString(from, to);
@@ -130,6 +163,7 @@ function decorate(view: EditorView, source: string | null, unknown: Set<string>)
     const found: { from: number; to: number; mark: Decoration }[] = [];
 
     for (const span of wikilinkSpans(text)) {
+      if (insideNode(tree, from + span.from, CODE_NODES)) continue;
       const target = linkTarget(span.inner);
       let mark = linkMark;
 
@@ -150,6 +184,7 @@ function decorate(view: EditorView, source: string | null, unknown: Set<string>)
     TAG.lastIndex = 0;
     for (let m = TAG.exec(text); m !== null; m = TAG.exec(text)) {
       const start = m.index + (m[1]?.length ?? 0);
+      if (insideNode(tree, from + start, CODE_NODES)) continue;
       found.push({ from: from + start, to: from + start + 1 + (m[2]?.length ?? 0), mark: tagMark });
     }
 
@@ -168,7 +203,10 @@ function decorate(view: EditorView, source: string | null, unknown: Set<string>)
 
 /** Что находится в этом месте документа. */
 export function targetAt(view: EditorView, pos: number): Target | null {
-  const line = view.state.doc.lineAt(pos);
+  const { state } = view;
+  if (!linksLive(state) || insideNode(syntaxTree(state), pos, CODE_NODES)) return null;
+
+  const line = state.doc.lineAt(pos);
   const text = line.text;
   const offset = pos - line.from;
 
@@ -220,11 +258,20 @@ export function wikilinks(follow: (target: Target) => void, sourcePath: () => st
         viewportChanged: boolean;
         transactions: readonly { effects: readonly StateEffect<unknown>[] }[];
         view: EditorView;
+        startState: EditorState;
+        state: EditorState;
       }) {
         const asked = update.transactions.some((t) =>
           t.effects.some((e) => e.is(refresh)),
         );
-        if (update.docChanged || update.viewportChanged || asked) {
+        // Язык приезжает позже состояния своим отсеком, а разбор дорастает
+        // фоном — и то и другое меняет ответ «ссылка ли это», не трогая
+        // текст. Без этой проверки заметка открывалась бы без подсветки
+        // ссылок до первой правки (та же ловушка, что Р-169).
+        const reparsed =
+          update.startState.facet(language) !== update.state.facet(language) ||
+          syntaxTree(update.startState) !== syntaxTree(update.state);
+        if (update.docChanged || update.viewportChanged || asked || reparsed) {
           this.decorations = this.build(update.view);
         }
       }

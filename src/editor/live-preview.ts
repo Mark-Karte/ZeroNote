@@ -16,7 +16,7 @@ import type { IconName } from '../icons/registry';
 import { EmbedWidget, ImageWidget, embedIsImage, localTarget } from './images';
 import { pairTags, readTag, type InlineTag, type PlacedTag } from './inline-html';
 import { TaskBox, taskState } from './tasks';
-import { linkTarget, wikilinkSpans } from './wikilinks';
+import { CODE_NODES, insideNode, linkTarget, wikilinkSpans } from './wikilinks';
 
 /**
  * Живое превью markdown: разметка не показывается, а действует.
@@ -58,8 +58,11 @@ const INLINE = new Set(['Emphasis', 'StrongEmphasis', 'Strikethrough', 'Highligh
  */
 const MARKS = new Set(['EmphasisMark', 'StrikethroughMark', 'HighlightMark', 'CodeMark']);
 
-/** Узлы, чьё содержимое показывается как есть: вики-ссылок в них нет. */
-const VERBATIM = new Set(['FencedCode', 'CodeBlock', 'InlineCode', 'Frontmatter']);
+/**
+ * Узлы, чьё содержимое показывается как есть: код, где ссылок нет (Р-069),
+ * и frontmatter, который превью показывает исходником (Р-274).
+ */
+const VERBATIM: ReadonlySet<string> = new Set([...CODE_NODES, 'Frontmatter']);
 
 /** Пустая замена: место знака не занимает ничего. */
 const hidden = Decoration.replace({});
@@ -170,12 +173,7 @@ export function decorateLivePreview(
    * скобок. В коде ссылок нет по правилу ядра (Р-069), frontmatter
    * показывается исходником (Р-274).
    */
-  const verbatim = (at: number): boolean => {
-    for (let node: SyntaxNode | null = tree.resolveInner(at, 1); node; node = node.parent) {
-      if (VERBATIM.has(node.name)) return true;
-    }
-    return false;
-  };
+  const verbatim = (at: number): boolean => insideNode(tree, at, VERBATIM);
 
   // Вики-ссылки разбираются первыми: их знаки не в дереве, а внутри `[[…]]`
   // лежит чужой узел `Link`, который иначе спрятался бы наполовину.
