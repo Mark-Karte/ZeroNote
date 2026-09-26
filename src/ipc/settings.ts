@@ -37,6 +37,8 @@ export interface Settings {
     line_numbers: 'always' | 'never' | 'code';
     readable_width: boolean;
     live_preview: boolean;
+    /** Имя файла над заметкой (задача 129). */
+    note_title: boolean;
     link_suggest: boolean;
     autosave: boolean;
   };

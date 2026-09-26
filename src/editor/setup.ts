@@ -204,8 +204,11 @@ export function livePreviewExtension(
   enabled: boolean,
   sourcePath: () => string | null,
   callouts: CalloutLookup,
-  /** Переименование из заголовка заметки (задача 129). */
-  renameTitle: TitleRename,
+  /**
+   * Имя файла над заметкой (задача 129): как переименовывать из него,
+   * или `null` — заголовок выключен настройкой `[editor] note_title`.
+   */
+  renameTitle: TitleRename | null,
 ): Extension {
   // Две части, и разделены они не по вкусу: таблица заменяется через границу
   // строк, а такое украшение меняет высоту документа. От плагина CodeMirror
@@ -224,7 +227,7 @@ export function livePreviewExtension(
     ? [
         livePreview(sourcePath, callouts),
         blockPreview(callouts),
-        noteTitle(sourcePath, renameTitle),
+        renameTitle ? noteTitle(sourcePath, renameTitle) : [],
         EditorView.editorAttributes.of({ class: 'zn-note' }),
         quietActiveLine.of(true),
       ]
@@ -281,6 +284,8 @@ export interface EditorOptions {
    * не редактор: он не знает ни про дерево, ни про ссылки в других файлах.
    */
   onRenameTitle: TitleRename;
+  /** Показывать ли имя файла над заметкой (`[editor] note_title`). */
+  noteTitle: boolean;
   wrap: boolean;
   autoClose: boolean;
   indent: Indent;
@@ -341,7 +346,7 @@ export function extensionsFor(meta: Buffer, options: EditorOptions): Extension[]
         options.livePreview,
         options.sourcePath,
         options.callouts,
-        options.onRenameTitle,
+        options.noteTitle ? options.onRenameTitle : null,
       ),
     ),
 

@@ -148,6 +148,14 @@ export function livePreviewEnabled(): boolean {
   return settings.state?.settings.editor.live_preview ?? true;
 }
 
+/**
+ * Показывать ли имя файла над заметкой (задача 129). Умолчание `true`
+ * повторяет умолчание ядра.
+ */
+export function noteTitleEnabled(): boolean {
+  return settings.state?.settings.editor.note_title ?? true;
+}
+
 /** Переключить живое превью. Значение уезжает в файл — оно настройка. */
 export async function toggleLivePreview(): Promise<void> {
   await put(['editor', 'live_preview'], !livePreviewEnabled());

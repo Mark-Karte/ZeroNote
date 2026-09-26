@@ -342,6 +342,25 @@
 
         <div class="row">
           <div class="what">
+            <span class="name">Имя файла над заметкой</span>
+            <span class="note">
+              Заголовком над текстом заметки с превью, как в Obsidian. Правка
+              заголовка переименовывает файл — со ссылками, как в дереве.
+            </span>
+          </div>
+          <select
+            class="control"
+            disabled={broken !== null}
+            value={values.editor.note_title ? 'yes' : 'no'}
+            onchange={(e) => put(['editor', 'note_title'], e.currentTarget.value === 'yes')}
+          >
+            <option value="no">Не показывать</option>
+            <option value="yes">Показывать</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <div class="what">
             <span class="name">Читаемая ширина markdown</span>
             <span class="note">
               Текст заметки стоит колонкой по центру окна и переносится по её

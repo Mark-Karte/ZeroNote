@@ -20,6 +20,7 @@
     indentSettings,
     invisiblesEnabled,
     livePreviewEnabled,
+    noteTitleEnabled,
     startSettings,
     wrapEnabled,
     readableWidthEnabled,
@@ -120,6 +121,8 @@
   $effect(() => {
     const preview = livePreviewEnabled();
     void preview;
+    // Имя файла над заметкой — часть превью (задача 129).
+    void noteTitleEnabled();
     // Список коллаутов — туда же: карточки рисует превью (задача 103).
     void callouts.state;
     // И тема: схемы mermaid рисуются её цветами, вычисленными в момент

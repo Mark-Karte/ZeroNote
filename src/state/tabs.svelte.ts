@@ -50,6 +50,7 @@ import {
   indentSettings,
   invisiblesEnabled,
   livePreviewEnabled,
+  noteTitleEnabled,
   wrapEnabled,
   readableWidthEnabled,
   lineNumbersSetting,
@@ -783,6 +784,7 @@ function optionsFor(
       return tab ? tab.meta.path : meta.path;
     },
     onRenameTitle: titleRename(meta.id),
+    noteTitle: noteTitleEnabled(),
     // Перенос считается по вкладке, а не по одной настройке: у markdown
     // его включает читаемая ширина (Р-156).
     wrap: wrapFor({
@@ -878,7 +880,7 @@ export function applyLivePreview(): void {
       livePreviewOf(tab),
       () => tab.meta.path,
       callouts,
-      titleRename(tab.meta.id),
+      noteTitleEnabled() ? titleRename(tab.meta.id) : null,
     );
     reconfigure(tab, livePreviewCompartment.reconfigure(extension));
   }
