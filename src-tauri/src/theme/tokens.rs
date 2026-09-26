@@ -339,6 +339,22 @@ pub const SEMANTIC_COLORS: &[(&str, &str)] = &[
     // единственное место, где цвет обязан читаться как предупреждение.
     ("color-file-pdf", "{palette.syn-keyword}"),
     ("color-file-other", "{palette.fg-2}"),
+    // Цвета коллаутов по ролям (задача 123). Коллаут в списке человека
+    // называет роль — `accent`, `success`, `function`, — и по умолчанию
+    // она берёт тот же цвет, что роль интерфейса или подсветки. Своими
+    // токенами — ради тем, у которых цвета коллаутов свои: в Obsidian
+    // заметка синяя, а акцент фиолетовый, и коллаут `note` цветом акцента
+    // вышел бы не тем. Список ролей — `COLOR_ROLES` в `callouts/mod.rs`.
+    ("color-callout-accent", "{palette.accent}"),
+    ("color-callout-success", "{palette.success}"),
+    ("color-callout-warning", "{palette.warning}"),
+    ("color-callout-danger", "{palette.danger}"),
+    ("color-callout-muted", "{palette.fg-1}"),
+    ("color-callout-keyword", "{palette.syn-keyword}"),
+    ("color-callout-string", "{palette.syn-string}"),
+    ("color-callout-number", "{palette.syn-number}"),
+    ("color-callout-type", "{palette.syn-type}"),
+    ("color-callout-function", "{palette.syn-function}"),
 ];
 
 /// Полный список имён токенов. Используется для проверки пользовательских тем

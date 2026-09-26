@@ -39,18 +39,22 @@ export interface CalloutStyle {
  * Роль темы → токен. Роль, а не значение: у каждой темы свой зелёный,
  * и «успех» обязан быть зелёным в любой. Тот же список — `COLOR_ROLES`
  * в ядре; что каждый токен объявлен, проверяет тест.
+ *
+ * Токены — свои, коллаутные (задача 123): по умолчанию они равны роли
+ * интерфейса того же имени, но тема вправе развести их. В теме
+ * «Obsidian» акцент фиолетовый, а коллаут заметки — синий.
  */
 export const COLOR_TOKENS: Record<string, string> = {
-  accent: '--zn-color-accent',
-  success: '--zn-color-success',
-  warning: '--zn-color-warning',
-  danger: '--zn-color-danger',
-  muted: '--zn-color-fg-muted',
-  keyword: '--zn-color-syntax-keyword',
-  string: '--zn-color-syntax-string',
-  number: '--zn-color-syntax-number',
-  type: '--zn-color-syntax-type',
-  function: '--zn-color-syntax-function',
+  accent: '--zn-color-callout-accent',
+  success: '--zn-color-callout-success',
+  warning: '--zn-color-callout-warning',
+  danger: '--zn-color-callout-danger',
+  muted: '--zn-color-callout-muted',
+  keyword: '--zn-color-callout-keyword',
+  string: '--zn-color-callout-string',
+  number: '--zn-color-callout-number',
+  type: '--zn-color-callout-type',
+  function: '--zn-color-callout-function',
 };
 
 /** Цвет из файла → значение CSS. Своё `#rrggbb` идёт как есть. */
@@ -67,7 +71,10 @@ export function iconOf(name: string): IconName {
 }
 
 /** Значок, с которым рисуется всё, чего в списке нет, если нет и `note`. */
-const FALLBACK: CalloutStyle = { icon: 'md.callout-note', color: 'var(--zn-color-accent)' };
+const FALLBACK: CalloutStyle = {
+  icon: 'md.callout-note',
+  color: 'var(--zn-color-callout-accent)',
+};
 
 /**
  * Как рисовать тип. Незнакомый тип рисуется как `note` — карточка

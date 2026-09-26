@@ -680,5 +680,5 @@ function alignAttr(align: Align | undefined): string {
 function calloutColor(color: string): string {
   if (/^var\(--zn-[a-z0-9-]+\)$/.test(color)) return color;
   if (/^#[0-9a-f]{3,8}$/i.test(color)) return color;
-  return 'var(--zn-color-accent)';
+  return 'var(--zn-color-callout-accent)';
 }

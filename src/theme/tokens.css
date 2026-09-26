@@ -69,6 +69,19 @@
   --zn-color-file-pdf: #cf222e;
   --zn-color-file-other: #818a94;
 
+  /* --- Цвета коллаутов по ролям (задача 123): по умолчанию — роль
+     интерфейса или подсветки того же имени, тема вправе задать свои. --- */
+  --zn-color-callout-accent: #0969da;
+  --zn-color-callout-success: #177d36;
+  --zn-color-callout-warning: #956300;
+  --zn-color-callout-danger: #cf222e;
+  --zn-color-callout-muted: #656d76;
+  --zn-color-callout-keyword: #cf222e;
+  --zn-color-callout-string: #0a3069;
+  --zn-color-callout-number: #0550ae;
+  --zn-color-callout-type: #953800;
+  --zn-color-callout-function: #804edd;
+
   /* --- Типографика --- */
   --zn-font-family-ui: 'IBM Plex Sans', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
   --zn-font-family-editor: 'JetBrains Mono', 'Cascadia Mono', Consolas, 'Courier New', monospace;

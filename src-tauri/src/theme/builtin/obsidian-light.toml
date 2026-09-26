@@ -1,0 +1,99 @@
+# «Obsidian Light» — светлая тема, повторяющая стандартную светлую тему
+# Obsidian. Пара к «Obsidian Dark»; она же бумага, когда пара выбрана
+# (Р-268: бумага всегда светлая).
+#
+# Источник чисел — тот же, что у тёмной (Р-283): стандартная тема Obsidian
+# 1.13.4, таблица переменных и пиксели живого окна.
+#
+# Повтор, а не копия (Р-144), и здесь поправок больше, чем в тёмной:
+# светлая тема Obsidian мягкая, и её цвета на белом не проходят проверку
+# читаемости встроенных тем (Р-143) — оранжевый даёт 2,7:1, зелёный 2,4:1,
+# жёлтый кода 2:1 при пороге 4,5:1. Оттенки сохранены, светлота снижена
+# ровно до порога:
+#
+# * тихий текст #ababab → #8e8e8e;
+# * акцент (ссылки) #8a5cf5 → #8151ea;
+# * красный #e93147 → #db1e3c, оранжевый #ec7500 → #c04c00,
+#   зелёный #08b94e → #008311;
+# * код: розовый #d53984 → #cf337f, зелёный → #008616, комментарии
+#   #ababab → #737373, жёлтый #e0ac00 → #9b6900, бирюзовый #00bfbc →
+#   #00817f; фиолетовый #7852ee — как есть.
+
+schema = 1
+id = "obsidian-light"
+name = "Obsidian Light"
+appearance = "light"
+
+[palette]
+# Три слоя фона (Р-083): заметка белая, панели #f6f6f6, подложка окна —
+# цвет блока кода Obsidian (#fafafa).
+bg-0 = "#fafafa"          # подложка окна, блок кода, поле ввода в панели
+bg-1 = "#f6f6f6"          # панели
+bg-2 = "#ffffff"          # заметка, диалоги, всплывающие
+bg-3 = "#ebebeb"          # наведение: чёрный 6,7 % поверх панели
+bg-4 = "#e4e4e4"          # нажатое
+
+fg-0 = "#222222"
+fg-1 = "#5c5c5c"
+fg-2 = "#8e8e8e"          # у Obsidian #ababab, см. выше
+fg-on-accent = "#ffffff"
+
+accent = "#8151ea"        # у Obsidian #8a5cf5, см. выше
+accent-hover = "#7446e4"
+accent-soft = "rgba(152, 115, 247, 0.12)"      # от #9873f7
+accent-selection = "rgba(152, 115, 247, 0.2)"  # выделение Obsidian: 20 %
+
+border = "#e4e4e4"
+border-subtle = "#ededed"
+
+danger = "#db1e3c"
+warning = "#c04c00"
+success = "#008311"
+
+syn-keyword = "#cf337f"
+syn-string = "#008616"
+syn-comment = "#737373"
+syn-number = "#7852ee"
+syn-type = "#9b6900"
+syn-function = "#00817f"
+
+shadow-weak = "rgba(0, 0, 0, 0.07)"
+shadow-strong = "rgba(0, 0, 0, 0.1)"
+overlay = "rgba(220, 220, 220, 0.4)"
+
+[color]
+syntax-operator = "#db1e3c"
+syntax-punctuation = "#5c5c5c"
+syntax-variable = "#00817f"
+
+# Коллауты — цветами Obsidian, поправленными как выше.
+callout-accent = "#086ddd"     # note, info, todo — синий
+callout-function = "#00817f"   # abstract, tip, important — бирюзовый
+callout-success = "#008311"    # success, done — зелёный
+callout-warning = "#c04c00"    # question, warning — оранжевый
+callout-danger = "#db1e3c"     # failure, danger, bug — красный
+callout-keyword = "#7852ee"    # example — фиолетовый
+callout-muted = "#767676"      # quote — серый (у Obsidian #9e9e9e)
+callout-string = "#008616"
+callout-number = "#7852ee"
+callout-type = "#9b6900"
+
+[font]
+family-ui = "system-ui, 'Segoe UI', sans-serif"
+family-note = "system-ui, 'Segoe UI', sans-serif"
+family-editor = "'Cascadia Mono', Consolas, 'JetBrains Mono', monospace"
+
+size-note = "16px"
+size-note-code = "0.875em"
+
+size-editor-heading-1 = "1.618em"
+size-editor-heading-2 = "1.462em"
+size-editor-heading-3 = "1.318em"
+size-editor-heading-4 = "1.188em"
+size-editor-heading-5 = "1.076em"
+size-editor-heading-6 = "1em"
+weight-heading = "700"
+letter-spacing-heading = "-0.01em"
+
+[control]
+editor-width = "700px"

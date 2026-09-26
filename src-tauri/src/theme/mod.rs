@@ -169,6 +169,9 @@ const BUILTIN: &[(&str, &str)] = &[
     ("solarized-light", include_str!("builtin/solarized-light.toml")),
     ("catppuccin-latte", include_str!("builtin/catppuccin-latte.toml")),
     ("contrast", include_str!("builtin/contrast.toml")),
+    // Пара, повторяющая стандартную тему Obsidian (задача 123, Р-283).
+    ("obsidian-dark", include_str!("builtin/obsidian-dark.toml")),
+    ("obsidian-light", include_str!("builtin/obsidian-light.toml")),
 ];
 
 /// Пара тем по умолчанию.
@@ -844,13 +847,13 @@ mod tests {
         for (id, _) in BUILTIN {
             assert!(seen.insert(*id), "идентификатор темы задан дважды: {id}");
         }
-        assert_eq!(seen.len(), 7, "встроенных тем должно быть семь");
+        assert_eq!(seen.len(), 9, "встроенных тем должно быть девять");
     }
 
     /// После сборки не должно остаться ни одной неразвёрнутой ссылки,
     /// иначе в CSS уедет строка вида "{palette.bg-0}" и элемент станет невидимым.
     ///
-    /// Проверяются все семь тем, а не пара по умолчанию: тема, у которой
+    /// Проверяются все девять тем, а не пара по умолчанию: тема, у которой
     /// не хватает цвета в палитре, молча донашивает его из «One Dark»,
     /// и заметить это можно было бы только глазами.
     #[test]

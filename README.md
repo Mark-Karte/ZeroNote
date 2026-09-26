@@ -56,10 +56,12 @@ ZeroNote сами — правой кнопкой по файлу, «Откры�
 
 ![Поиск по проекту с отрывками](docs/screenshots/search.png)
 
-Семь встроенных тем: One Dark, Dracula, Tokyo Night, GitHub Light, Solarized
-Light, Catppuccin Latte и «Контраст». Шесть первых — адаптации популярных тем
-под наш слой оформления, все под лицензией MIT, ссылки на источники —
-в заголовках файлов тем. Светлая и тёмная пара следуют настройке Windows.
+Девять встроенных тем: One Dark, Dracula, Tokyo Night, GitHub Light, Solarized
+Light, Catppuccin Latte, «Контраст» и пара Obsidian Dark и Obsidian Light.
+Шесть первых — адаптации популярных тем под наш слой оформления, все под
+лицензией MIT, ссылки на источники — в заголовках файлов тем. Пара Obsidian
+повторяет вид стандартной темы Obsidian: цвета, шрифты и меры заметки.
+Светлая и тёмная пара следуют настройке Windows.
 
 ![Светлая тема](docs/screenshots/window-light.png)
 
@@ -260,6 +262,11 @@ MIT — см. [LICENSE](LICENSE). Правообладатель — Mark Karte.
 - **GitHub Light** — © 2020 Primer, [primer/github-vscode-theme](https://github.com/primer/github-vscode-theme)
 - **Solarized Light** — © 2011 Ethan Schoonover, [altercation/solarized](https://github.com/altercation/solarized)
 - **Catppuccin Latte** — © 2021 Catppuccin, [catppuccin/catppuccin](https://github.com/catppuccin/catppuccin)
+
+Пара Obsidian Dark и Obsidian Light повторяет стандартную тему Obsidian
+числами — цветами и размерами, которые Obsidian публикует в справке для
+авторов тем; код его таблицы стилей не используется. Obsidian — товарный
+знак Dynalist Inc.; ZeroNote с ним не связан.
 
 Лицензия MIT для всех шести звучит так же, как наша: разрешено использовать,
 копировать, изменять и распространять при условии, что уведомление

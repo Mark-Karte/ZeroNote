@@ -1,0 +1,116 @@
+# «Obsidian Dark» — тёмная тема, повторяющая стандартную тёмную тему Obsidian.
+#
+# Источник чисел: стандартная тема Obsidian 1.13.4 — её таблица переменных
+# (цвета, размеры, поля) и пиксели живого окна рядом с ZeroNote на тех же
+# заметках (Р-283). Таблица стилей Obsidian под закрытой лицензией, отсюда
+# в файл идут только числа — те же, что Obsidian публикует в справке для
+# авторов тем.
+#
+# Это повтор, а не копия (Р-144): вид заметки и панелей — как в Obsidian,
+# но четыре цвета поправлены по светлоте, потому что не проходят проверку
+# читаемости, которую проходят все встроенные темы (Р-143). Оттенок
+# сохранён, изменена только светлота, и ровно настолько, насколько нужно:
+#
+# * тихий текст #666666 → #717171: 2,6:1 на панели при пороге 3:1;
+# * комментарии кода #666666 → #8a8a8a: 3,0:1 на фоне заметки при
+#   пороге 4,5:1 — у Obsidian комментарий тих нарочно, у нас так нельзя;
+# * красный #fb464c → #ff4e52: 4,3:1 на панели при пороге 4,5:1;
+# * акцент — один на ссылки и на кнопки: Obsidian красит ссылки
+#   #a68af9, а кнопки — #8a5cf5 с белым текстом (4,3:1). Здесь акцент —
+#   #a68af9, как у ссылок, и текст на нём тёмный; выделение и подсветка
+#   строки — от #8a5cf5, как в Obsidian.
+#
+# Цвета кода — по ролям Obsidian: ключевые слова розовые, строки зелёные,
+# числа фиолетовые, типы жёлтые, переменные и функции бирюзовые,
+# операторы красные. Коллауты — его восемью цветами, а не акцентом:
+# заметка синяя, совет бирюзовый, пример фиолетовый.
+
+schema = 1
+id = "obsidian-dark"
+name = "Obsidian Dark"
+appearance = "dark"
+
+[palette]
+# Три слоя фона (Р-083). У Obsidian заметка темнее панелей: фон заметки
+# #1c1c1c, панели #282828. Подложка окна — цвет блока кода Obsidian
+# (#232323): она же подложка утопленного, то есть блока кода в заметке.
+bg-0 = "#232323"          # подложка окна, блок кода, поле ввода в панели
+bg-1 = "#282828"          # панели: дерево, шапка, вкладки, строка состояния
+bg-2 = "#1c1c1c"          # заметка, диалоги, всплывающие
+bg-3 = "#363636"          # наведение: белый 6,7 % поверх панели
+bg-4 = "#3f3f3f"          # нажатое
+
+fg-0 = "#dadada"          # текст
+fg-1 = "#b3b3b3"          # тише
+fg-2 = "#717171"          # тихий (у Obsidian #666666, см. выше)
+fg-on-accent = "#1c1c1c"
+
+accent = "#a68af9"        # акцент текста Obsidian: ссылки, теги, рамка фокуса
+accent-hover = "#c5b6fc"
+accent-soft = "rgba(138, 92, 245, 0.15)"       # от #8a5cf5
+accent-selection = "rgba(138, 92, 245, 0.33)"  # выделение Obsidian: 33 %
+
+border = "#333333"
+border-subtle = "#2c2c2c"
+
+danger = "#ff4e52"        # у Obsidian #fb464c, см. выше
+warning = "#e9973f"
+success = "#44cf6e"
+
+syn-keyword = "#fa99cd"   # розовый
+syn-string = "#44cf6e"    # зелёный
+syn-comment = "#8a8a8a"   # у Obsidian тихий #666666, см. выше
+syn-number = "#a882ff"    # фиолетовый
+syn-type = "#e0de71"      # жёлтый
+syn-function = "#53dfdd"  # бирюзовый
+
+shadow-weak = "rgba(0, 0, 0, 0.3)"
+shadow-strong = "rgba(0, 0, 0, 0.6)"
+overlay = "rgba(10, 10, 10, 0.4)"
+
+[color]
+# Роли кода, которые у встроенных тем выведены из палитры, а у Obsidian
+# свои: операторы красные, знаки препинания — цветом «тише», переменные
+# бирюзовые.
+syntax-operator = "#fb464c"
+syntax-punctuation = "#b3b3b3"
+syntax-variable = "#53dfdd"
+
+# Коллауты — восемью цветами Obsidian, а не акцентом (задача 123).
+callout-accent = "#027aff"     # note, info, todo — синий
+callout-function = "#53dfdd"   # abstract, tip, important — бирюзовый
+callout-success = "#44cf6e"    # success, done — зелёный
+callout-warning = "#e9973f"    # question, warning — оранжевый
+callout-danger = "#fb464c"     # failure, danger, bug — красный
+callout-keyword = "#a882ff"    # example — фиолетовый
+callout-muted = "#9e9e9e"      # quote — серый
+callout-string = "#44cf6e"
+callout-number = "#a882ff"
+callout-type = "#e0de71"
+
+[font]
+# Шрифты Obsidian на Windows: текст — системный (Segoe UI), код —
+# Cascadia Mono, запасной — Consolas. Вшитый JetBrains Mono — последним:
+# на машине без Cascadia и Consolas не остаться с Courier.
+family-ui = "system-ui, 'Segoe UI', sans-serif"
+family-note = "system-ui, 'Segoe UI', sans-serif"
+family-editor = "'Cascadia Mono', Consolas, 'JetBrains Mono', monospace"
+
+# Текст заметки 16 px, код в ней — 0,875 от текста (14 px).
+size-note = "16px"
+size-note-code = "0.875em"
+
+# Заголовки: шесть уровней размера, вес 700, сжатие рядом Obsidian
+# (первый уровень −0,015em).
+size-editor-heading-1 = "1.618em"
+size-editor-heading-2 = "1.462em"
+size-editor-heading-3 = "1.318em"
+size-editor-heading-4 = "1.188em"
+size-editor-heading-5 = "1.076em"
+size-editor-heading-6 = "1em"
+weight-heading = "700"
+letter-spacing-heading = "-0.01em"
+
+[control]
+# Колонка заметки — 700 px, как `--file-line-width` у Obsidian.
+editor-width = "700px"

@@ -75,7 +75,7 @@ describe('список коллаутов', () => {
   it('даёт значок и цвет по типу', () => {
     const style = lookupFor(LIST)('bug');
     expect(style.icon).toBe('md.callout-bug');
-    expect(style.color).toBe('var(--zn-color-danger)');
+    expect(style.color).toBe('var(--zn-color-callout-danger)');
   });
 
   it('незнакомый тип рисуется как note, а не остаётся текстом', () => {
@@ -85,7 +85,7 @@ describe('список коллаутов', () => {
   it('без note в списке — значком заметки и акцентом', () => {
     const style = lookupFor([])('что угодно');
     expect(style.icon).toBe('md.callout-note');
-    expect(style.color).toBe('var(--zn-color-accent)');
+    expect(style.color).toBe('var(--zn-color-callout-accent)');
   });
 
   it('свой цвет идёт как есть, незнакомый значок становится значком заметки', () => {

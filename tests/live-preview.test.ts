@@ -420,7 +420,7 @@ describe('живое превью: знаки вокруг текста', () => 
       iter.next();
     }
 
-    expect(style).toBe('--callout-color: var(--zn-color-danger)');
+    expect(style).toBe('--callout-color: var(--zn-color-callout-danger)');
   });
 });
 
