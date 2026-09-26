@@ -186,15 +186,17 @@ export async function loadKeymap(): Promise<string[]> {
  *
  * Область текста CodeMirror сюда не попадает: она устроена как
  * `contenteditable`, но команды правки в ней как раз и должны работать.
+ * А поле ввода внутри неё — имя файла над заметкой (задача 129) —
+ * попадает: `Ctrl+A` в нём должен выделить имя, а не весь документ.
+ * Поэтому поля ввода проверяются первыми, а область правки различается
+ * по ближайшей: своя или сама область текста.
  */
 function inFormField(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
-  if (target.closest('.cm-content')) return false;
-  return (
-    target instanceof HTMLInputElement ||
-    target instanceof HTMLTextAreaElement ||
-    target.isContentEditable
-  );
+  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) return true;
+  if (!target.isContentEditable) return false;
+  const host = target.closest('[contenteditable]:not([contenteditable="false"])');
+  return host !== null && !host.classList.contains('cm-content');
 }
 
 /**

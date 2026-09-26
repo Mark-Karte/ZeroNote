@@ -679,6 +679,7 @@
   flex-direction: column;
   gap: var(--zn-space-property-gap);
   padding: var(--zn-space-properties);
+  padding-left: var(--zn-space-line-start);
   font-family: var(--zn-font-family-ui);
   line-height: var(--zn-font-line-height-tight);
   color: var(--zn-color-fg-muted);
@@ -782,6 +783,38 @@
 .cm-editor .zn-property-check-done {
   border-color: var(--zn-color-accent);
   background-color: var(--zn-color-accent);
+}
+
+/*
+ * Имя файла над заметкой (задача 129) — заголовком первого уровня,
+ * как у Obsidian. Это поле ввода имени, одетое заголовком: без рамки,
+ * подложки и ручки размера, высота — по содержимому (`field-sizing`),
+ * чтобы длинное имя переносилось, а не уезжало вбок. Рамки фокуса нет —
+ * заголовок и так стоит там, где пишут.
+ */
+.cm-editor .zn-note-title {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  margin: var(--zn-space-0);
+  padding: var(--zn-space-0);
+  padding-bottom: var(--zn-space-note-title);
+  padding-left: var(--zn-space-line-start);
+  border: none;
+  outline: none;
+  background: transparent;
+  resize: none;
+  overflow: hidden;
+  field-sizing: content;
+  font-family: inherit;
+  color: var(--zn-color-syntax-heading);
+  font-size: var(--zn-font-size-editor-heading-1);
+  font-weight: var(--zn-font-weight-heading);
+  line-height: var(--zn-font-line-height-heading-1);
+  letter-spacing: var(--zn-font-letter-spacing-heading);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: text;
 }
 
 /* Frontmatter исходником — шрифтом кода: YAML держится отступами. */

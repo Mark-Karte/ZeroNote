@@ -39,8 +39,9 @@ import { columnAt, indentUnitOf, type Indent } from './indent';
 import { folding } from './folding';
 import { invisibles } from './invisibles';
 import { livePreview } from './live-preview';
-import { lookupFor, type CalloutLookup } from './callouts';
+import type { CalloutLookup } from './callouts';
 import { blockPreview } from './block-preview';
+import { noteTitle, type TitleRename } from './note-title';
 import { wikilinks, type Target } from './wikilinks';
 import { linkSuggestions, type LinkContext } from './suggest';
 import type { Buffer } from '../ipc/files';
@@ -201,8 +202,10 @@ export const livePreviewCompartment = new Compartment();
  */
 export function livePreviewExtension(
   enabled: boolean,
-  sourcePath: () => string | null = () => null,
-  callouts: CalloutLookup = lookupFor([]),
+  sourcePath: () => string | null,
+  callouts: CalloutLookup,
+  /** Переименование из заголовка заметки (задача 129). */
+  renameTitle: TitleRename,
 ): Extension {
   // Две части, и разделены они не по вкусу: таблица заменяется через границу
   // строк, а такое украшение меняет высоту документа. От плагина CodeMirror
@@ -215,11 +218,13 @@ export function livePreviewExtension(
   // Класс `zn-note` — вид заметки-документа (задача 121): им оформление
   // отличает markdown с превью от кода и от исходника. Ставится здесь,
   // а не у вкладки: превью переключается на лету, и класс обязан уйти
-  // вместе с ним.
+  // вместе с ним. Имя файла над текстом (задача 129) — тоже вид
+  // заметки-документа: у исходника его нет.
   return enabled
     ? [
         livePreview(sourcePath, callouts),
         blockPreview(callouts),
+        noteTitle(sourcePath, renameTitle),
         EditorView.editorAttributes.of({ class: 'zn-note' }),
         quietActiveLine.of(true),
       ]
@@ -271,6 +276,11 @@ export interface EditorOptions {
   onLinkContext: (context: LinkContext | null, view: EditorView) => void;
   /** Путь берётся каждый раз заново: «сохранить как» его меняет. */
   sourcePath: () => string | null;
+  /**
+   * Переименование из заголовка заметки (задача 129). Переименовывает
+   * не редактор: он не знает ни про дерево, ни про ссылки в других файлах.
+   */
+  onRenameTitle: TitleRename;
   wrap: boolean;
   autoClose: boolean;
   indent: Indent;
@@ -327,7 +337,12 @@ export function extensionsFor(meta: Buffer, options: EditorOptions): Extension[]
     wrapCompartment.of(options.wrap ? EditorView.lineWrapping : []),
     invisiblesCompartment.of(invisiblesExtension(options.invisibles)),
     livePreviewCompartment.of(
-      livePreviewExtension(options.livePreview, options.sourcePath, options.callouts),
+      livePreviewExtension(
+        options.livePreview,
+        options.sourcePath,
+        options.callouts,
+        options.onRenameTitle,
+      ),
     ),
 
     // Подсветка парной скобки. Пару ищет разбор языка: скобка внутри строки

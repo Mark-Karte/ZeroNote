@@ -71,7 +71,16 @@ export async function renameEntry(path: string, oldName: string): Promise<void> 
     'Переименовать',
   );
   if (name === null || name.trim() === '' || name === oldName) return;
+  await renameTo(path, oldName, name);
+}
 
+/**
+ * Переименовать в готовое имя — без вопроса об имени, но со всем прочим:
+ * план ссылок до записи, вопрос, обновлять ли их, переезд вкладок.
+ * Отсюда же переименовывает заголовок заметки (задача 129): путь один,
+ * чтобы переименование из заголовка не разошлось с деревом.
+ */
+export async function renameTo(path: string, oldName: string, name: string): Promise<void> {
   try {
     // План спрашивается до переименования и ничего не меняет (Р-136).
     // Он же проверяет имя: отказ придёт здесь, а не после того, как файл

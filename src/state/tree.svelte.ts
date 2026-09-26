@@ -55,6 +55,15 @@ function ownerRoot(path: string): { id: number; path: string } | null {
   return best;
 }
 
+/**
+ * Путь внутри открытой папки. Ядро пишет только туда (`inside_root`):
+ * переименование файла вне корней оно отвергнет, и заголовок такой
+ * заметки (задача 129) не предлагает правку, которая заведомо не пройдёт.
+ */
+export function insideOpenFolder(path: string): boolean {
+  return ownerRoot(path) !== null;
+}
+
 export function isExpanded(path: string): boolean {
   return tree.expanded.some((p) => samePath(p, path));
 }

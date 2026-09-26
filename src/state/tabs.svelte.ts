@@ -35,6 +35,7 @@ import { lineNumbersOn } from '../editor/line-numbers';
 import { JUMP_LINES, jumped } from './history.svelte';
 import { remember as rememberClosed, takeClosed } from './closed.svelte';
 import { bookmarkLines } from '../editor/bookmarks';
+import { refreshNoteTitle, renamedFile, type TitleRename } from '../editor/note-title';
 import { editorView, editorViewOf } from '../editor/current';
 import {
   languageById,
@@ -54,6 +55,7 @@ import {
   lineNumbersSetting,
 } from './settings.svelte';
 import { restoreFromSession } from './roots.svelte';
+import { insideOpenFolder } from './tree.svelte';
 import { scheduleAutosave } from './autosave.svelte';
 import {
   activePane,
@@ -773,8 +775,14 @@ function optionsFor(
       });
     },
     // Путь берётся каждый раз заново: «сохранить как» его меняет, а вместе
-    // с ним меняется и то, куда ведут ссылки из этого файла.
-    sourcePath: () => tabById(meta.id)?.meta.path ?? null,
+    // с ним меняется и то, куда ведут ссылки из этого файла. Пока вкладки
+    // ещё нет в списке — состояние строится раньше неё, — путь из сведений
+    // о буфере: иначе заголовок заметки (задача 129) родился бы пустым.
+    sourcePath: () => {
+      const tab = tabById(meta.id);
+      return tab ? tab.meta.path : meta.path;
+    },
+    onRenameTitle: titleRename(meta.id),
     // Перенос считается по вкладке, а не по одной настройке: у markdown
     // его включает читаемая ширина (Р-156).
     wrap: wrapFor({
@@ -866,7 +874,12 @@ export function applyLivePreview(): void {
   const callouts = calloutLookup();
   for (const tab of tabs.items) {
     if (!tab.editor) continue;
-    const extension = livePreviewExtension(livePreviewOf(tab), () => tab.meta.path, callouts);
+    const extension = livePreviewExtension(
+      livePreviewOf(tab),
+      () => tab.meta.path,
+      callouts,
+      titleRename(tab.meta.id),
+    );
     reconfigure(tab, livePreviewCompartment.reconfigure(extension));
   }
 }
@@ -1097,8 +1110,40 @@ export function setLanguage(id: number, language: string | null): void {
 export function applyMeta(meta: Buffer): void {
   const tab = tabById(meta.id);
   if (tab) {
+    const moved = tab.meta.path !== meta.path;
     tab.meta = meta;
+    // Имя над заметкой — имя файла (задача 129): переименование,
+    // «сохранить как» и перенос папки меняют его без правки текста.
+    if (moved) reconfigure(tab, refreshNoteTitle.of(null));
   }
+}
+
+/**
+ * Заголовок заметки переименовывает её файл (задача 129) — тем же путём,
+ * что дерево, и только внутри открытых папок, как дерево.
+ */
+function titleRename(id: number): TitleRename {
+  return {
+    allowed: () => {
+      const path = tabById(id)?.meta.path ?? null;
+      return path !== null && insideOpenFolder(path);
+    },
+    run: (typed) => renameFromTitle(id, typed),
+  };
+}
+
+/**
+ * Действие — по требованию, как переход по ссылке: `actions` сами
+ * зависят от вкладок, и прямой импорт замкнул бы круг.
+ */
+async function renameFromTitle(id: number, typed: string): Promise<void> {
+  const path = tabById(id)?.meta.path ?? null;
+  if (path === null) return;
+  const name = renamedFile(path, typed);
+  if (name === null) return;
+  const old = path.slice(path.lastIndexOf('\\') + 1);
+  const { renameTo } = await import('../actions/entries');
+  await renameTo(path, old, name);
 }
 
 /** Считать текущий текст исходным: буфер стал чистым. */
