@@ -279,8 +279,11 @@ MIT — см. [LICENSE](LICENSE). Правообладатель — Mark Karte.
 ISC, BSD-3-Clause и Apache-2.0, движок раскладки **elkjs** под EPL-2.0
 (исходники — [eclipse/elk](https://github.com/eclipse/elk) и
 [kieler/elkjs](https://github.com/kieler/elkjs)), **DOMPurify** под MPL-2.0
-или Apache-2.0 на выбор. Список всех пакетов с их лицензиями — в
-[package.json](package.json) и дереве `npm ls --omit=dev`.
+или Apache-2.0 на выбор. **Все сторонние компоненты — шрифты, палитры тем,
+91 библиотека окна и 209 крейтов ядра — с текстами их лицензий перечислены
+в [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).** Этот же файл
+установщик кладёт рядом с программой; в самом ZeroNote он открывается
+из «Параметры → Сведения → Лицензии».
 
 **Шрифт Temml с приложением не поставляется.** В самом файле
 `Temml.woff2` записан запрет коммерческого использования, а проект под MIT.

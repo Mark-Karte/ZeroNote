@@ -13,6 +13,7 @@
     "build": "vite build",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest run",
+    "licenses": "node scripts/licenses.mjs",
     "tauri": "tauri"
   },
   "dependencies": {
