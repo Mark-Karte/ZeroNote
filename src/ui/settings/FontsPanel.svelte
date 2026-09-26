@@ -6,6 +6,7 @@
     EDITOR_SUGGESTIONS,
     firstAvailable,
     GENERIC,
+    NOTE_SUGGESTIONS,
     pixels,
     splitFamilies,
     UI_SUGGESTIONS,
@@ -14,7 +15,7 @@
   import { installed } from '../font-check';
 
   /**
-   * Шрифты интерфейса и редактора (задача 105).
+   * Шрифты интерфейса, редактора (задача 105) и заметки (задача 122).
    *
    * Настройка человека, а не темы (решение владельца): тема задаёт
    * умолчание, выбранное здесь его перекрывает и не меняется вместе
@@ -48,6 +49,16 @@
       max: 48,
       suggestions: EDITOR_SUGGESTIONS,
       sample: 'fn main() { let O0 = "Il1|"; } // → ≠ ==',
+    },
+    {
+      id: 'note',
+      title: 'Шрифт заметок',
+      familyToken: 'font-family-note',
+      sizeToken: 'font-size-note',
+      min: 8,
+      max: 48,
+      suggestions: NOTE_SUGGESTIONS,
+      sample: 'Заметка с превью: текст этим шрифтом, код — шрифтом редактора.',
     },
   ] as const;
 
@@ -254,5 +265,10 @@
   .sample.editor {
     font-family: var(--zn-font-family-editor);
     font-size: var(--zn-font-size-editor);
+  }
+
+  .sample.note {
+    font-family: var(--zn-font-family-note);
+    font-size: var(--zn-font-size-note);
   }
 </style>

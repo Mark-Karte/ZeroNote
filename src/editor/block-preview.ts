@@ -1,7 +1,19 @@
 import { syntaxTree } from '@codemirror/language';
-import { StateField, type EditorState, type Extension, type Range } from '@codemirror/state';
+import {
+  RangeSet,
+  StateField,
+  type EditorState,
+  type Extension,
+  type Range,
+} from '@codemirror/state';
 import type { SyntaxNode } from '@lezer/common';
-import { Decoration, EditorView, type DecorationSet } from '@codemirror/view';
+import {
+  Decoration,
+  EditorView,
+  GutterMarker,
+  gutterLineClass,
+  type DecorationSet,
+} from '@codemirror/view';
 
 import { diagramBlock } from './diagram';
 import { touched } from './live-preview';
@@ -10,7 +22,8 @@ import { tableBlock } from './tables';
 
 /**
  * Блочное превью: всё, что заменяется целыми строками, — таблицы
- * (задача 73), блочные формулы (задача 115) и схемы mermaid (задача 117).
+ * (задача 73), блочные формулы (задача 115) и схемы mermaid (задача 117), —
+ * и строки, у которых меняется высота, — заголовки (задача 122).
  *
  * Отдельно от прочего превью, и не по прихоти: замена через границу строк
  * меняет высоту документа, а такие украшения CodeMirror принимает только
@@ -70,12 +83,56 @@ function mathBlock(state: EditorState, node: SyntaxNode): Range<Decoration> | nu
   }).range(first.from, last.to);
 }
 
-/** Украшения блочного превью по всему документу. */
-export function blockDecorations(state: EditorState): DecorationSet {
+/** Строка заголовка по уровню: первый — `zn-heading-1`. */
+const headingLine = [1, 2, 3, 4, 5, 6].map((level) =>
+  Decoration.line({ class: `zn-heading zn-heading-${level}` }),
+);
+
+/** Пометка клетки поля: своего рисунка нет, только класс. */
+class GutterShape extends GutterMarker {
+  constructor(override readonly elementClass: string) {
+    super();
+  }
+}
+
+const headingGutter = new GutterShape('zn-gutter-heading');
+
+/**
+ * Что собирает один обход дерева.
+ *
+ * `blocks` — замены целыми строками. `lines` и `gutter` — строки, у которых
+ * меняется высота (задача 122): воздух над заголовком. Классу строки
+ * нужна пара в поле слева — иначе стрелка свёртки и закладка стоят
+ * в воздухе над текстом, а не рядом с ним: клетка поля высотой со строку,
+ * и её содержимое прижато к верху. Обе половины — из одного обхода,
+ * чтобы разойтись они не могли.
+ */
+export interface BlockShapes {
+  blocks: DecorationSet;
+  lines: DecorationSet;
+  gutter: RangeSet<GutterMarker>;
+}
+
+/** Всё блочное превью по всему документу. */
+export function blockShapes(state: EditorState): BlockShapes {
   const found: Range<Decoration>[] = [];
+  const lines: Range<Decoration>[] = [];
+  const gutter: Range<GutterMarker>[] = [];
+  const { doc } = state;
 
   syntaxTree(state).iterate({
     enter(node) {
+      // Строка заголовка (задача 122): воздух над ней и межстрочный
+      // по уровню — свойства строки, а не куска текста. Класс остаётся
+      // и под курсором: строка не прыгает, когда на неё заходят.
+      // У заголовка с подчёркиванием (`===`) — строка текста, не черта.
+      const heading = /^(?:ATX|Setext)Heading([1-6])$/.exec(node.name);
+      if (heading) {
+        const at = doc.lineAt(node.from).from;
+        lines.push(headingLine[Number(heading[1]) - 1]!.range(at));
+        gutter.push(headingGutter.range(at));
+        return false;
+      }
       if (node.name === 'Table' || node.name === 'BlockMath') {
         const block = node.name === 'Table' ? tableBlock(state, node.node) : mathBlock(state, node.node);
         if (block) found.push(block);
@@ -92,7 +149,16 @@ export function blockDecorations(state: EditorState): DecorationSet {
     },
   });
 
-  return Decoration.set(found, true);
+  return {
+    blocks: Decoration.set(found, true),
+    lines: Decoration.set(lines, true),
+    gutter: RangeSet.of(gutter, true),
+  };
+}
+
+/** Только замены — для проверок, которым строки не нужны. */
+export function blockDecorations(state: EditorState): DecorationSet {
+  return blockShapes(state).blocks;
 }
 
 /**
@@ -102,7 +168,7 @@ export function blockDecorations(state: EditorState): DecorationSet {
  * см. `signature`.
  */
 interface BlockState {
-  decorations: DecorationSet;
+  shapes: BlockShapes;
   /** Строки, которых касается выделение. */
   signature: string;
 }
@@ -137,14 +203,14 @@ function signature(state: EditorState): string {
 export function blockPreview(): Extension {
   return StateField.define<BlockState>({
     create: (state) => ({
-      decorations: blockDecorations(state),
+      shapes: blockShapes(state),
       signature: signature(state),
     }),
 
     update(value, tr) {
       if (tr.docChanged || syntaxTree(tr.startState) !== syntaxTree(tr.state)) {
         return {
-          decorations: blockDecorations(tr.state),
+          shapes: blockShapes(tr.state),
           signature: signature(tr.state),
         };
       }
@@ -152,13 +218,17 @@ export function blockPreview(): Extension {
       if (tr.selection !== undefined) {
         const next = signature(tr.state);
         if (next !== value.signature) {
-          return { decorations: blockDecorations(tr.state), signature: next };
+          return { shapes: blockShapes(tr.state), signature: next };
         }
       }
 
       return value;
     },
 
-    provide: (field) => EditorView.decorations.from(field, (value) => value.decorations),
+    provide: (field) => [
+      EditorView.decorations.from(field, (value) => value.shapes.blocks),
+      EditorView.decorations.from(field, (value) => value.shapes.lines),
+      gutterLineClass.from(field, (value) => value.shapes.gutter),
+    ],
   });
 }

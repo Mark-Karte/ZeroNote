@@ -78,9 +78,26 @@
   --zn-font-size-editor: 14px;
   --zn-font-line-height-ui: 1.4;
   --zn-font-line-height-editor: 1.5;
+  /* Шрифт заметки: пока тема или человек не задали свой — шрифт
+     редактора (правило держит ядро, `resolve_with`). */
+  --zn-font-family-note: 'JetBrains Mono', 'Cascadia Mono', Consolas, 'Courier New', monospace;
+  --zn-font-size-note: 14px;
+  --zn-font-size-note-code: 1em;
   --zn-font-size-editor-heading-1: 1.5em;
   --zn-font-size-editor-heading-2: 1.28em;
   --zn-font-size-editor-heading-3: 1.12em;
+  --zn-font-size-editor-heading-4: 1em;
+  --zn-font-size-editor-heading-5: 1em;
+  --zn-font-size-editor-heading-6: 1em;
+  --zn-font-line-height-heading-1: 1.2;
+  --zn-font-line-height-heading-2: 1.2;
+  --zn-font-line-height-heading-3: 1.3;
+  --zn-font-line-height-heading-4: 1.4;
+  --zn-font-line-height-heading-5: 1.5;
+  --zn-font-line-height-heading-6: 1.5;
+  --zn-font-weight-heading: 600;
+  --zn-font-letter-spacing-heading: 0em;
+  --zn-space-note-heading: 1em;
   --zn-font-size-math: 1.15em;
   --zn-font-weight-normal: 400;
   --zn-font-weight-medium: 500;

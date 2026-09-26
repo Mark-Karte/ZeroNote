@@ -25,6 +25,8 @@ export interface Settings {
   font: {
     ui: FontChoice;
     editor: FontChoice;
+    /** Шрифт заметки (задача 122): пусто — из темы, а без него — редактора. */
+    note: FontChoice;
   };
   editor: {
     wrap: boolean;

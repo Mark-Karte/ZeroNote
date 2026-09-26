@@ -45,6 +45,97 @@
   max-width: var(--zn-control-editor-width);
 }
 
+/*
+ * Шрифт заметки (задача 122): markdown с превью набирается своим шрифтом,
+ * код в нём — шрифтом редактора.
+ *
+ * На области текста, а не на всём редакторе: поле слева остаётся
+ * шрифтом редактора — в нём номера строк, а у заметки там только стрелки
+ * и закладки. Пока тема и человек своего шрифта заметки не задали, он
+ * равен шрифту редактора (правило ядра), и заметка выглядит как до
+ * этапа 18.
+ */
+.cm-editor.zn-note .cm-content {
+  font-family: var(--zn-font-family-note);
+  font-size: var(--zn-font-size-note);
+}
+
+/* Код — моноширинным и долей кегля заметки. Блок — строкой целиком,
+   строчный код и текст блока без языка — классом `zn-mono`
+   (`theme/syntax.ts`). Размер у куска — только вне блока: внутри доля
+   легла бы второй раз на уже уменьшенную строку. */
+.cm-editor.zn-note .zn-code-block,
+.cm-editor.zn-note .zn-mono {
+  font-family: var(--zn-font-family-editor);
+}
+
+.cm-editor.zn-note .zn-code-block,
+.cm-editor.zn-note .cm-line:not(.zn-code-block) .zn-mono {
+  font-size: var(--zn-font-size-note-code);
+}
+
+/*
+ * Заголовок в заметке (задача 122): воздух над строкой и свой межстрочный
+ * по уровню. Размер и вес — у куска текста (`theme/syntax.ts`), они те же
+ * и без превью; воздух и межстрочный — только в заметке-документе.
+ *
+ * Межстрочный — число без единиц: оно наследуется как множитель и ложится
+ * на крупный кегль куска внутри строки. Сжатие — у куска, рядом с размером:
+ * `em` сжатия меряется кеглем того, у кого оно задано.
+ */
+.cm-editor.zn-note .zn-heading {
+  padding-top: var(--zn-space-note-heading);
+}
+
+.cm-editor.zn-note .zn-heading-1 {
+  line-height: var(--zn-font-line-height-heading-1);
+}
+
+.cm-editor.zn-note .zn-heading-2 {
+  line-height: var(--zn-font-line-height-heading-2);
+}
+
+.cm-editor.zn-note .zn-heading-3 {
+  line-height: var(--zn-font-line-height-heading-3);
+}
+
+.cm-editor.zn-note .zn-heading-4 {
+  line-height: var(--zn-font-line-height-heading-4);
+}
+
+.cm-editor.zn-note .zn-heading-5 {
+  line-height: var(--zn-font-line-height-heading-5);
+}
+
+.cm-editor.zn-note .zn-heading-6 {
+  line-height: var(--zn-font-line-height-heading-6);
+}
+
+/*
+ * Пара воздуху над заголовком — в поле слева. Клетка поля высотой со всю
+ * строку вместе с воздухом, и без пары стрелка свёртки стояла бы в воздухе
+ * над текстом. Клетку помечает поле блочного превью тем же обходом,
+ * что и строку (`zn-gutter-heading`).
+ *
+ * Кегль поля в заметке — кегль заметки: воздух задан в `em`, и в поле он
+ * обязан выйти той же высоты, что в строке. Стрелка — посередине строки
+ * заголовка: у крупного кегля верх строки выше верха стрелки.
+ * `box-sizing` уже `border-box` у всех (`base.css`) — воздух ложится внутрь
+ * высоты клетки, которую задаёт CodeMirror, а не сверх неё.
+ */
+.cm-editor.zn-note .cm-gutters {
+  font-size: var(--zn-font-size-note);
+}
+
+.cm-editor.zn-note .cm-gutterElement.zn-gutter-heading {
+  padding-top: var(--zn-space-note-heading);
+}
+
+.cm-editor.zn-note .cm-foldGutter .cm-gutterElement.zn-gutter-heading {
+  display: flex;
+  align-items: center;
+}
+
 /* base.css запрещает выделение мышью в интерфейсе — в тексте оно нужно.
 
    Своего `caret-color` здесь нет намеренно: `drawSelection()` гасит
@@ -547,10 +638,12 @@
   font-weight: var(--zn-font-weight-strong);
 }
 
+/* Код и клавиша в ячейке — шрифтом редактора, как строчный код в тексте
+   рядом (задача 122): таблица набрана шрифтом заметки. */
 .cm-editor .zn-table code,
 .cm-editor .zn-table kbd {
-  font-family: inherit;
-  font-size: inherit;
+  font-family: var(--zn-font-family-editor);
+  font-size: var(--zn-font-size-note-code);
 }
 
 .cm-editor .zn-table code {

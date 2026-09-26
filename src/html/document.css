@@ -8,8 +8,8 @@
  * экспорт — объявляет их в том же файле. Ни одного зашитого цвета
  * и размера: тест токенов проверяет и этот файл.
  *
- * Вид — как у превью (правило задачи 108): тот же шрифт редактора,
- * те же размеры заголовков, та же подложка блоков кода и коллаутов,
+ * Вид — как у превью (правило задачи 108): тот же шрифт заметки и код
+ * шрифтом редактора (задача 122), те же размеры заголовков, та же подложка блоков кода и коллаутов,
  * тот же цвет ролей подсветки. Отличие одно — отступы между блоками:
  * на бумаге их нет у строк редактора, и текст слипся бы.
  */
@@ -17,8 +17,8 @@
 .zn-doc {
   color: var(--zn-color-fg-default);
   background-color: var(--zn-color-bg-raised);
-  font-family: var(--zn-font-family-editor);
-  font-size: var(--zn-font-size-editor);
+  font-family: var(--zn-font-family-note);
+  font-size: var(--zn-font-size-note);
   line-height: var(--zn-font-line-height-editor);
   /* Длинное слово без пробелов — адрес, путь — переносится, а не уезжает
      за край листа: у бумаги нет прокрутки. */
@@ -64,7 +64,7 @@
   margin-bottom: var(--zn-space-4);
 }
 
-/* --- Заголовки: цвет и вес — как в превью, размер — у первых трёх. --- */
+/* --- Заголовки: цвет, вес и размер всех шести уровней — как в превью. --- */
 
 .zn-doc h1,
 .zn-doc h2,
@@ -74,7 +74,7 @@
 .zn-doc h6 {
   color: var(--zn-color-syntax-heading);
   font-size: inherit;
-  font-weight: var(--zn-font-weight-strong);
+  font-weight: var(--zn-font-weight-heading);
   line-height: var(--zn-font-line-height-ui);
   margin-top: var(--zn-space-6);
   margin-bottom: var(--zn-space-3);
@@ -93,6 +93,18 @@
 
 .zn-doc h3 {
   font-size: var(--zn-font-size-editor-heading-3);
+}
+
+.zn-doc h4 {
+  font-size: var(--zn-font-size-editor-heading-4);
+}
+
+.zn-doc h5 {
+  font-size: var(--zn-font-size-editor-heading-5);
+}
+
+.zn-doc h6 {
+  font-size: var(--zn-font-size-editor-heading-6);
 }
 
 /* --- Строчная разметка. --- */
@@ -118,19 +130,21 @@
   color: inherit;
 }
 
+/* Код — шрифтом редактора и долей кегля заметки, как в превью
+   (задача 122). */
 .zn-doc code {
   background-color: var(--zn-color-bg-canvas);
   border-radius: var(--zn-radius-sm);
-  font-family: inherit;
-  font-size: inherit;
+  font-family: var(--zn-font-family-editor);
+  font-size: var(--zn-font-size-note-code);
 }
 
 .zn-doc kbd {
   background-color: var(--zn-color-bg-canvas);
   border-radius: var(--zn-radius-sm);
   box-shadow: inset 0 0 0 var(--zn-border-width) var(--zn-color-border-default);
-  font-family: inherit;
-  font-size: inherit;
+  font-family: var(--zn-font-family-editor);
+  font-size: var(--zn-font-size-note-code);
 }
 
 .zn-doc hr {
@@ -226,7 +240,7 @@
   border: var(--zn-border-width) solid var(--zn-color-border-subtle);
   border-radius: var(--zn-radius-md);
   background-color: var(--zn-color-bg-block);
-  font-family: inherit;
+  font-family: var(--zn-font-family-editor);
   /* Перенос, а не прокрутка: у бумаги её нет. Хвост длинной строки встаёт
      под текстом — строка кода блоком. */
   white-space: pre-wrap;

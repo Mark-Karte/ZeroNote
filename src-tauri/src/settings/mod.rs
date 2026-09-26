@@ -316,9 +316,12 @@ impl Default for EditorSettings {
 pub struct FontSettings {
     pub ui: FontChoice,
     pub editor: FontChoice,
+    /// Шрифт заметки — markdown с превью (задача 122). Пусто — из темы,
+    /// а тема без своего шрифта заметки даёт шрифт редактора.
+    pub note: FontChoice,
 }
 
-/// Шрифт одного места: интерфейса или редактора.
+/// Шрифт одного места: интерфейса, редактора или заметки.
 #[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct FontChoice {
@@ -358,6 +361,7 @@ impl Default for FontSettings {
         FontSettings {
             ui: FontChoice::default(),
             editor: FontChoice::default(),
+            note: FontChoice::default(),
         }
     }
 }
@@ -578,7 +582,8 @@ where
     value
 }
 
-/// Раздел `[font]` вложенный: шрифты живут в `[font.ui]` и `[font.editor]`.
+/// Раздел `[font]` вложенный: шрифты живут в `[font.ui]`, `[font.editor]`
+/// и `[font.note]`.
 /// Каждый вложенный раздел читается своим ходом — иначе негодный `size`
 /// выбросил бы весь раздел вместе с годным `family`.
 fn font_section(mut table: toml::Table, problems: &mut Vec<String>) -> FontSettings {
@@ -597,11 +602,13 @@ fn font_section(mut table: toml::Table, problems: &mut Vec<String>) -> FontSetti
     };
     let ui = choice("ui");
     let editor = choice("editor");
+    let note = choice("note");
 
     // Всё прочее в `[font]` — незнакомое: своих ключей у раздела нет,
-    // только вложенные `ui` и `editor`. Разбор здесь ради одного — назвать их.
+    // только вложенные `ui`, `editor` и `note`. Разбор здесь ради одного —
+    // назвать их.
     let _: FontSettings = section(table, "font", problems);
-    FontSettings { ui, editor }
+    FontSettings { ui, editor, note }
 }
 
 /// Чтение с диска.
@@ -665,6 +672,12 @@ density = "normal"
 # [font.editor]
 # family = "Cascadia Mono"
 # size = 14
+
+# Шрифт заметок — markdown с превью. Если не задан ни здесь, ни в теме —
+# тот же, что у редактора. Код в заметке остаётся шрифтом редактора.
+# [font.note]
+# family = "IBM Plex Sans"
+# size = 16
 
 [editor]
 # Переносить длинные строки по ширине окна.

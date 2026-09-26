@@ -17,6 +17,19 @@ import type { Extension } from '@codemirror/state';
 
 const c = (name: string): string => `var(--zn-color-syntax-${name})`;
 
+/** Доля сжатия заголовка по уровню (задача 122): ряд Obsidian. */
+const HEADING_SQUEEZE = [1.5, 1.1, 0.8, 0.5, 0.2, 0];
+
+/** Теги заголовков по уровню: первый — `heading1`. */
+const HEADING_TAGS = [
+  tags.heading1,
+  tags.heading2,
+  tags.heading3,
+  tags.heading4,
+  tags.heading5,
+  tags.heading6,
+];
+
 /**
  * Роли кода: какие теги разбора каким токеном красятся.
  *
@@ -55,29 +68,23 @@ export const zeronoteHighlight = HighlightStyle.define([
   {
     tag: tags.heading,
     color: c('heading'),
-    fontWeight: 'var(--zn-font-weight-strong)',
+    fontWeight: 'var(--zn-font-weight-heading)',
   },
-  // Первые три уровня растут в размере, дальше хватает веса: в заметке
-  // редко бывает вложенность глубже трёх, а шестой уровень, набранный
-  // крупнее обычного текста, выглядел бы обещанием, которого нет.
-  {
-    tag: tags.heading1,
+  // Во встроенных темах растут в размере первые три уровня, дальше
+  // хватает веса: в заметке редко бывает вложенность глубже трёх,
+  // а шестой уровень, набранный крупнее обычного текста, выглядел бы
+  // обещанием, которого нет. Тема вправе задать все шесть — так делает
+  // «Obsidian» (задача 122); у прочих четвёртый–шестой — 1em.
+  //
+  // Сжатие — единица-токен, умноженная на долю уровня: ряд Obsidian
+  // (Р-283). У встроенных тем единица — ноль, и сжатия нет.
+  ...[1, 2, 3, 4, 5, 6].map((level) => ({
+    tag: HEADING_TAGS[level - 1]!,
     color: c('heading'),
-    fontWeight: 'var(--zn-font-weight-strong)',
-    fontSize: 'var(--zn-font-size-editor-heading-1)',
-  },
-  {
-    tag: tags.heading2,
-    color: c('heading'),
-    fontWeight: 'var(--zn-font-weight-strong)',
-    fontSize: 'var(--zn-font-size-editor-heading-2)',
-  },
-  {
-    tag: tags.heading3,
-    color: c('heading'),
-    fontWeight: 'var(--zn-font-weight-strong)',
-    fontSize: 'var(--zn-font-size-editor-heading-3)',
-  },
+    fontWeight: 'var(--zn-font-weight-heading)',
+    fontSize: `var(--zn-font-size-editor-heading-${level})`,
+    letterSpacing: `calc(var(--zn-font-letter-spacing-heading) * ${HEADING_SQUEEZE[level - 1]})`,
+  })),
   { tag: [tags.link, tags.url], color: c('link') },
   { tag: tags.emphasis, color: c('emphasis'), fontStyle: 'italic' },
   {
@@ -111,4 +118,20 @@ export const zeronoteHighlight = HighlightStyle.define([
   { tag: tags.contentSeparator, color: c('markup') },
 ]);
 
-export const syntaxColors: Extension = syntaxHighlighting(zeronoteHighlight);
+/**
+ * Постоянные классы для разметки, которую оформление находит по классу,
+ * а не по цвету (задача 122).
+ *
+ * Своим стилем, а не строкой в `zeronoteHighlight`: у `HighlightStyle`
+ * запись с `class` берёт только класс, и цвет с подложкой строчного кода
+ * пропали бы. Два стиля подсветки CodeMirror складывает.
+ *
+ * `zn-mono` — строчный код и текст блока кода без языка: в заметке
+ * с пропорциональным шрифтом им нужен моноширинный (`editor.css`).
+ */
+export const markupClasses = HighlightStyle.define([{ tag: tags.monospace, class: 'zn-mono' }]);
+
+export const syntaxColors: Extension = [
+  syntaxHighlighting(zeronoteHighlight),
+  syntaxHighlighting(markupClasses),
+];

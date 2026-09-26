@@ -157,6 +157,7 @@ fn font_overrides(
     let places = [
         (&settings.font.ui, "font-family-ui", "font-size-ui"),
         (&settings.font.editor, "font-family-editor", "font-size-editor"),
+        (&settings.font.note, "font-family-note", "font-size-note"),
     ];
     for (choice, family_token, size_token) in places {
         if let Some(family) = &choice.family
@@ -562,6 +563,33 @@ bg-0 = "#010203"
         assert_eq!(state.tokens["font-size-editor"], "16px");
         // Интерфейс не задет.
         assert!(!state.tokens["font-family-ui"].contains("Cascadia"));
+        assert!(state.problems.is_empty(), "{:?}", state.problems);
+        // Заметка без своего шрифта едет за выбранным шрифтом редактора
+        // (задача 122).
+        assert_eq!(state.tokens["font-family-note"], state.tokens["font-family-editor"]);
+        assert_eq!(state.tokens["font-size-note"], "16px");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// Шрифт заметки — третья такая же настройка (задача 122); шрифт
+    /// редактора она не трогает.
+    #[test]
+    fn note_font_from_settings_overrides_theme() {
+        let dir = temp_dir("note-font");
+        fs::write(
+            dir.join("settings.toml"),
+            "schema = 1\n[font.note]\nfamily = \"IBM Plex Sans\"\nsize = 16\n",
+        )
+        .unwrap();
+
+        let state = build(&dir, true, true, &[]);
+
+        let family = &state.tokens["font-family-note"];
+        assert!(family.starts_with("'IBM Plex Sans', "), "{family}");
+        assert!(family.contains("JetBrains Mono"), "запасной шрифт пропал: {family}");
+        assert_eq!(state.tokens["font-size-note"], "16px");
+        assert!(state.tokens["font-family-editor"].starts_with("'JetBrains Mono'"));
+        assert_eq!(state.tokens["font-size-editor"], "14px");
         assert!(state.problems.is_empty(), "{:?}", state.problems);
         let _ = fs::remove_dir_all(&dir);
     }

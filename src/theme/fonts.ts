@@ -50,6 +50,13 @@ export const EDITOR_SUGGESTIONS = [
   'Lucida Console',
 ];
 
+/**
+ * Шрифт заметки (задача 122) бывает любым: пропорциональный, как
+ * в Obsidian, или моноширинный, как было до этапа 18. Поэтому подсказки —
+ * оба списка, текстовые первыми.
+ */
+export const NOTE_SUGGESTIONS = [...UI_SUGGESTIONS, ...EDITOR_SUGGESTIONS];
+
 /** Список CSS в имена: `'IBM Plex Sans', system-ui` → `IBM Plex Sans`, `system-ui`. */
 export function splitFamilies(css: string): string[] {
   return css
