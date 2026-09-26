@@ -211,7 +211,18 @@ export function livePreviewExtension(
   // Список коллаутов приходит сюда, а не читается превью из общего места:
   // сменился список — отсек пересобирается (`applyLivePreview`), и карточки
   // перерисовываются вместе с ним.
-  return enabled ? [livePreview(sourcePath, callouts), blockPreview()] : [];
+  //
+  // Класс `zn-note` — вид заметки-документа (задача 121): им оформление
+  // отличает markdown с превью от кода и от исходника. Ставится здесь,
+  // а не у вкладки: превью переключается на лету, и класс обязан уйти
+  // вместе с ним.
+  return enabled
+    ? [
+        livePreview(sourcePath, callouts),
+        blockPreview(),
+        EditorView.editorAttributes.of({ class: 'zn-note' }),
+      ]
+    : [];
 }
 
 /**

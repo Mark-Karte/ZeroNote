@@ -55,10 +55,15 @@
   user-select: text;
 }
 
+/* Черты между полем и текстом нет (задача 121): через весь документ она
+   читалась как ещё одна черта слева от текста — рядом с чертой цитаты
+   и коллаута. Поле отделено отступом, как в VS Code и Obsidian.
+   `none`, а не удалённое правило: иначе вернулась бы черта базовой темы
+   CodeMirror (`&light .cm-gutters`, `#ddd`). */
 .cm-editor .cm-gutters {
   background-color: var(--zn-color-bg-raised);
   color: var(--zn-color-fg-subtle);
-  border-right: var(--zn-border-width) solid var(--zn-color-border-subtle);
+  border-right: none;
 }
 
 .cm-editor .cm-activeLineGutter {
@@ -90,6 +95,20 @@
 
 .cm-editor .zn-fold-open {
   transform: rotate(90deg);
+}
+
+/* Стрелка раскрытого блока — только у строки под указателем (задача 121):
+   видные всегда, они стояли у каждого заголовка и пункта и шумели.
+   Свёрнутый блок стрелку не прячет — иначе свёрнутое не найти. Строку
+   под указателем помечает `editor/folding.ts` классом клетки поля.
+   Прозрачность, а не `display: none`: стрелка остаётся на месте, и по ней
+   можно щёлкнуть, едва она показалась. */
+.cm-editor .zn-fold-open {
+  opacity: 0;
+}
+
+.cm-editor .zn-hover-line .zn-fold-open {
+  opacity: 1;
 }
 
 .cm-editor .cm-foldGutter span:hover .zn-fold,
@@ -175,6 +194,21 @@
    (`editor/active-line.ts`, задача 100). */
 .cm-editor .cm-activeLine {
   background-color: var(--zn-color-bg-hover);
+}
+
+/* В заметке с превью строка курсора не подсвечивается — ни сама, ни её
+   клетка поля (задача 121). Заметка с превью читается как документ,
+   а полоса под строкой — примета редактора кода; курсор и так виден,
+   а строка под ним и так показана исходником (Р-158). В коде и в
+   markdown без превью подсветка остаётся. Класс `zn-note` ставит
+   расширение превью (`livePreviewExtension`). */
+.cm-editor.zn-note .cm-activeLine,
+.cm-editor.zn-note .cm-activeLineGutter {
+  background-color: transparent;
+}
+
+.cm-editor.zn-note .cm-activeLineGutter {
+  color: inherit;
 }
 
 .cm-editor .cm-cursor,

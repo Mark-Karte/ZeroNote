@@ -1,5 +1,5 @@
-import { EditorState, type Extension } from '@codemirror/state';
-import type { EditorView } from '@codemirror/view';
+import { EditorState, RangeSet, StateEffect, StateField, type Extension } from '@codemirror/state';
+import { GutterMarker, ViewPlugin, gutterLineClass, type EditorView } from '@codemirror/view';
 import {
   foldEffect,
   foldGutter,
@@ -58,10 +58,121 @@ function markerDOM(open: boolean): HTMLElement {
   return span;
 }
 
+/**
+ * Строка под указателем мыши — чтобы показать её стрелку свёртки
+ * (задача 121).
+ *
+ * Стрелка у каждого заголовка, пункта и блока, видная всегда, — шум:
+ * владелец назвал это первым, сравнивая с Obsidian. Там стрелка
+ * появляется, только когда указатель над строкой, и остаётся у свёрнутого
+ * блока — иначе свёрнутое не найти.
+ *
+ * **Почему не `:hover` в CSS.** Поле свёртки — отдельная колонка, а не
+ * часть строки: указатель над текстом строки над её клеткой поля
+ * не стоит, и правило «строка под указателем — её стрелка» селектором
+ * не выразить. Поэтому номер строки знает состояние, а клетке поля класс
+ * ставит `gutterLineClass` — тем же путём, каким CodeMirror помечает поле
+ * строки курсора.
+ *
+ * В поле хранится начало строки, а не номер: номер уезжает от правки
+ * выше, а позиция переносится вместе с текстом (`mapPos`).
+ */
+const hoverLine = StateEffect.define<number | null>();
+
+export const hoveredLine = StateField.define<number | null>({
+  create: () => null,
+  update(value, tr) {
+    let next = value === null || !tr.docChanged ? value : tr.changes.mapPos(value);
+    for (const effect of tr.effects) {
+      if (effect.is(hoverLine)) next = effect.value;
+    }
+    return next;
+  },
+});
+
+/** Эффект «указатель над строкой, начинающейся здесь»; `null` — ни над какой. */
+export function hoverLineEffect(at: number | null): StateEffect<number | null> {
+  return hoverLine.of(at);
+}
+
+/** Пометка клетки поля. Своего рисунка нет — только класс. */
+class HoverMarker extends GutterMarker {
+  override elementClass = 'zn-hover-line';
+}
+
+const hoverMarker = new HoverMarker();
+
+/** Клетки поля строки под указателем получают класс `zn-hover-line`. */
+export const hoverLineClass = gutterLineClass.compute([hoveredLine], (state) => {
+  const at = state.field(hoveredLine);
+  if (at === null || at > state.doc.length) return RangeSet.empty;
+  return RangeSet.of([hoverMarker.range(state.doc.lineAt(at).from)]);
+});
+
+/**
+ * Следит за указателем над всем редактором — полем и текстом.
+ *
+ * Обработчики вешаются на `view.dom`, а не через `eventHandlers` плагина:
+ * те ставятся на область текста, и указатель над самой стрелкой (она
+ * в поле, левее текста) их бы не будил.
+ *
+ * Прокрутка колесом двигает текст под неподвижным указателем, событий
+ * мыши при этом нет — поэтому строка пересчитывается и на прокрутку,
+ * по последнему известному положению.
+ *
+ * Состояние меняется только когда строка сменилась: движение внутри
+ * одной строки транзакций не порождает.
+ */
+const hoverTracker = ViewPlugin.fromClass(
+  class {
+    private y: number | null = null;
+    private readonly move = (event: MouseEvent): void => {
+      this.y = event.clientY;
+      this.sync();
+    };
+    private readonly leave = (): void => {
+      this.y = null;
+      this.sync();
+    };
+    private readonly scroll = (): void => {
+      if (this.y !== null) this.sync();
+    };
+
+    constructor(readonly view: EditorView) {
+      view.dom.addEventListener('mousemove', this.move);
+      view.dom.addEventListener('mouseleave', this.leave);
+      view.scrollDOM.addEventListener('scroll', this.scroll, { passive: true });
+    }
+
+    private lineAtPointer(): number | null {
+      if (this.y === null) return null;
+      const height = this.y - this.view.documentTop;
+      const block = this.view.lineBlockAtHeight(height);
+      // Под последней строкой пусто: `lineBlockAtHeight` отдаёт ближайший
+      // блок, и стрелка последней строки загоралась бы от указателя
+      // в пустоте под текстом.
+      if (height < block.top || height > block.bottom) return null;
+      return block.from;
+    }
+
+    private sync(): void {
+      const next = this.lineAtPointer();
+      if (next === this.view.state.field(hoveredLine)) return;
+      this.view.dispatch({ effects: hoverLine.of(next) });
+    }
+
+    destroy(): void {
+      this.view.dom.removeEventListener('mousemove', this.move);
+      this.view.dom.removeEventListener('mouseleave', this.leave);
+      this.view.scrollDOM.removeEventListener('scroll', this.scroll);
+    }
+  },
+);
+
 export function folding(): Extension {
   // `foldGutter` тянет за собой и саму свёртку (`codeFolding`), поэтому
   // отдельно её включать не надо.
-  return [foldGutter({ markerDOM }), PHRASES];
+  return [foldGutter({ markerDOM }), PHRASES, hoveredLine, hoverLineClass, hoverTracker];
 }
 
 /** Диапазон, который свернётся, если сворачивать на строке курсора. */

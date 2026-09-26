@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { EditorState } from '@codemirror/state';
 import { foldable, ensureSyntaxTree } from '@codemirror/language';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
+import { gutterLineClass } from '@codemirror/view';
+import { hoverLineClass, hoverLineEffect, hoveredLine } from '../src/editor/folding';
 
 /**
  * Что сворачивается — знает разбор языка, а не мы. Именно поэтому это стоит
@@ -83,5 +85,55 @@ describe('свёртка markdown', () => {
 
     expect(text).toContain('fn main');
     expect(text).not.toContain('после');
+  });
+});
+
+/**
+ * Стрелка свёртки — только у строки под указателем (задача 121). Указатель
+ * здесь не нужен: состояние хранит начало строки, класс клетки поля
+ * считается из него, и это проверяется без окна.
+ */
+describe('строка под указателем', () => {
+  function hoverState(doc: string): EditorState {
+    return EditorState.create({ doc, extensions: [hoveredLine, hoverLineClass] });
+  }
+
+  /** Начала строк, чьи клетки поля помечены. */
+  function marked(state: EditorState): number[] {
+    const found: number[] = [];
+    for (const set of state.facet(gutterLineClass)) {
+      set.between(0, state.doc.length, (from) => {
+        found.push(from);
+      });
+    }
+    return found;
+  }
+
+  it('без указателя не помечено ничего', () => {
+    expect(marked(hoverState('один\nдва'))).toEqual([]);
+  });
+
+  it('помечает строку, над которой указатель', () => {
+    let state = hoverState('один\nдва\nтри');
+    const second = state.doc.line(2).from;
+    state = state.update({ effects: hoverLineEffect(second) }).state;
+
+    expect(marked(state)).toEqual([second]);
+  });
+
+  it('уводит пометку вместе со строкой при правке выше', () => {
+    let state = hoverState('один\nдва');
+    state = state.update({ effects: hoverLineEffect(state.doc.line(2).from) }).state;
+    state = state.update({ changes: { from: 0, insert: 'новая\n' } }).state;
+
+    expect(marked(state)).toEqual([state.doc.line(3).from]);
+  });
+
+  it('снимает пометку, когда указатель ушёл', () => {
+    let state = hoverState('один\nдва');
+    state = state.update({ effects: hoverLineEffect(0) }).state;
+    state = state.update({ effects: hoverLineEffect(null) }).state;
+
+    expect(marked(state)).toEqual([]);
   });
 });
