@@ -47,6 +47,8 @@
   import { applyProgress, refreshProgress } from '../state/index.svelte';
   import { INDEX_PROGRESS, type IndexProgress } from '../ipc/index';
   import { forgetResolved } from '../editor/wikilinks';
+  import { diagramThemeChanged } from '../editor/diagram';
+  import { appearance } from '../theme/store.svelte';
   import { openDropped, closeAllTabs } from '../actions/files';
   import { checkExternalChanges } from '../actions/external';
   import { startupPaths, OPEN_PATHS } from '../ipc/files';
@@ -120,7 +122,13 @@
     void preview;
     // Список коллаутов — туда же: карточки рисует превью (задача 103).
     void callouts.state;
-    untrack(() => applyLivePreview());
+    // И тема: схемы mermaid рисуются её цветами, вычисленными в момент
+    // отрисовки, и сами за сменой темы не следят (задача 117).
+    void appearance.current;
+    untrack(() => {
+      diagramThemeChanged();
+      applyLivePreview();
+    });
   });
 
   // Номера строк — та же настройка того же рода и тем же способом. При `code`

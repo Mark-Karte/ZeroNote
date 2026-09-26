@@ -3,13 +3,14 @@ import { StateField, type EditorState, type Extension, type Range } from '@codem
 import type { SyntaxNode } from '@lezer/common';
 import { Decoration, EditorView, type DecorationSet } from '@codemirror/view';
 
+import { diagramBlock } from './diagram';
 import { touched } from './live-preview';
 import { MathWidget, drawsAsBlock, mathSource } from './math';
 import { tableBlock } from './tables';
 
 /**
  * Блочное превью: всё, что заменяется целыми строками, — таблицы
- * (задача 73) и блочные формулы (задача 115).
+ * (задача 73), блочные формулы (задача 115) и схемы mermaid (задача 117).
  *
  * Отдельно от прочего превью, и не по прихоти: замена через границу строк
  * меняет высоту документа, а такие украшения CodeMirror принимает только
@@ -77,6 +78,12 @@ export function blockDecorations(state: EditorState): DecorationSet {
     enter(node) {
       if (node.name === 'Table' || node.name === 'BlockMath') {
         const block = node.name === 'Table' ? tableBlock(state, node.node) : mathBlock(state, node.node);
+        if (block) found.push(block);
+        return false;
+      }
+      // Блок кода бывает схемой: ` ```mermaid ` рисуется, прочие — нет.
+      if (node.name === 'FencedCode') {
+        const block = diagramBlock(state, node.node, (line) => touched(state, state.doc.line(line)));
         if (block) found.push(block);
         return false;
       }

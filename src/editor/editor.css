@@ -727,3 +727,35 @@
   color: var(--zn-color-syntax-invalid);
   text-decoration: underline wavy;
 }
+
+/*
+ * Схемы mermaid в превью (задача 117). SVG приходит со своей шириной
+ * и не шире колонки; цвета — токены темы, вычисленные в момент отрисовки.
+ */
+.cm-editor .zn-diagram {
+  padding-block: var(--zn-space-2);
+  overflow-x: auto;
+  text-align: center;
+}
+
+/* Пока mermaid грузится и рисует — исходник, приглушённо: блок не пустеет
+   и не прыгает дважды. */
+.cm-editor .zn-diagram-source {
+  margin: 0;
+  color: var(--zn-color-fg-subtle);
+  font-family: var(--zn-font-family-editor);
+  text-align: left;
+  white-space: pre-wrap;
+}
+
+/* Ошибка разбора — словами под исходником (Р-178). Сообщение mermaid
+   многострочное, со знаком `^` под местом ошибки, — моноширинным шрифтом
+   и с переносами, иначе знак стоит не там. */
+.cm-editor .zn-diagram-error {
+  margin-top: var(--zn-space-1);
+  color: var(--zn-color-syntax-invalid);
+  font-family: var(--zn-font-family-editor);
+  font-size: var(--zn-font-size-ui-small);
+  text-align: left;
+  white-space: pre-wrap;
+}

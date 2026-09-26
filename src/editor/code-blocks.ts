@@ -10,6 +10,7 @@ import {
 } from '@codemirror/view';
 
 import { icon } from '../icons/registry';
+import { DIAGRAM_LANGUAGE } from './diagram';
 import { LANGUAGES } from './langs';
 import { languages } from './markdown-code';
 
@@ -49,6 +50,10 @@ export function languageLabel(info: string): string | null {
     // Ограждение без языка — сообщать не о чем: никто ничего и не обещал.
     return null;
   }
+
+  // Схема (задача 117): раскраски у неё нет, но и «нет подсветки» —
+  // неправда: язык узнан, блок рисуется схемой, когда курсор уйдёт.
+  if (trimmed.split(/\s+/)[0]!.toLowerCase() === DIAGRAM_LANGUAGE) return 'схема mermaid';
 
   // Тем же способом, что и сам разбор markdown, иначе подпись рассказывала бы
   // про один язык, а подсветка приезжала бы от другого.
