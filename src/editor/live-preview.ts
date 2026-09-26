@@ -332,9 +332,16 @@ export function decorateLivePreview(
         // (ленивое продолжение CommonMark, то же, что поправило ожидание
         // в задаче 57). При этом `QuoteMark` рождает только разбор цитаты,
         // так что имени узла достаточно.
+        //
+        // Пробел за скобкой знаку принадлежит один (CommonMark), а дальше —
+        // содержимое, если строка лежит в коде или в пункте списка: там
+        // отступ и есть смысл. До приёмки этапа 17 прятались все пробелы,
+        // и код в коллауте на экране терял отступы. Прямо в цитате — первая
+        // строка блока, абзац — лишние пробелы ничего не значат и уходят.
         if (node.name === 'QuoteMark') {
           const line = doc.lineAt(node.from);
-          hide(node.from, node.to + spacesAfter(state, node.to, line.to));
+          const spaces = spacesAfter(state, node.to, line.to);
+          hide(node.from, node.to + (parent?.name === 'Blockquote' ? spaces : Math.min(spaces, 1)));
           return;
         }
 

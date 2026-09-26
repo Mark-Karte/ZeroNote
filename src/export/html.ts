@@ -2,9 +2,8 @@ import { save as saveDialog } from '@tauri-apps/plugin-dialog';
 
 import documentCss from '../html/document.css?inline';
 import exportCss from '../html/export.css?inline';
-import temmlCss from 'temml/dist/Temml-Local.css?raw';
-import temmlFont from 'temml/dist/Temml.woff2?inline';
 
+import { mathStyles } from '../editor/math-style';
 import { escapeHtml } from '../html/escape';
 import { documentFor, isMarkdownTab, pageTitle } from '../html/tab';
 import { printAppearance } from '../ipc/appearance';
@@ -20,9 +19,10 @@ import { version } from '../version';
  * токены светлой темы пары (бумага светлая — и лист браузера тоже,
  * решение владельца), картинки строками `data:` (Р-264). Шрифты текста
  * не встраиваются: вшитые весят сотни килобайт, и в файле остаётся цепочка
- * шрифтов темы с системными запасными. Исключение — формулы (задача 116):
- * таблица стилей Temml и его шрифт штрихов, 9 КиБ, встают в файл, только
- * если формула в нём есть.
+ * шрифтов темы с системными запасными. Формулы (задача 116) рисует
+ * шрифт Cambria Math того, кто читает, — в файл встаёт только их стиль
+ * (`mathStyles`, без шрифта Temml, Р-280) и только если формула есть.
+ * Схемы (задача 118) несут свой стиль внутри SVG.
  *
  * Модуль грузится по команде, как печать: в стартовый кусок не едет.
  */
@@ -33,19 +33,10 @@ import { version } from '../version';
  * Вывод и так экранирует всё и не пропускает ни скриптов, ни обработчиков
  * (Р-262, Р-264). Эта строка — второй пояс: даже если бы что-то проскочило,
  * браузер не исполнит скрипт и ничего не загрузит из сети. Разрешены
- * встроенный стиль, картинки и шрифт строкой `data:` — ровно то, из чего
- * файл состоит.
+ * встроенный стиль и картинки строкой `data:` — ровно то, из чего файл
+ * состоит.
  */
-const CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:";
-
-/**
- * Стиль формул для файла: таблица Temml, где шрифт штрихов записан
- * строкой `data:`. В окне приложения тот же стиль приезжает куском
- * сборки, а у файла, который уйдёт к чужим людям, соседних файлов нет.
- */
-export function mathStyles(): string {
-  return temmlCss.replace(/url\((['"]?)Temml\.woff2\1\)/, `url('${temmlFont}')`);
-}
+const CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src data:";
 
 /**
  * Токены темы — объявлениями на `:root`.

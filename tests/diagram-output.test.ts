@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { lookupFor } from '../src/editor/callouts';
-import { isDiagram, type Drawn } from '../src/editor/diagram';
+import { isDiagram, withUniqueIds, type Drawn } from '../src/editor/diagram';
 import { markdownToHtml, type ConvertContext } from '../src/html/convert';
 import { diagramSize } from '../src/export/copy';
 
@@ -111,6 +111,31 @@ describe('вывод HTML', () => {
     const out = await markdownToHtml(`${FLOW}\n\n${second}\n`, ctx);
     expect(asked).toEqual(['flowchart LR\n    A --> B', 'sequenceDiagram\n    A->>B: привет']);
     expect(out.html.match(/zn-diagram/g)).toHaveLength(2);
+  });
+});
+
+describe('имена внутри схемы', () => {
+  /**
+   * Одна готовая схема встаёт в окно дважды — на экран и на бумагу, —
+   * и ссылки на стрелки и тени находили скрытую экранную (приёмка этапа 17).
+   */
+  it('у каждой вставки свои', () => {
+    const svg =
+      '<svg id="zn-diagram-7" width="100%"><style>#zn-diagram-7 .node{fill:red}</style>' +
+      '<marker id="zn-diagram-7_flowchart-v2-pointEnd"/><path marker-end="url(#zn-diagram-7_flowchart-v2-pointEnd)"/></svg>';
+    const first = withUniqueIds(svg);
+    const second = withUniqueIds(svg);
+    expect(first).not.toBe(second);
+    for (const copy of [first, second]) {
+      const id = /^<svg id="([^"]+)"/.exec(copy)![1]!;
+      expect(id).toMatch(/^zn-diagram-7-\d+$/);
+      expect(copy.split(id).length - 1).toBe(4);
+      expect(copy.replaceAll(id, '')).not.toContain('zn-diagram-7');
+    }
+  });
+
+  it('SVG без имени — как есть', () => {
+    expect(withUniqueIds(SVG)).toBe(SVG);
   });
 });
 

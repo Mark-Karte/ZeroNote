@@ -145,6 +145,33 @@ function themeFrom(
   };
 }
 
+/** Сколько схем поставлено в окно — для их имён. */
+let copies = 0;
+
+/**
+ * SVG схемы с именами, которых больше нет в окне.
+ *
+ * mermaid называет всё внутри схемы от её имени — `zn-diagram-7`,
+ * `zn-diagram-7_flowchart-v2-pointEnd` — и ссылается на эти имена:
+ * стрелки (`marker-end="url(#…)"`), тени (`filter="url(#…)"`), стиль
+ * (`#zn-diagram-7 …`). Готовое берётся из памяти по тексту и теме, и одна
+ * строка встаёт в окно дважды — на экран и на бумагу, когда тема окна
+ * совпадает с темой бумаги. Ссылка находит первый элемент с этим именем,
+ * а он на экране, который при печати скрыт: скрытый маркер не рисуется,
+ * элемент со ссылкой на нерисуемый фильтр пропадает целиком. На бумаге
+ * у схем не было стрелок и рамок — найдено приёмкой этапа 17 на выпускной
+ * сборке со светлой темой.
+ *
+ * Все имена внутри схемы начинаются с её собственного, поэтому хватает
+ * заменить его.
+ */
+export function withUniqueIds(svg: string): string {
+  const id = /^<svg[^>]*?\sid="([^"]+)"/.exec(svg)?.[1];
+  if (id === undefined) return svg;
+  copies += 1;
+  return svg.split(id).join(`${id}-${copies}`);
+}
+
 /** Нарисовать схему или взять готовую. Ошибка разбора — текстом. */
 export function drawDiagram(source: string, theme: DiagramTheme): Promise<Drawn> {
   if (source.length > DIAGRAM_LIMIT) {
@@ -201,7 +228,7 @@ export class DiagramWidget extends WidgetType {
       if ('svg' in result) {
         // SVG из mermaid в режиме `strict`: подписи вычищены DOMPurify,
         // обработчиков нет, а скрипт в окне не исполнится и так (Р-200).
-        box.innerHTML = result.svg;
+        box.innerHTML = withUniqueIds(result.svg);
       } else {
         const message = document.createElement('div');
         message.className = 'zn-diagram-error';

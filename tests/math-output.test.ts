@@ -7,7 +7,8 @@ import { markdownSupport } from '../src/editor/markdown-language';
 import { loadMath } from '../src/editor/math';
 import { readTable } from '../src/editor/tables';
 import { markdownToHtml, type ConvertContext } from '../src/html/convert';
-import { exportPage, mathStyles } from '../src/export/html';
+import { mathStyles, withoutTemmlFont } from '../src/editor/math-style';
+import { exportPage } from '../src/export/html';
 
 /**
  * Формулы наружу (задача 116): печать, PDF, экспорт в HTML и копирование
@@ -72,28 +73,58 @@ describe('вывод HTML', () => {
   });
 });
 
-describe('экспорт в HTML', () => {
-  /** У файла соседних файлов нет: шрифт штрихов — строкой `data:`. */
-  it('стиль Temml со шрифтом внутри', () => {
+describe('стиль формул', () => {
+  /**
+   * Шрифт Temml помечен «не для коммерческого использования» (Р-280):
+   * ни `@font-face`, ни ссылок на файл, ни назначения его имени.
+   */
+  it('таблица Temml — без его шрифта', () => {
     const css = mathStyles();
     expect(css).toContain('math');
-    expect(css).toMatch(/url\('data:font\/woff2;base64,[A-Za-z0-9+/=]+'\)/);
-    expect(css).not.toContain("url('Temml.woff2')");
+    // Выравнивание столбцов `aligned` — ради него таблица и нужна.
+    expect(css).toContain('.tml-right');
+    expect(css).not.toContain('@font-face');
+    // Ссылок на файлы шрифтов нет; картинки `data:` (стрелка `\cancel`) — свои.
+    expect(css).not.toMatch(/url\(["']?[\w.-]+\.(woff2?|ttf|otf)/);
+    expect(css).not.toMatch(/font-family:\s*["']?Temml/);
+    expect(css).not.toContain('woff2');
   });
 
+  /** Правило удаляется целиком, соседние правила целы. */
+  it('вырезается только назначение шрифта', () => {
+    const css = [
+      "@font-face { font-family: 'Temml'; src: url('Temml.woff2'); }",
+      'math .mathscr { font-family: "Temml"; }',
+      '.keep { color: red; }',
+      '@supports (x) {',
+      '  mo.tml-prime { font-family: Temml; }',
+      '  .pad { padding-left: 0.05em; }',
+      '}',
+    ].join('\n');
+    const out = withoutTemmlFont(css).replace(/\s+/g, ' ').trim();
+    expect(out).toBe('.keep { color: red; } @supports (x) { .pad { padding-left: 0.05em; } }');
+  });
+
+  /** Штрих производной без шрифта Temml правится стилем, только в Chromium. */
+  it('штрих — правкой стиля для Chromium', () => {
+    expect(mathStyles()).toMatch(/@supports \(not \(-moz-appearance: none\)\) \{\s*mo\.tml-prime \{/);
+  });
+});
+
+describe('экспорт в HTML', () => {
   it('стиль формул — только если формула есть', () => {
     const tokens = { 'color-fg-default': '#1f2328' };
-    expect(exportPage('<p>текст</p>', 'план', tokens)).not.toContain('data:font/woff2');
+    expect(exportPage('<p>текст</p>', 'план', tokens)).not.toContain('tml-prime');
     expect(exportPage('<p><span class="zn-math"><math><mi>x</mi></math></span></p>', 'план', tokens)).toContain(
-      'data:font/woff2',
+      'tml-prime',
     );
   });
 
-  /** Политика файла пускает шрифт строкой — и больше ничего нового. */
-  it('политика файла пускает шрифт `data:`', () => {
-    const page = exportPage('<p>текст</p>', 'план', {});
-    expect(page).toContain("font-src data:");
-    expect(page).toContain("default-src 'none'");
+  /** Шрифтов в файле нет — и политика их не пускает. */
+  it('политика файла — стиль и картинки, ничего больше', () => {
+    const page = exportPage('<p><span class="zn-math"><math><mi>x</mi></math></span></p>', 'план', {});
+    expect(page).toContain(`content="default-src 'none'; style-src 'unsafe-inline'; img-src data:"`);
+    expect(page).not.toContain('font-src');
   });
 });
 

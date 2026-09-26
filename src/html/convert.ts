@@ -2,7 +2,7 @@ import { LanguageDescription } from '@codemirror/language';
 import type { Parser, SyntaxNode } from '@lezer/common';
 
 import type { CalloutLookup } from '../editor/callouts';
-import { isDiagram, type Drawn } from '../editor/diagram';
+import { isDiagram, withUniqueIds, type Drawn } from '../editor/diagram';
 import { embedIsImage, localTarget } from '../editor/images';
 import { languageById } from '../editor/langs';
 import { languages } from '../editor/markdown-code';
@@ -257,7 +257,9 @@ async function drawDiagrams(
 
     const result = await context.drawDiagram(body);
     if ('svg' in result) {
-      out.set(block.from, result.svg);
+      // Свои имена у каждой вставки: та же схема может стоять на экране,
+      // и при печати ссылки нашли бы её, скрытую (`withUniqueIds`).
+      out.set(block.from, withUniqueIds(result.svg));
       continue;
     }
     const line = source.slice(0, block.from).split('\n').length;
