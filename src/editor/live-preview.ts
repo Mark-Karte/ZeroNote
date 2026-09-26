@@ -234,10 +234,6 @@ export function decorateLivePreview(
   const insideWiki = (from: number): boolean =>
     wiki.some((span) => from >= span.from && from < span.to);
 
-  // Строки, уже получившие карточку: у вложенного callout-а внутри callout-а
-  // строка иначе получила бы два фона. Первый — внешний — выигрывает.
-  const carded = new Set<number>();
-
   // Узлы, чьи строчные теги уже разобраны на пары. Пары ищутся среди детей
   // одного родителя — абзаца, заголовка, жирного, — и родитель разбирается
   // целиком при встрече первого тега, а не по видимому куску: иначе
@@ -391,39 +387,18 @@ export function decorateLivePreview(
 
         // Callout: цитата, первая строка которой написана `[!тип] Заголовок`.
         //
-        // Карточка остаётся и под курсором, в отличие от спрятанных знаков:
-        // она оформление строки, как черта у цитаты (Р-153). По правилу Р-158
-        // возвращается только сам знак `[!тип]` — вместо значка.
+        // Здесь — только значок и заголовок. Саму карточку — подложку,
+        // поля, скругление — рисует поле блочного превью (задача 124):
+        // её строки меняют высоту, и клетки поля слева обязаны получить
+        // те же поля тем же обходом (`blockShapes`). Карточка остаётся
+        // и под курсором (Р-178); по правилу Р-158 возвращается только
+        // сам знак `[!тип]` — вместо значка.
         if (node.name === 'Blockquote') {
           const first = doc.lineAt(node.from);
           const marker = parseCallout(first.text);
           if (!marker) return;
 
-          // Шаг назад: у цитаты, дописанной до конца документа, `node.to`
-          // указывает уже на начало следующей строки. Та же поправка,
-          // что у блоков кода и у цитат.
-          const last = doc.lineAt(Math.min(Math.max(node.from, node.to - 1), range.to));
-
-          // Цвет — свойством строки, а не классом роли: ролей больше нет,
-          // цвет берётся из списка человека и бывает своим `#rrggbb`.
           const style = callouts(marker.type);
-
-          for (let number = first.number; number <= last.number; number += 1) {
-            if (carded.has(number)) continue;
-            carded.add(number);
-
-            const parts = ['zn-callout'];
-            if (number === first.number) parts.push('zn-callout-first');
-            if (number === last.number) parts.push('zn-callout-last');
-
-            found.push(
-              Decoration.line({
-                class: parts.join(' '),
-                attributes: { style: `--callout-color: ${style.color}` },
-              }).range(doc.line(number).from),
-            );
-          }
-
           const markFrom = first.from + marker.from;
           const markTo = first.from + marker.to;
 

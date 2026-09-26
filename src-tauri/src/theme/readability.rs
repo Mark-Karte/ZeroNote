@@ -7,9 +7,11 @@
 //! и разойтись им не с чего.
 //!
 //! Правил два. Текст обязан читаться на всех трёх фонах — отношение
-//! контраста WCAG. Цвета подсветки обязаны отличаться **друг от друга** —
-//! расстояние в CIE Lab: у двух цветов разного оттенка и одной яркости
-//! отношение контраста равно единице, хотя глаз их различает.
+//! контраста WCAG, — и на подложках карточек коллаутов поверх рабочей
+//! области (задача 124). Цвета подсветки обязаны отличаться **друг
+//! от друга** — расстояние в CIE Lab: у двух цветов разного оттенка
+//! и одной яркости отношение контраста равно единице, хотя глаз их
+//! различает.
 
 use std::collections::BTreeMap;
 
@@ -128,6 +130,41 @@ pub fn check(tokens: &BTreeMap<String, String>) -> Vec<Finding> {
     // белый по светлому акценту выглядит нарядно и не читается.
     ratio("color-fg-on-accent", "color-accent", TEXT, &mut findings);
 
+    // Карточка коллаута — четвёртый фон под текстом (задача 124, Р-179
+    // пересмотрен): подложка цветом роли поверх рабочей области. Текст
+    // карточки проверяется на ней порогом текста, а не основного текста:
+    // карточка — выделенный короткий блок, как блок кода, и цвета кода
+    // проверяются тем же порогом. Заголовок — цвет роли, жирный, рядом
+    // со значком — порогом тихого текста, как подпись.
+    for role in super::tokens::CALLOUT_ROLES {
+        let color = format!("color-callout-{role}");
+        let tint = format!("color-callout-{role}-tint");
+        let (Some(fg), Some(title), Some(layer), Some(back)) = (
+            tokens.get("color-fg-default"),
+            tokens.get(&color),
+            tokens.get(&tint),
+            tokens.get("color-bg-raised"),
+        ) else {
+            continue;
+        };
+        let Some(card) = over(layer, back) else {
+            continue;
+        };
+        for (text, need, name) in [(fg, TEXT, "color-fg-default"), (title, QUIET_TEXT, color.as_str())] {
+            if let Some(value) = contrast(text, &card)
+                && value < need
+            {
+                findings.push(Finding {
+                    kind: FindingKind::Contrast,
+                    token: name.to_owned(),
+                    against: tint.clone(),
+                    value,
+                    need,
+                });
+            }
+        }
+    }
+
     for (i, first) in SYNTAX.iter().enumerate() {
         for second in &SYNTAX[i + 1..] {
             let (Some(a), Some(b)) = (tokens.get(*first), tokens.get(*second)) else {
@@ -177,6 +214,33 @@ fn linear(hex: &str) -> Option<[f64; 3]> {
 
 /// Относительная яркость по WCAG 2: составляющие складываются с весами,
 /// потому что зелёный человек различает лучше синего почти на порядок.
+/// Полупрозрачный слой поверх непрозрачного фона — итоговым `#rrggbb`.
+///
+/// Слой — `rgba(r, g, b, a)` или `#rrggbb` (тогда он просто закрывает фон);
+/// `transparent` — фон как есть. Смешение по каналам, как его рисует
+/// браузер: `a · слой + (1 − a) · фон`.
+fn over(layer: &str, back: &str) -> Option<String> {
+    let [br, bg, bb] = parse_hex(back)?;
+    let layer = layer.trim();
+    if layer == "transparent" {
+        return Some(back.to_owned());
+    }
+    let (rgb, alpha) = match parse_hex(layer) {
+        Some(rgb) => (rgb, 1.0),
+        None => {
+            let inner = layer.strip_prefix("rgba(")?.strip_suffix(')')?;
+            let parts: Vec<f64> = inner
+                .split(',')
+                .map(|part| part.trim().parse::<f64>().ok())
+                .collect::<Option<_>>()?;
+            let [r, g, b, a] = parts[..] else { return None };
+            ([r, g, b], a)
+        }
+    };
+    let mix = |top: f64, bottom: f64| (alpha * top + (1.0 - alpha) * bottom).round().clamp(0.0, 255.0) as u8;
+    Some(format!("#{:02x}{:02x}{:02x}", mix(rgb[0], br), mix(rgb[1], bg), mix(rgb[2], bb)))
+}
+
 fn luminance(hex: &str) -> Option<f64> {
     let [r, g, b] = linear(hex)?;
     Some(0.2126 * r + 0.7152 * g + 0.0722 * b)
@@ -243,6 +307,45 @@ mod tests {
         assert!((contrast("#000000", "#ffffff").unwrap() - 21.0).abs() < 0.01);
         assert!((contrast("#000", "#fff").unwrap() - 21.0).abs() < 0.01);
         assert_eq!(contrast("rgba(0, 0, 0, 0.5)", "#fff"), None);
+    }
+
+    /// Слой поверх фона — так, как его рисует браузер (задача 124).
+    #[test]
+    fn layer_over_background_mixes_channels() {
+        assert_eq!(over("rgba(255, 0, 0, 0.1)", "#000000").as_deref(), Some("#1a0000"));
+        assert_eq!(over("rgba(2, 122, 255, 0.1)", "#1c1c1c").as_deref(), Some("#192533"));
+        assert_eq!(over("transparent", "#282828").as_deref(), Some("#282828"));
+        assert_eq!(over("#123456", "#ffffff").as_deref(), Some("#123456"));
+        assert_eq!(over("color-mix(in srgb, red, blue)", "#ffffff"), None);
+    }
+
+    /// Подложка коллаута — четвёртый фон (Р-179 пересмотрен в задаче 124):
+    /// заголовок цветом роли, который на своей подложке не читается,
+    /// обязан попасть в находки, как и тёмный текст на тёмной карточке.
+    #[test]
+    fn callout_card_is_checked_like_a_background() {
+        let mut tokens = table(&[
+            ("color-bg-raised", "#1c1c1c"),
+            ("color-fg-default", "#dadada"),
+            ("color-callout-accent", "#027aff"),
+            ("color-callout-accent-tint", "rgba(2, 122, 255, 0.1)"),
+        ]);
+        assert!(check(&tokens).is_empty(), "{:?}", check(&tokens));
+
+        tokens.insert("color-callout-accent".into(), "#2a2a40".into());
+        tokens.insert("color-callout-accent-tint".into(), "rgba(42, 42, 64, 0.1)".into());
+        let found = check(&tokens);
+        assert!(
+            found.iter().any(|f| f.token == "color-callout-accent" && f.against == "color-callout-accent-tint"),
+            "{found:?}"
+        );
+
+        tokens.insert("color-callout-accent-tint".into(), "rgba(160, 160, 160, 0.9)".into());
+        let found = check(&tokens);
+        assert!(
+            found.iter().any(|f| f.token == "color-fg-default" && f.against == "color-callout-accent-tint"),
+            "{found:?}"
+        );
     }
 
     /// Случай настоящий: шесть голубых оттенков, каждый из которых

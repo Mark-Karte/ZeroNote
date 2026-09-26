@@ -29,10 +29,12 @@ export interface CalloutDef {
   color: string;
 }
 
-/** Как рисовать коллаут: значок и цвет выражением CSS. */
+/** Как рисовать коллаут: значок, цвет и подложка выражениями CSS. */
 export interface CalloutStyle {
   icon: IconName;
   color: string;
+  /** Подложка карточки — цвет роли в 10 % (задача 124). */
+  tint: string;
 }
 
 /**
@@ -63,6 +65,26 @@ export function cssColorOf(color: string): string {
   return token ? `var(${token})` : color;
 }
 
+/** Доля цвета роли в подложке карточки — та же, что в ядре (`CALLOUT_TINT_ALPHA`). */
+const TINT_ALPHA = 0.1;
+
+/**
+ * Подложка карточки (задача 124). У роли — токен подложки, который ядро
+ * выводит из цвета роли. У своего `#rrggbb` — тот же расчёт здесь:
+ * полупрозрачный `rgba`, а не `color-mix`, чтобы Word при копировании
+ * получил цвет, который понимает (`export/copy.ts`). Всё прочее — без
+ * подложки: строка из чужого файла не должна попасть в стиль как есть.
+ */
+export function cssTintOf(color: string): string {
+  const token = COLOR_TOKENS[color];
+  if (token) return `var(${token}-tint)`;
+  const hex = /^#([0-9a-f]{6}|[0-9a-f]{3})$/i.exec(color.trim())?.[1];
+  if (!hex) return 'transparent';
+  const full = hex.length === 3 ? [...hex].map((c) => c + c).join('') : hex;
+  const [r, g, b] = [0, 2, 4].map((at) => Number.parseInt(full.slice(at, at + 2), 16));
+  return `rgba(${r}, ${g}, ${b}, ${TINT_ALPHA})`;
+}
+
 const KNOWN_ICONS = new Set<string>(iconNames());
 
 /** Значок из файла → имя из реестра. Незнакомый — значок заметки. */
@@ -74,6 +96,7 @@ export function iconOf(name: string): IconName {
 const FALLBACK: CalloutStyle = {
   icon: 'md.callout-note',
   color: 'var(--zn-color-callout-accent)',
+  tint: 'var(--zn-color-callout-accent-tint)',
 };
 
 /**
@@ -85,7 +108,10 @@ export type CalloutLookup = (type: string) => CalloutStyle;
 
 export function lookupFor(list: readonly CalloutDef[]): CalloutLookup {
   const styles = new Map<string, CalloutStyle>(
-    list.map((def) => [def.id, { icon: iconOf(def.icon), color: cssColorOf(def.color) }]),
+    list.map((def) => [
+      def.id,
+      { icon: iconOf(def.icon), color: cssColorOf(def.color), tint: cssTintOf(def.color) },
+    ]),
   );
   return (type) => styles.get(type) ?? styles.get('note') ?? FALLBACK;
 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { EditorSelection, EditorState } from '@codemirror/state';
 import { ensureSyntaxTree } from '@codemirror/language';
 
-import { blockDecorations } from '../src/editor/block-preview';
+import { InCard, blockDecorations } from '../src/editor/block-preview';
 import { languageLabel } from '../src/editor/code-blocks';
 import { DIAGRAM_LIMIT, DiagramWidget, drawDiagram } from '../src/editor/diagram';
 import type { DiagramTheme } from '../src/editor/diagram-render';
@@ -31,7 +31,9 @@ function diagrams(doc: string, cursor: number): { covers: string; source: string
   const out: { covers: string; source: string }[] = [];
   const set = blockDecorations(state(doc, cursor));
   for (const iter = set.iter(); iter.value !== null; iter.next()) {
-    const widget = iter.value.spec.widget;
+    // Внутри коллаута виджет лежит в обёртке карточки (задача 124).
+    const spec = iter.value.spec.widget;
+    const widget = spec instanceof InCard ? spec.inner : spec;
     if (widget instanceof DiagramWidget) {
       out.push({ covers: doc.slice(iter.from, iter.to), source: widget.source });
     }

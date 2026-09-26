@@ -198,7 +198,9 @@ describe('цитаты и коллауты', () => {
 
   it('коллаут — карточкой со значком, заголовком и телом', async () => {
     const out = await html('> [!tip] Совет дня\n> тело\n> ещё\n');
-    expect(out).toMatch(/^<div class="zn-callout" style="--callout-color: var\(--zn-color-callout-success\)">/);
+    expect(out).toMatch(
+      /^<div class="zn-callout" style="--callout-color: var\(--zn-color-callout-success\); --callout-tint: var\(--zn-color-callout-success-tint\)">/,
+    );
     expect(out).toContain('<span class="zn-callout-icon"><svg');
     expect(out).toContain('<span>Совет дня</span>');
     expect(out).toContain('<div class="zn-callout-body">\n<p>тело<br>\nещё</p>\n</div>');
@@ -216,6 +218,8 @@ describe('цитаты и коллауты', () => {
     const bad = await html('> [!bad] А\n');
     expect(bad).not.toContain('url(x)');
     expect(bad).toContain('--callout-color: var(--zn-color-callout-accent)');
+    // Подложка чужого цвета — тоже нет (задача 124).
+    expect(bad).toContain('--callout-tint: transparent');
   });
 });
 

@@ -247,7 +247,8 @@ export class Renderer {
       `${title === '' ? '' : `<span>${title}</span>`}</div>`;
 
     return (
-      `<div class="zn-callout" style="--callout-color: ${calloutColor(style.color)}">` +
+      `<div class="zn-callout" style="--callout-color: ${calloutColor(style.color)}; ` +
+      `--callout-tint: ${calloutTint(style.tint)}">` +
       `${heading}${body.length > 0 ? `\n<div class="zn-callout-body">\n${body.join('\n')}\n</div>` : ''}` +
       `</div>`
     );
@@ -681,4 +682,15 @@ function calloutColor(color: string): string {
   if (/^var\(--zn-[a-z0-9-]+\)$/.test(color)) return color;
   if (/^#[0-9a-f]{3,8}$/i.test(color)) return color;
   return 'var(--zn-color-callout-accent)';
+}
+
+/**
+ * Подложка карточки в атрибут `style` (задача 124): токен подложки роли
+ * или `rgba`, посчитанный из своего `#rrggbb` (`cssTintOf`). Всё прочее —
+ * без подложки, по той же причине, что у цвета.
+ */
+function calloutTint(tint: string): string {
+  if (/^var\(--zn-[a-z0-9-]+\)$/.test(tint)) return tint;
+  if (/^rgba\(\d{1,3}, \d{1,3}, \d{1,3}, 0\.\d+\)$/.test(tint)) return tint;
+  return 'transparent';
 }

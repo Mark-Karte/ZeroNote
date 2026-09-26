@@ -128,8 +128,13 @@ export const zeronoteHighlight = HighlightStyle.define([
  *
  * `zn-mono` — строчный код и текст блока кода без языка: в заметке
  * с пропорциональным шрифтом им нужен моноширинный (`editor.css`).
+ * `zn-quote-text` — текст цитаты: в карточке коллаута он обычного цвета,
+ * а в заголовке карточки — цвета роли (задача 124).
  */
-export const markupClasses = HighlightStyle.define([{ tag: tags.monospace, class: 'zn-mono' }]);
+export const markupClasses = HighlightStyle.define([
+  { tag: tags.monospace, class: 'zn-mono' },
+  { tag: tags.quote, class: 'zn-quote-text' },
+]);
 
 export const syntaxColors: Extension = [
   syntaxHighlighting(zeronoteHighlight),

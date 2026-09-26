@@ -1,4 +1,4 @@
-import type { EditorState, Extension } from '@codemirror/state';
+import { Facet, type EditorState, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, type DecorationSet } from '@codemirror/view';
 
 /**
@@ -26,6 +26,19 @@ import { Decoration, EditorView, type DecorationSet } from '@codemirror/view';
 const lineDeco = Decoration.line({ class: 'cm-activeLine' });
 
 /**
+ * Строку курсора не подсвечивать (задача 121): так в заметке с превью,
+ * где полоса под строкой — примета редактора кода. Ставит расширение
+ * превью.
+ *
+ * Класса нет вовсе, а не прозрачная подсветка: подсветка — фон строки,
+ * и прозрачный фон перебивал подложку карточки коллаута на строке
+ * курсора (задача 124).
+ */
+export const quietActiveLine = Facet.define<boolean, boolean>({
+  combine: (values) => values.some(Boolean),
+});
+
+/**
  * Строки, которые надо подсветить: по одной на каждый **пустой** курсор.
  *
  * Непустые диапазоны пропускаются поштучно, а не «есть выделение — нет
@@ -33,6 +46,7 @@ const lineDeco = Decoration.line({ class: 'cm-activeLine' });
  * пустой, и их строки подсветить по-прежнему верно.
  */
 export function activeLineDecorations(state: EditorState): DecorationSet {
+  if (state.facet(quietActiveLine)) return Decoration.none;
   const deco = [];
   let last = -1;
 
@@ -52,6 +66,6 @@ export function activeLineDecorations(state: EditorState): DecorationSet {
 }
 
 export const activeLine: Extension = EditorView.decorations.compute(
-  ['selection'],
+  ['selection', quietActiveLine],
   activeLineDecorations,
 );

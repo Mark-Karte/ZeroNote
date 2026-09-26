@@ -162,11 +162,14 @@
   color: var(--zn-color-syntax-quote);
 }
 
+/* Коллаут — видом Obsidian, как на экране (задача 124): подложка цветом
+   роли, без черты, поля 12 и 24 слева, заголовок плотнее текста, под ним
+   и под телом — отступ абзаца. Подложка — `rgba` из ядра: Word получит
+   её смешанной с листом (`opaque` в `export/copy.ts`). */
 .zn-doc .zn-callout {
-  padding: var(--zn-space-3) var(--zn-space-4);
-  border-left: var(--zn-border-width-thick) solid var(--callout-color);
-  border-radius: var(--zn-radius-md);
-  background-color: var(--zn-color-bg-block);
+  padding: var(--zn-space-4) var(--zn-space-4) var(--zn-space-4) var(--zn-space-6);
+  border-radius: var(--zn-radius-sm);
+  background-color: var(--callout-tint);
   break-inside: avoid;
 }
 
@@ -176,14 +179,22 @@
   gap: var(--zn-space-2);
   color: var(--callout-color);
   font-weight: var(--zn-font-weight-strong);
+  line-height: var(--zn-font-line-height-tight);
 }
 
 .zn-doc .zn-callout-body {
-  margin-top: var(--zn-space-3);
+  margin-top: var(--zn-space-5);
+  margin-bottom: var(--zn-space-5);
 }
 
 .zn-doc .zn-callout-body > :last-child {
   margin-bottom: 0;
+}
+
+/* Код в карточке — на подложке кода, а не цвета роли: у Obsidian код
+   в коллауте нейтральный. */
+.zn-doc .zn-callout pre {
+  background-color: var(--zn-color-bg-canvas);
 }
 
 .zn-doc .zn-callout-icon,
@@ -193,6 +204,11 @@
   vertical-align: text-bottom;
   width: var(--zn-control-icon-size);
   height: var(--zn-control-icon-size);
+}
+
+.zn-doc .zn-callout-icon {
+  width: var(--zn-control-icon-size-callout);
+  height: var(--zn-control-icon-size-callout);
 }
 
 .zn-doc .zn-callout-icon svg,

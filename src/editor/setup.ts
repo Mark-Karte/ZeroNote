@@ -31,7 +31,7 @@ import { search, highlightSelectionMatches } from '@codemirror/search';
 // `tests/brackets.test.ts` (решение Р-112).
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import { syntaxColors } from '../theme/syntax';
-import { activeLine } from './active-line';
+import { activeLine, quietActiveLine } from './active-line';
 import { searchMatches } from './search-matches';
 import { bookmarkField, bookmarkIcons, bookmarkMarkers, bookmarks } from './bookmarks';
 import { brackets } from './brackets';
@@ -219,8 +219,9 @@ export function livePreviewExtension(
   return enabled
     ? [
         livePreview(sourcePath, callouts),
-        blockPreview(),
+        blockPreview(callouts),
         EditorView.editorAttributes.of({ class: 'zn-note' }),
+        quietActiveLine.of(true),
       ]
     : [];
 }

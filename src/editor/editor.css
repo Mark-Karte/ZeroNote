@@ -131,7 +131,26 @@
   padding-top: var(--zn-space-note-heading);
 }
 
-.cm-editor.zn-note .cm-foldGutter .cm-gutterElement.zn-gutter-heading {
+/* Поля карточки коллаута — те же, что у её строк (задача 124). */
+.cm-editor.zn-note .cm-gutterElement.zn-gutter-callout-first {
+  padding-top: var(--zn-space-4);
+}
+
+.cm-editor.zn-note .cm-gutterElement.zn-gutter-callout-gap {
+  padding-bottom: var(--zn-space-5);
+}
+
+.cm-editor.zn-note .cm-gutterElement.zn-gutter-callout-last {
+  padding-bottom: calc(var(--zn-space-4) + var(--zn-space-5));
+}
+
+.cm-editor.zn-note .cm-gutterElement.zn-gutter-callout-first.zn-gutter-callout-last {
+  padding-bottom: var(--zn-space-4);
+}
+
+.cm-editor.zn-note .cm-foldGutter .cm-gutterElement.zn-gutter-heading,
+.cm-editor.zn-note .cm-foldGutter .cm-gutterElement.zn-gutter-callout-first,
+.cm-editor.zn-note .cm-foldGutter .cm-gutterElement.zn-gutter-callout-last {
   display: flex;
   align-items: center;
 }
@@ -291,14 +310,15 @@
    клетка поля (задача 121). Заметка с превью читается как документ,
    а полоса под строкой — примета редактора кода; курсор и так виден,
    а строка под ним и так показана исходником (Р-158). В коде и в
-   markdown без превью подсветка остаётся. Класс `zn-note` ставит
-   расширение превью (`livePreviewExtension`). */
-.cm-editor.zn-note .cm-activeLine,
+   markdown без превью подсветка остаётся.
+
+   Строка курсора в заметке класса `cm-activeLine` не получает вовсе
+   (`quietActiveLine`): прозрачная подсветка перебивала подложку карточки
+   коллаута, и строка карточки под курсором выпадала из неё (найдено
+   на живом окне, задача 124). Клетке поля подложки карточки не нужно —
+   ей хватает прозрачной; класс `zn-note` ставит расширение превью. */
 .cm-editor.zn-note .cm-activeLineGutter {
   background-color: transparent;
-}
-
-.cm-editor.zn-note .cm-activeLineGutter {
   color: inherit;
 }
 
@@ -443,42 +463,128 @@
  * назван трижды — чертой, значком и заголовком.
  */
 .cm-editor .zn-callout {
-  padding-left: var(--zn-space-3);
-  box-shadow: inset var(--zn-border-width-thick) 0 0 var(--callout-color);
-  /* С прозрачностью, и это не украшение: подложка строки лежит поверх слоя
-     выделения, и сплошная скрыла бы выделение внутри карточки целиком
-     (задача 100). Цвет подобран так, чтобы поверх рабочей области дать
-     прежний `bg-canvas`. */
-  background-color: var(--zn-color-bg-block);
+  /* Вид Obsidian (задача 124, Р-287): подложка цветом роли, черты нет,
+     поля 12 сверху, справа и снизу, 24 слева. Черта слева прежнего вида
+     и черта цитаты — та же тень — снимаются. */
+  padding-left: var(--zn-space-6);
+  padding-right: var(--zn-space-4);
+  box-shadow: none;
+  /* Подложка — цвет роли в 10 %, полупрозрачным `rgba` из ядра: слой
+     выделения лежит под строкой (задача 100), и сквозь подложку его видно. */
+  background-color: var(--callout-tint);
 }
 
-/* Цвет карточки приходит свойством строки (`--callout-color` в атрибуте
-   `style`), а не классом роли: с задачи 103 ролей нет, цвет берётся
+/* Цвет и подложка карточки приходят свойствами строки (`--callout-color`
+   и `--callout-tint` в атрибуте `style`), а не классом роли: цвет берётся
    из списка человека и бывает своим `#rrggbb`. Что каждая роль темы ведёт
-   к объявленному токену, проверяет `tests/callouts.test.ts`. */
+   к объявленному токену, проверяет `tests/callouts.test.ts`.
 
-/* Скругление только сверху у первой строки и снизу у последней: карточка
-   собирается из строк, а не из одного блока — блок нельзя, строки редактора
-   принадлежат редактору. */
+   Карточка собирается из строк, а не из одного блока: строки редактора
+   принадлежат редактору. Поэтому поля и скругления — у первой и последней
+   строки, а зазор под заголовком — у строки заголовка, если за ней сразу
+   текст (`zn-callout-gap`). Меры — Obsidian: заголовок плотнее текста,
+   под ним отступ абзаца, снизу отступ абзаца и поле карточки. Те же поля
+   получают клетки поля слева (`zn-gutter-callout-*`), иначе стрелка
+   свёртки уехала бы вверх. */
 .cm-editor .zn-callout-first {
-  border-top-left-radius: var(--zn-radius-md);
-  border-top-right-radius: var(--zn-radius-md);
+  padding-top: var(--zn-space-4);
+  line-height: var(--zn-font-line-height-tight);
+  border-top-left-radius: var(--zn-radius-sm);
+  border-top-right-radius: var(--zn-radius-sm);
+}
+
+.cm-editor .zn-callout-gap {
+  padding-bottom: var(--zn-space-5);
 }
 
 .cm-editor .zn-callout-last {
-  border-bottom-left-radius: var(--zn-radius-md);
-  border-bottom-right-radius: var(--zn-radius-md);
+  padding-bottom: calc(var(--zn-space-4) + var(--zn-space-5));
+  border-bottom-left-radius: var(--zn-radius-sm);
+  border-bottom-right-radius: var(--zn-radius-sm);
 }
 
-/* Значок вместо знака `[!тип]`. Цвет — роли, размер — строки списка.
-   Зазор справа обязателен: знак прячется вместе с пробелом за ним, и без
-   отступа значок упирается в заголовок — видно только на живом окне. */
+.cm-editor .zn-callout-first.zn-callout-last {
+  padding-bottom: var(--zn-space-4);
+}
+
+/* Пустая строка в карточке — отступ абзаца, а не целая строка текста:
+   у Obsidian между абзацами коллаута столько же, сколько между абзацами. */
+.cm-editor .zn-callout-blank {
+  line-height: var(--zn-font-line-height-gap);
+}
+
+/* Цитата внутри карточки — черта акцентом по левому краю текста карточки,
+   текст за ней. Черта — картинкой фона от края содержимого: у последней
+   строки карточки есть нижнее поле, и черта в него не заходит. */
+.cm-editor .zn-callout.zn-callout-quote {
+  padding-left: calc(var(--zn-space-6) + var(--zn-border-width-thick) + var(--zn-space-6));
+  background-image: linear-gradient(var(--zn-color-accent), var(--zn-color-accent));
+  background-origin: content-box;
+  background-size: var(--zn-border-width-thick) 100%;
+  background-position: calc(-1 * (var(--zn-border-width-thick) + var(--zn-space-6))) 0;
+  background-repeat: no-repeat;
+}
+
+/* Блок кода в карточке — на подложке кода поверх подложки карточки, как
+   у Obsidian: от края содержимого карточки до её правого поля, текст —
+   с отступом внутри. Два слоя картинкой фона: подложка строки одна,
+   а слоёв два. Подложка кода непрозрачна — у Obsidian код в коллауте
+   нейтральный, а не цвета роли, — и выделение на таких строках рисует
+   поле блочного превью куском поверх (`zn-card-selection`). */
+.cm-editor .zn-callout.zn-callout-code {
+  padding-left: calc(var(--zn-space-6) + var(--zn-space-5));
+  box-shadow: none;
+  border-radius: 0;
+  background-color: transparent;
+  background-image:
+    linear-gradient(var(--zn-color-bg-canvas), var(--zn-color-bg-canvas)),
+    linear-gradient(var(--callout-tint), var(--callout-tint));
+  background-origin: content-box, padding-box;
+  background-size: calc(100% + var(--zn-space-5)) 100%, 100% 100%;
+  background-position: calc(-1 * var(--zn-space-5)) 0, 0 0;
+  background-repeat: no-repeat;
+}
+
+.cm-editor .zn-callout.zn-callout-code.zn-callout-last {
+  border-bottom-left-radius: var(--zn-radius-sm);
+  border-bottom-right-radius: var(--zn-radius-sm);
+}
+
+.cm-editor .zn-card-selection {
+  background-color: var(--zn-color-bg-selection);
+}
+
+/* Таблица, формула и схема внутри карточки — на её подложке и с её полями
+   (`InCard` в поле блочного превью). */
+.cm-editor .zn-callout-block {
+  padding-left: var(--zn-space-6);
+  padding-right: var(--zn-space-4);
+  background-color: var(--callout-tint);
+}
+
+.cm-editor .zn-callout-block-last {
+  padding-bottom: calc(var(--zn-space-4) + var(--zn-space-5));
+  border-bottom-left-radius: var(--zn-radius-sm);
+  border-bottom-right-radius: var(--zn-radius-sm);
+}
+
+/* Текст карточки — обычным цветом, как у Obsidian, а не цветом цитаты:
+   коллаут — не чужие слова, а выделенный блок своих. Класс куска
+   цитаты — постоянный (`theme/syntax.ts`). */
+.cm-editor .zn-callout .zn-quote-text {
+  color: var(--zn-color-fg-default);
+}
+
+/* Значок вместо знака `[!тип]`. Цвет — роли, размер — доля кегля строки:
+   18 px при тексте 16 px, как у Obsidian. Зазор справа обязателен: знак
+   прячется вместе с пробелом за ним, и без отступа значок упирается
+   в заголовок — видно только на живом окне. */
 .cm-editor .zn-callout-icon {
   display: inline-flex;
   vertical-align: text-bottom;
   margin-right: var(--zn-space-2);
-  width: var(--zn-control-icon-size);
-  height: var(--zn-control-icon-size);
+  width: var(--zn-control-icon-size-callout);
+  height: var(--zn-control-icon-size-callout);
   color: var(--callout-color);
 }
 
@@ -521,8 +627,11 @@
   text-decoration: line-through;
 }
 
-/* Заголовок callout-а — остаток первой строки. */
-.cm-editor .zn-callout-title {
+/* Заголовок callout-а — остаток первой строки. Цвет роли — и у куска
+   цитаты внутри него: подсветка красит текст цитаты своим цветом, и до
+   задачи 124 заголовок выходил цветом цитаты, а не роли. */
+.cm-editor .zn-callout-title,
+.cm-editor .zn-callout .zn-callout-title .zn-quote-text {
   color: var(--callout-color);
   font-weight: var(--zn-font-weight-strong);
 }

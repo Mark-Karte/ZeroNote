@@ -313,27 +313,6 @@ describe('живое превью: знаки вокруг текста', () => 
     expect(shown(doc, doc.indexOf('цитата'))).toBe('Заголовок\n> цитата\n');
   });
 
-  it('callout получает карточку на все свои строки', () => {
-    const doc = '> [!tip] Совет\n> вторая строка\n\nпосле\n';
-    const editor = state(doc, doc.length);
-    const set = decorateLivePreview(editor, [{ from: 0, to: editor.doc.length }]);
-
-    const lines = new Map<number, string>();
-    const iter = set.iter();
-    while (iter.value !== null) {
-      const spec = iter.value.spec as { class?: string };
-      if (typeof spec.class === 'string' && spec.class.startsWith('zn-callout ')) {
-        lines.set(editor.doc.lineAt(iter.from).number, spec.class);
-      }
-      iter.next();
-    }
-
-    expect(lines.get(1)).toContain('zn-callout-first');
-    expect(lines.get(2)).toContain('zn-callout-last');
-    // Пустая строка за цитатой в карточку не входит.
-    expect(lines.has(3)).toBe(false);
-  });
-
   it('знак callout-а заменяется значком, а заголовок остаётся текстом', () => {
     const doc = '> [!warning] Осторожно\n> текст\n\n';
     const editor = state(doc, doc.length);
@@ -358,25 +337,21 @@ describe('живое превью: знаки вокруг текста', () => 
     expect(title).toBe('Осторожно');
   });
 
-  it('курсор на первой строке возвращает знак, но карточку не убирает', () => {
+  it('курсор на первой строке возвращает знак', () => {
     const doc = '> [!tip] Совет\n> текст\n\n';
     const editor = state(doc, 0);
     const set = decorateLivePreview(editor, [{ from: 0, to: editor.doc.length }]);
 
     let widget = false;
-    let card = false;
     const iter = set.iter();
     while (iter.value !== null) {
-      const spec = iter.value.spec as { widget?: unknown; class?: string };
-      if (spec.widget) widget = true;
-      if (typeof spec.class === 'string' && spec.class.startsWith('zn-callout ')) card = true;
+      if ((iter.value.spec as { widget?: unknown }).widget) widget = true;
       iter.next();
     }
 
-    // Знак виден исходником (Р-158), карточка на месте — она оформление
-    // строки, как черта у цитаты.
+    // Знак виден исходником (Р-158). Карточка остаётся — её рисует поле
+    // блочного превью (задача 124), см. `tests/callout-card.test.ts`.
     expect(widget).toBe(false);
-    expect(card).toBe(true);
   });
 
   it('обычная цитата карточки не получает', () => {
@@ -399,10 +374,10 @@ describe('живое превью: знаки вокруг текста', () => 
   });
 
   /**
-   * Цвет и значок — из списка коллаутов (задача 103), свойством строки,
-   * а не классом роли.
+   * Значок — из списка коллаутов (задача 103). Цвет и подложку карточки
+   * ставит поле блочного превью (задача 124) — `tests/callout-card.test.ts`.
    */
-  it('коллаут берёт цвет из списка человека', () => {
+  it('коллаут берёт значок из списка человека', () => {
     const doc = '> [!bug] Дефект\n> текст\n\n';
     const editor = state(doc, doc.length);
     const lookup = lookupFor([
@@ -410,17 +385,15 @@ describe('живое превью: знаки вокруг текста', () => 
     ]);
     const set = decorateLivePreview(editor, [{ from: 0, to: editor.doc.length }], () => null, lookup);
 
-    let style = '';
+    let icon = '';
     const iter = set.iter();
     while (iter.value !== null) {
-      const spec = iter.value.spec as { class?: string; attributes?: { style?: string } };
-      if (typeof spec.class === 'string' && spec.class.startsWith('zn-callout')) {
-        style = spec.attributes?.style ?? '';
-      }
+      const widget = (iter.value.spec as { widget?: { name?: string } }).widget;
+      if (widget?.name) icon = widget.name;
       iter.next();
     }
 
-    expect(style).toBe('--callout-color: var(--zn-color-callout-danger)');
+    expect(icon).toBe('md.callout-bug');
   });
 });
 

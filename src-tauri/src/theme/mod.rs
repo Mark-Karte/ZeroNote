@@ -519,7 +519,45 @@ pub fn resolve_with(
         resolved.insert(name, expanded);
     }
 
+    derive_callout_tints(&mut resolved, theme, overrides);
+
     Ok(resolved)
+}
+
+/// Подложки карточек коллаутов из цветов ролей (задача 124).
+///
+/// Подложка — цвет роли в 10 %, полупрозрачным `rgba`: сквозь неё видно
+/// выделение (задача 100), а Word, получив её при копировании, смешает
+/// её с листом (`opaque` в `export/copy.ts`). `color-mix` в стилях дал бы
+/// тот же цвет на экране, но браузер отдаёт его наружу записью
+/// `color(srgb …)`, которой Word не знает.
+///
+/// Считается уже по готовому цвету роли — после ссылок на палитру и выбора
+/// темы. Подложку, заданную темой или человеком явно, сборка не трогает;
+/// цвет не в виде `#rrggbb` оставляет подложку прозрачной — лучше карточка
+/// без заливки, чем заливка не того цвета.
+fn derive_callout_tints(
+    resolved: &mut BTreeMap<String, String>,
+    theme: &ThemeFile,
+    overrides: &BTreeMap<String, String>,
+) {
+    for role in tokens::CALLOUT_ROLES {
+        let tint = format!("color-callout-{role}-tint");
+        let key = &tint["color-".len()..];
+        if theme.color.contains_key(key) || overrides.contains_key(&tint) {
+            continue;
+        }
+        let Some([r, g, b]) = resolved
+            .get(&format!("color-callout-{role}"))
+            .and_then(|color| parse_hex(color))
+        else {
+            continue;
+        };
+        resolved.insert(
+            tint,
+            format!("rgba({r}, {g}, {b}, {})", tokens::CALLOUT_TINT_ALPHA),
+        );
+    }
 }
 
 /// Краткое описание темы для списка выбора в интерфейсе.
@@ -1118,6 +1156,33 @@ mod tests {
         let note = BTreeMap::from([("font-family-note".to_owned(), "'Verdana'".to_owned())]);
         let tokens = resolve_with(&own, Density::Normal, &note).unwrap();
         assert_eq!(tokens["font-family-note"], "'Verdana'");
+    }
+
+    /// Подложка коллаута — цвет роли в 10 % (задача 124), выведенный
+    /// сборкой; заданная темой — как задана.
+    #[test]
+    fn callout_tints_follow_the_role_colors() {
+        let tokens = resolve(&builtin(Appearance::Dark), Density::Normal).unwrap();
+        // У «One Dark» акцент — #6094ff.
+        assert_eq!(tokens["color-callout-accent"], "#6094ff");
+        assert_eq!(tokens["color-callout-accent-tint"], "rgba(96, 148, 255, 0.1)");
+
+        let own = parse(
+            r##"
+            schema = 1
+            id = "t"
+            name = "T"
+            appearance = "dark"
+
+            [color]
+            callout-danger = "#ff0000"
+            callout-success-tint = "rgba(0, 0, 0, 0.5)"
+        "##,
+        )
+        .unwrap();
+        let tokens = resolve(&own, Density::Normal).unwrap();
+        assert_eq!(tokens["color-callout-danger-tint"], "rgba(255, 0, 0, 0.1)");
+        assert_eq!(tokens["color-callout-success-tint"], "rgba(0, 0, 0, 0.5)");
     }
 
     /// Тема, выбранная по идентификатору, — это именно она, а не запасная.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { EditorSelection, EditorState, type SelectionRange } from '@codemirror/state';
 
-import { activeLineDecorations } from '../src/editor/active-line';
+import { activeLineDecorations, quietActiveLine } from '../src/editor/active-line';
 
 /**
  * Подсветка строки курсора (задача 100).
@@ -74,5 +74,18 @@ describe('подсветка строки курсора', () => {
       ),
     );
     expect(highlighted(state)).toEqual([3]);
+  });
+
+  /**
+   * В заметке с превью подсветки нет вовсе (задачи 121 и 124): класс
+   * строки курсора, даже прозрачный, перебивал подложку карточки коллаута.
+   */
+  it('в заметке с превью строка курсора не помечается', () => {
+    const state = EditorState.create({
+      doc: DOC,
+      selection: EditorSelection.cursor(at(2)),
+      extensions: quietActiveLine.of(true),
+    });
+    expect(highlighted(state)).toEqual([]);
   });
 });

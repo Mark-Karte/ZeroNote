@@ -81,6 +81,17 @@
   --zn-color-callout-number: #0550ae;
   --zn-color-callout-type: #953800;
   --zn-color-callout-function: #804edd;
+  /* Подложки карточек: выводит ядро из цвета роли (10 %). */
+  --zn-color-callout-accent-tint: rgba(9, 105, 218, 0.1);
+  --zn-color-callout-success-tint: rgba(23, 125, 54, 0.1);
+  --zn-color-callout-warning-tint: rgba(149, 99, 0, 0.1);
+  --zn-color-callout-danger-tint: rgba(207, 34, 46, 0.1);
+  --zn-color-callout-muted-tint: rgba(101, 109, 118, 0.1);
+  --zn-color-callout-keyword-tint: rgba(207, 34, 46, 0.1);
+  --zn-color-callout-string-tint: rgba(10, 48, 105, 0.1);
+  --zn-color-callout-number-tint: rgba(5, 80, 174, 0.1);
+  --zn-color-callout-type-tint: rgba(149, 56, 0, 0.1);
+  --zn-color-callout-function-tint: rgba(128, 78, 221, 0.1);
 
   /* --- Типографика --- */
   --zn-font-family-ui: 'IBM Plex Sans', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
@@ -111,6 +122,9 @@
   --zn-font-weight-heading: 600;
   --zn-font-letter-spacing-heading: 0em;
   --zn-space-note-heading: 1em;
+  --zn-font-line-height-tight: 1.3;
+  --zn-font-line-height-gap: 1;
+  --zn-control-icon-size-callout: 1.125em;
   --zn-font-size-math: 1.15em;
   --zn-font-weight-normal: 400;
   --zn-font-weight-medium: 500;

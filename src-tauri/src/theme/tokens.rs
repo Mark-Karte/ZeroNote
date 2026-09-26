@@ -73,6 +73,15 @@ pub const BASE: &[(&str, &str)] = &[
     // кегль строки, а у строки заголовка он текстовый: размер заголовка
     // лежит на куске текста внутри неё.
     ("space-note-heading", "1em"),
+    // Плотный межстрочный — строка заголовка коллаута (задача 124): у
+    // Obsidian заголовок карточки набран плотнее текста.
+    ("font-line-height-tight", "1.3"),
+    // Пустая строка внутри карточки — ровно кегль, как отступ между
+    // абзацами у Obsidian, а не целая строка текста (задача 124).
+    ("font-line-height-gap", "1"),
+    // Значок коллаута — долей кегля строки: 18 px при тексте 16 px, как
+    // у Obsidian, и столько же долей при любом кегле (задача 124).
+    ("control-icon-size-callout", "1.125em"),
     // Формула MathML (задача 115). По умолчанию движок рисует её мельче
     // текста вокруг — Cambria Math мелкая на глаз; доля, а не пиксели,
     // по той же причине, что у заголовков.
@@ -355,7 +364,33 @@ pub const SEMANTIC_COLORS: &[(&str, &str)] = &[
     ("color-callout-number", "{palette.syn-number}"),
     ("color-callout-type", "{palette.syn-type}"),
     ("color-callout-function", "{palette.syn-function}"),
+    // Подложка карточки коллаута — цвет роли в 10 % (задача 124, как
+    // у Obsidian). **Значения здесь нет по смыслу:** подложку выводит
+    // сборка из цвета роли (`derive_callout_tints`) — полупрозрачным
+    // `rgba`, а не `color-mix` в стилях: Word понимает только `rgba`,
+    // и то после смешения с листом (`export/copy.ts`). Тема вправе задать
+    // подложку сама.
+    ("color-callout-accent-tint", "transparent"),
+    ("color-callout-success-tint", "transparent"),
+    ("color-callout-warning-tint", "transparent"),
+    ("color-callout-danger-tint", "transparent"),
+    ("color-callout-muted-tint", "transparent"),
+    ("color-callout-keyword-tint", "transparent"),
+    ("color-callout-string-tint", "transparent"),
+    ("color-callout-number-tint", "transparent"),
+    ("color-callout-type-tint", "transparent"),
+    ("color-callout-function-tint", "transparent"),
 ];
+
+/// Роли цвета коллаутов — те же, что `COLOR_ROLES` в `callouts/mod.rs`;
+/// у каждой свой токен цвета и свой токен подложки.
+pub const CALLOUT_ROLES: [&str; 10] = [
+    "accent", "success", "warning", "danger", "muted", "keyword", "string", "number", "type",
+    "function",
+];
+
+/// Доля цвета роли в подложке карточки: 10 %, как у Obsidian (Р-283).
+pub const CALLOUT_TINT_ALPHA: f64 = 0.1;
 
 /// Полный список имён токенов. Используется для проверки пользовательских тем
 /// и для сверки с `tokens.css`.
@@ -391,6 +426,19 @@ mod tests {
         let mut seen = BTreeSet::new();
         for (name, _) in BASE.iter().chain(METRICS_NORMAL).chain(SEMANTIC_COLORS) {
             assert!(seen.insert(*name), "имя токена задано дважды: {name}");
+        }
+    }
+
+    /// Роли коллаутов здесь и в списке ядра — одни (задача 124): у каждой
+    /// роли из `callouts.toml` обязаны быть и цвет, и подложка.
+    #[test]
+    fn callout_roles_match_the_callout_list() {
+        assert_eq!(&CALLOUT_ROLES[..], crate::callouts::COLOR_ROLES);
+        let names = all_names();
+        for role in CALLOUT_ROLES {
+            for name in [format!("color-callout-{role}"), format!("color-callout-{role}-tint")] {
+                assert!(names.contains(&name.as_str()), "нет токена {name}");
+            }
         }
     }
 
