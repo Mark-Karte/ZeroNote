@@ -125,6 +125,42 @@ export function touched(state: EditorState, line: Line): boolean {
   return state.selection.ranges.some((range) => range.from <= line.to && range.to >= line.from);
 }
 
+/** Вид пункта списка: точка, номер или флажок задачи. */
+type ListKind = 'bullet' | 'number' | 'task';
+
+/**
+ * Знак пункта по виду: вне курсора и под курсором (исходником). Классы —
+ * в `editor.css`; украшение текста, а не замена: дефис и номер остаются
+ * в тексте, копируется файл (Р-160).
+ */
+const listMark: Record<ListKind, [Decoration, Decoration]> = {
+  bullet: [
+    Decoration.mark({ class: 'zn-list-mark zn-list-mark-bullet' }),
+    Decoration.mark({ class: 'zn-list-mark zn-list-mark-bullet zn-list-mark-source' }),
+  ],
+  number: [
+    Decoration.mark({ class: 'zn-list-mark zn-list-mark-number' }),
+    Decoration.mark({ class: 'zn-list-mark zn-list-mark-number zn-list-mark-source' }),
+  ],
+  task: [
+    Decoration.mark({ class: 'zn-list-mark zn-list-mark-task' }),
+    Decoration.mark({ class: 'zn-list-mark zn-list-mark-task zn-list-mark-source' }),
+  ],
+};
+
+/** Пробелы отступа пункта: в тексте остаются, места не занимают. */
+const listLead = Decoration.mark({ class: 'zn-list-lead' });
+
+/**
+ * Длина угловых скобок цитаты в начале строки вместе с одним пробелом
+ * за последней — их прячет правило `QuoteMark`, и отступ пункта
+ * начинается за ними.
+ */
+function quotePrefix(text: string): number {
+  const match = /^(?:[ \t]*>)+[ \t]?/.exec(text);
+  return match ? match[0].length : 0;
+}
+
 /** Сколько пробелов стоит за знаком: они прячутся вместе с ним. */
 function spacesAfter(state: EditorState, at: number, limit: number): number {
   let end = at;
@@ -264,6 +300,63 @@ export function decorateLivePreview(
     }
   };
 
+  /**
+   * Пункт списка (задача 126).
+   *
+   * Раскладка — постоянными долями кегля, как у Obsidian: строка пункта
+   * отступает на ступень вложенности плюс место знака, а первая её строка
+   * возвращается назад на место знака (`text-indent`). Так перенесённые
+   * строки и строки продолжения встают по тексту пункта, и мерить шрифт
+   * не нужно. Пробелы отступа остаются в тексте, но места не занимают
+   * (`zn-list-lead`): отступ рисует строка, а не они. Знак — в поле
+   * постоянной ширины: вне курсора дефис прозрачен и над ним точка,
+   * под курсором дефис виден, и строка не прыгает.
+   */
+  const listItem = (item: SyntaxNode, range: { from: number; to: number }): void => {
+    const mark = item.getChild('ListMark');
+    if (!mark) return;
+
+    let depth = 0;
+    for (let up = item.parent; up; up = up.parent) {
+      if (up.name === 'ListItem') depth += 1;
+    }
+    const kind: ListKind = item.getChild('Task')
+      ? 'task'
+      : item.parent?.name === 'OrderedList'
+        ? 'number'
+        : 'bullet';
+    const attributes = { style: `--list-depth: ${depth}` };
+    const inRange = (line: Line): boolean => line.from >= range.from && line.from <= range.to;
+
+    const first = doc.lineAt(mark.from);
+    if (inRange(first)) {
+      found.push(
+        Decoration.line({ class: `zn-list zn-list-${kind}`, attributes }).range(first.from),
+      );
+      const lead = first.from + quotePrefix(first.text);
+      if (lead < mark.from) found.push(listLead.range(lead, mark.from));
+      const end = mark.to + spacesAfter(state, mark.to, first.to);
+      found.push(listMark[kind][touched(state, first) ? 1 : 0].range(mark.from, end));
+    }
+
+    // Строки продолжения — строки абзацев пункта после строки знака.
+    // Код, цитаты и вложенные списки внутри пункта — своими правилами.
+    for (const child of [...item.getChildren('Paragraph'), ...item.getChildren('Task')]) {
+      const last = doc.lineAt(Math.max(child.from, child.to - 1)).number;
+      for (let number = doc.lineAt(child.from).number; number <= last; number += 1) {
+        if (number === first.number) continue;
+        const line = doc.line(number);
+        if (!inRange(line)) continue;
+        found.push(
+          Decoration.line({ class: `zn-list-cont zn-list-${kind}`, attributes }).range(line.from),
+        );
+        const lead = line.from + quotePrefix(line.text);
+        const text = lead + spacesAfter(state, lead, line.to);
+        if (lead < text) found.push(listLead.range(lead, text));
+      }
+    }
+  };
+
   for (const range of ranges) {
     tree.iterate({
       from: range.from,
@@ -296,6 +389,14 @@ export function decorateLivePreview(
             }).range(node.from, node.to),
           );
           return false;
+        }
+
+        // Пункт списка (задача 126): точка вместо дефиса, номер тише текста,
+        // вложенность — ступенью и направляющими, перенесённые строки —
+        // по тексту пункта. Раскладка — `listItem` ниже.
+        if (node.name === 'ListItem') {
+          listItem(node.node, range);
+          return;
         }
 
         // Ограждения блока кода (задача 125): вне курсора ` ```bash ` и ` ``` `
@@ -448,17 +549,19 @@ export function decorateLivePreview(
           const marker = taskState(doc.sliceString(node.from, node.to));
           if (marker === null) return;
 
-          found.push(
-            Decoration.replace({ widget: new TaskBox(marker) }).range(node.from, node.to),
-          );
+          // Флажок забирает и пробел за скобкой (задача 126): зазор до текста
+          // рисует он сам, постоянной долей кегля, — иначе перенесённая
+          // строка задачи не встала бы по её тексту.
+          const end = node.to + Math.min(spacesAfter(state, node.to, line.to), 1);
+          found.push(Decoration.replace({ widget: new TaskBox(marker) }).range(node.from, end));
 
           // Сделанная задача написана приглушённо и зачёркнуто — так видно,
           // что осталось, не читая каждую строку. Украшение текста, а не
           // строки: у задачи в несколько строк зачёркнут весь её текст,
           // но не соседние элементы списка.
           const task = node.node.parent;
-          if (marker === 'done' && task?.name === 'Task' && node.to < task.to) {
-            found.push(doneText.range(node.to, task.to));
+          if (marker === 'done' && task?.name === 'Task' && end < task.to) {
+            found.push(doneText.range(end, task.to));
           }
           return;
         }

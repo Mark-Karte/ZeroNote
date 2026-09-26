@@ -316,7 +316,10 @@ export class Renderer {
     return `<li${cls}>${parts.filter((part) => part !== '').join('\n')}</li>`;
   }
 
-  /** Задача: значок из реестра вместо `[ ]`, как в превью (задача 91). */
+  /**
+   * Задача: флажок вместо `[ ]`, как в превью (задачи 91 и 126): рамку
+   * и заливку рисует стиль документа, внутри — галочка у сделанной.
+   */
   private task(node: SyntaxNode, tight: boolean): { html: string; done: boolean } {
     const marker = node.getChild('TaskMarker');
     const state = marker ? taskState(this.text(marker.from, marker.to)) : null;
@@ -324,7 +327,7 @@ export class Renderer {
 
     const from = marker ? marker.to : node.from;
     const text = this.inline(node, from, node.to).trim();
-    const box = `<span class="zn-task">${icon(done ? 'md.task-done' : 'md.task-open')}</span>`;
+    const box = `<span class="zn-task">${done ? icon('action.check') : ''}</span>`;
     const body = done ? `<span class="zn-task-text-done">${text}</span>` : text;
     const html = `${box} ${body}`;
     return { html: tight ? html : `<p>${html}</p>`, done };

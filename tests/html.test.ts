@@ -236,7 +236,8 @@ describe('списки и задачи', () => {
 
   it('задача — значком, сделанная — зачёркнутым текстом', async () => {
     const out = await html('- [ ] купить\n- [x] позвонить\n');
-    expect(out).toContain('<li class="zn-task-item"><span class="zn-task"><svg');
+    // Флажок пустой — рамку рисует стиль; у сделанной — галочка (задача 126).
+    expect(out).toContain('<li class="zn-task-item"><span class="zn-task"></span>');
     expect(out).toContain('<li class="zn-task-item zn-task-item-done"><span class="zn-task"><svg');
     expect(out).toContain('<span class="zn-task-text-done">позвонить</span>');
   });

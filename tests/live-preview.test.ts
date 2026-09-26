@@ -39,7 +39,12 @@ function hiddenParts(doc: string, cursor = 0): string[] {
 
   const cursorIter = set.iter();
   while (cursorIter.value !== null) {
-    out.push(editor.doc.sliceString(cursorIter.from, cursorIter.to));
+    // Украшения с классом ничего не прячут: знак списка с задачи 126 —
+    // украшение текста (точка поверх дефиса), строка пункта — строки.
+    const spec = cursorIter.value.spec as { class?: string };
+    if (spec.class === undefined) {
+      out.push(editor.doc.sliceString(cursorIter.from, cursorIter.to));
+    }
     cursorIter.next();
   }
   return out;
@@ -78,16 +83,17 @@ describe('задачи списка (задача 91)', () => {
   it('знак задачи заменяется переключателем', () => {
     const doc = '- [ ] купить хлеб\n- [x] позвонить\n\n';
 
-    expect(shown(doc, doc.length)).toBe('-  купить хлеб\n-  позвонить\n\n');
-    expect(hiddenParts(doc, doc.length)).toContain('[ ]');
-    expect(hiddenParts(doc, doc.length)).toContain('[x]');
+    // Флажок забирает и пробел за скобкой (задача 126).
+    expect(shown(doc, doc.length)).toBe('- купить хлеб\n- позвонить\n\n');
+    expect(hiddenParts(doc, doc.length)).toContain('[ ] ');
+    expect(hiddenParts(doc, doc.length)).toContain('[x] ');
   });
 
   /** Правило Р-158 действует и здесь: под курсором стоит исходник. */
   it('на строке под курсором остаётся исходник', () => {
     const doc = '- [ ] первая\n- [ ] вторая\n';
 
-    expect(shown(doc, 0)).toBe('- [ ] первая\n-  вторая\n');
+    expect(shown(doc, 0)).toBe('- [ ] первая\n- вторая\n');
   });
 
   /**

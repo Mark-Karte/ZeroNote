@@ -74,6 +74,7 @@
   --zn-color-bg-highlight: rgba(9, 105, 218, 0.10);
   --zn-color-tag: #0969da;
   --zn-color-bg-tag: rgba(9, 105, 218, 0.10);
+  --zn-color-list-guide: #e4e8ec;
 
   /* --- Цвета коллаутов по ролям (задача 123): по умолчанию — роль
      интерфейса или подсветки того же имени, тема вправе задать свои. --- */
@@ -135,6 +136,16 @@
   --zn-space-tag: 0.25em 0.65em;
   --zn-radius-pill: 2em;
   --zn-font-size-tag: 0.875em;
+  --zn-space-list-nest: 0.8em;
+  --zn-space-0: 0px;
+  --zn-space-list-bullet: 1.6em;
+  --zn-space-list-number: 1.8em;
+  --zn-space-list-marker: 0.75em;
+  --zn-space-list-spacing: 0.075em;
+  --zn-space-list-task-lead: 0.45em;
+  --zn-space-list-task-gap: 0.35em;
+  --zn-control-list-dot: 0.3em;
+  --zn-control-task-size: 1.15em;
   --zn-font-size-math: 1.15em;
   --zn-font-weight-normal: 400;
   --zn-font-weight-medium: 500;

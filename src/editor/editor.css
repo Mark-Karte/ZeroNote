@@ -448,7 +448,9 @@
  */
 .cm-editor .zn-quote {
   /* Отступ и цвет черты — Obsidian (задача 125): текст на 16 px от черты,
-     черта своим токеном — у Obsidian она акцентом при обычном тексте. */
+     черта своим токеном — у Obsidian она акцентом при обычном тексте.
+     Отступ — и переменной строки: список в цитате отступает от него. */
+  --line-inset: var(--zn-space-5);
   padding-left: var(--zn-space-5);
   box-shadow: inset var(--zn-border-width-thick) 0 0 var(--zn-color-quote-bar);
 }
@@ -477,6 +479,7 @@
   /* Вид Obsidian (задача 124, Р-287): подложка цветом роли, черты нет,
      поля 12 сверху, справа и снизу, 24 слева. Черта слева прежнего вида
      и черта цитаты — та же тень — снимаются. */
+  --line-inset: var(--zn-space-6);
   padding-left: var(--zn-space-6);
   padding-right: var(--zn-space-4);
   box-shadow: none;
@@ -528,7 +531,8 @@
    текст за ней. Черта — картинкой фона от края содержимого: у последней
    строки карточки есть нижнее поле, и черта в него не заходит. */
 .cm-editor .zn-callout.zn-callout-quote {
-  padding-left: calc(var(--zn-space-6) + var(--zn-border-width-thick) + var(--zn-space-6));
+  --line-inset: calc(var(--zn-space-6) + var(--zn-border-width-thick) + var(--zn-space-6));
+  padding-left: var(--line-inset);
   background-image: linear-gradient(var(--zn-color-quote-bar), var(--zn-color-quote-bar));
   background-origin: content-box;
   background-size: var(--zn-border-width-thick) 100%;
@@ -612,36 +616,179 @@
 }
 
 /*
- * Задача списка: переключатель на месте `[ ]` (задача 91).
- *
- * Значок из реестра, а не системный флажок: тот не слушается ни токенов,
- * ни темы. Размер — та же роль значка в строке, что у callout-а.
+ * Задача списка: переключатель на месте `[ ] ` (задача 91), видом
+ * флажка Obsidian (задача 126): квадрат со скруглением, рамка тихим
+ * цветом, у сделанной — заливка акцентом и галочка из реестра значков.
+ * Свой, а не системный флажок: тот не слушается ни токенов, ни темы.
+ * Размер — доля кегля строки, зазор до текста — свой: флажок забирает
+ * пробел за скобкой, и текст задачи встаёт на постоянное место.
  */
 .cm-editor .zn-task {
   display: inline-flex;
-  vertical-align: text-bottom;
-  margin-right: var(--zn-space-1);
-  width: var(--zn-control-icon-size);
-  height: var(--zn-control-icon-size);
-  color: var(--zn-color-fg-muted);
+  box-sizing: border-box;
+  vertical-align: middle;
+  align-items: center;
+  justify-content: center;
+  margin-right: var(--zn-space-list-task-gap);
+  width: var(--zn-control-task-size);
+  height: var(--zn-control-task-size);
+  border: var(--zn-border-width) solid var(--zn-color-fg-subtle);
+  border-radius: var(--zn-radius-sm);
+  color: var(--zn-color-fg-on-accent);
+  text-indent: 0;
   cursor: pointer;
 }
 
 .cm-editor .zn-task svg {
   display: block;
-  width: 100%;
-  height: 100%;
+  width: 80%;
+  height: 80%;
 }
 
-.cm-editor .zn-task:hover,
-.cm-editor .zn-task-done {
-  color: var(--zn-color-accent);
+.cm-editor .zn-task:hover {
+  border-color: var(--zn-color-fg-muted);
 }
 
-/* Текст сделанной задачи: видно, что осталось, не читая каждую строку. */
+.cm-editor .zn-task-done,
+.cm-editor .zn-task-done:hover {
+  border-color: var(--zn-color-accent);
+  background-color: var(--zn-color-accent);
+}
+
+/* Текст сделанной задачи: видно, что осталось, не читая каждую строку.
+   Цвет — «тише», как у Obsidian (задача 126), а не «тихий»: зачёркнутое
+   и так читается хуже. */
 .cm-editor .zn-task-text-done {
-  color: var(--zn-color-fg-subtle);
+  color: var(--zn-color-fg-muted);
   text-decoration: line-through;
+}
+
+/*
+ * Список в заметке (задача 126) — раскладкой Obsidian, постоянными долями
+ * кегля (`listItem` в `live-preview.ts`).
+ *
+ * Строка пункта отступает на ступени вложенности плюс место знака;
+ * первая строка возвращается на место знака назад — перенесённые строки
+ * встают по тексту пункта. Строка продолжения — тем же отступом без
+ * возврата. Отступ цитаты и карточки, в которых лежит список, — своей
+ * переменной строки (`--line-inset`): иначе отступ списка затёр бы его.
+ *
+ * Направляющие вложенности — картинкой фона строки: по линии под точкой
+ * каждого родительского пункта, во всю высоту строки, без разрывов
+ * между строками.
+ */
+.cm-editor.zn-note .zn-list-bullet {
+  --list-mark: var(--zn-space-list-bullet);
+}
+
+.cm-editor.zn-note .zn-list-number {
+  --list-mark: var(--zn-space-list-number);
+}
+
+.cm-editor.zn-note .zn-list-task {
+  --list-mark: calc(
+    var(--zn-space-list-task-lead) + var(--zn-control-task-size) + var(--zn-space-list-task-gap)
+  );
+}
+
+.cm-editor.zn-note .zn-list,
+.cm-editor.zn-note .zn-list-cont {
+  --list-step: calc(var(--list-depth) * var(--zn-space-list-nest));
+  padding-left: calc(var(--line-inset, var(--zn-space-0)) + var(--list-step) + var(--list-mark));
+  /* Пункты чуть реже строк текста — как у Obsidian. */
+  padding-block: var(--zn-space-list-spacing);
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--zn-color-list-guide) 0 var(--zn-border-width),
+    transparent var(--zn-border-width) var(--zn-space-list-nest)
+  );
+  background-size: var(--list-step) 100%;
+  background-position: calc(
+      var(--line-inset, var(--zn-space-0)) + var(--zn-space-list-marker) +
+        var(--zn-control-list-dot) / 2
+    )
+    0;
+  background-repeat: no-repeat;
+}
+
+.cm-editor.zn-note .zn-list {
+  text-indent: calc(-1 * var(--list-mark));
+}
+
+/* Пробелы отступа — в тексте, но без места: отступ рисует строка.
+   Без переноса внутри: в поле нулевой ширины пробелы вставали бы
+   столбиком, по строке на пробел, и раздували строку (найдено на живом
+   окне). */
+.cm-editor.zn-note .zn-list-lead {
+  display: inline-block;
+  width: 0;
+  overflow: hidden;
+  white-space: pre;
+  vertical-align: top;
+}
+
+/* Место знака — постоянной ширины; знак — с отступом внутри, как
+   у Obsidian. Внутри поля свой `text-indent` сброшен: он наследуется. */
+.cm-editor.zn-note .zn-list-mark {
+  display: inline-block;
+  box-sizing: border-box;
+  width: var(--list-mark);
+  padding-left: var(--zn-space-list-marker);
+  text-indent: 0;
+  white-space: pre;
+  overflow: hidden;
+  vertical-align: top;
+  color: var(--zn-color-syntax-markup);
+}
+
+/* Точка вместо дефиса: дефис прозрачен, над ним — кружок. Под курсором
+   дефис виден, а точки нет. Прозрачен и кусок подсветки внутри поля:
+   подсветка красит знак разметки своим цветом, и дефис проступал. */
+.cm-editor.zn-note .zn-list-mark-bullet,
+.cm-editor.zn-note .zn-list-mark-bullet:not(.zn-list-mark-source) * {
+  position: relative;
+  color: transparent;
+}
+
+.cm-editor.zn-note .zn-list-mark-bullet::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: var(--zn-space-list-marker);
+  width: var(--zn-control-list-dot);
+  height: var(--zn-control-list-dot);
+  margin-top: calc(var(--zn-control-list-dot) / -2);
+  border-radius: 50%;
+  background-color: var(--zn-color-syntax-markup);
+}
+
+.cm-editor.zn-note .zn-list-mark-source {
+  color: var(--zn-color-syntax-markup);
+}
+
+.cm-editor.zn-note .zn-list-mark-source::after {
+  content: none;
+}
+
+/* Номер — цифрами одной ширины, чтобы пункты не гуляли. */
+.cm-editor.zn-note .zn-list-mark-number {
+  font-variant-numeric: tabular-nums;
+  overflow: visible;
+}
+
+/* У задачи вместо точки — флажок: дефис в узком поле и не виден. */
+.cm-editor.zn-note .zn-list-mark-task {
+  width: var(--zn-space-list-task-lead);
+  padding-left: 0;
+  color: transparent;
+}
+
+.cm-editor.zn-note .zn-list-mark-task:not(.zn-list-mark-source) * {
+  color: transparent;
+}
+
+.cm-editor.zn-note .zn-list-mark-task.zn-list-mark-source {
+  color: var(--zn-color-syntax-markup);
 }
 
 /* Заголовок callout-а — остаток первой строки. Цвет роли — и у куска

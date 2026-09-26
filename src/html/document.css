@@ -232,22 +232,38 @@
   margin-bottom: 0;
 }
 
-/* У пункта-задачи маркер списка заменён значком. */
+/* У пункта-задачи маркер списка заменён флажком — видом Obsidian, как
+   на экране (задача 126): квадрат со скруглением, у сделанной — заливка
+   акцентом и галочка. */
 .zn-doc .zn-task-item {
   list-style: none;
 }
 
 .zn-doc .zn-task {
-  margin-right: var(--zn-space-1);
-  color: var(--zn-color-fg-muted);
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  margin-right: var(--zn-space-list-task-gap);
+  width: var(--zn-control-task-size);
+  height: var(--zn-control-task-size);
+  border: var(--zn-border-width) solid var(--zn-color-fg-subtle);
+  border-radius: var(--zn-radius-sm);
+  color: var(--zn-color-fg-on-accent);
+}
+
+.zn-doc .zn-task svg {
+  width: 80%;
+  height: 80%;
 }
 
 .zn-doc .zn-task-item-done .zn-task {
-  color: var(--zn-color-accent);
+  border-color: var(--zn-color-accent);
+  background-color: var(--zn-color-accent);
 }
 
 .zn-doc .zn-task-text-done {
-  color: var(--zn-color-fg-subtle);
+  color: var(--zn-color-fg-muted);
   text-decoration: line-through;
 }
 

@@ -72,7 +72,9 @@ export class TaskBox extends WidgetType {
     box.setAttribute('aria-checked', String(done));
     box.title = done ? 'Снять отметку' : 'Отметить сделанным';
     // Разметка из собственного реестра значков, а не из файла пользователя.
-    box.innerHTML = icon(done ? 'md.task-done' : 'md.task-open');
+    // Флажок видом Obsidian (задача 126): рамку и заливку рисует стиль,
+    // внутри — только галочка у сделанной задачи.
+    box.innerHTML = done ? icon('action.check') : '';
 
     // `mousedown`, а не `click`: курсор редактор ставит именно по нажатию,
     // и отменять надо его. К моменту `click` строка уже была бы исходником.
