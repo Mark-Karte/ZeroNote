@@ -36,6 +36,11 @@ export interface Resources {
    * TeX не разобран.
    */
   math: ReadonlyMap<number, string>;
+  /**
+   * Схема mermaid по смещению узла блока → SVG в цветах бумаги
+   * (задача 118). Нет в словаре — блок выходит кодом, как написан.
+   */
+  diagrams: ReadonlyMap<number, string>;
 }
 
 export interface RenderOptions {
@@ -154,13 +159,19 @@ export class Renderer {
       case 'OrderedList':
         return this.list(node);
       case 'FencedCode':
-      case 'CodeBlock':
+      case 'CodeBlock': {
+        // Схему рисует обёртка: mermaid грузится по требованию (задача 118).
+        // SVG из mermaid в режиме `strict` — подписи вычищены DOMPurify,
+        // обработчиков нет.
+        const diagram = this.resources.diagrams.get(node.from);
+        if (diagram !== undefined) return `<div class="zn-diagram">${diagram}</div>`;
         // Раскрашенный код готовит обёртка: языки грузятся по требованию.
         // Нет его — тот же блок без раскраски, а не пустое место.
         return (
           this.resources.code.get(node.from) ??
           codeBlock(highlightedLines(blockBody(node, this.source), null), blockInfo(node, this.source))
         );
+      }
       case 'HorizontalRule':
         return '<hr>';
       case 'Table':

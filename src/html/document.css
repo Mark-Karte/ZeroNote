@@ -331,6 +331,27 @@
   width: auto;
 }
 
+/* --- Схемы (задача 118). ---
+   SVG из mermaid, нарисованный цветами бумаги: свой стиль и шрифты
+   по имени он несёт внутри, в файл экспорта отдельного стиля не нужно.
+   Ширину mermaid пишет как `100%` с пределом — своей шириной; здесь
+   только то, чего нет у самой схемы: место на листе. */
+
+.zn-doc .zn-diagram {
+  margin-top: 0;
+  margin-bottom: var(--zn-space-4);
+  text-align: center;
+  break-inside: avoid;
+  /* Длинная подпись на схеме — не текст документа: переносить её
+     посреди слова незачем, раскладку сделал mermaid. */
+  overflow-wrap: normal;
+}
+
+.zn-doc .zn-diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+
 /* Сырой HTML блоком — текстом, строками, как написан. */
 .zn-doc .zn-source {
   white-space: pre-wrap;

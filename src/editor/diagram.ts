@@ -62,39 +62,74 @@ export function diagramThemeChanged(): void {
 const drawn = new Map<string, Promise<Drawn>>();
 const DRAWN_LIMIT = 100;
 
-/** Элемент, через который браузер вычисляет значения токенов. */
-let probe: HTMLElement | null = null;
-
-/**
- * Токен темы — вычисленным значением: `rgb(…)`, а не `var(--zn-…)`.
- *
- * mermaid смешивает цвета сам (темнее, светлее — для обводок и подписей),
- * и переменная CSS ему непонятна: нужен готовый цвет.
- */
-function tokenColor(name: string): string {
-  if (probe === null) {
-    probe = document.createElement('span');
-    probe.style.display = 'none';
-    document.body.append(probe);
-  }
-  probe.style.color = `var(--zn-${name})`;
-  return getComputedStyle(probe).color;
-}
-
 /** Тёмен ли цвет `rgb(…)`: по нему mermaid выбирает, светлить или темнить. */
 function isDark(color: string): boolean {
   const [r = 255, g = 255, b = 255] = (color.match(/\d+(\.\d+)?/g) ?? []).map(Number);
   return 0.2126 * r + 0.7152 * g + 0.0722 * b < 128;
 }
 
-/** Цвета схемы — из токенов текущей темы. */
+/**
+ * Цвета схемы — из токенов, действующих внутри `scope`.
+ *
+ * Значения — вычисленными: `rgb(…)`, а не `var(--zn-…)`. mermaid смешивает
+ * цвета сам (темнее, светлее — для обводок и подписей), и переменная CSS
+ * ему непонятна: нужен готовый цвет. Вычисляет браузер — через пробник
+ * внутри `scope`, где токены те, что нужны: окна или бумаги.
+ */
+function themeIn(scope: HTMLElement): DiagramTheme {
+  const probe = document.createElement('span');
+  probe.style.display = 'none';
+  scope.append(probe);
+  const tokenColor = (name: string): string => {
+    probe.style.color = `var(--zn-${name})`;
+    return getComputedStyle(probe).color;
+  };
+  const token = (name: string): string =>
+    getComputedStyle(probe).getPropertyValue(`--zn-${name}`).trim();
+
+  try {
+    return themeFrom(tokenColor, token);
+  } finally {
+    probe.remove();
+  }
+}
+
+/** Цвета схемы в окне — токены текущей темы. */
 function currentTheme(): DiagramTheme {
+  return themeIn(document.body);
+}
+
+/**
+ * Цвета схемы на бумаге (задача 118) — токены светлой темы пары, те же,
+ * что печать ставит на документ (`print_appearance`), а не окна: схема
+ * в тёмных цветах на белом листе читалась бы как пятно.
+ *
+ * Токены ставятся на скрытый элемент, и браузер вычисляет их там — так же,
+ * как на документе при печати: значение одного токена бывает ссылкой
+ * на другой.
+ */
+export function paperTheme(tokens: Readonly<Record<string, string>>): DiagramTheme {
+  const scope = document.createElement('div');
+  scope.style.display = 'none';
+  for (const [name, value] of Object.entries(tokens)) scope.style.setProperty(`--zn-${name}`, value);
+  document.body.append(scope);
+  try {
+    return themeIn(scope);
+  } finally {
+    scope.remove();
+  }
+}
+
+/** Цвета схемы по ролям — одно правило для окна и бумаги. */
+function themeFrom(
+  tokenColor: (name: string) => string,
+  token: (name: string) => string,
+): DiagramTheme {
   const background = tokenColor('color-bg-raised');
-  const root = getComputedStyle(document.documentElement);
   return {
     dark: isDark(background),
-    fontFamily: root.getPropertyValue('--zn-font-family-ui').trim(),
-    fontSize: root.getPropertyValue('--zn-font-size-editor').trim(),
+    fontFamily: token('font-family-ui'),
+    fontSize: token('font-size-editor'),
     background,
     // Узел — утопленная подложка, как у блока кода: в светлой теме
     // темнее листа, в тёмной светлее — порядок ролей тот же (Р-083).
@@ -185,11 +220,19 @@ export class DiagramWidget extends WidgetType {
   }
 }
 
-/** Язык блока кода — что написано после кавычек, первым словом. */
-function blockLanguage(state: EditorState, node: SyntaxNode): string {
+/**
+ * Схема ли блок — по тому, что написано после кавычек, первым словом.
+ * Одно правило на превью и вывод HTML (задача 118): иначе блок был бы
+ * схемой на экране и кодом на бумаге.
+ */
+export function isDiagram(info: string | null): boolean {
+  return (info ?? '').trim().split(/\s+/)[0]!.toLowerCase() === DIAGRAM_LANGUAGE;
+}
+
+/** Что написано в ограде блока после кавычек. */
+function blockInfo(state: EditorState, node: SyntaxNode): string | null {
   const info = node.getChild('CodeInfo');
-  if (!info) return '';
-  return state.doc.sliceString(info.from, info.to).trim().split(/\s+/)[0]!.toLowerCase();
+  return info ? state.doc.sliceString(info.from, info.to) : null;
 }
 
 /**
@@ -205,7 +248,7 @@ export function diagramBlock(
   node: SyntaxNode,
   touched: (line: number) => boolean,
 ): Range<Decoration> | null {
-  if (blockLanguage(state, node) !== DIAGRAM_LANGUAGE) return null;
+  if (!isDiagram(blockInfo(state, node))) return null;
 
   const { doc } = state;
   const first = doc.lineAt(node.from);
@@ -215,7 +258,9 @@ export function diagramBlock(
     if (touched(number)) return null;
   }
 
-  const source = fencedBody(node, new Source(doc.sliceString(node.from, node.to), node.from));
+  // С начала строки, а не с ограды: отступ ограды внутри коллаута считается
+  // от знака цитаты — так же, как у вывода HTML (задача 118).
+  const source = fencedBody(node, new Source(doc.sliceString(first.from, node.to), first.from));
   if (source.trim() === '') return null;
 
   return Decoration.replace({

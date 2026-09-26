@@ -96,7 +96,7 @@ export function fencedBody(node: SyntaxNode, source: Source): string {
   const end = closing ? source.lastIndexOf('\n', closing.from) : node.to;
   if (end <= firstBreak) return '';
 
-  const cut = quoteMarks(node, source);
+  const cut = [...leadingQuotes(source, opening.from), ...quoteMarks(node, source)];
   const indent = column(source, opening.from, cut);
   return bodyLines(source, firstBreak + 1, end, indent, cut);
 }
@@ -106,7 +106,7 @@ export function fencedBody(node: SyntaxNode, source: Source): string {
  * пробела) — не код; колонка берётся у первой строки, где разбор начал блок.
  */
 export function indentedBody(node: SyntaxNode, source: Source): string {
-  const cut = quoteMarks(node, source);
+  const cut = [...leadingQuotes(source, node.from), ...quoteMarks(node, source)];
   const indent = column(source, node.from, cut);
   const first = source.lastIndexOf('\n', node.from - 1) + 1;
   return bodyLines(source, first, node.to, indent, cut);
@@ -118,6 +118,26 @@ function quoteMarks(node: SyntaxNode, source: Source): Array<[number, number]> {
     const space = source.char(quote.to) === ' ' ? 1 : 0;
     return [quote.from, quote.to + space];
   });
+}
+
+/**
+ * Знаки цитаты на строке, где блок начинается, — перед самим блоком.
+ *
+ * Они принадлежат не блоку, а цитате вокруг него, и среди детей блока
+ * их нет. Перед блоком на этой строке стоят только пробелы, знаки списка
+ * и знаки цитаты — значит, каждая `>` там знак цитаты. Без этого код
+ * в коллауте на бумаге терял по два пробела отступа в каждой строке,
+ * а код отступом в цитате выходил с `>` в первой строке (найдено задачей
+ * 118: схема в коллауте уходила в mermaid не тем текстом, что у превью).
+ */
+function leadingQuotes(source: Source, at: number): Array<[number, number]> {
+  const out: Array<[number, number]> = [];
+  for (let pos = source.lastIndexOf('\n', at - 1) + 1; pos < at; pos += 1) {
+    if (source.char(pos) !== '>') continue;
+    const space = pos + 1 < at && source.char(pos + 1) === ' ' ? 1 : 0;
+    out.push([pos, pos + 1 + space]);
+  }
+  return out;
 }
 
 /** Колонка места в его строке — после знаков цитаты. */

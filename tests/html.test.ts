@@ -40,6 +40,7 @@ function context(overrides: Partial<ConvertContext> = {}): ConvertContext {
       if (data === undefined) throw new Error('не найдено');
       return data;
     },
+    drawDiagram: async () => ({ error: 'mermaid без окна не рисует' }),
     ...overrides,
   };
 }
@@ -245,7 +246,8 @@ describe('код', () => {
     expect(out).toContain('<span class="zn-syn-string">&quot;x&quot;</span>');
   });
 
-  it('незнакомый язык и mermaid — без раскраски, но с подписью языка', async () => {
+  /** Схема, которая не нарисовалась, выходит кодом (задача 118). */
+  it('незнакомый язык и ненарисованная схема — без раскраски, но с подписью языка', async () => {
     expect(await html('```mermaid\ngraph TD\n```\n')).toBe(
       '<pre class="zn-code" data-lang="mermaid"><code><span class="zn-line">graph TD</span></code></pre>',
     );
@@ -267,6 +269,24 @@ describe('код', () => {
   it('блок отступом', async () => {
     expect(await html('текст\n\n    a\n      b\n')).toContain(
       '<pre class="zn-code"><code><span class="zn-line">a</span><span class="zn-line">  b</span></code></pre>',
+    );
+  });
+
+  /**
+   * Знак цитаты на строке, где блок начинается, принадлежит цитате, а не
+   * блоку, — и отступом блока не считается. До задачи 118 код в коллауте
+   * терял по два пробела в каждой строке, а блок отступом в цитате
+   * выходил с `>` в первой строке.
+   */
+  it('в цитате отступы кода целы', async () => {
+    expect(await html('> [!note]\n> ```\n> def f():\n>     return 1\n> ```\n')).toContain(
+      '<span class="zn-line">def f():</span><span class="zn-line">    return 1</span>',
+    );
+    expect(await html('> > ```\n> > a\n> >   b\n> > ```\n')).toContain(
+      '<span class="zn-line">a</span><span class="zn-line">  b</span>',
+    );
+    expect(await html('> цитата\n>\n>     a\n>       b\n')).toContain(
+      '<code><span class="zn-line">a</span><span class="zn-line">  b</span></code>',
     );
   });
 

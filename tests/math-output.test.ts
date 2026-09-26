@@ -19,6 +19,7 @@ const context: ConvertContext = {
   sourcePath: null,
   loadImage: async () => '',
   loadEmbed: async () => '',
+  drawDiagram: async () => ({ error: 'mermaid без окна не рисует' }),
 };
 
 /** Проверочный набор владельца (раздел 42). */

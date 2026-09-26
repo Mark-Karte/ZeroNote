@@ -2,6 +2,7 @@ import { LanguageDescription } from '@codemirror/language';
 import type { Parser, SyntaxNode } from '@lezer/common';
 
 import type { CalloutLookup } from '../editor/callouts';
+import { isDiagram, type Drawn } from '../editor/diagram';
 import { embedIsImage, localTarget } from '../editor/images';
 import { languageById } from '../editor/langs';
 import { languages } from '../editor/markdown-code';
@@ -53,6 +54,12 @@ export interface ConvertContext {
   loadImage: (link: string, base: string | null) => Promise<string>;
   /** Картинка по имени `![[…]]` → строка `data:` (`previewEmbed`). */
   loadEmbed: (target: string, from: string) => Promise<string>;
+  /**
+   * Схема mermaid → SVG в цветах бумаги (задача 118). Зовётся, только если
+   * схема в заметке есть: mermaid — самая крупная зависимость, и грузить
+   * его ради заметки без схем незачем.
+   */
+  drawDiagram: (source: string) => Promise<Drawn>;
 }
 
 export interface Converted {
@@ -136,9 +143,10 @@ export async function markdownToHtml(
   const source = new Source(text);
   const code = await highlightBlocks(blocks, source);
   const math = await renderFormulas(formulas, text, problems);
+  const diagrams = await drawDiagrams(blocks, source, context, problems);
   const images = await loadImages(paths, embeds, context, problems);
 
-  const renderer = new Renderer(source, spans, { images, code, math }, {
+  const renderer = new Renderer(source, spans, { images, code, math, diagrams }, {
     callouts: context.callouts,
     links: true,
     missingImage: 'alt',
@@ -219,6 +227,42 @@ async function renderFormulas(
     if (result === null) continue;
     if ('html' in result) out.set(node.from, result.html);
     else problems.push(`формула «${read(node.from, node.to)}» не разобрана — вышла как написана: ${result.error}`);
+  }
+  return out;
+}
+
+/**
+ * Схемы mermaid — SVG в цветах бумаги (задача 118). Блок схемы тот же,
+ * что у превью (`isDiagram`), и текст схемы тот же (`blockBody` — без
+ * знаков цитаты у схемы в коллауте).
+ *
+ * Не нарисовалась — блок выходит кодом, как написан, и это называется:
+ * на бумаге исходник схемы читается как недоделка, а причину — ошибку
+ * разбора или предел размера — человек увидит только здесь. Первой
+ * строкой: подробности mermaid с указателем на место ошибки показывает
+ * превью.
+ */
+async function drawDiagrams(
+  blocks: readonly SyntaxNode[],
+  source: Source,
+  context: ConvertContext,
+  problems: string[],
+): Promise<Map<number, string>> {
+  const out = new Map<number, string>();
+  for (const block of blocks) {
+    if (block.name !== 'FencedCode' || !isDiagram(blockInfo(block, source))) continue;
+    const body = blockBody(block, source);
+    // Пустой блок и превью не рисует: схемы в нём нет.
+    if (body.trim() === '') continue;
+
+    const result = await context.drawDiagram(body);
+    if ('svg' in result) {
+      out.set(block.from, result.svg);
+      continue;
+    }
+    const line = source.slice(0, block.from).split('\n').length;
+    const reason = (result.error.split('\n')[0] ?? '').replace(/:$/, '');
+    problems.push(`блок mermaid на строке ${line} вышел кодом — ${reason.charAt(0).toLowerCase()}${reason.slice(1)}`);
   }
   return out;
 }

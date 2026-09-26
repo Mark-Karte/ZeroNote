@@ -1,8 +1,6 @@
 import { markdownToHtml, codeToHtml } from '../html/convert';
-import { isMarkdownTab } from '../html/tab';
-import { previewEmbed, previewImage } from '../ipc/files';
+import { convertContext, isMarkdownTab } from '../html/tab';
 import { mountDocument } from '../print/print';
-import { calloutLookup } from '../state/callouts.svelte';
 import { languageOf, type Tab } from '../state/tabs.svelte';
 
 /**
@@ -146,6 +144,101 @@ function computed(element: Element): Style {
 }
 
 /**
+ * Во сколько раз картинка схемы плотнее своего места на листе. Word
+ * печатает с разрешением принтера, и картинка точка в точку по экранному
+ * размеру выходит на бумаге мыльной; вдвое — уже резко, а весит схема
+ * всё ещё десятки килобайт.
+ */
+const PICTURE_SCALE = 2;
+
+/**
+ * Размер схемы — из `viewBox`. mermaid пишет ширину как `100%`
+ * с пределом в стиле, а картинке нужны числа; раскладка документа
+ * здесь не поможет — контейнер печати на экране скрыт, и размеров
+ * у его элементов нет.
+ */
+export function diagramSize(viewBox: string | null): { width: number; height: number } | null {
+  const numbers = (viewBox ?? '').trim().split(/[\s,]+/).map(Number);
+  if (numbers.length !== 4 || numbers.some((number) => !Number.isFinite(number))) return null;
+  const [, , width = 0, height = 0] = numbers;
+  return width > 0 && height > 0 ? { width, height } : null;
+}
+
+/**
+ * Схема → картинка PNG той же величины (задача 118, решение владельца).
+ *
+ * SVG Word не вставляет — это выяснила задача 112 на значках. Схема
+ * рисуется в canvas тем же движком окна: SVG становится картинкой
+ * `data:`, картинка — пикселями. Фон — подложка под схемой (`backdrop`):
+ * у картинки с прозрачным фоном в тёмном режиме Word тёмные подписи
+ * пропали бы на тёмной странице.
+ */
+async function diagramPicture(svg: SVGSVGElement, background: string): Promise<HTMLImageElement> {
+  const size = diagramSize(svg.getAttribute('viewBox'));
+  if (size === null) throw new Error('у схемы нет размера');
+
+  const copy = svg.cloneNode(true) as SVGSVGElement;
+  copy.setAttribute('width', String(size.width));
+  copy.setAttribute('height', String(size.height));
+  // Как XML, а не как разметка HTML: подписи блок-схем — HTML внутри
+  // `foreignObject`, и `<br>` без пары картинка SVG не разберёт.
+  const text = new XMLSerializer().serializeToString(copy);
+
+  const image = new Image();
+  image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(text)}`;
+  await image.decode();
+
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.ceil(size.width * PICTURE_SCALE);
+  canvas.height = Math.ceil(size.height * PICTURE_SCALE);
+  const context = canvas.getContext('2d');
+  if (context === null) throw new Error('окно не дало холст');
+  context.fillStyle = background;
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+  const picture = document.createElement('img');
+  picture.src = canvas.toDataURL('image/png');
+  picture.width = Math.round(size.width);
+  picture.height = Math.round(size.height);
+  picture.alt = 'схема';
+  return picture;
+}
+
+/**
+ * Фон под схемой — подложка ближайшего родителя, у которого она есть:
+ * карточка коллаута или лист. Непрозрачным, как его получит Word
+ * (`opaque`): иначе схема в коллауте легла бы белым прямоугольником
+ * на серую карточку — найдено вставкой.
+ */
+function backdrop(element: Element): string {
+  for (let at: Element | null = element; at !== null; at = at.parentElement) {
+    const color = getComputedStyle(at).backgroundColor;
+    if (color !== 'rgba(0, 0, 0, 0)' && color !== 'transparent') return opaque(color);
+  }
+  return 'white';
+}
+
+/**
+ * Все схемы документа — картинками. Не вышло — схема уходит из вставки,
+ * и это называется: пустое место без слов выглядело бы потерей.
+ */
+async function diagramsToPictures(root: HTMLElement): Promise<string[]> {
+  const problems: string[] = [];
+  const svgs = Array.from(root.querySelectorAll<SVGSVGElement>('.zn-diagram > svg'));
+  for (const [index, svg] of svgs.entries()) {
+    try {
+      svg.replaceWith(await diagramPicture(svg, backdrop(svg)));
+    } catch (error) {
+      svg.closest('.zn-diagram')?.remove();
+      const reason = error instanceof Error ? error.message : String(error);
+      problems.push(`схема ${index + 1} не скопирована картинкой: ${reason}`);
+    }
+  }
+  return problems;
+}
+
+/**
  * Вписать стиль в элементы и переделать то, чего получатель не поймёт.
  *
  * Значки — рисунки SVG, а почта и Word их не вставляют: значок коллаута
@@ -273,21 +366,14 @@ export async function copyRich(
   const fragment = !whole && !ranges.some((range) => range.to > range.from && range.from === 0);
 
   const built = isMarkdownTab(tab)
-    ? await markdownToHtml(
-        text,
-        {
-          callouts: calloutLookup(),
-          sourcePath: tab.meta.path,
-          loadImage: previewImage,
-          loadEmbed: previewEmbed,
-        },
-        { fragment },
-      )
+    ? await markdownToHtml(text, convertContext(tab), { fragment })
     : await codeToHtml(text, languageOf(tab)?.id ?? null);
 
   const mounted = await mountDocument(built.html, true);
+  const problems = [...mounted.problems, ...built.problems];
   let html: string;
   try {
+    problems.push(...(await diagramsToPictures(mounted.article)));
     const wrapper = prepareForPaste(mounted.article);
     html = `<div style="${wrapper.replace(/"/g, '&quot;')}">${mounted.article.innerHTML}</div>`;
   } finally {
@@ -303,5 +389,5 @@ export async function copyRich(
     }),
   ]);
 
-  return { whole, problems: [...mounted.problems, ...built.problems] };
+  return { whole, problems };
 }

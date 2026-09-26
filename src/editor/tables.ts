@@ -95,7 +95,7 @@ export function readTable(state: EditorState, node: SyntaxNode): TableModel | nu
   const renderer = new Renderer(
     new Source(source, start),
     wikilinkSpans(source).map((span) => ({ ...span, from: span.from + start, to: span.to + start })),
-    { images: new Map(), code: new Map(), math },
+    { images: new Map(), code: new Map(), math, diagrams: new Map() },
     {
       callouts: lookupFor([]),
       // Ссылка в окне приложения увела бы само окно по адресу.
