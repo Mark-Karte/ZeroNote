@@ -144,9 +144,10 @@ describe('карточка в превью', () => {
   }
 
   /** Строки с классом исходника frontmatter. */
+  /** Строки с классом исходника frontmatter — он среди замен: его решает курсор. */
   function sourceLines(editor: EditorState): number[] {
     const out: number[] = [];
-    const iter = blockShapes(editor).lines.iter();
+    const iter = blockShapes(editor).blocks.iter();
     while (iter.value !== null) {
       const spec = iter.value.spec as { class?: string };
       if ((spec.class ?? '').split(' ').includes('zn-frontmatter')) {

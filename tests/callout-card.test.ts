@@ -130,7 +130,6 @@ describe('карточка коллаута', () => {
       expect(shapes.get(number)).toEqual(expect.arrayContaining(['zn-callout', 'zn-callout-code']));
     }
     expect(shapes.get(5)).not.toContain('zn-callout-code');
-    expect(blockShapes(state(doc), LIST).cardCode).toEqual([2, 3, 4]);
   });
 
   it('таблица внутри — в обёртке карточки, последняя — с нижним полем', () => {
@@ -158,7 +157,7 @@ describe('выделение в коде карточки', () => {
   it('красит выделенный кусок строк кода и больше ничего', () => {
     const at = doc.indexOf('ls');
     const editor = state(doc, at + 5, at);
-    const marks = cardSelection(editor, blockShapes(editor, LIST).cardCode);
+    const marks = cardSelection(editor, blockShapes(editor, LIST).lines);
     const pieces: string[] = [];
     const iter = marks.iter();
     while (iter.value !== null) {
@@ -170,6 +169,6 @@ describe('выделение в коде карточки', () => {
 
   it('без выделения — ничего', () => {
     const editor = state(doc, doc.indexOf('ls'));
-    expect(cardSelection(editor, blockShapes(editor, LIST).cardCode).size).toBe(0);
+    expect(cardSelection(editor, blockShapes(editor, LIST).lines).size).toBe(0);
   });
 });
