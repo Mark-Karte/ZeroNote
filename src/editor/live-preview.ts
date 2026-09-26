@@ -298,6 +298,26 @@ export function decorateLivePreview(
           return false;
         }
 
+        // Ограждения блока кода (задача 125): вне курсора ` ```bash ` и ` ``` `
+        // прячутся, строки остаются полями блока сверху и снизу — как
+        // у Obsidian; язык блока показывает подпись справа
+        // (`code-blocks.ts`). Единица раскрытия — блок (Р-184): курсор
+        // на любой его строке возвращает оба ограждения, как у Obsidian.
+        if (node.name === 'FencedCode') {
+          const first = doc.lineAt(node.from).number;
+          const last = doc.lineAt(Math.max(node.from, node.to - 1)).number;
+          for (let number = first; number <= last; number += 1) {
+            if (touched(state, doc.line(number))) return;
+          }
+          for (const child of [...node.node.getChildren('CodeMark'), ...node.node.getChildren('CodeInfo')]) {
+            // Сведения о языке тянутся до конца строки ограждения — вместе
+            // с тем, что за языком написано.
+            const end = child.name === 'CodeInfo' ? doc.lineAt(child.from).to : child.to;
+            if (child.from < end) found.push(hidden.range(child.from, end));
+          }
+          return;
+        }
+
         // Знаки вокруг куска текста: `**`, `*`, `~~`, `==`, обратная кавычка.
         if (MARKS.has(node.name)) {
           if (parent && INLINE.has(parent.name)) hide(node.from, node.to);

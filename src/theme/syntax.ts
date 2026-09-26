@@ -85,6 +85,11 @@ export const zeronoteHighlight = HighlightStyle.define([
     fontSize: `var(--zn-font-size-editor-heading-${level})`,
     letterSpacing: `calc(var(--zn-font-letter-spacing-heading) * ${HEADING_SQUEEZE[level - 1]})`,
   })),
+  // Цитата — раньше ссылки, курсива и жирного, и порядок здесь — правило:
+  // разметка внутри цитаты получает оба класса на одном куске, и побеждает
+  // тот, что объявлен позже. Цитата стояла последней, и ссылка в цитате
+  // и в коллауте выходила цветом цитаты (найдено сравнением, задача 125).
+  { tag: [tags.quote, tags.meta], color: c('quote') },
   { tag: [tags.link, tags.url], color: c('link') },
   { tag: tags.emphasis, color: c('emphasis'), fontStyle: 'italic' },
   {
@@ -92,7 +97,6 @@ export const zeronoteHighlight = HighlightStyle.define([
     color: c('strong'),
     fontWeight: 'var(--zn-font-weight-strong)',
   },
-  { tag: [tags.quote, tags.meta], color: c('quote') },
   // Зачёркнутое в markdown: цвет не меняем, меняем начертание.
   { tag: tags.strikethrough, textDecoration: 'line-through' },
   // Строчный код — подложкой, как блок кода, но без рамки: короткий кусок
@@ -105,9 +109,10 @@ export const zeronoteHighlight = HighlightStyle.define([
   },
   // Выделение `==так==` — не CommonMark, разбор свой (`markdown-highlight.ts`),
   // и подложка у него ярче, чем у строчного кода: это пометка, а не код.
+  // Цвет — своим токеном (задача 125): у Obsidian это жёлтый маркер.
   {
     tag: tags.special(tags.emphasis),
-    backgroundColor: 'var(--zn-color-bg-selected)',
+    backgroundColor: 'var(--zn-color-bg-highlight)',
     borderRadius: 'var(--zn-radius-sm)',
   },
   // Знаки разметки: решётки заголовка, звёздочки жирного, угловая скобка
@@ -129,11 +134,13 @@ export const zeronoteHighlight = HighlightStyle.define([
  * `zn-mono` — строчный код и текст блока кода без языка: в заметке
  * с пропорциональным шрифтом им нужен моноширинный (`editor.css`).
  * `zn-quote-text` — текст цитаты: в карточке коллаута он обычного цвета,
- * а в заголовке карточки — цвета роли (задача 124).
+ * а в заголовке карточки — цвета роли (задача 124). `zn-marked-text` —
+ * ссылка, курсив и жирный: у них цвет свой, и карточка его не трогает.
  */
 export const markupClasses = HighlightStyle.define([
   { tag: tags.monospace, class: 'zn-mono' },
   { tag: tags.quote, class: 'zn-quote-text' },
+  { tag: [tags.link, tags.url, tags.emphasis, tags.strong], class: 'zn-marked-text' },
 ]);
 
 export const syntaxColors: Extension = [

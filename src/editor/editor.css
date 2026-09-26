@@ -406,7 +406,16 @@
 }
 
 .cm-editor .zn-tag {
-  color: var(--zn-color-syntax-heading);
+  color: var(--zn-color-tag);
+}
+
+/* Тег в заметке — плашкой, как у Obsidian (задача 125). В исходнике без
+   превью полей нет: столбцы стоят на месте. */
+.cm-editor.zn-note .zn-tag {
+  padding: var(--zn-space-tag);
+  border-radius: var(--zn-radius-pill);
+  background-color: var(--zn-color-bg-tag);
+  font-size: var(--zn-font-size-tag);
 }
 
 :root[data-follow] .cm-editor .zn-wikilink:hover,
@@ -438,8 +447,10 @@
  * читаться как отодвинутая, а не как вложенная в список.
  */
 .cm-editor .zn-quote {
-  padding-left: var(--zn-space-3);
-  box-shadow: inset var(--zn-border-width-thick) 0 0 var(--zn-color-syntax-quote);
+  /* Отступ и цвет черты — Obsidian (задача 125): текст на 16 px от черты,
+     черта своим токеном — у Obsidian она акцентом при обычном тексте. */
+  padding-left: var(--zn-space-5);
+  box-shadow: inset var(--zn-border-width-thick) 0 0 var(--zn-color-quote-bar);
 }
 
 /*
@@ -513,12 +524,12 @@
   line-height: var(--zn-font-line-height-gap);
 }
 
-/* Цитата внутри карточки — черта акцентом по левому краю текста карточки,
+/* Цитата внутри карточки — черта цитаты по левому краю текста карточки,
    текст за ней. Черта — картинкой фона от края содержимого: у последней
    строки карточки есть нижнее поле, и черта в него не заходит. */
 .cm-editor .zn-callout.zn-callout-quote {
   padding-left: calc(var(--zn-space-6) + var(--zn-border-width-thick) + var(--zn-space-6));
-  background-image: linear-gradient(var(--zn-color-accent), var(--zn-color-accent));
+  background-image: linear-gradient(var(--zn-color-quote-bar), var(--zn-color-quote-bar));
   background-origin: content-box;
   background-size: var(--zn-border-width-thick) 100%;
   background-position: calc(-1 * (var(--zn-border-width-thick) + var(--zn-space-6))) 0;
@@ -531,7 +542,7 @@
    а слоёв два. Подложка кода непрозрачна — у Obsidian код в коллауте
    нейтральный, а не цвета роли, — и выделение на таких строках рисует
    поле блочного превью куском поверх (`zn-card-selection`). */
-.cm-editor .zn-callout.zn-callout-code {
+.cm-editor.zn-note .zn-callout.zn-callout-code {
   padding-left: calc(var(--zn-space-6) + var(--zn-space-5));
   box-shadow: none;
   border-radius: 0;
@@ -545,7 +556,7 @@
   background-repeat: no-repeat;
 }
 
-.cm-editor .zn-callout.zn-callout-code.zn-callout-last {
+.cm-editor.zn-note .zn-callout.zn-callout-code.zn-callout-last {
   border-bottom-left-radius: var(--zn-radius-sm);
   border-bottom-right-radius: var(--zn-radius-sm);
 }
@@ -571,8 +582,14 @@
 /* Текст карточки — обычным цветом, как у Obsidian, а не цветом цитаты:
    коллаут — не чужие слова, а выделенный блок своих. Класс куска
    цитаты — постоянный (`theme/syntax.ts`). */
-.cm-editor .zn-callout .zn-quote-text {
+.cm-editor .zn-callout .zn-quote-text:not(.zn-marked-text) {
   color: var(--zn-color-fg-default);
+}
+
+/* Вики-ссылка в цитате: кусок текста внутри неё несёт класс цитаты и красил
+   бы ссылку цветом цитаты — ссылка берёт свой (задача 125). */
+.cm-editor .zn-wikilink .zn-quote-text {
+  color: inherit;
 }
 
 /* Значок вместо знака `[!тип]`. Цвет — роли, размер — доля кегля строки:
@@ -683,7 +700,7 @@
  */
 .cm-editor .zn-html-mark,
 .cm-editor .zn-table mark {
-  background-color: var(--zn-color-bg-selected);
+  background-color: var(--zn-color-bg-highlight);
   border-radius: var(--zn-radius-sm);
   color: inherit;
 }
@@ -700,7 +717,12 @@
  * строку на пиксель.
  */
 .cm-editor .zn-hr {
-  box-shadow: inset 0 calc(-1 * var(--zn-border-width)) 0 var(--zn-color-border-default);
+  /* Черта в 2 px посередине строки, как у Obsidian (задача 125), — а не
+     в 1 px по её низу. Картинкой фона: строка не меняет высоты. */
+  background-image: linear-gradient(var(--zn-color-border-default), var(--zn-color-border-default));
+  background-size: 100% var(--zn-border-width-thick);
+  background-position: 0 50%;
+  background-repeat: no-repeat;
 }
 
 /*
@@ -725,15 +747,18 @@
 
 .cm-editor .zn-table th,
 .cm-editor .zn-table td {
-  padding: var(--zn-space-1) var(--zn-space-3);
-  border: var(--zn-border-width) solid var(--zn-color-border-subtle);
+  /* Меры Obsidian (задача 125): поля 4 и 8, рамка цветом рамки, плотный
+     межстрочный. */
+  padding: var(--zn-space-2) var(--zn-space-3);
+  border: var(--zn-border-width) solid var(--zn-color-border-default);
+  line-height: var(--zn-font-line-height-tight);
   text-align: left;
   vertical-align: top;
 }
 
-/* Заголовок — та же роль утопленного, что у блока кода (Р-083). */
+/* Заголовок — жирным, без подложки, как у Obsidian (задача 125). До этого
+   он лежал на роли утопленного (Р-083). */
 .cm-editor .zn-table th {
-  background-color: var(--zn-color-bg-canvas);
   font-weight: var(--zn-font-weight-strong);
 }
 
@@ -851,6 +876,56 @@
   margin-inline-start: var(--zn-space-3);
   vertical-align: middle;
   user-select: none;
+}
+
+/*
+ * Блок кода в заметке — видом Obsidian (задача 125): без рамки, скругление
+ * 4 px, текст с отступом 16 px, ограждения вне курсора спрятаны
+ * (`live-preview.ts`) — их строки остаются полями блока. Подпись языка —
+ * в правом углу строки ограждения: в заметке строки переносятся, прокрутки
+ * вбок нет, и угол никуда не уезжает. Кнопка копирования — под указателем.
+ * Только в заметке: в исходнике без превью отступ сдвинул бы столбцы.
+ */
+.cm-editor.zn-note .zn-code-block {
+  padding-left: var(--zn-space-5);
+  box-shadow: none;
+}
+
+.cm-editor.zn-note .zn-code-block-first {
+  position: relative;
+  border-start-start-radius: var(--zn-radius-sm);
+  border-start-end-radius: var(--zn-radius-sm);
+}
+
+.cm-editor.zn-note .zn-code-block-last {
+  border-end-start-radius: var(--zn-radius-sm);
+  border-end-end-radius: var(--zn-radius-sm);
+}
+
+.cm-editor.zn-note .zn-code-head {
+  position: absolute;
+  top: 0;
+  right: var(--zn-space-3);
+  height: 100%;
+  margin: 0;
+}
+
+.cm-editor.zn-note .zn-code-copy {
+  opacity: 0;
+}
+
+.cm-editor.zn-note .zn-code-block-first:hover .zn-code-copy,
+.cm-editor.zn-note .zn-code-copy:focus-visible,
+.cm-editor.zn-note .zn-code-copy.zn-code-copied,
+.cm-editor.zn-note .zn-code-copy.zn-code-copy-failed {
+  opacity: 1;
+}
+
+/* Строчный код в заметке — с полями и скруглением, как у Obsidian;
+   подложку даёт подсветка (`theme/syntax.ts`). */
+.cm-editor.zn-note .cm-line:not(.zn-code-block) .zn-mono {
+  padding: var(--zn-space-code-inline);
+  border-radius: var(--zn-radius-sm);
 }
 
 .cm-editor .zn-code-lang {

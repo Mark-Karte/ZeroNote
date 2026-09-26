@@ -66,6 +66,14 @@ syntax-operator = "#db1e3c"
 syntax-punctuation = "#5c5c5c"
 syntax-variable = "#00817f"
 
+# Цитата: черта акцентом, текст обычным цветом.
+quote-bar = "#9873f7"
+syntax-quote = "#222222"
+
+# `==выделение==` — жёлтым маркером, тег — плашкой акцента в 10 %.
+bg-highlight = "rgba(255, 208, 0, 0.4)"
+bg-tag = "rgba(152, 115, 247, 0.1)"
+
 # Коллауты — цветами Obsidian, поправленными как выше.
 callout-accent = "#086ddd"     # note, info, todo — синий
 callout-function = "#00817f"   # abstract, tip, important — бирюзовый

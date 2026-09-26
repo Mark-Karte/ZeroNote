@@ -3,7 +3,7 @@ import { EditorState } from '@codemirror/state';
 import { ensureSyntaxTree } from '@codemirror/language';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 
-import { decorateBlocks, languageLabel } from '../src/editor/code-blocks';
+import { blockBody, decorateBlocks, languageLabel } from '../src/editor/code-blocks';
 import { languages } from '../src/editor/markdown-code';
 
 /**
@@ -104,6 +104,35 @@ describe('подпись и кнопка', () => {
 
   it('строятся и у блока без языка: копировать есть что', () => {
     expect(widgetLines(['```', 'а', '```', ''].join('\n'))).toEqual([1]);
+  });
+
+  /**
+   * Блок в цитате или коллауте (задача 125): ограждение узнаётся по разбору,
+   * а не по началу строки, — строки начинаются с `> `. До этого закрывающее
+   * ограждение уезжало в копируемый текст, а блок без языка подписывался
+   * «нет подсветки».
+   */
+  it('у блока в коллауте — язык по разбору, в буфер — без знаков цитаты', () => {
+    const doc = ['> [!note] Т', '> ```', '> ls -la', '>', '> echo', '> ```', ''].join('\n');
+    const editor = state(doc);
+    const set = decorateBlocks(editor, [{ from: 0, to: editor.doc.length }]);
+    let head: { label: string | null; named: string; body: string } | undefined;
+    const cursor = set.iter();
+    while (cursor.value !== null) {
+      const widget = (cursor.value.spec as { widget?: typeof head }).widget;
+      if (widget) head = widget;
+      cursor.next();
+    }
+    expect(head?.label).toBe(null);
+    expect(head?.named).toBe('');
+    expect(head?.body).toBe('ls -la\n\necho');
+  });
+});
+
+describe('текст для буфера', () => {
+  it('без отступа пункта, пустые строки — пустыми', () => {
+    const doc = ['- пункт', '  ```sh', '  ls', '', '  pwd', '  ```', ''].join('\n');
+    expect(blockBody(state(doc), 3, 5, '  ')).toBe('ls\n\npwd');
   });
 });
 

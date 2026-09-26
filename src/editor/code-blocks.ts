@@ -20,14 +20,12 @@ import { languages } from './markdown-code';
  * Подключается только вместе с markdown (см. `langs.ts`): в файле `.rs` весь
  * текст и так код, и выделять в нём нечего.
  *
- * **Чем это отличается от того же в Obsidian.** Там блок оформляется в режиме
- * чтения, где ограждение из обратных кавычек спрятано, и подпись языка — это
- * единственный способ узнать, какой он. У нас редактор исходного текста,
- * ограждение видно всегда, и повторять его подписью было бы пустой строкой
- * на экране. Поэтому подпись показывает не то, что написано в ограждении,
- * а то, чем мы это признали: ```c++ подписан «C / C++», а ```jsonc —
- * «нет подсветки». Второе — единственный способ понять, почему блок не
- * раскрасился; из самого текста этого не видно.
+ * **Подпись справа, как у Obsidian** (задача 125). В заметке с превью
+ * ограждения вне курсора спрятаны (`live-preview.ts`), и подпись — это
+ * единственный способ узнать язык блока. Показывает она то, чем мы язык
+ * признали: ```c++ подписан «C / C++». Незнакомое имя — как написано,
+ * цветом предупреждения и с пояснением: блок не раскрасится, и из самого
+ * текста не видно почему. Ограждение без языка — без подписи.
  *
  * Обходятся только видимые строки. Блок может быть длиной в файл, а на экране
  * всегда полсотни строк — инвариант 6 не делает исключения для оформления.
@@ -67,8 +65,8 @@ class HeaderWidget extends WidgetType {
   constructor(
     /** Подпись языка либо `null`, если признать не удалось или нечего. */
     readonly label: string | null,
-    /** Было ли в ограждении что-то написано. */
-    readonly named: boolean,
+    /** Что написано в ограждении первым словом; пусто — ничего. */
+    readonly named: string,
     /** Что кладём в буфер обмена по нажатию. */
     readonly body: string,
   ) {
@@ -95,10 +93,10 @@ class HeaderWidget extends WidgetType {
       name.className = 'zn-code-lang';
       name.textContent = this.label;
       host.append(name);
-    } else if (this.named) {
+    } else if (this.named !== '') {
       const unknown = document.createElement('span');
       unknown.className = 'zn-code-lang zn-code-lang-unknown';
-      unknown.textContent = 'нет подсветки';
+      unknown.textContent = this.named;
       unknown.title = 'Такого языка нет в наборе — блок останется без цвета';
       host.append(unknown);
     }
@@ -154,6 +152,23 @@ class HeaderWidget extends WidgetType {
  * без окна: сборка украшений — чистая работа над состоянием, а `toDOM` виджета
  * зовётся уже при отрисовке.
  */
+/**
+ * Текст блока для буфера обмена: строки с `from` по `to` без того, что стоит
+ * перед ограждением, — `> ` цитаты или отступа пункта. Строка, у которой
+ * такого начала нет (пустая `>` в коллауте), теряет то, что от него есть.
+ */
+export function blockBody(state: EditorState, from: number, to: number, prefix: string): string {
+  const out: string[] = [];
+  const bare = prefix.trimEnd();
+  for (let number = from; number <= to; number += 1) {
+    const text = state.doc.line(number).text;
+    if (prefix !== '' && text.startsWith(prefix)) out.push(text.slice(prefix.length));
+    else if (bare !== '' && text.startsWith(bare)) out.push(text.slice(bare.length));
+    else out.push(text);
+  }
+  return out.join('\n');
+}
+
 export function decorateBlocks(
   state: EditorState,
   ranges: readonly { from: number; to: number }[],
@@ -178,9 +193,16 @@ export function decorateBlocks(
         const closing = doc.lineAt(Math.max(node.from, node.to - 1));
 
         // Закрывающее ограждение может отсутствовать: блок пишут сверху вниз,
-        // и половину времени он не дописан.
+        // и половину времени он не дописан. Узнаётся по разбору, а не по
+        // виду строки: у блока в цитате или коллауте строка начинается
+        // с `> `, и проверка «строка начинается с кавычек» его не видела —
+        // закрывающее ограждение уезжало в копируемый текст, а блок без
+        // языка подписывался «нет подсветки» (найдено сравнением, задача 125).
+        const marks = node.node.getChildren('CodeMark');
         const fenced =
-          closing.number > opening.number && /^\s*(```|~~~)/.test(closing.text);
+          closing.number > opening.number &&
+          marks.length > 1 &&
+          doc.lineAt(marks[marks.length - 1]!.from).number === closing.number;
         const bodyFrom = opening.number + 1;
         const bodyTo = fenced ? closing.number - 1 : closing.number;
 
@@ -188,11 +210,14 @@ export function decorateBlocks(
         // уехала за верхний край, показывать нечего: виджет живёт в строке,
         // а не в углу блока.
         if (opening.from >= range.from && opening.from <= range.to) {
-          const info = opening.text.replace(/^\s*(```|~~~)/, '');
+          const infoNode = node.node.getChild('CodeInfo');
+          const info = infoNode ? doc.sliceString(infoNode.from, infoNode.to) : '';
+          // Всё, что стоит перед ограждением, — угловые скобки цитаты или
+          // отступ пункта — повторяется у каждой строки блока и в буфер
+          // обмена не идёт.
+          const prefix = marks[0] ? doc.sliceString(opening.from, marks[0].from) : '';
           const body =
-            bodyTo >= bodyFrom
-              ? doc.sliceString(doc.line(bodyFrom).from, doc.line(bodyTo).to)
-              : '';
+            bodyTo >= bodyFrom ? blockBody(state, bodyFrom, bodyTo, prefix) : '';
 
           builder.add(
             opening.from,
@@ -203,7 +228,11 @@ export function decorateBlocks(
             opening.to,
             opening.to,
             Decoration.widget({
-              widget: new HeaderWidget(languageLabel(info), info.trim() !== '', body),
+              widget: new HeaderWidget(
+                languageLabel(info),
+                info.trim().split(/\s+/)[0] ?? '',
+                body,
+              ),
               side: 1,
             }),
           );

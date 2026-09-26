@@ -125,7 +125,7 @@
 /* `<mark>` и `==выделение==` — подложкой выделения темы, как в превью;
    у браузера `<mark>` чёрный по жёлтому при любой теме. */
 .zn-doc mark {
-  background-color: var(--zn-color-bg-selected);
+  background-color: var(--zn-color-bg-highlight);
   border-radius: var(--zn-radius-sm);
   color: inherit;
 }
@@ -133,6 +133,7 @@
 /* Код — шрифтом редактора и долей кегля заметки, как в превью
    (задача 122). */
 .zn-doc code {
+  padding: var(--zn-space-code-inline);
   background-color: var(--zn-color-bg-canvas);
   border-radius: var(--zn-radius-sm);
   font-family: var(--zn-font-family-editor);
@@ -147,9 +148,10 @@
   font-size: var(--zn-font-size-note-code);
 }
 
+/* Черта в 2 px, как на экране (задача 125). */
 .zn-doc hr {
   border: none;
-  border-top: var(--zn-border-width) solid var(--zn-color-border-default);
+  border-top: var(--zn-border-width-thick) solid var(--zn-color-border-default);
 }
 
 /* --- Цитата и коллаут: черта слева, как в превью. --- */
@@ -157,8 +159,8 @@
 .zn-doc blockquote {
   margin-left: 0;
   margin-right: 0;
-  padding-left: var(--zn-space-4);
-  border-left: var(--zn-border-width-thick) solid var(--zn-color-syntax-quote);
+  padding-left: var(--zn-space-5);
+  border-left: var(--zn-border-width-thick) solid var(--zn-color-quote-bar);
   color: var(--zn-color-syntax-quote);
 }
 
@@ -251,10 +253,11 @@
 
 /* --- Код. --- */
 
+/* Блок кода — видом Obsidian, как на экране (задача 125): без рамки,
+   скругление 4 px. */
 .zn-doc pre {
-  padding: var(--zn-space-3) var(--zn-space-4);
-  border: var(--zn-border-width) solid var(--zn-color-border-subtle);
-  border-radius: var(--zn-radius-md);
+  padding: var(--zn-space-4) var(--zn-space-5);
+  border-radius: var(--zn-radius-sm);
   background-color: var(--zn-color-bg-block);
   font-family: var(--zn-font-family-editor);
   /* Перенос, а не прокрутка: у бумаги её нет. Хвост длинной строки встаёт
@@ -393,16 +396,17 @@
   border-collapse: collapse;
 }
 
+/* Таблица — мерами Obsidian, как на экране (задача 125). */
 .zn-doc th,
 .zn-doc td {
-  padding: var(--zn-space-1) var(--zn-space-3);
-  border: var(--zn-border-width) solid var(--zn-color-border-subtle);
+  padding: var(--zn-space-2) var(--zn-space-3);
+  border: var(--zn-border-width) solid var(--zn-color-border-default);
+  line-height: var(--zn-font-line-height-tight);
   text-align: left;
   vertical-align: top;
 }
 
 .zn-doc th {
-  background-color: var(--zn-color-bg-canvas);
   font-weight: var(--zn-font-weight-strong);
 }
 
