@@ -105,6 +105,23 @@ pub const BASE: &[(&str, &str)] = &[
     ("space-list-task-gap", "0.35em"),
     ("control-list-dot", "0.3em"),
     ("control-task-size", "1.15em"),
+    // Карточка свойств из frontmatter (задача 127) — мерами Obsidian,
+    // долями кегля заметки: поля карточки (снизу — его отступ до текста,
+    // 2em), строка свойства в 1,75 кегля, место ключа 9em, поля ключа
+    // и значения, зазор между строками и между плашками, кегль ключа
+    // и значения, значок типа.
+    ("space-properties", "0.5em 0 2em"),
+    ("control-property-row", "1.75em"),
+    ("control-property-key-width", "9em"),
+    ("space-property-cell", "0.25em 0.5em"),
+    ("space-property-gap", "0.1875em"),
+    ("space-property-pills", "0.375em"),
+    ("space-property-icon", "0.25em"),
+    ("font-size-property", "0.875em"),
+    // Межстрочный плашки — единица, как у Obsidian: высоту плашке дают
+    // поля, иначе строка с тегами выходит выше соседних.
+    ("font-line-height-pill", "1"),
+    ("control-icon-size-property", "1em"),
     // Формула MathML (задача 115). По умолчанию движок рисует её мельче
     // текста вокруг — Cambria Math мелкая на глаз; доля, а не пиксели,
     // по той же причине, что у заголовков.

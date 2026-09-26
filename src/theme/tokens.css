@@ -145,6 +145,16 @@
   --zn-space-list-task-gap: 0.35em;
   --zn-control-list-dot: 0.3em;
   --zn-control-task-size: 1.15em;
+  --zn-space-properties: 0.5em 0 2em;
+  --zn-control-property-row: 1.75em;
+  --zn-control-property-key-width: 9em;
+  --zn-space-property-cell: 0.25em 0.5em;
+  --zn-space-property-gap: 0.1875em;
+  --zn-space-property-pills: 0.375em;
+  --zn-space-property-icon: 0.25em;
+  --zn-font-size-property: 0.875em;
+  --zn-font-line-height-pill: 1;
+  --zn-control-icon-size-property: 1em;
   --zn-font-size-math: 1.15em;
   --zn-font-weight-normal: 400;
   --zn-font-weight-medium: 500;

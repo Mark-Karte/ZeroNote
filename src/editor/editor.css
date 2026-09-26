@@ -664,6 +664,133 @@
 }
 
 /*
+ * Свойства — frontmatter карточкой (задача 127), мерами Obsidian: строка
+ * в 1,75 кегля, ключ со значком типа на месте в 9em, значение справа.
+ * Шрифт — интерфейса, как у Obsidian: карточка — не текст заметки,
+ * а её поля. Меры — от кегля строки, кегль ключа и значения — меньше,
+ * у своих кусков: иначе строка и поля съёжились бы вместе с ним.
+ *
+ * Карточка только показывает: щелчок по свойству ставит курсор в его
+ * строку, и frontmatter раскрывается исходником (Р-184). Обводка под
+ * указателем говорит ровно это — «сюда можно щёлкнуть».
+ */
+.cm-editor .zn-properties {
+  display: flex;
+  flex-direction: column;
+  gap: var(--zn-space-property-gap);
+  padding: var(--zn-space-properties);
+  font-family: var(--zn-font-family-ui);
+  line-height: var(--zn-font-line-height-tight);
+  color: var(--zn-color-fg-muted);
+  cursor: text;
+}
+
+.cm-editor .zn-property {
+  display: flex;
+  align-items: flex-start;
+  border-radius: var(--zn-radius-md);
+}
+
+.cm-editor .zn-property:hover {
+  box-shadow: 0 0 0 var(--zn-border-width) var(--zn-color-border-default);
+}
+
+.cm-editor .zn-property-key {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  box-sizing: border-box;
+  width: var(--zn-control-property-key-width);
+  min-height: var(--zn-control-property-row);
+  padding-left: var(--zn-space-property-icon);
+}
+
+.cm-editor .zn-property-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  width: var(--zn-control-icon-size-property);
+  height: var(--zn-control-icon-size-property);
+}
+
+.cm-editor .zn-property-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.cm-editor .zn-property-name {
+  padding: var(--zn-space-property-cell);
+  overflow: hidden;
+  font-size: var(--zn-font-size-property);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cm-editor .zn-property-value {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--zn-space-property-pills);
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: var(--zn-control-property-row);
+  padding: var(--zn-space-property-cell);
+  color: var(--zn-color-fg-default);
+  overflow-wrap: anywhere;
+}
+
+.cm-editor .zn-property-text,
+.cm-editor .zn-property-pill {
+  font-size: var(--zn-font-size-property);
+}
+
+/* Пункт списка — плашкой с обводкой, тег — плашкой тега из текста. */
+.cm-editor .zn-property-pill {
+  padding: var(--zn-space-tag);
+  border: var(--zn-border-width) solid var(--zn-color-border-default);
+  border-radius: var(--zn-radius-pill);
+  line-height: var(--zn-font-line-height-pill);
+}
+
+.cm-editor .zn-property-tag {
+  border-color: transparent;
+  background-color: var(--zn-color-bg-tag);
+  color: var(--zn-color-tag);
+}
+
+/* Да-нет — флажком видом флажка задачи, но без щелчка: превью меняет
+   текст только у задачи (Р-231). */
+.cm-editor .zn-property-check {
+  display: inline-flex;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  width: var(--zn-control-task-size);
+  height: var(--zn-control-task-size);
+  border: var(--zn-border-width) solid var(--zn-color-fg-subtle);
+  border-radius: var(--zn-radius-sm);
+  color: var(--zn-color-fg-on-accent);
+}
+
+.cm-editor .zn-property-check svg {
+  display: block;
+  width: 80%;
+  height: 80%;
+}
+
+.cm-editor .zn-property-check-done {
+  border-color: var(--zn-color-accent);
+  background-color: var(--zn-color-accent);
+}
+
+/* Frontmatter исходником — шрифтом кода: YAML держится отступами. */
+.cm-editor.zn-note .zn-frontmatter {
+  font-family: var(--zn-font-family-editor);
+  font-size: var(--zn-font-size-note-code);
+}
+
+/*
  * Список в заметке (задача 126) — раскладкой Obsidian, постоянными долями
  * кегля (`listItem` в `live-preview.ts`).
  *

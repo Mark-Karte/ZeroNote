@@ -20,11 +20,13 @@ import { lookupFor, parseCallout, type CalloutLookup, type CalloutStyle } from '
 import { diagramBlock } from './diagram';
 import { touched } from './live-preview';
 import { MathWidget, drawsAsBlock, mathSource } from './math';
+import { propertiesBlock } from './properties';
 import { tableBlock } from './tables';
 
 /**
  * Блочное превью: всё, что заменяется целыми строками, — таблицы
- * (задача 73), блочные формулы (задача 115) и схемы mermaid (задача 117), —
+ * (задача 73), блочные формулы (задача 115), схемы mermaid (задача 117)
+ * и свойства из frontmatter (задача 127), —
  * и строки, у которых меняются высота и поля, — заголовки (задача 122)
  * и карточки коллаутов (задача 124).
  *
@@ -263,6 +265,22 @@ export function blockShapes(
           quotes.push(null);
         }
         return undefined;
+      }
+
+      // Frontmatter — карточкой свойств (задача 127), а исходником —
+      // шрифтом кода: YAML держится отступами, и пропорциональный шрифт
+      // заметки их бы сдвинул.
+      if (node.name === 'Frontmatter') {
+        const block = propertiesBlock(state, node.node);
+        if (block) {
+          place(block);
+        } else {
+          const last = lastLine(node.from, node.to);
+          for (let number = doc.lineAt(node.from).number; number <= last; number += 1) {
+            add(number, 'zn-frontmatter');
+          }
+        }
+        return false;
       }
 
       if (node.name === 'Table' || node.name === 'BlockMath') {

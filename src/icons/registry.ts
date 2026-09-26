@@ -149,7 +149,15 @@ export type IconName =
   | 'md.mermaid'
   | 'md.table'
   | 'md.code-block'
-  | 'md.divider';
+  | 'md.divider'
+  | 'prop.text'
+  | 'prop.number'
+  | 'prop.checkbox'
+  | 'prop.date'
+  | 'prop.datetime'
+  | 'prop.list'
+  | 'prop.tags'
+  | 'prop.aliases';
 
 const ICONS: Record<IconName, string> = {
   // Знак приложения: ноль со штрихом — «zero» и перо разом. Тот же рисунок,
@@ -578,6 +586,33 @@ const ICONS: Record<IconName, string> = {
   // Черта между строками — и толще их.
   'md.divider':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M3.4 4h9.2M3.4 12h9.2" stroke-width="1.3"/><path d="M2.4 8h11.2" stroke-width="2"/></svg>',
+
+  // Значки типов свойств (задача 127): тип значения во frontmatter
+  // сказан значком, как у Obsidian, а не словом (Р-178).
+  // Строки текста, последняя короче.
+  'prop.text':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M2.8 4.2h10.4M2.8 8h10.4M2.8 11.8h6.4"/></svg>',
+  // Двоичные «1» и «0» в два ряда — число.
+  'prop.number':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 2.8h1.4v4.4M3.2 7.2h2.8"/><rect x="9.4" y="2.6" width="3.4" height="4.6" rx="1.2"/><rect x="3.2" y="8.8" width="3.4" height="4.6" rx="1.2"/><path d="M10.2 8.8h1.4v4.4M10.2 13.2h2.8"/></svg>',
+  // Квадрат с галочкой — да или нет.
+  'prop.checkbox':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2.6" y="2.6" width="10.8" height="10.8" rx="2"/><path d="M5.4 8.2l1.8 1.8 3.4-3.8"/></svg>',
+  // Лист календаря — дата.
+  'prop.date':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><rect x="2.6" y="3.4" width="10.8" height="10" rx="1.4"/><path d="M2.6 6.6h10.8M5.6 2.2v2.4M10.4 2.2v2.4"/></svg>',
+  // Часы — дата со временем.
+  'prop.datetime':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.8"/><path d="M8 4.8V8l2.2 1.4"/></svg>',
+  // Точки со строками — список.
+  'prop.list':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M3 4h.01M3 8h.01M3 12h.01"/><path d="M6.4 4h7.2M6.4 8h7.2M6.4 12h7.2"/></svg>',
+  // Ярлык с дырочкой — теги.
+  'prop.tags':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M2.4 3.4v4l6.2 6.2a1 1 0 0 0 1.4 0l3.6-3.6a1 1 0 0 0 0-1.4L7.4 2.4h-4a1 1 0 0 0-1 1Z"/><circle cx="5.2" cy="5.2" r=".9" fill="currentColor" stroke="none"/></svg>',
+  // Стрелка вбок из-под черты — другое имя той же заметки.
+  'prop.aliases':
+    '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M3.4 13V9.8a3 3 0 0 1 3-3h7"/><path d="M10.4 3.8l3 3-3 3"/></svg>',
 
   'status.warning':
     '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"><path d="M8 2.4 14.4 13H1.6z"/><path d="M8 6.6v2.8" stroke-linecap="round"/><path d="M8 11.3v.1" stroke-linecap="round"/></svg>',
