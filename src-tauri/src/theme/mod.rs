@@ -345,34 +345,7 @@ pub fn token_value(theme: &ThemeFile, name: &str, density: Density) -> Option<St
         }
     }
 
-    // Шрифт заметки, не заданный темой, — шрифт редактора этой темы.
-    if let Some(editor) = editor_counterpart(name) {
-        return token_value(theme, editor, density);
-    }
-
     layer_default(name, density)
-}
-
-/// Токены заметки, которые по умолчанию равны токенам редактора
-/// (задача 122).
-///
-/// До этапа 18 заметка набиралась шрифтом редактора, и человек, выбравший
-/// `[font.editor]`, видел его и в заметках. Свой шрифт заметки не должен
-/// этого отнять: пока ни тема, ни человек не задали его явно, он **следует**
-/// за шрифтом редактора — вместе с выбором человека, а не только с темой.
-/// Поэтому правило живёт здесь, в сборке, а не значением в `tokens.rs`:
-/// значение там было бы копией и разошлось бы с выбором человека.
-const NOTE_FOLLOWS_EDITOR: [(&str, &str); 2] = [
-    ("font-family-note", "font-family-editor"),
-    ("font-size-note", "font-size-editor"),
-];
-
-/// Токен редактора, за которым следует данный токен заметки.
-fn editor_counterpart(name: &str) -> Option<&'static str> {
-    NOTE_FOLLOWS_EDITOR
-        .iter()
-        .find(|(note, _)| *note == name)
-        .map(|(_, editor)| *editor)
 }
 
 /// Значение слоя токенов, до темы: база, метрики нужной плотности,
@@ -499,16 +472,6 @@ pub fn resolve_with(
             return Err(ThemeError::UnknownToken { name: name.clone() });
         }
         values.insert(name.clone(), value.clone());
-    }
-
-    // Шрифт заметки, которого не задали ни тема, ни человек, — шрифт
-    // редактора, уже с выбором человека (`NOTE_FOLLOWS_EDITOR`).
-    for (note, editor) in NOTE_FOLLOWS_EDITOR {
-        let key = &note["font-".len()..];
-        let explicit = theme.font.contains_key(key) || overrides.contains_key(note);
-        if !explicit && let Some(value) = values.get(editor).cloned() {
-            values.insert(note.to_owned(), value);
-        }
     }
 
     let palette = effective_palette(theme);
@@ -1110,27 +1073,26 @@ mod tests {
         assert_eq!(token_value(&theme, "нет-такого", Density::Normal), None);
     }
 
-    /// Шрифт заметки, не заданный ни темой, ни человеком, — шрифт редактора,
-    /// и вместе с выбором человека (задача 122): до этапа 18 заметка
-    /// набиралась шрифтом редактора, и `[font.editor]` доезжал до неё.
+    /// У заметки свой шрифт, пропорциональный во всех темах (задача 128,
+    /// ответ владельца): выбор шрифта редактора его не трогает, тема
+    /// и человек задают его сами.
     #[test]
-    fn note_font_follows_the_editor_font_until_set() {
+    fn note_font_is_its_own() {
         let plain = builtin(Appearance::Dark);
         let tokens = resolve(&plain, Density::Normal).unwrap();
-        assert_eq!(tokens["font-family-note"], tokens["font-family-editor"]);
-        assert_eq!(tokens["font-size-note"], tokens["font-size-editor"]);
-
-        // Человек выбрал шрифт редактора — заметка едет за ним.
-        let chosen = BTreeMap::from([
-            ("font-family-editor".to_owned(), "'Fira Code', monospace".to_owned()),
-            ("font-size-editor".to_owned(), "16px".to_owned()),
-        ]);
-        let tokens = resolve_with(&plain, Density::Normal, &chosen).unwrap();
-        assert_eq!(tokens["font-family-note"], "'Fira Code', monospace");
+        assert!(tokens["font-family-note"].starts_with("'Segoe UI'"), "{}", tokens["font-family-note"]);
         assert_eq!(tokens["font-size-note"], "16px");
 
-        // Тема задала свой шрифт заметки — он и стоит, шрифт редактора
-        // человека его не трогает.
+        // Человек выбрал шрифт редактора — заметка его не берёт.
+        let chosen = BTreeMap::from([
+            ("font-family-editor".to_owned(), "'Fira Code', monospace".to_owned()),
+            ("font-size-editor".to_owned(), "18px".to_owned()),
+        ]);
+        let tokens = resolve_with(&plain, Density::Normal, &chosen).unwrap();
+        assert!(tokens["font-family-note"].starts_with("'Segoe UI'"));
+        assert_eq!(tokens["font-size-note"], "16px");
+
+        // Тема задала свой шрифт заметки — он и стоит.
         let own = parse(
             r##"
             schema = 1
@@ -1139,18 +1101,12 @@ mod tests {
             appearance = "dark"
 
             [font]
-            family-note = "system-ui, sans-serif"
+            family-note = "'JetBrains Mono', monospace"
         "##,
         )
         .unwrap();
-        let tokens = resolve_with(&own, Density::Normal, &chosen).unwrap();
-        assert_eq!(tokens["font-family-note"], "system-ui, sans-serif");
-        assert_eq!(tokens["font-size-note"], "16px", "размер тема не задала — следует за редактором");
-        assert_eq!(
-            token_value(&own, "font-size-note", Density::Normal).as_deref(),
-            Some("14px"),
-            "запасное значение для выбора человека — размер редактора темы"
-        );
+        let tokens = resolve(&own, Density::Normal).unwrap();
+        assert_eq!(tokens["font-family-note"], "'JetBrains Mono', monospace");
 
         // Человек задал шрифт заметки — сильнее всего.
         let note = BTreeMap::from([("font-family-note".to_owned(), "'Verdana'".to_owned())]);

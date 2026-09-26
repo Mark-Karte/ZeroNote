@@ -100,8 +100,8 @@ callout-type = "#e0de71"
 # Шрифты Obsidian на Windows: текст — системный (Segoe UI), код —
 # Cascadia Mono, запасной — Consolas. Вшитый JetBrains Mono — последним:
 # на машине без Cascadia и Consolas не остаться с Courier.
-family-ui = "system-ui, 'Segoe UI', sans-serif"
-family-note = "system-ui, 'Segoe UI', sans-serif"
+family-ui = "'Segoe UI', system-ui, sans-serif"
+family-note = "'Segoe UI', system-ui, sans-serif"
 family-editor = "'Cascadia Mono', Consolas, 'JetBrains Mono', monospace"
 
 # Текст заметки 16 px, код в ней — 0,875 от текста (14 px).

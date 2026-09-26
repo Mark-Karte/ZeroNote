@@ -109,11 +109,10 @@
   --zn-font-size-editor: 14px;
   --zn-font-line-height-ui: 1.4;
   --zn-font-line-height-editor: 1.5;
-  /* Шрифт заметки: пока тема или человек не задали свой — шрифт
-     редактора (правило держит ядро, `resolve_with`). */
-  --zn-font-family-note: 'JetBrains Mono', 'Cascadia Mono', Consolas, 'Courier New', monospace;
-  --zn-font-size-note: 14px;
-  --zn-font-size-note-code: 1em;
+  /* Шрифт заметки — пропорциональный во всех темах (задача 128). */
+  --zn-font-family-note: 'Segoe UI', system-ui, sans-serif;
+  --zn-font-size-note: 16px;
+  --zn-font-size-note-code: 0.875em;
   --zn-font-size-editor-heading-1: 1.5em;
   --zn-font-size-editor-heading-2: 1.28em;
   --zn-font-size-editor-heading-3: 1.12em;

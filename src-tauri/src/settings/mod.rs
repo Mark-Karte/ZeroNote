@@ -316,8 +316,8 @@ impl Default for EditorSettings {
 pub struct FontSettings {
     pub ui: FontChoice,
     pub editor: FontChoice,
-    /// Шрифт заметки — markdown с превью (задача 122). Пусто — из темы,
-    /// а тема без своего шрифта заметки даёт шрифт редактора.
+    /// Шрифт заметки — markdown с превью (задачи 122 и 128). Пусто —
+    /// из темы, у всех тем пропорциональный.
     pub note: FontChoice,
 }
 
@@ -674,7 +674,7 @@ density = "normal"
 # size = 14
 
 # Шрифт заметок — markdown с превью. Если не задан ни здесь, ни в теме —
-# тот же, что у редактора. Код в заметке остаётся шрифтом редактора.
+# Segoe UI, 16 пикселей. Код в заметке остаётся шрифтом редактора.
 # [font.note]
 # family = "IBM Plex Sans"
 # size = 16

@@ -564,9 +564,8 @@ bg-0 = "#010203"
         // Интерфейс не задет.
         assert!(!state.tokens["font-family-ui"].contains("Cascadia"));
         assert!(state.problems.is_empty(), "{:?}", state.problems);
-        // Заметка без своего шрифта едет за выбранным шрифтом редактора
-        // (задача 122).
-        assert_eq!(state.tokens["font-family-note"], state.tokens["font-family-editor"]);
+        // У заметки свой шрифт (задача 128): выбор редактора его не трогает.
+        assert!(state.tokens["font-family-note"].starts_with("'Segoe UI'"));
         assert_eq!(state.tokens["font-size-note"], "16px");
         let _ = fs::remove_dir_all(&dir);
     }
@@ -586,7 +585,7 @@ bg-0 = "#010203"
 
         let family = &state.tokens["font-family-note"];
         assert!(family.starts_with("'IBM Plex Sans', "), "{family}");
-        assert!(family.contains("JetBrains Mono"), "запасной шрифт пропал: {family}");
+        assert!(family.contains("Segoe UI"), "запасной шрифт пропал: {family}");
         assert_eq!(state.tokens["font-size-note"], "16px");
         assert!(state.tokens["font-family-editor"].starts_with("'JetBrains Mono'"));
         assert_eq!(state.tokens["font-size-editor"], "14px");
