@@ -9,7 +9,6 @@ import { markdownSupport } from '../src/editor/markdown-language';
 import { MathWidget, loadMath, mathSource, renderMath } from '../src/editor/math';
 import { toMathML } from '../src/editor/math-render';
 import { lookupFor } from '../src/editor/callouts';
-import { markdownToHtml } from '../src/html/convert';
 
 /**
  * Формулы (задача 115, Р-276): разбор `$…$` и `$$…$$`, правило доллара,
@@ -233,20 +232,5 @@ describe('превью', () => {
     const editor = state(doc, doc.length);
     expect(widgets(blockDecorations(editor), doc)).toEqual([]);
     expect(widgets(decorateLivePreview(editor, [{ from: 0, to: doc.length }]), doc)).toEqual(['$$x$$']);
-  });
-});
-
-describe('вывод HTML до задачи 116', () => {
-  const context = {
-    callouts: lookupFor([]),
-    sourcePath: null,
-    loadImage: async () => '',
-    loadEmbed: async () => '',
-  };
-
-  /** Исчезнувшая формула хуже формулы исходником. */
-  it('формула выходит как написана, а не пропадает', async () => {
-    const out = await markdownToHtml('$$x^2$$\n\nи $y$ в строке\n', context);
-    expect(out.html).toBe('<p class="zn-source">$$x^2$$</p>\n<p>и $y$ в строке</p>');
   });
 });

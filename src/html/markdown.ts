@@ -24,12 +24,18 @@ import type { Source } from './source';
  * так рендер проверяется тестом без ядра и без загрузки языков.
  */
 
-/** Что приготовлено заранее: байты картинок и раскрашенный код. */
+/** Что приготовлено заранее: байты картинок, раскрашенный код, формулы. */
 export interface Resources {
   /** Картинка по ключу `imageKey` → строка `data:`. */
   images: ReadonlyMap<string, string>;
   /** Блок кода по смещению его узла → строки `highlightedLines`. */
   code: ReadonlyMap<number, string>;
+  /**
+   * Формула по смещению её узла → разметка MathML (задача 116). Нет
+   * в словаре — формула выходит как написана: Temml не загружен или
+   * TeX не разобран.
+   */
+  math: ReadonlyMap<number, string>;
 }
 
 export interface RenderOptions {
@@ -159,10 +165,13 @@ export class Renderer {
         return '<hr>';
       case 'Table':
         return this.table(node);
-      case 'BlockMath':
-        // Формула на бумаге — задача 116. До неё — как написано, а не
-        // пустое место: исчезнувшая формула хуже формулы исходником.
+      case 'BlockMath': {
+        // MathML готовит обёртка: Temml грузится по требованию (задача 116).
+        // Нет его — формула как написана, а не пустое место.
+        const math = this.resources.math.get(node.from);
+        if (math !== undefined) return `<div class="zn-math-block">${math}</div>`;
         return `<p class="zn-source">${escapeHtml(this.text(node.from, node.to))}</p>`;
+      }
       case 'HTMLBlock':
         // Сырой HTML блоком — текстом, как его показывает превью. Строки
         // сохраняются: это чаще всего разметка, и склеенная в одну строку
@@ -485,6 +494,11 @@ export class Renderer {
         return whole(`<del>${this.inner(node, 'StrikethroughMark')}</del>`);
       case 'Highlight':
         return whole(`<mark>${this.inner(node, 'HighlightMark')}</mark>`);
+      case 'InlineMath': {
+        const math = this.resources.math.get(node.from);
+        if (math !== undefined) return whole(`<span class="zn-math">${math}</span>`);
+        return whole(escapeHtml(this.text(node.from, node.to)));
+      }
       case 'InlineCode': {
         const marks = node.getChildren('CodeMark');
         const from = marks[0] ? marks[0].to : node.from;

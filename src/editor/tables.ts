@@ -1,3 +1,4 @@
+import { syntaxTree } from '@codemirror/language';
 import type { EditorState, Range } from '@codemirror/state';
 import type { SyntaxNode } from '@lezer/common';
 import { Decoration, EditorView, WidgetType } from '@codemirror/view';
@@ -5,6 +6,7 @@ import { Decoration, EditorView, WidgetType } from '@codemirror/view';
 import { Renderer, alignmentsFrom, type Align } from '../html/markdown';
 import { Source } from '../html/source';
 import { lookupFor } from './callouts';
+import { loadMath, mathReady, mathSource, renderMath } from './math';
 import { touched } from './live-preview';
 import { wikilinkSpans } from './wikilinks';
 
@@ -48,6 +50,12 @@ export interface TableModel {
   rows: Cell[][];
   /** Исходник таблицы целиком: по нему виджет понимает, менялось ли что-то. */
   source: string;
+  /**
+   * Формулы в ячейках нарисованы (Temml был загружен). Нет — они
+   * исходником, и виджет пересоздаётся, как только Temml приедет:
+   * при той же таблице иначе он так и остался бы с исходником.
+   */
+  math: boolean;
 }
 
 /**
@@ -63,10 +71,31 @@ export function readTable(state: EditorState, node: SyntaxNode): TableModel | nu
 
   // Вывод видит только кусок таблицы, но со смещениями документа: копировать
   // всю заметку ради одной таблицы незачем. Вики-ссылки ищутся там же.
+  // Формулы в ячейках — тем же Temml, что у превью (задача 116). Ждать его
+  // здесь нельзя: разбор таблицы синхронный. Не загружен — формула
+  // исходником, а загрузка начинается, и виджет пересоздастся, когда
+  // Temml приедет (`math` в модели).
+  const math = new Map<number, string>();
+  const read = (from: number, to: number): string => doc.sliceString(from, to);
+  let formulas = false;
+  syntaxTree(state).iterate({
+    from: node.from,
+    to: node.to,
+    enter(inner) {
+      if (inner.name !== 'InlineMath') return undefined;
+      formulas = true;
+      const formula = mathSource(read, inner.node);
+      const result = renderMath(formula.tex, formula.display);
+      if (result !== null && 'html' in result) math.set(inner.from, result.html);
+      return false;
+    },
+  });
+  if (formulas && !mathReady()) void loadMath();
+
   const renderer = new Renderer(
     new Source(source, start),
     wikilinkSpans(source).map((span) => ({ ...span, from: span.from + start, to: span.to + start })),
-    { images: new Map(), code: new Map() },
+    { images: new Map(), code: new Map(), math },
     {
       callouts: lookupFor([]),
       // Ссылка в окне приложения увела бы само окно по адресу.
@@ -100,7 +129,7 @@ export function readTable(state: EditorState, node: SyntaxNode): TableModel | nu
 
   if (head.length === 0 && rows.length === 0) return null;
 
-  return { align, head, rows, source };
+  return { align, head, rows, source, math: !formulas || mathReady() };
 }
 
 /**
@@ -153,7 +182,11 @@ export class TableWidget extends WidgetType {
    * не туда.
    */
   override eq(other: TableWidget): boolean {
-    return other.model.source === this.model.source && other.start === this.start;
+    return (
+      other.model.source === this.model.source &&
+      other.start === this.start &&
+      other.model.math === this.model.math
+    );
   }
 
   override toDOM(view: EditorView): HTMLElement {

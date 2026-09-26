@@ -26,7 +26,8 @@ export default defineConfig({
     environment: 'node',
     // Стиль документа приезжает в печать строкой (`?inline`), и тест
     // печати проверяет, что он там есть. Без этого vitest отдаёт вместо
-    // любого CSS пустую строку.
-    css: { include: [/src[\\/](html|print)[\\/].*\.css/] },
+    // любого CSS пустую строку. Таблица Temml — туда же: экспорт в HTML
+    // кладёт её в файл строкой (задача 116), и тест это проверяет.
+    css: { include: [/src[\\/](html|print)[\\/].*\.css/, /temml[\\/]dist[\\/]Temml-Local\.css/] },
   },
 });

@@ -305,6 +305,32 @@
   color: var(--zn-color-syntax-invalid);
 }
 
+/* --- Формулы (задача 116). ---
+   MathML рисует движок того, кто читает, — окна при печати и PDF,
+   браузера у файла экспорта. Таблица стилей Temml (выравнивание столбцов,
+   шрифт штрихов) едет рядом: в окне — куском по требованию, в файл
+   экспорта — строкой. Размер — токеном, как в превью. */
+
+.zn-doc math {
+  font-size: var(--zn-font-size-math);
+}
+
+.zn-doc .zn-math-block {
+  margin-top: 0;
+  margin-bottom: var(--zn-space-4);
+  text-align: center;
+  break-inside: avoid;
+}
+
+/* Выключная формула внутри строки (`$$x$$` посреди абзаца или в пункте
+   списка) стоит в строке, как в превью. `display` Temml пишет в атрибут
+   `style`, перебить его можно только `!important`; значение `inline math`,
+   иначе движок перестаёт раскладывать формулу как формулу. */
+.zn-doc span.zn-math math.tml-display {
+  display: inline math !important;
+  width: auto;
+}
+
 /* Сырой HTML блоком — текстом, строками, как написан. */
 .zn-doc .zn-source {
   white-space: pre-wrap;

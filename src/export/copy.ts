@@ -171,9 +171,31 @@ function prepareForPaste(root: HTMLElement): string {
     });
   }
 
+  // Word съедает обычный пробел сразу за формулой — «V_REFберётся»
+  // (найдено вставкой, задача 116), в любой разметке вокруг неё.
+  // Неразрывный он оставляет, и формула заодно не отрывается от слова.
+  // Знак — кодом: записанный в исходник, он доехал бы невидимым.
+  const nbsp = String.fromCharCode(0xa0);
+  for (const box of Array.from(root.querySelectorAll('.zn-math'))) {
+    const next = box.nextSibling;
+    if (next?.nodeType === Node.TEXT_NODE && next.textContent?.startsWith(' ')) {
+      next.textContent = nbsp + next.textContent.slice(1);
+    }
+  }
+
+  // Формулы — MathML как есть (задача 116). Вычисленный стиль каждого
+  // `<mi>` и `<mfrac>` получателю не нужен: формулу раскладывает он сам.
+  // Пространство имён в разметке HTML не пишется — `innerHTML` его
+  // опускает, — а без него MathML для получателя просто незнакомые теги.
+  for (const math of Array.from(root.querySelectorAll('math'))) {
+    math.setAttribute('xmlns', 'http://www.w3.org/1998/Math/MathML');
+  }
+
   // Потом стиль: вычисляется весь разом, до первой записи, — иначе
   // вписанный стиль родителя менял бы то, с чем сравнивают детей.
-  const elements = Array.from(root.querySelectorAll('*'));
+  const elements = Array.from(root.querySelectorAll('*')).filter(
+    (element) => element.closest('math') === null,
+  );
   const styles = new Map<Element, Style>([[root, computed(root)]]);
   for (const element of elements) styles.set(element, computed(element));
 

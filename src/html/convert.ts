@@ -6,6 +6,7 @@ import { embedIsImage, localTarget } from '../editor/images';
 import { languageById } from '../editor/langs';
 import { languages } from '../editor/markdown-code';
 import { fragmentParser, markdownSupport } from '../editor/markdown-language';
+import { loadMath, mathSource, renderMath } from '../editor/math';
 import { linkTarget, wikilinkSpans } from '../editor/wikilinks';
 import { codeBlock, highlightedLines } from './code';
 import { Renderer, blockBody, blockInfo, imageKey } from './markdown';
@@ -97,9 +98,15 @@ export async function markdownToHtml(
   // поле не выводится, и грузить из него картинку незачем.
   const blocks: SyntaxNode[] = [];
   const verbatim: SyntaxNode[] = [];
+  const formulas: SyntaxNode[] = [];
   const paths = new Set<string>();
   tree.iterate({
     enter(node) {
+      if (node.name === 'InlineMath' || node.name === 'BlockMath') {
+        formulas.push(node.node);
+        verbatim.push(node.node);
+        return false;
+      }
       if (node.name === 'FencedCode' || node.name === 'CodeBlock') {
         blocks.push(node.node);
         verbatim.push(node.node);
@@ -128,9 +135,10 @@ export async function markdownToHtml(
 
   const source = new Source(text);
   const code = await highlightBlocks(blocks, source);
+  const math = await renderFormulas(formulas, text, problems);
   const images = await loadImages(paths, embeds, context, problems);
 
-  const renderer = new Renderer(source, spans, { images, code }, {
+  const renderer = new Renderer(source, spans, { images, code, math }, {
     callouts: context.callouts,
     links: true,
     missingImage: 'alt',
@@ -184,6 +192,34 @@ async function highlightBlocks(
     out.set(block.from, codeBlock(highlightedLines(blockBody(block, body), parser), info));
   }
 
+  return out;
+}
+
+/**
+ * Формулы — разметкой MathML (задача 116). Temml грузится, только если
+ * формула в документе есть: тот же кусок, что у превью, и та же таблица
+ * стилей — печать и PDF ставят документ в это же окно и берут её оттуда.
+ *
+ * Неразобранная формула выходит как написана, и это называется: на бумаге
+ * исходник TeX читается как опечатка, а не как решение.
+ */
+async function renderFormulas(
+  formulas: readonly SyntaxNode[],
+  text: string,
+  problems: string[],
+): Promise<Map<number, string>> {
+  const out = new Map<number, string>();
+  if (formulas.length === 0) return out;
+  await loadMath();
+
+  const read = (from: number, to: number): string => text.slice(from, to);
+  for (const node of formulas) {
+    const math = mathSource(read, node);
+    const result = renderMath(math.tex, math.display);
+    if (result === null) continue;
+    if ('html' in result) out.set(node.from, result.html);
+    else problems.push(`формула «${read(node.from, node.to)}» не разобрана — вышла как написана: ${result.error}`);
+  }
   return out;
 }
 

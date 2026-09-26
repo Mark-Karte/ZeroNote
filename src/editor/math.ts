@@ -279,6 +279,11 @@ export function loadMath(): Promise<void> {
   return loading;
 }
 
+/** Загружен ли Temml: тогда формула рисуется сразу, без ожидания. */
+export function mathReady(): boolean {
+  return engine !== null;
+}
+
 /**
  * Готовая разметка по тексту формулы. Формулы в заметке меняются редко,
  * а украшения пересобираются на каждое движение курсора: без памяти
