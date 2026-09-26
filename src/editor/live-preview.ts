@@ -15,6 +15,7 @@ import { lookupFor, parseCallout, type CalloutLookup } from './callouts';
 import type { IconName } from '../icons/registry';
 import { EmbedWidget, ImageWidget, embedIsImage, localTarget } from './images';
 import { pairTags, readTag, type InlineTag, type PlacedTag } from './inline-html';
+import { MathWidget, drawsAsBlock, mathSource } from './math';
 import { TaskBox, taskState } from './tasks';
 import { CODE_NODES, insideNode, linkTarget, wikilinkSpans } from './wikilinks';
 
@@ -277,9 +278,29 @@ export function decorateLivePreview(
         // Таблицу этот плагин не трогает: она заменяется целиком, а замена
         // через границу строк меняет высоту документа, и такие украшения
         // CodeMirror от плагина не принимает вовсе — только от поля состояния.
-        // Её показ живёт в `tables.ts` (задача 73). Внутрь не спускаемся:
-        // украшать то, что закрыто сеткой, незачем.
+        // Её показ живёт в `block-preview.ts` (задача 73). Внутрь
+        // не спускаемся: украшать то, что закрыто сеткой, незачем.
         if (node.name === 'Table') return false;
+
+        // Формулы (задача 115). Блочную целыми строками рисует то же поле,
+        // что таблицы; здесь — строчная и однострочная выключная в пункте
+        // списка или в коллауте (`drawsAsBlock`): её замена строк
+        // не пересекает.
+        if (node.name === 'InlineMath' || node.name === 'BlockMath') {
+          if (node.name === 'BlockMath' && drawsAsBlock(doc, node.from, node.to)) return false;
+          const line = doc.lineAt(node.from);
+          // Формула через перенос строки остаётся исходником: плагину
+          // замена через границу строк запрещена, а полю такая мелочь
+          // не стоит обхода.
+          if (node.to > line.to || touched(state, line)) return false;
+          const read = (from: number, to: number): string => doc.sliceString(from, to);
+          found.push(
+            Decoration.replace({
+              widget: new MathWidget(read(node.from, node.to), mathSource(read, node.node), false),
+            }).range(node.from, node.to),
+          );
+          return false;
+        }
 
         // Знаки вокруг куска текста: `**`, `*`, `~~`, `==`, обратная кавычка.
         if (MARKS.has(node.name)) {

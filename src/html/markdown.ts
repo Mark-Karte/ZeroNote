@@ -159,6 +159,10 @@ export class Renderer {
         return '<hr>';
       case 'Table':
         return this.table(node);
+      case 'BlockMath':
+        // Формула на бумаге — задача 116. До неё — как написано, а не
+        // пустое место: исчезнувшая формула хуже формулы исходником.
+        return `<p class="zn-source">${escapeHtml(this.text(node.from, node.to))}</p>`;
       case 'HTMLBlock':
         // Сырой HTML блоком — текстом, как его показывает превью. Строки
         // сохраняются: это чаще всего разметка, и склеенная в одну строку

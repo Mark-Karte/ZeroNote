@@ -3,6 +3,7 @@ import type { Parser } from '@lezer/common';
 import type { MarkdownParser } from '@lezer/markdown';
 
 import { frontmatter } from './frontmatter';
+import { mathSyntax } from './math';
 import { languages } from './markdown-code';
 import { highlightMark } from './markdown-highlight';
 
@@ -23,8 +24,9 @@ export function markdownSupport() {
     codeLanguages: languages,
     // Выделение `==так==`: его ставит наша панель разметки, а в GFM такого
     // узла нет (задача 57). Frontmatter — узлом, а не своим поиском
-    // по тексту у каждого потребителя (задача 114).
-    extensions: [highlightMark, frontmatter],
+    // по тексту у каждого потребителя (задача 114). Формулы `$…$`
+    // и `$$…$$` — тоже узлами (задача 115).
+    extensions: [highlightMark, frontmatter, mathSyntax],
   });
 }
 

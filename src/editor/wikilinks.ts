@@ -128,8 +128,17 @@ export function linkTarget(inner: string): string {
   return withoutHeading.trim();
 }
 
-/** Узлы кода: внутри них нет ни ссылок, ни тегов (Р-069). */
-export const CODE_NODES: ReadonlySet<string> = new Set(['FencedCode', 'CodeBlock', 'InlineCode']);
+/**
+ * Узлы кода: внутри них нет ни ссылок, ни тегов (Р-069). Формула — тоже
+ * код, на TeX: `\#` там знак, а не тег (задача 115).
+ */
+export const CODE_NODES: ReadonlySet<string> = new Set([
+  'FencedCode',
+  'CodeBlock',
+  'InlineCode',
+  'InlineMath',
+  'BlockMath',
+]);
 
 /** Лежит ли место внутри узла одного из этих видов. */
 export function insideNode(tree: Tree, pos: number, names: ReadonlySet<string>): boolean {

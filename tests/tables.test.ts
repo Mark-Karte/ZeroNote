@@ -3,7 +3,8 @@ import { EditorSelection, EditorState } from '@codemirror/state';
 import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 
-import { readTable, tableDecorations, type TableModel } from '../src/editor/tables';
+import { blockDecorations } from '../src/editor/block-preview';
+import { readTable, type TableModel } from '../src/editor/tables';
 import { languages } from '../src/editor/markdown-code';
 import { alignmentsFrom } from '../src/html/markdown';
 
@@ -169,7 +170,7 @@ describe('разбор таблицы', () => {
 /** Что заменено сеткой: куски текста, которых не будет на экране. */
 function replaced(doc: string, cursor: number): string[] {
   const editor = state(doc, cursor);
-  const set = tableDecorations(editor);
+  const set = blockDecorations(editor);
   const out: string[] = [];
 
   const iter = set.iter();

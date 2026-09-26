@@ -3,7 +3,7 @@ import { EditorView } from '@codemirror/view';
 
 import { languageById } from '../editor/langs';
 import { livePreview } from '../editor/live-preview';
-import { tablePreview } from '../editor/tables';
+import { blockPreview } from '../editor/block-preview';
 import { syntaxColors } from '../theme/syntax';
 
 /**
@@ -128,7 +128,7 @@ const CASES: Case[] = [
     // Ровно то же, что кладёт в отсек `livePreviewExtension`: таблицы
     // живут отдельным полем состояния (Р-203), и мерить превью без них
     // значило бы мерить не то, что видит человек.
-    extra: () => [livePreview(), tablePreview()],
+    extra: () => [livePreview(), blockPreview()],
   },
 ];
 

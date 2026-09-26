@@ -40,7 +40,7 @@ import { folding } from './folding';
 import { invisibles } from './invisibles';
 import { livePreview } from './live-preview';
 import { lookupFor, type CalloutLookup } from './callouts';
-import { tablePreview } from './tables';
+import { blockPreview } from './block-preview';
 import { wikilinks, type Target } from './wikilinks';
 import { linkSuggestions, type LinkContext } from './suggest';
 import type { Buffer } from '../ipc/files';
@@ -211,7 +211,7 @@ export function livePreviewExtension(
   // Список коллаутов приходит сюда, а не читается превью из общего места:
   // сменился список — отсек пересобирается (`applyLivePreview`), и карточки
   // перерисовываются вместе с ним.
-  return enabled ? [livePreview(sourcePath, callouts), tablePreview()] : [];
+  return enabled ? [livePreview(sourcePath, callouts), blockPreview()] : [];
 }
 
 /**
