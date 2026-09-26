@@ -12,6 +12,7 @@ import {
 
 import { icon } from '../icons/registry';
 import { lookupFor, parseCallout, type CalloutLookup } from './callouts';
+import { NO_CHIPS, hexColors } from './color-chips';
 import type { IconName } from '../icons/registry';
 import { EmbedWidget, ImageWidget, embedIsImage, localTarget } from './images';
 import { pairTags, readTag, type InlineTag, type PlacedTag } from './inline-html';
@@ -70,6 +71,9 @@ const hidden = Decoration.replace({});
 
 /** Строка `---` рисуется чертой, а не дефисами. */
 const ruleLine = Decoration.line({ class: 'zn-hr' });
+
+/** Метка ссылки на сноску — надстрочным знаком (задача 130). */
+const footnoteLabel = Decoration.mark({ class: 'zn-footnote' });
 
 /** Текст сделанной задачи: приглушённый и зачёркнутый. */
 const doneText = Decoration.mark({ class: 'zn-task-text-done' });
@@ -419,6 +423,19 @@ export function decorateLivePreview(
           return;
         }
 
+        // Ссылка на сноску (задача 130): скобки и крышка прячутся, метка —
+        // надстрочным знаком, как у Obsidian. Под курсором — исходник.
+        // Определение `[^1]:` в начале абзаца остаётся как написано.
+        if (node.name === 'FootnoteRef') {
+          if (touched(state, doc.lineAt(node.from))) return false;
+          for (const mark of node.node.getChildren('FootnoteMark')) {
+            found.push(hidden.range(mark.from, mark.to));
+          }
+          const label = node.node.getChild('FootnoteLabel');
+          if (label) found.push(footnoteLabel.range(label.from, label.to));
+          return false;
+        }
+
         // Знаки вокруг куска текста: `**`, `*`, `~~`, `==`, обратная кавычка.
         if (MARKS.has(node.name)) {
           if (parent && INLINE.has(parent.name)) hide(node.from, node.to);
@@ -578,9 +595,24 @@ export function decorateLivePreview(
     });
   }
 
-  // Сортировка вместо `RangeSetBuilder`: источников два — дерево разбора
-  // и свой разбор вики-ссылок, — и в порядке возрастания они приходят
-  // только вперемешку.
+  // Коды цвета — с квадратиком своего цвета (задача 130). Квадратик —
+  // украшение, а не замена: он стоит и под курсором, как плашка тега.
+  for (const range of ranges) {
+    for (const { at, color } of hexColors(doc.sliceString(range.from, range.to))) {
+      const from = range.from + at;
+      if (insideNode(tree, from, NO_CHIPS)) continue;
+      found.push(
+        Decoration.mark({ class: 'zn-color-chip', attributes: { style: `--chip: ${color}` } }).range(
+          from,
+          from + color.length,
+        ),
+      );
+    }
+  }
+
+  // Сортировка вместо `RangeSetBuilder`: источников три — дерево разбора,
+  // свой разбор вики-ссылок и коды цвета, — и в порядке возрастания они
+  // приходят только вперемешку.
   return Decoration.set(found, true);
 }
 

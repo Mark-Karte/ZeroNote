@@ -663,6 +663,32 @@
   text-decoration: line-through;
 }
 
+/* Ссылка на сноску (задача 130): скобки спрятаны, метка — надстрочным
+   знаком цветом ссылки, как у Obsidian. Межстрочный — единица: иначе
+   надстрочный знак раздвигал бы строку. */
+.cm-editor.zn-note .zn-footnote {
+  vertical-align: super;
+  font-size: var(--zn-font-size-footnote);
+  line-height: var(--zn-font-line-height-pill);
+  color: var(--zn-color-syntax-link);
+}
+
+/* Код цвета (задача 130) — квадратик своего цвета перед кодом. Рамка
+   тихим цветом рамки: квадратик цвета фона иначе пропал бы. Цвет — из
+   текста заметки (`--chip` у куска, `color-chips.ts`), не из темы. */
+.cm-editor.zn-note .zn-color-chip::before {
+  content: '';
+  display: inline-block;
+  box-sizing: border-box;
+  width: var(--zn-control-color-chip);
+  height: var(--zn-control-color-chip);
+  margin-right: var(--zn-space-color-chip);
+  border: var(--zn-border-width) solid var(--zn-color-border-default);
+  border-radius: var(--zn-radius-sm);
+  background-color: var(--chip);
+  vertical-align: middle;
+}
+
 /*
  * Свойства — frontmatter карточкой (задача 127), мерами Obsidian: строка
  * в 1,75 кегля, ключ со значком типа на месте в 9em, значение справа.

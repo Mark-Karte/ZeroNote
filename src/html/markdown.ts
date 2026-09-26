@@ -183,18 +183,29 @@ export class Renderer {
         if (math !== undefined) return `<div class="zn-math-block">${math}</div>`;
         return `<p class="zn-source">${escapeHtml(this.text(node.from, node.to))}</p>`;
       }
+      case 'LinkReference': {
+        // Определение сноски из одного слова со строкой продолжения
+        // CommonMark читает определением ссылки (задача 130): метка `^`
+        // выдаёт сноску, и она выводится, как прочие определения сносок.
+        // Настоящее определение ссылки — служебное, его нет в выводе.
+        const label = node.getChild('LinkLabel');
+        const text = label ? this.text(label.from, label.to) : '';
+        if (!text.startsWith('[^')) return '';
+        const rest = this.text(label!.to, node.to).replace(/^:\s*/, '');
+        return `<p><sup>${escapeHtml(text.slice(2, -1))}</sup> ${escapeHtml(rest)}</p>`;
+      }
       case 'HTMLBlock':
         // Сырой HTML блоком — текстом, как его показывает превью. Строки
         // сохраняются: это чаще всего разметка, и склеенная в одну строку
         // она не читается.
         return `<p class="zn-source">${escapeHtml(this.text(node.from, node.to))}</p>`;
       // Служебное, а не текст: служебные поля файла (Р-264, узел —
-      // с задачи 114), комментарий автора, определение ссылки, знак
-      // цитаты между блоками.
+      // с задачи 114), комментарий автора — HTML и `%%…%%` (задача 130),
+      // определение ссылки, знак цитаты между блоками.
       case 'Frontmatter':
       case 'CommentBlock':
+      case 'NoteCommentBlock':
       case 'ProcessingInstructionBlock':
-      case 'LinkReference':
       case 'QuoteMark':
         return '';
       default:
@@ -552,8 +563,17 @@ export class Renderer {
         // Знак цитаты на продолжении абзаца — вместе с пробелом за ним.
         return { html: '', to: this.source.char(node.to) === ' ' ? node.to + 1 : node.to };
       case 'Comment':
+      case 'NoteComment':
       case 'ProcessingInstruction':
         return whole('');
+      case 'FootnoteRef':
+      case 'FootnoteDef': {
+        // Сноска — меткой надстрочным знаком, как на экране (задача 130).
+        // Нумерации и списка сносок нет: вывод не сочиняет того, чего
+        // нет в файле. У определения двоеточие уходит вместе со скобками.
+        const label = node.getChild('FootnoteLabel');
+        return whole(label ? `<sup>${escapeHtml(this.text(label.from, label.to))}</sup>` : '');
+      }
       default:
         // Индексы `~x~`, `^x^`, `:смайлик:` и прочее, что превью
         // не рисует, — как написано.

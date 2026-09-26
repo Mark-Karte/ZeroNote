@@ -107,9 +107,11 @@ function blockShape(line: Line): { kind: 'none' } | { kind: 'whole'; close: numb
  * но им пользуется их же блок кода — ровно для этого вопроса. Публичного
  * пути нет: у пункта списка знаков продолжения не бывает, одна глубина
  * отступа. Исчезнет поле при обновлении — формула в коллауте потянется
- * за конец цитаты, и это поймает тест «формула в коллауте».
+ * за конец цитаты, и это поймает тест «формула в коллауте». Тот же вопрос
+ * задаёт блок комментария `%%` (задача 130), тест — «в цитате — не
+ * дальше цитаты».
  */
-function continues(cx: BlockContext, line: Line): boolean {
+export function continues(cx: BlockContext, line: Line): boolean {
   const depth = (line as unknown as { depth?: number }).depth;
   return depth === undefined || depth >= cx.depth;
 }

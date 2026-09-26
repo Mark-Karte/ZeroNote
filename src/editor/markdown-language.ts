@@ -2,10 +2,12 @@ import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import type { Parser } from '@lezer/common';
 import type { MarkdownParser } from '@lezer/markdown';
 
+import { footnotes } from './footnotes';
 import { frontmatter } from './frontmatter';
 import { mathSyntax } from './math';
 import { languages } from './markdown-code';
 import { highlightMark } from './markdown-highlight';
+import { noteComments } from './note-comments';
 
 /**
  * Разбор markdown — один на редактор и на вывод HTML (задача 108).
@@ -25,8 +27,9 @@ export function markdownSupport() {
     // Выделение `==так==`: его ставит наша панель разметки, а в GFM такого
     // узла нет (задача 57). Frontmatter — узлом, а не своим поиском
     // по тексту у каждого потребителя (задача 114). Формулы `$…$`
-    // и `$$…$$` — тоже узлами (задача 115).
-    extensions: [highlightMark, frontmatter, mathSyntax],
+    // и `$$…$$` — тоже узлами (задача 115). Сноски `[^1]` и комментарии
+    // `%%…%%` — узлами (задача 130).
+    extensions: [highlightMark, frontmatter, mathSyntax, footnotes, noteComments],
   });
 }
 
