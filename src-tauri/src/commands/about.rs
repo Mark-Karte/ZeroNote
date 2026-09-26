@@ -19,9 +19,16 @@ const NOTICES: &str = "THIRD-PARTY-NOTICES.md";
 ///
 /// `AppHandle` приходит от Tauri сам: команда объявляет его параметром,
 /// и Tauri подставляет ручку приложения — через неё и спрашиваются пути.
+///
+/// Путь к ресурсам Tauri отдаёт в «дословном» виде `\\?\C:\...`, и вкладка
+/// открывалась бы по нему — такой путь уходил в сессию и список недавних
+/// и не совпадал с тем же файлом, открытым обычным путём (найдено при
+/// обновлении на 0.17.0). Поэтому путь приводится к обычному виду тем же
+/// `normalize`, что и корни проектов.
 #[tauri::command]
 pub fn third_party_notices(app: tauri::AppHandle) -> Option<String> {
-    let path = app.path().resolve(NOTICES, BaseDirectory::Resource).ok()?;
+    let resolved = app.path().resolve(NOTICES, BaseDirectory::Resource).ok()?;
+    let path = crate::model::root::normalize(&resolved);
     path.is_file().then(|| path.to_string_lossy().into_owned())
 }
 
