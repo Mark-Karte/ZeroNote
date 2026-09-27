@@ -24,6 +24,9 @@ pub enum NoteError {
     BadName { part: String, bad: char },
     /// Цель уводит за пределы проекта.
     Escapes,
+    /// Имя папки кончается точкой: Windows её отрежет, и файл ляжет в другую
+    /// папку, чем написано в ссылке, — в том числе в `.obsidian` (задача 138).
+    TrailingDot { part: String },
 }
 
 impl std::fmt::Display for NoteError {
@@ -37,6 +40,10 @@ impl std::fmt::Display for NoteError {
             NoteError::Escapes => {
                 write!(f, "ссылка уводит за пределы проекта")
             }
+            NoteError::TrailingDot { part } => write!(
+                f,
+                "имя папки «{part}» кончается точкой — Windows такую точку отрезает"
+            ),
         }
     }
 }
@@ -84,6 +91,15 @@ pub fn note_path(target: &str, from: &Path, root: &Path) -> Result<PathBuf, Note
     let Some(last) = parts.pop() else {
         return Err(NoteError::Empty);
     };
+
+    // Папка с точкой на конце — не та папка, что написана: Windows точку
+    // отрежет, и `[[.obsidian./x]]` ляжет в `.obsidian` (задача 138, Я1).
+    // У последней части точки не страшны — к ней допишется `.md`.
+    if let Some(part) = parts.iter().find(|part| part.ends_with('.')) {
+        return Err(NoteError::TrailingDot {
+            part: part.clone(),
+        });
+    }
 
     // Расширение добавляется, только если его ещё нет, — то же правило,
     // что у `link_key`, который снимает ровно `.md` и никакое другое.
@@ -178,6 +194,17 @@ mod tests {
     }
 
     /// Главное, чего нельзя допустить: запись мимо папки пользователя.
+    /// Папка с точкой на конце — отказ (задача 138, находка Я1): Windows
+    /// точку отрежет, и `.obsidian.` станет `.obsidian`.
+    #[test]
+    fn folder_with_trailing_dot_is_refused() {
+        assert!(matches!(path_of(".obsidian./plugins/x"), Err(NoteError::TrailingDot { .. })));
+        assert!(matches!(path_of("архив./x"), Err(NoteError::TrailingDot { .. })));
+        assert!(matches!(path_of(".../x"), Err(NoteError::TrailingDot { .. })));
+        // У самой заметки точка не мешает: к имени допишется `.md`.
+        assert_eq!(path_of("Идея.").unwrap(), r"C:\проект\заметки\Идея..md");
+    }
+
     #[test]
     fn parent_directory_is_refused() {
         assert_eq!(path_of("../снаружи"), Err(NoteError::Escapes));

@@ -262,7 +262,9 @@ pub fn read_template(
 
     let bytes = std::fs::read(&path)
         .map_err(|e| format!("шаблон {} не прочитан: {e}", path.display()))?;
-    let raw = crate::text::document::read_raw(&bytes)
+    // Шаблон только читается, и его текст ложится в новую заметку UTF-8:
+    // подсказка проекта здесь ничего не защищает от порчи.
+    let raw = crate::text::document::read_raw(&bytes, None)
         .map_err(|e| format!("шаблон {} не прочитан: {e}", path.display()))?;
 
     Ok(daily::fill(&raw.text, &Fields { date, time, title }))
@@ -310,7 +312,9 @@ fn body(template: &str, fields: &Fields) -> Fallible<String> {
     let path = Path::new(template);
     let bytes = std::fs::read(path)
         .map_err(|e| format!("шаблон {} не прочитан: {e}", path.display()))?;
-    let raw = crate::text::document::read_raw(&bytes)
+    // Шаблон только читается, и его текст ложится в новую заметку UTF-8:
+    // подсказка проекта здесь ничего не защищает от порчи.
+    let raw = crate::text::document::read_raw(&bytes, None)
         .map_err(|e| format!("шаблон {} не прочитан: {e}", path.display()))?;
 
     Ok(daily::fill(&raw.text, fields))

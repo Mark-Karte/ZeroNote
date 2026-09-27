@@ -172,6 +172,7 @@ pub fn plan(
     root_path: &str,
     from: &str,
     to: &str,
+    hint: Option<crate::text::encoding::Encoding>,
 ) -> Result<RenamePlan, rusqlite::Error> {
     let moved = moved_files(connection, root_id, from, to)?;
     let by_old: BTreeMap<String, String> = moved
@@ -185,7 +186,7 @@ pub fn plan(
     // держало бы блокировку базы дольше, чем нужно.
     let mut parsed: Vec<(String, String, markdown::Parsed)> = Vec::new();
     for source in &sources {
-        let Some(raw) = read_text(Path::new(source)) else {
+        let Some(raw) = read_text(Path::new(source), hint) else {
             continue;
         };
         let links = markdown::parse(&raw);
@@ -307,9 +308,12 @@ pub fn plan(
 ///
 /// `None` — файл не читается или не является текстом: он просто не попадёт
 /// в план, и это правильнее, чем уронить всю операцию.
-fn read_text(path: &Path) -> Option<String> {
+///
+/// Кодировка — с подсказкой проекта, как при открытии (задача 138): смещения
+/// плана указывают в тот текст, в который потом впишется правка.
+fn read_text(path: &Path, hint: Option<crate::text::encoding::Encoding>) -> Option<String> {
     let bytes = std::fs::read(path).ok()?;
-    let raw = crate::text::document::read_raw(&bytes).ok()?;
+    let raw = crate::text::document::read_raw(&bytes, hint).ok()?;
     // Файл, который не раскодировался без потерь, править нельзя: обратная
     // запись не восстановит его байты (Р-136).
     if raw.lossy {

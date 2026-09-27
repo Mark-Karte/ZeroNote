@@ -18,6 +18,7 @@ use std::path::Path;
 
 use crate::model::edit::TextEdit;
 use crate::text::document;
+use crate::text::encoding::Encoding;
 
 #[derive(Debug)]
 pub enum EditError {
@@ -78,9 +79,13 @@ pub fn rewrite(text: &str, edits: &[TextEdit]) -> Result<String, EditError> {
 }
 
 /// Поправить файл на диске.
-pub fn apply(path: &Path, edits: &[TextEdit]) -> Result<(), EditError> {
+///
+/// `hint` — кодировка, которую знает проект файла (`[editor]
+/// default_encoding`): тот же ответ, по которому файл открывается
+/// в редакторе, иначе правка вписала бы текст в чужой кодировке (задача 138).
+pub fn apply(path: &Path, edits: &[TextEdit], hint: Option<Encoding>) -> Result<(), EditError> {
     let bytes = std::fs::read(path).map_err(|e| EditError::Read(e.to_string()))?;
-    let raw = document::read_raw(&bytes).map_err(|e| EditError::Read(e.to_string()))?;
+    let raw = document::read_raw(&bytes, hint).map_err(|e| EditError::Read(e.to_string()))?;
 
     if raw.lossy {
         return Err(EditError::Lossy);
@@ -175,5 +180,44 @@ mod tests {
         let result = rewrite("Планы", &[edit(1, "ланы", "другое")]);
 
         assert!(matches!(result, Err(EditError::Stale { .. })));
+    }
+
+    /// Пакетная правка пишет кодировкой, которой файл открывается
+    /// (задача 138, находка Ф6 ревизии).
+    ///
+    /// Прописная кириллица в windows-1251 эвристика читает как строчную
+    /// KOI8-R. Редактор открывает такой файл верно — ему помогает подсказка
+    /// проекта (`[editor] default_encoding`), а пакетная правка до задачи
+    /// 138 подсказки не знала: «СДЕЛАТЬ» вписывалось в KOI8-R, и в файле,
+    /// открытом как windows-1251, появлялось «удембфш».
+    #[test]
+    fn project_encoding_hint_is_respected() {
+        use crate::text::encoding::{self, Encoding};
+
+        let bytes = encoding::encode("ВНИМАНИЕ: TODO", Encoding::Windows1251).unwrap();
+        // Без этого тест ничего не проверяет: эвристика обязана ошибаться.
+        assert_ne!(
+            crate::text::detect::detect(&bytes).unwrap().encoding,
+            Encoding::Windows1251
+        );
+
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let dir = std::env::temp_dir().join(format!("zeronote-hint-{nanos}"));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("заметка.txt");
+        std::fs::write(&path, &bytes).unwrap();
+
+        let text = "ВНИМАНИЕ: TODO";
+        apply(&path, &[at(text, "TODO", "СДЕЛАТЬ")], Some(Encoding::Windows1251)).unwrap();
+
+        let written = std::fs::read(&path).unwrap();
+        assert_eq!(
+            encoding::decode(&written, Encoding::Windows1251).text,
+            "ВНИМАНИЕ: СДЕЛАТЬ"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

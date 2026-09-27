@@ -33,6 +33,7 @@ fn candidates(dir: &Path, names: &[&str]) -> Vec<Candidate> {
             root_id: 1,
             path: dir.join(name).to_string_lossy().into_owned(),
             inside: (*name).to_owned(),
+            hint: None,
         })
         .collect()
 }
@@ -42,7 +43,7 @@ fn apply(plan: &replace::ReplacePlan) -> Vec<FileEdits> {
     let mut undo = Vec::new();
 
     for file in &plan.files {
-        text_edit::apply(Path::new(&file.path), &file.edits).expect("правка не прошла");
+        text_edit::apply(Path::new(&file.path), &file.edits, None).expect("правка не прошла");
         undo.push(FileEdits {
             path: file.path.clone(),
             inside: file.inside.clone(),
@@ -55,7 +56,7 @@ fn apply(plan: &replace::ReplacePlan) -> Vec<FileEdits> {
 
 fn undo(files: &[FileEdits]) {
     for file in files {
-        text_edit::apply(Path::new(&file.path), &file.edits).expect("отмена не прошла");
+        text_edit::apply(Path::new(&file.path), &file.edits, None).expect("отмена не прошла");
     }
 }
 
@@ -189,7 +190,7 @@ fn stale_plan_touches_nothing() {
     // Пока человек читал список, файл изменился.
     fs::write(&path, "совсем другое содержимое\n").unwrap();
 
-    let result = text_edit::apply(&path, &plan.files[0].edits);
+    let result = text_edit::apply(&path, &plan.files[0].edits, None);
 
     assert!(result.is_err(), "правка по устаревшему плану прошла");
     assert_eq!(
@@ -241,7 +242,7 @@ fn undo_refuses_when_the_replacement_is_gone() {
     let rewritten = "совсем другое содержимое\n";
     fs::write(&path, rewritten).unwrap();
 
-    let result = text_edit::apply(&path, &back[0].edits);
+    let result = text_edit::apply(&path, &back[0].edits, None);
 
     assert!(result.is_err(), "отмена переписала чужой текст");
     assert_eq!(fs::read_to_string(&path).unwrap(), rewritten);

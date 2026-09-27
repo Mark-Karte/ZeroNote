@@ -194,15 +194,35 @@ export async function undoReplace(): Promise<void> {
     return;
   }
 
+  // Файлы, открытые с несохранёнными правками, отмена обходит — как их
+  // обходит сама замена (Р-138, Р-222): запись под изменённым буфером
+  // затёрло бы первое же сохранение. До задачи 138 отмена писала и в них,
+  // и для такого файла тихо не состоялась.
+  const split = splitPlan(last.undo, unsavedPaths());
+  if (split.editable.length === 0) {
+    await message(
+      'Отменить замену сейчас нельзя: все её файлы открыты с несохранёнными ' +
+        'правками. Сохраните или закройте их и повторите отмену.',
+      { title: 'ZeroNote' },
+    );
+    return;
+  }
+
+  const blocked =
+    split.blocked.length === 0
+      ? ''
+      : `\n\nОткрыты с несохранёнными правками — их отмена подождёт, пока ` +
+        `их не сохранят или не закроют:\n${split.blocked.map((f) => f.inside).join('\n')}`;
+
   const answer = await askChoice(
     'Отменить замену по проекту?',
     describeUndo(
       last.query,
       last.replacement,
-      last.matches,
-      last.undo.length,
+      matchesIn(split.editable),
+      split.editable.length,
       last.expression,
-    ),
+    ) + blocked,
     [
       { id: 'undo', label: 'Отменить замену', primary: true },
       { id: 'keep', label: 'Оставить как есть', cancel: true },
@@ -212,13 +232,15 @@ export async function undoReplace(): Promise<void> {
 
   // Снимаем со стека до записи, а не после: отмена, сорвавшаяся на половине
   // файлов, повторному нажатию уже не поддастся — половину она вернула,
-  // и вторая попытка нашла бы на их месте исходный текст.
+  // и вторая попытка нашла бы на их месте исходный текст. Обойдённые файлы
+  // возвращаются в стек: отмену для них можно повторить.
   takeLastReplace();
+  remember({ ...last, undo: split.blocked, matches: matchesIn(split.blocked) });
 
   replace.writing = true;
   let outcome;
   try {
-    outcome = await applyEdits(last.undo);
+    outcome = await applyEdits(split.editable);
   } catch (error) {
     await report(error);
     return;

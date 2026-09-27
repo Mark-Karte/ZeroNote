@@ -60,13 +60,14 @@ fn rename_and_fix(
         &root,
         &from.display().to_string(),
         &to.display().to_string(),
+        None,
     )
     .expect("план должен считаться");
 
     fs::rename(from, to).expect("переименование не удалось");
 
     for file in &plan.files {
-        text_edit::apply(Path::new(&file.path), &file.edits).expect("правка не удалась");
+        text_edit::apply(Path::new(&file.path), &file.edits, None).expect("правка не удалась");
     }
 
     plan

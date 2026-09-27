@@ -131,11 +131,11 @@ pub fn plan_rename(
     let target = entry_ops::renamed_path(&path, &name).map_err(|e| e.to_string())?;
     guard(&state, &target)?;
 
-    let root_id = {
+    let (root_id, hint) = {
         let roots = state.roots.lock().expect("реестр корней повреждён");
         roots
             .for_path(&path)
-            .map(|root| root.id)
+            .map(|root| (root.id, root.project.editor.default_encoding))
             .ok_or("путь не входит ни в одну открытую папку")?
     };
 
@@ -144,6 +144,7 @@ pub fn plan_rename(
         &root.display().to_string(),
         &path.to_string_lossy(),
         &target.to_string_lossy(),
+        hint,
     );
 
     // Индекса нет — значит, и знания о ссылках нет. Пустой план честнее

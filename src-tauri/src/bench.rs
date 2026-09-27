@@ -443,6 +443,7 @@ pub fn bench_run_index() -> Result<String, String> {
             root_id: file.root_id,
             inside: file.name,
             path: file.path,
+            hint: None,
         })
         .collect();
 

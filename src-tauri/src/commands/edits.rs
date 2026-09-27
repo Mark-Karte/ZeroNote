@@ -17,6 +17,7 @@ use crate::model::edit::{self, FileEdits};
 use crate::model::root::RootId;
 use crate::replace::{self, Candidate, Matcher, Options, ReplacePlan, Search};
 use crate::state::AppState;
+use crate::text::encoding::Encoding;
 
 use super::entries::guard;
 use super::index::inside_root;
@@ -153,12 +154,18 @@ pub fn cancel_replace(state: tauri::State<'_, AppState>) {
 fn candidates(state: &AppState, only: Option<RootId>) -> Vec<Candidate> {
     let files = state.index.lock().expect("индекс повреждён").text_files();
 
-    let roots: Vec<(RootId, String)> = {
+    let roots: Vec<(RootId, String, Option<Encoding>)> = {
         let roots = state.roots.lock().expect("реестр корней повреждён");
         roots
             .list()
             .iter()
-            .map(|root| (root.id, root.path.display().to_string()))
+            .map(|root| {
+                (
+                    root.id,
+                    root.path.display().to_string(),
+                    root.project.editor.default_encoding,
+                )
+            })
             .collect()
     };
 
@@ -173,19 +180,20 @@ fn candidates(state: &AppState, only: Option<RootId>) -> Vec<Candidate> {
 /// владельца после задачи 88).
 fn pick(
     files: Vec<crate::index::writer::FileRow>,
-    roots: &[(RootId, String)],
+    roots: &[(RootId, String, Option<Encoding>)],
     only: Option<RootId>,
 ) -> Vec<Candidate> {
     files
         .into_iter()
         .filter(|file| only.is_none_or(|id| file.root_id == id))
         .filter_map(|file| {
-            let (_, root_path) = roots.iter().find(|(id, _)| *id == file.root_id)?;
+            let (_, root_path, hint) = roots.iter().find(|(id, _, _)| *id == file.root_id)?;
             let inside = inside_root(&file.path, root_path)?;
             Some(Candidate {
                 root_id: file.root_id,
                 path: file.path,
                 inside,
+                hint: *hint,
             })
         })
         .collect()
@@ -214,7 +222,12 @@ pub async fn apply_edits(
     for file in files {
         match guard(&state, Path::new(&file.path)) {
             Err(complaint) => problems.push(format!("{}: {complaint}", file.inside)),
-            Ok(_) => approved.push(file),
+            // Кодировку подсказывает проект — та же, которой файл
+            // открывается в редакторе (задача 138).
+            Ok(_) => {
+                let hint = state.encoding_hint(Path::new(&file.path));
+                approved.push((file, hint));
+            }
         }
     }
 
@@ -230,13 +243,13 @@ pub async fn apply_edits(
 }
 
 /// Записать всё, что разрешено, и собрать обратные правки.
-fn write_all(files: Vec<FileEdits>) -> ApplyOutcome {
+fn write_all(files: Vec<(FileEdits, Option<Encoding>)>) -> ApplyOutcome {
     let mut outcome = ApplyOutcome::default();
 
-    for file in files {
+    for (file, hint) in files {
         let path = PathBuf::from(&file.path);
 
-        match crate::fsx::text_edit::apply(&path, &file.edits) {
+        match crate::fsx::text_edit::apply(&path, &file.edits, hint) {
             Err(error) => outcome.problems.push(format!("{}: {error}", file.inside)),
             Ok(()) => outcome.undo.push(FileEdits {
                 path: file.path,
@@ -254,10 +267,10 @@ mod tests {
     use super::*;
     use crate::index::writer::FileRow;
 
-    fn roots() -> Vec<(RootId, String)> {
+    fn roots() -> Vec<(RootId, String, Option<Encoding>)> {
         vec![
-            (1, r"C:\проекты\первый".to_owned()),
-            (2, r"C:\проекты\второй".to_owned()),
+            (1, r"C:\проекты\первый".to_owned(), None),
+            (2, r"C:\проекты\второй".to_owned(), None),
         ]
     }
 

@@ -213,10 +213,11 @@ impl Index {
         root_path: &str,
         from: &str,
         to: &str,
+        hint: Option<crate::text::encoding::Encoding>,
     ) -> Option<super::rename::RenamePlan> {
         let connection = self.connection.as_ref()?;
         let mut connection = connection.lock().expect("соединение с индексом повреждено");
-        super::rename::plan(&mut connection, root_id, root_path, from, to).ok()
+        super::rename::plan(&mut connection, root_id, root_path, from, to, hint).ok()
     }
 
     /// Каким текстом сослаться на этот файл из того (Р-134).

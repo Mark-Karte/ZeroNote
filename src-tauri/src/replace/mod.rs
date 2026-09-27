@@ -28,6 +28,7 @@ use std::path::Path;
 use crate::model::edit::TextEdit;
 use crate::model::root::RootId;
 use crate::text::document;
+use crate::text::encoding::Encoding;
 
 pub use matcher::{Matcher, Options};
 
@@ -92,6 +93,9 @@ pub struct Candidate {
     pub root_id: RootId,
     pub path: String,
     pub inside: String,
+    /// Кодировка, которую знает проект файла: план читает файл так же,
+    /// как его открывает редактор (задача 138).
+    pub hint: Option<Encoding>,
 }
 
 /// Правки и строки для показа по одному тексту.
@@ -148,7 +152,7 @@ pub fn scan(
         let Ok(bytes) = std::fs::read(&candidate.path) else {
             continue;
         };
-        let Ok(raw) = document::read_raw(&bytes) else {
+        let Ok(raw) = document::read_raw(&bytes, candidate.hint) else {
             continue;
         };
 
@@ -228,7 +232,7 @@ pub fn find(
         let Ok(bytes) = std::fs::read(&candidate.path) else {
             continue;
         };
-        let Ok(raw) = document::read_raw(&bytes) else {
+        let Ok(raw) = document::read_raw(&bytes, candidate.hint) else {
             continue;
         };
 
@@ -340,6 +344,7 @@ mod tests {
                 root_id: 1,
                 path: dir.join(name).to_string_lossy().into_owned(),
                 inside: (*name).to_owned(),
+                hint: None,
             })
             .collect()
     }

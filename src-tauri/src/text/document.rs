@@ -131,9 +131,19 @@ pub struct RawDocument {
     pub lossy: bool,
 }
 
-pub fn read_raw(bytes: &[u8]) -> Result<RawDocument, ReadError> {
+///
+/// `hint` — кодировка, которую знает проект, по тому же правилу, что
+/// у [`read_with_hint`]: она заменяет только неуверенную однобайтовую
+/// догадку. Пакетная правка обязана читать файл так же, как его открывает
+/// редактор: до задачи 138 подсказки здесь не было, и замена по проекту
+/// вписывала текст в кодировке, которую угадала эвристика, а не в той,
+/// которой файл открыт.
+pub fn read_raw(bytes: &[u8], hint: Option<Encoding>) -> Result<RawDocument, ReadError> {
     let detection = detect::detect(bytes).map_err(ReadError::Detect)?;
-    let encoding = detection.encoding;
+    let encoding = match hint {
+        Some(hint) if !detection.confident && detection.encoding.is_single_byte() => hint,
+        _ => detection.encoding,
+    };
 
     let body = if detection.bom {
         &bytes[encoding.bom_bytes().len()..]
@@ -222,7 +232,7 @@ mod tests {
         let text = "Первая\r\nВторая\nТретья\r\n";
         let bytes = text.as_bytes();
 
-        let raw = read_raw(bytes).unwrap();
+        let raw = read_raw(bytes, None).unwrap();
         assert_eq!(raw.text, text, "сырой текст не должен трогать переносы");
 
         let back = raw_to_bytes(&raw.text, raw.encoding, raw.bom).unwrap();
@@ -241,7 +251,7 @@ mod tests {
         let mut bytes = Encoding::Utf8.bom_bytes().to_vec();
         bytes.extend_from_slice("Привет\r\n".as_bytes());
 
-        let raw = read_raw(&bytes).unwrap();
+        let raw = read_raw(&bytes, None).unwrap();
 
         assert!(raw.bom);
         assert_eq!(raw.text, "Привет\r\n");
