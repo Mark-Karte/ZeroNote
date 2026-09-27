@@ -70,6 +70,13 @@ export const startupPaths = (): Promise<string[]> => invoke('startup_paths');
  */
 export const OPEN_PATHS = 'open-paths';
 
+/**
+ * Пути, которые вторые экземпляры оставили, пока окно запускалось (Я6
+ * ревизии). Звать один раз — подписавшись на `OPEN_PATHS`: до этого ядро
+ * записок не трогает, после — шлёт их событием.
+ */
+export const openRequests = (): Promise<string[]> => invoke('open_requests');
+
 export const listBuffers = (): Promise<Buffer[]> => invoke('list_buffers');
 
 export const newBuffer = (): Promise<Buffer> => invoke('new_buffer');

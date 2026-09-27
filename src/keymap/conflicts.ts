@@ -111,3 +111,60 @@ export function conflictQuestion(conflict: Conflict, chord: string): string {
       );
   }
 }
+
+/**
+ * Клавиши набора и движения по тексту: знак, пробел, перенос, отступ,
+ * стирание, стрелки, начало и конец. Буквы и цифры — отдельной проверкой.
+ */
+const TYPING_KEYS = new Set([
+  'enter',
+  'space',
+  'tab',
+  'backspace',
+  'delete',
+  'left',
+  'right',
+  'up',
+  'down',
+  'home',
+  'end',
+  'pageup',
+  'pagedown',
+  'comma',
+  'period',
+  'slash',
+  'backslash',
+  'bracketleft',
+  'bracketright',
+  'semicolon',
+  'quote',
+  'backquote',
+  'minus',
+  'equal',
+]);
+
+/**
+ * Что делать с нажатием, пойманным при назначении сочетания (С7 ревизии).
+ *
+ * `cancel` — Esc, назначение отменяется; `typing` — клавиша нужна набору,
+ * назначать её нельзя; `take` — назначаем.
+ *
+ * Без Ctrl и Alt (с одним Shift — тоже: это заглавная буква и выделение)
+ * клавиша набора сочетанием не бывает. Наш диспетчер стоит на перехвате
+ * и гасит нажатие, у которого есть команда, — назначенный Enter закрывал
+ * бы вкладку в любом тексте вместо новой строки, назначенная буква
+ * переставала бы печататься. До задачи 142 назначалось всё, кроме Esc,
+ * а проверка столкновений клавиш набора не видит: их никто не занимает.
+ * F-клавиши и Insert тексту не нужны и стоят в умолчаниях без
+ * модификаторов (F3, Shift+F2, F12).
+ */
+export function chordVerdict(binding: string): 'cancel' | 'typing' | 'take' {
+  if (binding === 'escape') return 'cancel';
+
+  const parts = binding.split('+');
+  const key = parts[parts.length - 1] ?? '';
+  if (parts.includes('ctrl') || parts.includes('alt')) return 'take';
+
+  if (/^[a-z0-9]$/.test(key) || TYPING_KEYS.has(key)) return 'typing';
+  return 'take';
+}

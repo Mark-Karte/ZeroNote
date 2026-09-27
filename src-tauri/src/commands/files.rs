@@ -55,6 +55,17 @@ pub fn startup_paths() -> Vec<String> {
     crate::cli::file_paths(&args)
 }
 
+/// Пути, которые вторые экземпляры оставили, пока окно запускалось (Я6
+/// ревизии). Фронтенд зовёт это один раз, подписавшись на `OPEN_PATHS`;
+/// дальше записки приходят событием.
+#[tauri::command]
+pub fn open_requests(
+    mailbox: tauri::State<'_, crate::single::Mailbox>,
+    state: tauri::State<'_, AppState>,
+) -> Vec<String> {
+    mailbox.open(&state.data_dir.path)
+}
+
 #[tauri::command]
 pub fn list_buffers(state: tauri::State<'_, AppState>) -> Vec<Buffer> {
     let buffers = state.buffers.lock().expect("реестр буферов повреждён");
@@ -112,6 +123,15 @@ pub fn open_file(state: tauri::State<'_, AppState>, path: String) -> Fallible<Op
 }
 
 fn open_path(state: &AppState, path: PathBuf) -> Fallible<Opened> {
+    // Неполный путь не открывается (Ф5 ревизии): разрешился бы он от текущей
+    // папки процесса, а она — чья угодно, только не того, кто путь дал.
+    // Полным его делает тот, кто знает свою папку, — разбор командной
+    // строки (`cli::file_paths`); сюда такой доехать не должен, и если
+    // доехал, в буфер, сессию и недавнее он не попадёт.
+    if !path.is_absolute() {
+        return Err(format!("не удалось открыть {}: путь неполный", path.display()));
+    }
+
     // Сначала смотрим, не открыт ли уже. Блокировку сразу отпускаем:
     // дальше идёт работа с диском, а под блокировкой её держать нельзя.
     let already_open = {
@@ -179,8 +199,12 @@ fn open_path(state: &AppState, path: PathBuf) -> Fallible<Opened> {
     // Проект, которому файл принадлежит, может знать его кодировку лучше
     // эвристики. Подсказка берётся до чтения и только помогает угадать —
     // см. `document::read_with_hint`.
+    //
+    // Отказ начинается теми же словами, что у картинки: интерфейс
+    // показывает его как есть (С9 ревизии), а голое «C:\x.md: не найден»
+    // не говорит, что именно не вышло.
     let opened = text_file::open_with_hint(&path, state.encoding_hint(&path))
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| format!("не удалось открыть {e}"))?;
 
     let mut buffers = state.buffers.lock().expect("реестр буферов повреждён");
     let buffer = buffers
@@ -987,6 +1011,22 @@ mod tests {
         assert_eq!(buffer.disk, disk_before);
         drop(buffers);
 
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Относительный путь не открывается (Ф5 ревизии): он разрешился бы
+    /// от текущей папки процесса — у тестов это папка крейта, где
+    /// `Cargo.toml` есть, — и остался бы относительным в буфере и сессии.
+    #[test]
+    fn relative_path_is_not_opened() {
+        let dir = temp_dir("relative");
+        let state = AppState::for_tests(dir.join("data"));
+
+        assert!(std::path::Path::new("Cargo.toml").exists());
+        let refused = open_path(&state, PathBuf::from("Cargo.toml"));
+
+        assert!(refused.is_err(), "относительный путь открылся");
+        assert!(state.buffers.lock().unwrap().list().is_empty());
         let _ = std::fs::remove_dir_all(&dir);
     }
 

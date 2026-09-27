@@ -110,9 +110,15 @@ pub fn run() {
     // не нужны вовсе, а окно, мелькнувшее и тут же исчезнувшее, человек
     // читает как сбой. Замок держится до конца процесса — отсюда `_lock`,
     // а не `_`: последнее уронило бы его сразу же.
+    //
+    // Момент — до замка: записки братьев, оставленные после него, свои,
+    // и уборка в `setup` их не тронет (Я6 ревизии).
+    let since = single::stamp();
     let _lock = match single::claim(&watched_dir) {
         single::Instance::First(guard) => guard,
         single::Instance::Second => {
+            // Пути — полными, от нашей текущей папки: первый экземпляр
+            // разрешил бы их от своей (Я7 ревизии).
             let args: Vec<String> = std::env::args().collect();
             single::hand_over(&watched_dir, &cli::file_paths(&args));
             return;
@@ -128,6 +134,8 @@ pub fn run() {
         .manage(app_state)
         // Найденная версия, скачанный пакет и ручка отмены (Р-257).
         .manage(commands::update::UpdateState::default())
+        // Записки вторых экземпляров ждут, пока окно не подпишется (Я6).
+        .manage(single::Mailbox::default())
         .setup(move |app| {
             // `app.handle()` даёт ручку к приложению, которую можно передать
             // в другой поток. Клонируем её, потому что сам `app` остаётся здесь.
@@ -136,7 +144,7 @@ pub fn run() {
             // Записки от вторых экземпляров: пути из проводника и просьба
             // показаться. Свой поток и свой шаг опроса — почему, сказано
             // в `single.rs`.
-            single::watch(app.handle().clone(), requests_dir);
+            single::watch(app.handle().clone(), requests_dir, since);
 
             // Поток-сборщик событий файловой системы. Наблюдатели за корнями
             // ставятся позже — при восстановлении сессии и при добавлении
@@ -190,6 +198,7 @@ pub fn run() {
             commands::update::install_update,
             commands::settings::update_setting,
             commands::files::startup_paths,
+            commands::files::open_requests,
             commands::files::recent_files,
             commands::files::list_buffers,
             commands::files::new_buffer,

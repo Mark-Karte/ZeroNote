@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { conflictFor, conflictQuestion } from '../src/keymap/conflicts';
+import { chordVerdict, conflictFor, conflictQuestion } from '../src/keymap/conflicts';
 
 /**
  * Редактор клавиш обязан назвать вслух то, что отнимает. Молча занятое
@@ -80,5 +80,51 @@ describe('занятость сочетания', () => {
 
     expect(question).toContain('Alt ↑');
     expect(question).toContain('редактор');
+  });
+});
+
+/**
+ * Что делать с нажатием, пойманным при назначении (С7 ревизии).
+ *
+ * До задачи 142 назначалось любое нажатие, кроме Esc: Enter «по привычке
+ * ок» записывал `enter` = «Закрыть вкладку», и Enter в любом тексте
+ * закрывал вкладку вместо новой строки. Столкновения при этом не было —
+ * проверка знает только занятые сочетания, а клавиши набора никто
+ * не занимает.
+ */
+describe('годится ли нажатие для назначения', () => {
+  it('Esc отменяет назначение', () => {
+    expect(chordVerdict('escape')).toBe('cancel');
+  });
+
+  it('голая клавиша набора и движения по тексту не назначается', () => {
+    for (const binding of [
+      'enter',
+      'space',
+      'tab',
+      'a',
+      '7',
+      'comma',
+      'backspace',
+      'delete',
+      'down',
+      'home',
+      'pagedown',
+    ]) {
+      expect(chordVerdict(binding), binding).toBe('typing');
+    }
+  });
+
+  it('с одним Shift — тоже: это заглавная буква и выделение', () => {
+    for (const binding of ['shift+a', 'shift+enter', 'shift+tab', 'shift+left', 'shift+end']) {
+      expect(chordVerdict(binding), binding).toBe('typing');
+    }
+  });
+
+  /** F-клавиши без модификаторов стоят и в умолчаниях: F3, Shift+F2, F12. */
+  it('F-клавиши и сочетания с Ctrl или Alt назначаются', () => {
+    for (const binding of ['f6', 'shift+f3', 'ctrl+k', 'alt+left', 'ctrl+enter', 'insert']) {
+      expect(chordVerdict(binding), binding).toBe('take');
+    }
   });
 });

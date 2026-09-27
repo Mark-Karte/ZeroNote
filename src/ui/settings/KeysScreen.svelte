@@ -2,7 +2,7 @@
   import Icon from '../Icon.svelte';
   import { iconForCommand } from '../../icons/commands';
   import { labelOf } from '../../keymap/binding';
-  import { conflictFor, conflictQuestion } from '../../keymap/conflicts';
+  import { chordVerdict, conflictFor, conflictQuestion } from '../../keymap/conflicts';
   import {
     applyKeymap,
     captureChords,
@@ -34,6 +34,8 @@
   let filter = $state('');
   /** Команда, для которой сейчас ждём нажатия. */
   let capturing = $state<string | null>(null);
+  /** Нажатая клавиша набора: назначать её нельзя, говорим почему (С7). */
+  let refused = $state<string | null>(null);
   let problem = $state<string | null>(null);
 
   /** Как вернуть клавиши приложению. Пока не вызвано — команды не работают. */
@@ -61,6 +63,7 @@
     release?.();
     release = null;
     capturing = null;
+    refused = null;
   }
 
   /**
@@ -75,16 +78,40 @@
   function beginCapture(id: string): void {
     stopCapture();
     capturing = id;
-    release = captureChords((binding) => {
+    const captured = captureChords((binding) => {
       // Один модификатор сочетанием не является — человек ещё нажимает.
       if (binding === null) return;
-      if (binding === 'escape') {
-        stopCapture();
-        return;
+      switch (chordVerdict(binding)) {
+        case 'cancel':
+          stopCapture();
+          return;
+        case 'typing':
+          // Захват не снимаем: человек, скорее всего, ещё наберёт
+          // настоящее сочетание, — а увидит, почему это не подошло.
+          refused = binding;
+          return;
+        case 'take':
+          stopCapture();
+          void assign(id, binding);
       }
-      stopCapture();
-      void assign(id, binding);
     });
+
+    // Щелчок мимо строки снимает захват (С7 ревизии). Пока он включён,
+    // диспетчер отдаёт ему **любое** нажатие в окне: до задачи 142 человек
+    // щёлкал в поле поиска или в заметку соседней области, начинал
+    // печатать — и первая буква становилась сочетанием. Клавиатурой фокус
+    // во время захвата не увести: Tab тоже пойман. На стадии захвата —
+    // раньше, чем щелчок дойдёт до цели.
+    const onPointer = (event: PointerEvent): void => {
+      if (event.target instanceof Element && event.target.closest('[data-capturing]')) return;
+      stopCapture();
+    };
+    window.addEventListener('pointerdown', onPointer, true);
+
+    release = () => {
+      captured();
+      window.removeEventListener('pointerdown', onPointer, true);
+    };
   }
 
   async function apply(work: Promise<ipc.KeymapState>): Promise<void> {
@@ -202,7 +229,7 @@
 {:else}
   <div class="rows">
     {#each shown as command (command.id)}
-      <div class="row">
+      <div class="row" data-capturing={capturing === command.id ? '' : undefined}>
         <!-- Тот же значок, что у команды в меню и в палитре: список клавиш —
              третье место, где человек ищет ту же команду глазами. -->
         <span class="glyph">
@@ -214,7 +241,13 @@
         </div>
 
         {#if capturing === command.id}
-          <span class="asking">Нажмите сочетание · Esc — отмена</span>
+          <span class="asking">
+            {#if refused}
+              {labelOf(refused)} — клавиша набора, добавьте Ctrl или Alt · Esc — отмена
+            {:else}
+              Нажмите сочетание · Esc — отмена
+            {/if}
+          </span>
           <button class="button quiet" type="button" onclick={() => unbind(command.id)}>
             Снять
           </button>
@@ -364,9 +397,14 @@
   }
 
   /* Ожидание нажатия видно издалека: пока оно на экране, ни одна команда
-     в приложении не работает, и человек должен понимать почему. */
+     в приложении не работает, и человек должен понимать почему.
+     Место делится с названием поровну и переносится: объяснение отказа
+     (С7 ревизии) длинное, и в узкой области оно выталкивало «Снять»
+     за край строки. */
   .asking {
-    flex: none;
+    flex: 1;
+    min-width: 0;
+    text-align: end;
     color: var(--zn-color-accent);
     font-size: var(--zn-font-size-ui-small);
   }

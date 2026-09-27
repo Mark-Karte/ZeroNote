@@ -1,9 +1,10 @@
 import { message } from '@tauri-apps/plugin-dialog';
 
 import * as ipc from '../ipc/index';
-import type { Backlink } from '../ipc/index';
+import type { Backlink, Resolved } from '../ipc/index';
 import type { Target } from '../editor/wikilinks';
-import { activeTab, openPath } from './tabs.svelte';
+import { activeTab, tryOpenPath } from './tabs.svelte';
+import { notify } from './notices.svelte';
 import { showPanel } from './roots.svelte';
 import { projectSearch, searchByTag } from './project-search.svelte';
 
@@ -75,9 +76,17 @@ export async function follow(target: Target): Promise<void> {
   // Буфер без файла на диске: непонятно, где создавать и от чего считать путь.
   if (!from) return;
 
-  const resolved = await ipc.resolveLink(target.value, from);
+  // Отказ здесь не молчит (С9 ревизии): переход зовут `void`-ом
+  // по щелчку и F12, и пойманной ошибки никто бы не увидел.
+  let resolved: Resolved | null;
+  try {
+    resolved = await ipc.resolveLink(target.value, from);
+  } catch (error) {
+    notify(`Ссылка не разрешилась: ${error instanceof Error ? error.message : String(error)}`);
+    return;
+  }
   if (resolved) {
-    await openPath(resolved.path);
+    await tryOpenPath(resolved.path);
     return;
   }
 
@@ -108,7 +117,7 @@ async function createByLink(target: string, from: string): Promise<void> {
   const { forgetResolved } = await import('../editor/wikilinks');
   forgetResolved();
 
-  await openPath(path);
+  await tryOpenPath(path);
 }
 
 /** Перейти по ссылке под курсором — команда с клавиатуры. */

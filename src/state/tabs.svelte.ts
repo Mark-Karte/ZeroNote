@@ -79,6 +79,7 @@ import {
 // аргументами. Поэтому обычный импорт, а не отложенный: круга здесь нет.
 import { reportContext } from './suggest.svelte';
 import { calloutLookup } from './callouts.svelte';
+import { notify } from './notices.svelte';
 
 /**
  * Вкладки и их содержимое.
@@ -1463,6 +1464,32 @@ export async function openPath(path: string): Promise<void> {
   }
 
   put(opened, opened.text);
+}
+
+/**
+ * Открыть и сказать об отказе, а не промолчать (С9 ревизии).
+ *
+ * «Недавнее» на стартовом экране, палитра, обратные ссылки, выдача поиска
+ * и переход по ссылке до задачи 142 при отказе не делали ничего: ошибку
+ * ядра никто не ловил, и она уходила в необработанное обещание. А отказ
+ * тут обычное дело — файл из недавнего удалили, индекс ещё помнит
+ * переименованный, файл заперла другая программа. Говорим полосой,
+ * как `reopenTab`: щелчок, на который ничего не случилось, читается
+ * как поломка.
+ *
+ * `false` — не открылось, и следующему шагу (встать на совпадение)
+ * делать нечего.
+ */
+export async function tryOpenPath(path: string): Promise<boolean> {
+  try {
+    await openPath(path);
+    return true;
+  } catch (error) {
+    const text = error instanceof Error ? error.message : String(error);
+    // Ядро пишет фразу со строчной: «не удалось открыть C:\x.md: …».
+    notify(text.charAt(0).toUpperCase() + text.slice(1));
+    return false;
+  }
 }
 
 /** Показать вкладку файла, который ядро узнало открытым. */

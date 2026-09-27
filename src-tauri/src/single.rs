@@ -19,6 +19,7 @@
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, SystemTime};
 
 use tauri::{AppHandle, Emitter, Manager};
@@ -137,16 +138,20 @@ fn allow_foreground() {
 pub fn take_requests(data_dir: &Path) -> Option<Vec<String>> {
     let entries = std::fs::read_dir(requests_dir(data_dir)).ok()?;
 
+    // В порядке прихода, а не имён: папка отдаёт записки по имени,
+    // то есть по номеру процесса, и пять файлов из проводника вставали
+    // вкладками вразнобой. Метка времени в имени — порядок запуска.
+    let mut notes: Vec<PathBuf> = entries
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().and_then(|e| e.to_str()) == Some("open"))
+        .collect();
+    notes.sort_by_key(|path| stamp_of(path));
+
     let mut paths = Vec::new();
-    let mut found = false;
+    let found = !notes.is_empty();
 
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.extension().and_then(|e| e.to_str()) != Some("open") {
-            continue;
-        }
-
-        found = true;
+    for path in notes {
         if let Ok(text) = std::fs::read_to_string(&path) {
             paths.extend(text.lines().filter(|line| !line.is_empty()).map(str::to_owned));
         }
@@ -158,19 +163,96 @@ pub fn take_requests(data_dir: &Path) -> Option<Vec<String>> {
     found.then_some(paths)
 }
 
+/// Момент, от которого записки считаются своими. Берётся до `claim`.
+///
+/// Той же меркой, что метка в имени записки (`nanos`): второй экземпляр
+/// ставит её после того, как не смог занять замок, — то есть заведомо
+/// позже этого момента.
+pub fn stamp() -> u128 {
+    nanos()
+}
+
+/// Убрать записки, оставшиеся с прошлого раза.
+///
+/// Они принадлежат сеансу, который уже кончился: первый экземпляр мог упасть,
+/// не успев их прочитать. Открыть их сейчас значило бы показать человеку
+/// файлы, которых он в этот раз не просил, — поэтому убираем молча.
+///
+/// **Только старше `since`** (находка Я6 ревизии). До задачи 142 здесь
+/// стояло `take_requests` — «убрать всё», — а зовётся уборка из `setup`,
+/// через сотни миллисекунд после занятия замка. Проводник запускает
+/// по процессу на каждый выделенный файл, братья успевают оставить записки
+/// в это окно, и из пяти выбранных при холодном старте открывался один.
+/// Метка в имени записки (`{pid}-{nanos}`) говорит, когда её оставили;
+/// имя без метки — не наша записка, её тоже убираем. Недописанный `.tmp`
+/// от упавшего брата — туда же, иначе он лежал бы вечно.
+pub fn discard_stale(data_dir: &Path, since: u128) {
+    let Ok(entries) = std::fs::read_dir(requests_dir(data_dir)) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let fresh = stamp_of(&path).is_some_and(|left_at| left_at >= since);
+        if !fresh {
+            let _ = std::fs::remove_file(&path);
+        }
+    }
+}
+
+/// Почтовый ящик первого экземпляра: записки лежат в папке, пока окно
+/// не готово их принять (находка Я6 ревизии).
+///
+/// Пути уходят фронтенду событием, а событие Tauri без подписчика
+/// не копится — уходит в пустоту. Подписывается же фронтенд поздно:
+/// после раскладки клавиш, восстановления сессии и своих путей из командной
+/// строки. До задачи 142 поток опроса забирал записку (и удалял её) сразу,
+/// и пути братьев, пришедшие при холодном старте, терялись.
+///
+/// Теперь поток не трогает записок, пока фронтенд не подписался и не забрал
+/// накопленное сам (`open`). `AtomicBool`, а не `Mutex<bool>`: флаг один,
+/// меняется один раз и читается раз в сотню миллисекунд из другого потока —
+/// атомарной переменной тут достаточно, и заблокироваться на ней нельзя.
+/// `Ordering::SeqCst` — самый строгий порядок и самый простой для
+/// рассуждений; на флаге, который читают раз в сотню миллисекунд,
+/// разницы в скорости с более слабыми нет.
+#[derive(Default)]
+pub struct Mailbox {
+    ready: AtomicBool,
+}
+
+impl Mailbox {
+    /// Для потока опроса: записки, если окно уже слушает, иначе `None`.
+    pub fn collect(&self, data_dir: &Path) -> Option<Vec<String>> {
+        if !self.ready.load(Ordering::SeqCst) {
+            return None;
+        }
+        take_requests(data_dir)
+    }
+
+    /// Фронтенд подписался на `OPEN_PATHS`: отдать накопленное и дальше
+    /// слать событием. Флаг ставится до чтения: записка, пришедшая между
+    /// ними, уйдёт событием к уже готовому слушателю, а не пропадёт.
+    pub fn open(&self, data_dir: &Path) -> Vec<String> {
+        self.ready.store(true, Ordering::SeqCst);
+        take_requests(data_dir).unwrap_or_default()
+    }
+}
+
 /// Следить за записками. Зовётся один раз, первым экземпляром.
-pub fn watch(app: AppHandle, data_dir: PathBuf) {
-    // Записки, оставшиеся с прошлого раза, принадлежат сеансу, который уже
-    // кончился: первый экземпляр мог упасть, не успев их прочитать. Открыть
-    // их сейчас значило бы показать человеку файлы, которых он в этот раз
-    // не просил, — поэтому убираем молча.
-    let _ = take_requests(&data_dir);
+///
+/// `since` — момент перед занятием замка (`stamp`): записки старше него
+/// остались от прошлого сеанса.
+pub fn watch(app: AppHandle, data_dir: PathBuf, since: u128) {
+    discard_stale(&data_dir, since);
 
     std::thread::spawn(move || {
         loop {
             std::thread::sleep(POLL);
 
-            let Some(paths) = take_requests(&data_dir) else {
+            // Ящик кладётся в состояние приложения до `setup` (`lib.rs`),
+            // так что здесь он есть всегда.
+            let Some(paths) = app.state::<Mailbox>().collect(&data_dir) else {
                 continue;
             };
 
@@ -188,6 +270,12 @@ pub fn watch(app: AppHandle, data_dir: PathBuf) {
             }
         }
     });
+}
+
+/// Когда оставлена записка: метка из её имени `{pid}-{nanos}`.
+/// `None` — имя не наше.
+fn stamp_of(path: &Path) -> Option<u128> {
+    path.file_stem()?.to_str()?.rsplit_once('-')?.1.parse().ok()
 }
 
 fn requests_dir(data_dir: &Path) -> PathBuf {
@@ -297,9 +385,62 @@ mod tests {
         hand_over(&dir, &[r"C:\первый.md".to_owned()]);
         hand_over(&dir, &[r"C:\второй.md".to_owned()]);
 
-        let mut paths = take_requests(&dir).expect("записки должны найтись");
-        paths.sort();
-        assert_eq!(paths, vec![r"C:\второй.md", r"C:\первый.md"]);
+        // В порядке прихода: так они и встанут вкладками.
+        let paths = take_requests(&dir).expect("записки должны найтись");
+        assert_eq!(paths, vec![r"C:\первый.md", r"C:\второй.md"]);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Записки — в порядке прихода, а не имён: имя начинается номером
+    /// процесса, и папка отдаёт их по нему. Здесь процесс 1 пришёл позже
+    /// процесса 2.
+    #[test]
+    fn notes_come_in_arrival_order() {
+        let dir = temp_dir("order");
+        let requests = requests_dir(&dir);
+        std::fs::create_dir_all(&requests).unwrap();
+        std::fs::write(requests.join("1-200.open"), r"C:\второй.md").unwrap();
+        std::fs::write(requests.join("2-100.open"), r"C:\первый.md").unwrap();
+
+        assert_eq!(
+            take_requests(&dir),
+            Some(vec![r"C:\первый.md".to_owned(), r"C:\второй.md".to_owned()])
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Холодный старт (Я6 ревизии): брат оставил записку после того, как
+    /// первый занял замок, но до уборки в `setup`. Уборка её не трогает,
+    /// а записку прошлого сеанса и мусор без метки — убирает.
+    #[test]
+    fn startup_cleanup_keeps_fresh_notes() {
+        let dir = temp_dir("stale");
+        hand_over(&dir, &[r"C:\прошлый раз.md".to_owned()]);
+        std::fs::write(requests_dir(&dir).join("чужое.open"), r"C:\чужое.md").unwrap();
+
+        let since = stamp();
+        hand_over(&dir, &[r"C:\брат.md".to_owned()]);
+        discard_stale(&dir, since);
+
+        assert_eq!(take_requests(&dir), Some(vec![r"C:\брат.md".to_owned()]));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Пока окно не подписалось, записки лежат: событие без подписчика
+    /// ушло бы в пустоту (Я6 ревизии). Подписавшись, фронтенд забирает
+    /// накопленное сам, а дальше записки идут потоку опроса.
+    #[test]
+    fn notes_wait_until_the_window_listens() {
+        let dir = temp_dir("mailbox");
+        let mailbox = Mailbox::default();
+
+        hand_over(&dir, &[r"C:\первый.md".to_owned()]);
+        assert_eq!(mailbox.collect(&dir), None, "окно ещё не слушает");
+
+        assert_eq!(mailbox.open(&dir), vec![r"C:\первый.md".to_owned()]);
+
+        hand_over(&dir, &[r"C:\второй.md".to_owned()]);
+        assert_eq!(mailbox.collect(&dir), Some(vec![r"C:\второй.md".to_owned()]));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

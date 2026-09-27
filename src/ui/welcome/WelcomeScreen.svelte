@@ -3,7 +3,7 @@
   import { iconForFile, kindOf } from '../../icons/files';
   import { ago } from './ago';
   import { recentFiles, type RecentEntry } from '../../ipc/recent';
-  import { openPath } from '../../state/tabs.svelte';
+  import { tryOpenPath } from '../../state/tabs.svelte';
   import { commandList } from '../../keymap/global.svelte';
   import { labelOf } from '../../keymap/binding';
   import { version } from '../../version';
@@ -94,7 +94,7 @@
               <button
                 class="row"
                 type="button"
-                onclick={() => openPath(entry.path)}
+                onclick={() => void tryOpenPath(entry.path)}
                 title={entry.path}
               >
                 <span class="glyph" data-kind={kindOf(place.name)}>

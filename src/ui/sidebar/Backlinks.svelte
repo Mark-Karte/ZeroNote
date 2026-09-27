@@ -2,7 +2,7 @@
   import Icon from '../Icon.svelte';
   import { iconForFile } from '../../icons/files';
   import { links, refreshBacklinks } from '../../state/links.svelte';
-  import { activeTab, openPath } from '../../state/tabs.svelte';
+  import { activeTab, tryOpenPath } from '../../state/tabs.svelte';
   import { roots } from '../../state/roots.svelte';
   import { indexing } from '../../state/index.svelte';
 
@@ -54,7 +54,7 @@
           <button
             class="row"
             type="button"
-            onclick={() => void openPath(item.path)}
+            onclick={() => void tryOpenPath(item.path)}
             title={item.path}
           >
             <span class="line">

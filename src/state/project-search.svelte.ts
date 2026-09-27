@@ -3,7 +3,7 @@ import { tick } from 'svelte';
 import * as ipc from '../ipc/index';
 import type { Hit } from '../ipc/index';
 import * as search from '../ipc/edits';
-import { openPath } from './tabs.svelte';
+import { tryOpenPath } from './tabs.svelte';
 import { search as fileSearch, findNext } from './search.svelte';
 
 /**
@@ -221,7 +221,7 @@ export async function runNow(): Promise<void> {
  * так что попадание точнее.
  */
 export async function openHit(hit: Hit): Promise<void> {
-  await openPath(hit.path);
+  if (!(await tryOpenPath(hit.path))) return;
 
   // Ищем первое слово запроса, а не запрос целиком: несколько слов индекс
   // ищет как «и», они могут стоять в разных концах файла, и поиск фразы

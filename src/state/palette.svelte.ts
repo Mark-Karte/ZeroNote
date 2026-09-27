@@ -1,6 +1,6 @@
 import * as ipc from '../ipc/index';
 import type { FileHit, TagHit } from '../ipc/index';
-import { openPath } from './tabs.svelte';
+import { tryOpenPath } from './tabs.svelte';
 import { parse, matches, withMode, type PaletteMode } from '../ui/palette/query';
 import { COMMANDS } from '../keymap/registry';
 import { commandList } from '../keymap/global.svelte';
@@ -121,7 +121,7 @@ export async function accept(): Promise<void> {
 
   switch (item.kind) {
     case 'file':
-      await openPath(item.hit.path);
+      await tryOpenPath(item.hit.path);
       return;
     case 'command': {
       const run = COMMANDS[item.id];

@@ -53,7 +53,7 @@
   import { appearance } from '../theme/store.svelte';
   import { openDropped, closeAllTabs } from '../actions/files';
   import { checkExternalChanges } from '../actions/external';
-  import { startupPaths, OPEN_PATHS } from '../ipc/files';
+  import { startupPaths, openRequests, OPEN_PATHS } from '../ipc/files';
   import { installGlobalKeymap, loadKeymap, commandList } from '../keymap/global.svelte';
   import { contextMenu, hideMenu, showMenu } from '../state/menu.svelte';
   import { fieldMenu } from './menus';
@@ -242,6 +242,13 @@
     unlistenOpen = await listen<string[]>(OPEN_PATHS, (event) => {
       void openDropped(event.payload);
     });
+    // А что пришло, пока окно запускалось, ядро придержало до подписки:
+    // событие без слушателя ушло бы в пустоту, и из пяти файлов,
+    // выделенных в проводнике, открывался один (Я6 ревизии).
+    const waiting = await openRequests();
+    if (waiting.length > 0) {
+      await openDropped(waiting);
+    }
 
     // Ход индексации: состояние приходит событиями, а не опросом.
     unlistenIndex = await listen<IndexProgress>(INDEX_PROGRESS, (event) => {

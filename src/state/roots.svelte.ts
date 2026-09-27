@@ -12,15 +12,16 @@ import { expand, forgetRoot } from './tree.svelte';
  * приходят имена, доступность и жалобы на `zeronote.toml`. Здесь только
  * отражение этого списка для интерфейса.
  */
+/**
+ * Панели боковой полосы. Список один — на тип и на восстановление из сессии
+ * (С12 ревизии): до задачи 142 восстановление сверяло имя со своим списком,
+ * куда «Заметки» забыли дописать, и панель заметок после перезапуска
+ * подменялась деревом.
+ */
+export const PANELS = ['tree', 'search', 'links', 'outline', 'tags', 'bookmarks', 'notes'] as const;
+
 /** Какая панель показана в боковой полосе. */
-export type PanelId =
-  | 'tree'
-  | 'search'
-  | 'links'
-  | 'outline'
-  | 'tags'
-  | 'bookmarks'
-  | 'notes';
+export type PanelId = (typeof PANELS)[number];
 
 export const roots = $state<{
   items: Root[];
@@ -158,8 +159,7 @@ export async function restoreFromSession(
   roots.sidebarWidth = sidebarWidth;
   // Неизвестное имя панели из чужой или будущей версии не должно оставлять
   // полосу пустой.
-  const known: PanelId[] = ['tree', 'search', 'links', 'outline', 'tags', 'bookmarks'];
-  roots.panel = known.includes(panel as PanelId) ? (panel as PanelId) : 'tree';
+  roots.panel = (PANELS as readonly string[]).includes(panel) ? (panel as PanelId) : 'tree';
 
   // Какие папки внутри были раскрыты, мы не помним — и не пытаемся: список
   // раскрытых узлов быстро устаревает, а восстановление несуществующих
