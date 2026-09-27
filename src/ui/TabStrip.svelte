@@ -26,8 +26,11 @@
   import { showMenu } from '../state/menu.svelte';
   import { tabMenu, MENU } from './menus';
   import { commandList } from '../keymap/global.svelte';
+  import { labelOf } from '../keymap/binding';
   import { runCommand } from '../keymap/registry';
+  import { iconForCommand } from '../icons/commands';
   import { nextIndex, type TabBox } from './tab-drag';
+  import { emptyDoubleClick, NOT_EMPTY, revealShift } from './tab-strip';
 
   /**
    * Перетаскивание вкладок сделано на событиях указателя, а не на
@@ -274,71 +277,185 @@
     }
     finishDrag();
   }
+
+  /**
+   * Новый файл — кнопкой у правого края и двойным щелчком по пустому
+   * месту полосы (задача 133). Действие — команда реестра (Р-107): вкладка
+   * встаёт в эту область, потому что щелчок уже назначил ей фокус (Р-210).
+   */
+  const NEW_FILE = 'file.new';
+  /** Значок принадлежит команде (Р-148), своего у кнопки нет. */
+  const newIcon = iconForCommand(NEW_FILE);
+
+  /** Подпись кнопки — название команды и её сочетание, как у панели. */
+  const newHint = $derived.by(() => {
+    const found = commandList().find((command) => command.id === NEW_FILE);
+    if (!found) return NEW_FILE;
+    return found.binding ? `${found.title} · ${labelOf(found.binding)}` : found.title;
+  });
+
+  let bar: HTMLDivElement;
+  const gesture = emptyDoubleClick();
+
+  /** Под указателем пустое место полосы — не вкладка и не кнопка. */
+  function emptyAt(event: MouseEvent): boolean {
+    const hit = document.elementFromPoint(event.clientX, event.clientY);
+    return hit !== null && bar.contains(hit) && hit.closest(NOT_EMPTY) === null;
+  }
+
+  function onBarPress(event: MouseEvent): void {
+    if (event.button !== 0) return;
+    gesture.press(event.detail, emptyAt(event));
+  }
+
+  function onBarDoubleClick(event: MouseEvent): void {
+    if (event.button !== 0) return;
+    if (gesture.fires(emptyAt(event))) runCommand(NEW_FILE);
+  }
+
+  /**
+   * Активная вкладка видна целиком: новая встаёт в конец ряда, и при
+   * длинном ряде без этого оказывалась за краем полосы. Список вкладок
+   * читается ради подписки — узел новой вкладки появляется тем же
+   * обновлением, что и её номер в `pane.active`.
+   */
+  $effect(() => {
+    const active = pane.active;
+    if (active === null || !visible.some((tab) => tab.meta.id === active)) return;
+    const element = strip.querySelector<HTMLElement>(`[data-tab-id="${active}"]`);
+    if (!element) return;
+    strip.scrollLeft += revealShift(strip.getBoundingClientRect(), element.getBoundingClientRect());
+  });
+
+  /** Кнопка не забирает фокус: его получит новый редактор (как у панели). */
+  function keepFocus(event: MouseEvent): void {
+    event.preventDefault();
+  }
 </script>
 
+<!--
+  Полоса — две части: вкладки листаются, кнопка «+» стоит у правого края
+  и не уезжает вместе с ними. Место сброса чужой вкладки (`data-tab-strip`)
+  — вся полоса: над кнопкой вкладка встаёт последней.
+-->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-  class="strip"
-  class:focused
-  class:drop-end={dropIndex === visible.length}
+  class="bar"
   data-tab-strip
-  bind:this={strip}
-  role="tablist"
-  tabindex="-1"
-  onpointermove={onPointerMove}
-  onpointerup={onPointerUp}
-  onpointercancel={onPointerUp}
-  onlostpointercapture={finishDrag}
+  bind:this={bar}
+  onmousedown={onBarPress}
+  ondblclick={onBarDoubleClick}
 >
-  {#each visible as tab, i (tab.meta.id)}
-    <div
-      class="tab"
-      class:active={tab.meta.id === pane.active}
-      class:dragging={tab.meta.id === dragging}
-      class:drop-before={dropIndex === i}
-      data-tab-id={tab.meta.id}
-      role="tab"
-      tabindex="-1"
-      aria-selected={tab.meta.id === pane.active}
-      title={tab.meta.path ?? tab.meta.title}
-      onpointerdown={(e) => onPointerDown(e, tab.meta.id)}
-      oncontextmenu={(e) => onContextMenu(e, tab.meta.id)}
-    >
-      <span class="kind" data-kind={kindOf(tab.meta.title)}>
-        <Icon name={tabIcon(tab.meta)} />
-      </span>
-      <span class="name">{tab.meta.title}</span>
-      <button
-        class="close"
-        class:modified={tab.meta.modified}
-        type="button"
-        title={tab.meta.modified ? 'Закрыть (есть несохранённые правки)' : 'Закрыть'}
-        onpointerdown={(e) => e.stopPropagation()}
-        onclick={() => closeTab(tab.meta.id, pane.id)}
+  <div
+    class="strip"
+    class:focused
+    class:drop-end={dropIndex === visible.length}
+    bind:this={strip}
+    role="tablist"
+    tabindex="-1"
+    onpointermove={onPointerMove}
+    onpointerup={onPointerUp}
+    onpointercancel={onPointerUp}
+    onlostpointercapture={finishDrag}
+  >
+    {#each visible as tab, i (tab.meta.id)}
+      <div
+        class="tab"
+        class:active={tab.meta.id === pane.active}
+        class:dragging={tab.meta.id === dragging}
+        class:drop-before={dropIndex === i}
+        data-tab-id={tab.meta.id}
+        role="tab"
+        tabindex="-1"
+        aria-selected={tab.meta.id === pane.active}
+        title={tab.meta.path ?? tab.meta.title}
+        onpointerdown={(e) => onPointerDown(e, tab.meta.id)}
+        oncontextmenu={(e) => onContextMenu(e, tab.meta.id)}
       >
-        <Icon name={tab.meta.modified ? 'tab.modified' : 'tab.close'} />
-      </button>
-    </div>
-  {/each}
+        <span class="kind" data-kind={kindOf(tab.meta.title)}>
+          <Icon name={tabIcon(tab.meta)} />
+        </span>
+        <span class="name">{tab.meta.title}</span>
+        <button
+          class="close"
+          class:modified={tab.meta.modified}
+          type="button"
+          title={tab.meta.modified ? 'Закрыть (есть несохранённые правки)' : 'Закрыть'}
+          onpointerdown={(e) => e.stopPropagation()}
+          onclick={() => closeTab(tab.meta.id, pane.id)}
+        >
+          <Icon name={tab.meta.modified ? 'tab.modified' : 'tab.close'} />
+        </button>
+      </div>
+    {/each}
+  </div>
+
+  <button
+    class="new"
+    type="button"
+    title={newHint}
+    aria-label={newHint}
+    onmousedown={keepFocus}
+    onclick={() => runCommand(NEW_FILE)}
+  >
+    {#if newIcon}
+      <Icon name={newIcon} />
+    {/if}
+  </button>
 </div>
 
 <style>
-  .strip {
+  .bar {
     display: flex;
     flex: none;
+    align-items: center;
+    gap: var(--zn-space-2);
+    height: var(--zn-control-tab-height);
+    /* Полосы окна — шапка, вкладки, строка состояния — начинаются
+       от одной вертикали. До задачи 56 их было три разных. Справа
+       отступ меньше: там кнопка, а не текст. */
+    padding-inline-start: var(--zn-space-4);
+    padding-inline-end: var(--zn-space-2);
+    background-color: var(--zn-color-bg-surface);
+    border-bottom: var(--zn-border-width) solid var(--zn-color-border-subtle);
+  }
+
+  .strip {
+    display: flex;
+    flex: 1;
+    /* Без этого полоса растёт по вкладкам и выталкивает кнопку за край,
+       вместо того чтобы листаться. */
+    min-width: 0;
+    align-self: stretch;
     align-items: stretch;
     /* Зазора между вкладками нет: их разделяет черта, а не пустота.
        Пустота между одинаковыми прямоугольниками не делит их, а размывает —
        именно так полоса вкладок и выглядела до задачи 56. */
     gap: 0;
-    height: var(--zn-control-tab-height);
-    /* Полосы окна — шапка, вкладки, строка состояния — начинаются
-       от одной вертикали. До задачи 56 их было три разных. */
-    padding-inline: var(--zn-space-4);
-    background-color: var(--zn-color-bg-surface);
-    border-bottom: var(--zn-border-width) solid var(--zn-color-border-subtle);
     overflow-x: auto;
     overflow-y: hidden;
     scrollbar-width: none;
+  }
+
+  /* «+» — кнопка того же вида, что у панели инструментов: квадрат
+     без подложки, подложка по наведению. */
+  .new {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: var(--zn-control-toolbar-button-size);
+    height: var(--zn-control-toolbar-button-size);
+    border: none;
+    border-radius: var(--zn-radius-md);
+    background: none;
+    color: var(--zn-color-fg-muted);
+    cursor: default;
+  }
+
+  .new:hover {
+    background-color: var(--zn-color-bg-hover);
+    color: var(--zn-color-fg-default);
   }
 
   /* Вкладка — карточка со скруглённым верхом, как в референсе: нижние углы
@@ -414,7 +531,8 @@
   }
 
   /* Куда встанет вкладка, которую тащат из другой области (задача 77):
-     черта перед вкладкой, а за последней — у правого края полосы. */
+     черта перед вкладкой, а за последней — у правого края вкладок,
+     перед кнопкой «+». */
   .tab.drop-before {
     box-shadow: inset var(--zn-border-width-thick) 0 0 var(--zn-color-accent);
   }
