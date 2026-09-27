@@ -952,12 +952,9 @@ function putViewed(meta: Buffer): void {
       pdf: meta.kind === 'pdf' ? freshPdf() : null,
     });
   }
-
-  // В активную область — то же, что только что сделало ядро.
-  openLocal(meta.id);
-  noteStructureChange();
 }
 
+/** Открыть вкладку: положить содержимое и показать её в активной области. */
 function put(
   meta: Buffer,
   text: string,
@@ -970,9 +967,33 @@ function put(
   // и не читало файл, оно вернуло одни сведения о нём.
   if (meta.kind === 'image' || meta.kind === 'pdf') {
     putViewed(meta);
+    // В активную область — то же, что только что сделало ядро.
+    openLocal(meta.id);
+    noteStructureChange();
     return;
   }
 
+  install(meta, text, cursor, scrollTop, language, bookmarks);
+  // В активную область — то же, что только что сделало ядро. До языка:
+  // подстановка языка проверяет, активна ли вкладка.
+  openLocal(meta.id);
+  // Язык грузится и встаёт на место сам: ждать его открытие файла не должно.
+  void applyLanguage(meta.id);
+  noteStructureChange();
+}
+
+/**
+ * Положить текст во вкладку — новую или существующую, — не трогая
+ * раскладку. Текст становится исходным: с ним сравнивается набранное.
+ */
+function install(
+  meta: Buffer,
+  text: string,
+  cursor: number,
+  scrollTop: number,
+  language: string | null,
+  bookmarks: number[],
+): void {
   // Отступ определяется один раз, по содержимому: перечитывать его на каждой
   // правке значило бы менять поведение `Tab` посреди набора.
   const indent = resolveIndent(text, indentSettings());
@@ -998,12 +1019,6 @@ function put(
   } else {
     tabs.items.push({ meta, editor, image: null, pdf: null });
   }
-  // В активную область — то же, что только что сделало ядро. До языка:
-  // подстановка языка проверяет, активна ли вкладка.
-  openLocal(meta.id);
-  // Язык грузится и встаёт на место сам: ждать его открытие файла не должно.
-  void applyLanguage(meta.id);
-  noteStructureChange();
 }
 
 /**
@@ -1384,10 +1399,36 @@ export async function openSettings(): Promise<void> {
 }
 
 export async function openPath(path: string): Promise<void> {
-  // Если файл уже открыт, ядро вернёт тот же буфер, и `put` заменит
-  // содержимое существующей вкладки вместо создания второй.
   const opened = await ipc.openFile(path);
+
+  // Файл уже открыт: ядро вернуло тот же буфер и показало его вкладку,
+  // а диск не читало (задача 135). Вкладка только становится активной —
+  // до задачи 135 её подменял текст с диска, и несохранённые правки
+  // пропадали без вопроса. Изменения снаружи — дело проверки при возврате
+  // фокуса, и она спрашивает (Р-014).
+  if (opened.reused) {
+    await showReused(opened.id);
+    return;
+  }
+
   put(opened, opened.text);
+}
+
+/** Показать вкладку файла, который ядро узнало открытым. */
+async function showReused(id: number): Promise<void> {
+  if (!tabById(id)) {
+    // Ядро буфер знает, а вкладки ещё нет: тот же файл открывается вторым
+    // запросом, пока первый не дошёл, — двойной щелчок в дереве. Правок
+    // во вкладке, которой нет, быть не может, и текст берётся с диска.
+    const read = await ipc.reloadBuffer(id);
+    // Пока читали, вкладку мог положить первый запрос — тогда она главнее.
+    if (!tabById(id)) {
+      put(read, read.text);
+      return;
+    }
+  }
+  openLocal(id);
+  noteStructureChange();
 }
 
 /**
@@ -1435,6 +1476,12 @@ export async function reopenClosed(): Promise<boolean> {
   if (paneById(entry.pane)) setActivePane(entry.pane);
 
   const opened = await ipc.openFile(entry.path);
+  // Файл уже открыт другим путём к нему же — возвращать нечего, только
+  // показать: текста в таком ответе нет (задача 135).
+  if (opened.reused) {
+    await showReused(opened.id);
+    return true;
+  }
   put(opened, opened.text, entry.cursor, entry.scrollTop, entry.language, entry.bookmarks);
 
   const pane = paneShowing(opened.id);
@@ -1456,9 +1503,42 @@ function samePath(a: string | null, b: string): boolean {
   return a.replace(/\//g, '\\').toLowerCase() === b.replace(/\//g, '\\').toLowerCase();
 }
 
-/** Заменить содержимое вкладки прочитанным заново. */
+/**
+ * Заменить содержимое вкладки прочитанным заново: перечитывание при возврате
+ * фокуса, «Версию с диска», «Интерпретировать как».
+ *
+ * Раскладку не трогает (задача 135): перечитывание — не открытие. До этого
+ * оно шло через `put` и переносило вкладку в активную область: чистая
+ * фоновая вкладка, изменённая снаружи, при возврате в окно становилась
+ * активной, и следующие нажатия уходили в неё. Место во вкладке тоже
+ * остаётся — курсор, прокрутка, выбранный язык, закладки: пропадают только
+ * правки, которых не было или от которых человек отказался.
+ */
 export function replaceContent(opened: BufferWithText): void {
-  put(opened, opened.text);
+  const tab = tabById(opened.id);
+  // Закрыта, пока файл читался.
+  if (!tab) return;
+
+  if (opened.kind === 'image' || opened.kind === 'pdf') {
+    putViewed(opened);
+    noteStructureChange();
+    return;
+  }
+
+  const old = tab.editor;
+  install(
+    opened,
+    opened.text,
+    old ? old.state.selection.main.head : 0,
+    old?.scrollTop ?? 0,
+    old?.language ?? null,
+    old ? bookmarkLines(old.state) : [],
+  );
+  // Текст теперь ровно тот, что на диске: восстановленному из черновика
+  // подпорка «изменён до сохранения» больше не нужна.
+  restoredDirty.delete(opened.id);
+  void applyLanguage(opened.id);
+  noteStructureChange();
 }
 
 /**

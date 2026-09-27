@@ -44,6 +44,15 @@ export interface Buffer {
 
 export type BufferWithText = Buffer & { text: string };
 
+/**
+ * Ответ на открытие файла.
+ *
+ * `reused` — файл уже был открыт текстом: ядро только показало его вкладку,
+ * диска не читало, и `text` пуст. Содержимым владеет вкладка, и в ней могут
+ * быть несохранённые правки (задача 135).
+ */
+export type OpenedBuffer = BufferWithText & { reused: boolean };
+
 export interface EncodingOption {
   id: EncodingId;
   label: string;
@@ -115,7 +124,7 @@ export const previewEmbed = (target: string, from: string): Promise<string> =>
  */
 export const openDefaultApps = (): Promise<void> => invoke('open_default_apps');
 
-export const openFile = (path: string): Promise<BufferWithText> =>
+export const openFile = (path: string): Promise<OpenedBuffer> =>
   invoke('open_file', { path });
 
 export const reloadBuffer = (id: number): Promise<BufferWithText> =>

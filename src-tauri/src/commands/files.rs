@@ -25,6 +25,21 @@ pub struct BufferWithText {
     pub text: String,
 }
 
+/// Ответ на открытие файла.
+///
+/// `reused` — файл уже был открыт текстом: ядро только показало вкладку,
+/// диска не читало, и `text` пуст (задача 135). Текстом открытого буфера
+/// владеет фронтенд, и в нём могут быть несохранённые правки. До задачи 135
+/// повторное открытие перечитывало файл и снимало признак изменения —
+/// правки пропадали без вопроса.
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Opened {
+    #[serde(flatten)]
+    pub content: BufferWithText,
+    pub reused: bool,
+}
+
 /// Ошибка, пригодная к показу пользователю.
 ///
 /// Команды Tauri возвращают `Result<_, String>`: всё, что дойдёт до
@@ -51,7 +66,7 @@ pub fn list_buffers(state: tauri::State<'_, AppState>) -> Vec<Buffer> {
 /// Все команды открытия заканчиваются здесь, и это единственное место,
 /// где буфер попадает в раскладку. Блокировка раскладки берётся после
 /// блокировки реестра и всегда отдельно — см. правило порядка в `AppState`.
-fn show(state: &tauri::State<'_, AppState>, id: BufferId) {
+fn show(state: &AppState, id: BufferId) {
     let mut layout = state.layout.lock().expect("раскладка повреждена");
     layout.open(id);
 }
@@ -89,24 +104,53 @@ pub fn open_settings(state: tauri::State<'_, AppState>) -> Buffer {
 /// Две вкладки с одним путём означали бы два источника истины и потерю
 /// правок при сохранении.
 #[tauri::command]
-pub fn open_file(state: tauri::State<'_, AppState>, path: String) -> Fallible<BufferWithText> {
-    let path = PathBuf::from(path);
+pub fn open_file(state: tauri::State<'_, AppState>, path: String) -> Fallible<Opened> {
+    // `&state` — ссылка на обёртку Tauri, а функция ждёт `&AppState`:
+    // обёртка отдаёт ссылку на содержимое сама (`Deref`). Тело вынесено,
+    // чтобы его можно было проверить тестом без запущенного приложения.
+    open_path(&state, PathBuf::from(path))
+}
 
+fn open_path(state: &AppState, path: PathBuf) -> Fallible<Opened> {
     // Сначала смотрим, не открыт ли уже. Блокировку сразу отпускаем:
     // дальше идёт работа с диском, а под блокировкой её держать нельзя.
     let already_open = {
         let buffers = state.buffers.lock().expect("реестр буферов повреждён");
-        buffers.find_by_path(&path).map(|b| b.id)
+        buffers.find_by_path(&path).map(|b| (b.id, b.kind))
     };
 
-    if let Some(id) = already_open {
+    if let Some((id, kind)) = already_open {
         // В историю попадает и повторное открытие: пользователь только что
         // выбрал этот файл, и в списке недавнего он должен оказаться сверху.
-        remember_recent(&state, &path);
+        remember_recent(state, &path);
         // И в активную область тоже: файл, открытый в соседней, отсюда
         // получает зеркало (Р-209), а открытый здесь — просто активируется.
-        show(&state, id);
-        return reload_buffer(state, id);
+        show(state, id);
+
+        // Картинку и PDF перечитать не во вред: правок в них нет, а показ
+        // заодно подхватит подменённый на диске файл.
+        if kind != TabKind::Text {
+            return Ok(Opened {
+                content: reload(state, id)?,
+                reused: false,
+            });
+        }
+
+        // Текст — нет (задача 135): в буфере могут быть несохранённые
+        // правки, и перечитывание их стирало. Изменения снаружи ловит
+        // проверка при возврате фокуса — и спрашивает (Р-014).
+        let buffers = state.buffers.lock().expect("реестр буферов повреждён");
+        let buffer = buffers
+            .get(id)
+            .ok_or_else(|| format!("буфер {id} не найден"))?
+            .clone();
+        return Ok(Opened {
+            content: BufferWithText {
+                buffer,
+                text: String::new(),
+            },
+            reused: true,
+        });
     }
 
     // Картинка и PDF открываются вкладками своего вида (Р-180). Файл на этом
@@ -121,11 +165,14 @@ pub fn open_file(state: tauri::State<'_, AppState>, path: String) -> Fallible<Bu
         let buffer = buffers.create_viewed(path.clone(), disk, kind).clone();
         drop(buffers);
 
-        show(&state, buffer.id);
-        remember_recent(&state, &path);
-        return Ok(BufferWithText {
-            buffer,
-            text: String::new(),
+        show(state, buffer.id);
+        remember_recent(state, &path);
+        return Ok(Opened {
+            content: BufferWithText {
+                buffer,
+                text: String::new(),
+            },
+            reused: false,
         });
     }
 
@@ -153,18 +200,21 @@ pub fn open_file(state: tauri::State<'_, AppState>, path: String) -> Fallible<Bu
     // История пишется после успешного чтения: файла, который не открылся,
     // в списке недавнего быть не должно.
     drop(buffers);
-    show(&state, buffer.id);
-    remember_recent(&state, &path);
+    show(state, buffer.id);
+    remember_recent(state, &path);
 
-    Ok(BufferWithText {
-        buffer,
-        text: opened.document.text,
+    Ok(Opened {
+        content: BufferWithText {
+            buffer,
+            text: opened.document.text,
+        },
+        reused: false,
     })
 }
 
 /// Записать файл в историю. Неудача записи не должна мешать открытию:
 /// список недавнего — удобство, а открытый файл — работа.
-fn remember_recent(state: &tauri::State<'_, AppState>, path: &std::path::Path) {
+fn remember_recent(state: &AppState, path: &std::path::Path) {
     let _ = session::recent::remember(&state.data_dir.path, path, session::recent::now_ms());
 }
 
@@ -198,6 +248,10 @@ pub fn reload_buffer(
     state: tauri::State<'_, AppState>,
     id: BufferId,
 ) -> Fallible<BufferWithText> {
+    reload(&state, id)
+}
+
+fn reload(state: &AppState, id: BufferId) -> Fallible<BufferWithText> {
     let (path, kind) = {
         let buffers = state.buffers.lock().expect("реестр буферов повреждён");
         let buffer = buffers
@@ -862,5 +916,75 @@ mod tests {
     #[test]
     fn nothing_dropped_is_not_an_error() {
         assert_eq!(split_paths(Vec::new()), SplitPaths::default());
+    }
+
+    /// Повторное открытие открытого файла не читает диск и не снимает
+    /// признак изменения (задача 135, находка Ф1 ревизии).
+    ///
+    /// Щелчок в дереве по уже открытому файлу — как и переход по ссылке,
+    /// быстрое открытие, выдача поиска — приходит сюда. До задачи 135 здесь
+    /// стояло перечитывание: текст с диска и `modified = false`. Фронтенд
+    /// подменял им вкладку, и несохранённые правки пропадали без вопроса;
+    /// ядро при этом считало буфер чистым, и черновик после сбоя
+    /// не поднялся бы тоже.
+    #[test]
+    fn reopening_an_open_file_keeps_unsaved_edits() {
+        let dir = temp_dir("reopen");
+        let file = dir.join("заметка.md");
+        std::fs::write(&file, "диск").unwrap();
+        let state = AppState::for_tests(dir.join("data"));
+
+        let first = open_path(&state, file.clone()).unwrap();
+        assert!(!first.reused);
+        assert_eq!(first.content.text, "диск");
+        let id = first.content.buffer.id;
+
+        // Человек правит — фронтенд сообщает ядру о переходе в «изменён».
+        state.buffers.lock().unwrap().get_mut(id).unwrap().modified = true;
+        let disk_before = state.buffers.lock().unwrap().get(id).unwrap().disk;
+
+        // Файл тем временем меняют снаружи. Повторное открытие — не повод
+        // его перечитать: это дело проверки при возврате фокуса (Р-014).
+        std::fs::write(&file, "чужое").unwrap();
+
+        let again = open_path(&state, file.clone()).unwrap();
+        assert!(again.reused);
+        assert_eq!(again.content.buffer.id, id);
+        assert_eq!(again.content.text, "");
+        // Фронтенд читает плоский объект: `reused` рядом с `id` и `text`,
+        // а не во вложенном `content` — его прячет `serde(flatten)`.
+        let json = serde_json::to_value(&again).unwrap();
+        assert_eq!(json["reused"], true);
+        assert_eq!(json["id"], id);
+        assert_eq!(json["text"], "");
+        assert_eq!(json["modified"], true);
+
+        let buffers = state.buffers.lock().unwrap();
+        let buffer = buffers.get(id).unwrap();
+        assert!(buffer.modified, "признак изменения снят повторным открытием");
+        // Сверка с диском осталась прежней: проверка при возврате фокуса
+        // увидит внешнюю правку и спросит.
+        assert_eq!(buffer.disk, disk_before);
+        drop(buffers);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Картинку повторное открытие перечитывает, как и раньше: правок в ней
+    /// нет, а подменённый на диске файл показ заодно подхватит.
+    #[test]
+    fn reopening_an_image_refreshes_it() {
+        let dir = temp_dir("reopen-image");
+        let file = dir.join("рисунок.png");
+        std::fs::write(&file, [0u8; 4]).unwrap();
+        let state = AppState::for_tests(dir.join("data"));
+
+        let first = open_path(&state, file.clone()).unwrap();
+        let again = open_path(&state, file.clone()).unwrap();
+
+        assert!(!again.reused);
+        assert_eq!(again.content.buffer.id, first.content.buffer.id);
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

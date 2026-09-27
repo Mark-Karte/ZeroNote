@@ -78,6 +78,30 @@ pub struct AppState {
 }
 
 impl AppState {
+    /// Пустое состояние с папкой данных `data` — для тестов команд.
+    ///
+    /// Команде Tauri состояние приходит обёрткой `tauri::State`, а её
+    /// без запущенного приложения не получить. Поэтому у команды, которую
+    /// надо проверить, тело вынесено в функцию от `&AppState`: обёртка
+    /// сама отдаёт ссылку на содержимое (через `Deref`), а тест строит
+    /// состояние здесь (задача 135).
+    #[cfg(test)]
+    pub fn for_tests(data: std::path::PathBuf) -> Self {
+        AppState {
+            data_dir: DataDir {
+                path: data,
+                portable: true,
+            },
+            startup_notices: Mutex::new(Vec::new()),
+            buffers: Mutex::new(Buffers::new()),
+            layout: Mutex::new(Layout::default()),
+            roots: Mutex::new(Roots::new()),
+            watchers: Mutex::new(crate::tree::watch::Watchers::default()),
+            index: Mutex::new(crate::index::jobs::Index::default()),
+            file_scan: std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0)),
+        }
+    }
+
     /// Добавить сообщение в полосу предупреждений.
     pub fn notice(&self, message: String) {
         self.startup_notices

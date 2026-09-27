@@ -34,8 +34,21 @@ async function onModified(id: number): Promise<void> {
 
   if (!tab.meta.modified) {
     // Чистый буфер: перечитываем молча.
-    replaceContent(await ipc.reloadBuffer(id));
-    return;
+    const before = tab.editor?.state.doc ?? null;
+    const read = await ipc.reloadBuffer(id);
+    const now = tabById(id);
+    if (!now) return;
+    // Проверка заново, после ожидания (задача 135): проверка идёт
+    // на возврат фокуса, то есть ровно когда человек щёлкнул в окно
+    // и начал печатать, а большой файл читается заметное время.
+    // Набранное за это время молча пропадало вместе с подменой текста.
+    // Теперь буфер, переставший быть чистым, получает тот же вопрос,
+    // что и изменённый.
+    const typed = before !== null && now.editor !== null && !now.editor.state.doc.eq(before);
+    if (!typed) {
+      replaceContent(read);
+      return;
+    }
   }
 
   const answer = await askChoice(
