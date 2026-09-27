@@ -34,7 +34,8 @@
     "targets": ["nsis"],
     "createUpdaterArtifacts": true,
     "resources": {
-      "../THIRD-PARTY-NOTICES.md": "THIRD-PARTY-NOTICES.md"
+      "../THIRD-PARTY-NOTICES.md": "THIRD-PARTY-NOTICES.md",
+      "icons/files/*.ico": "file-icons/"
     },
     "icon": [
       "icons/32x32.png",

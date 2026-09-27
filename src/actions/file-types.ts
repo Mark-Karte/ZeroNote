@@ -9,16 +9,70 @@
  *
  * Открывать при этом мы умеем **любой** текстовый файл — список описывает
  * не умение, а то, о чём мы заявляем системе и что предлагаем в диалоге.
+ *
+ * С задачи 134 здесь всё, что дерево само считает заметкой, кодом
+ * и данными (`icons/files.ts`), — у каждого типа свой значок в проводнике
+ * (`icons/files/make-file-icons.mjs`). Картинок и PDF здесь нет: см. ниже.
  */
 export const TEXT_EXTENSIONS = [
-  'txt',
+  // Заметки и простой текст.
   'md',
   'markdown',
+  'mdx',
+  'txt',
   'log',
+  // Данные и настройки.
   'toml',
   'json',
+  'jsonc',
+  'yaml',
+  'yml',
+  'xml',
   'ini',
+  'cfg',
+  'conf',
   'csv',
+  'tsv',
+  'properties',
+  'lock',
+  // Код.
+  'c',
+  'h',
+  'cpp',
+  'cxx',
+  'cc',
+  'hpp',
+  'hxx',
+  'cs',
+  'java',
+  'kt',
+  'rs',
+  'go',
+  'swift',
+  'py',
+  'rb',
+  'php',
+  'lua',
+  'js',
+  'jsx',
+  'mjs',
+  'cjs',
+  'ts',
+  'tsx',
+  'html',
+  'htm',
+  'css',
+  'scss',
+  'less',
+  'svelte',
+  'vue',
+  'sql',
+  'sh',
+  'bash',
+  'ps1',
+  'psm1',
+  'bat',
+  'cmd',
 ];
 
 /**
@@ -45,7 +99,7 @@ export const IMAGE_EXTENSIONS = [
 
 /** Фильтры системного диалога открытия и сохранения. */
 export const FILE_FILTERS = [
-  { name: 'Текст и заметки', extensions: TEXT_EXTENSIONS },
+  { name: 'Текст, заметки и код', extensions: TEXT_EXTENSIONS },
   { name: 'Картинки', extensions: IMAGE_EXTENSIONS },
   { name: 'PDF', extensions: ['pdf'] },
   { name: 'Все файлы', extensions: ['*'] },

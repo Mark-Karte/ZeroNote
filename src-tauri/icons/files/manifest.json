@@ -1,0 +1,226 @@
+{
+  "md": {
+    "kind": "note",
+    "label": "MD"
+  },
+  "markdown": {
+    "kind": "note",
+    "label": "MD"
+  },
+  "mdx": {
+    "kind": "note",
+    "label": "MDX"
+  },
+  "txt": {
+    "kind": "other",
+    "label": "TXT"
+  },
+  "log": {
+    "kind": "other",
+    "label": "LOG"
+  },
+  "toml": {
+    "kind": "data",
+    "label": "TOML"
+  },
+  "json": {
+    "kind": "data",
+    "label": "JSON"
+  },
+  "jsonc": {
+    "kind": "data",
+    "label": "JSONC"
+  },
+  "yaml": {
+    "kind": "data",
+    "label": "YAML"
+  },
+  "yml": {
+    "kind": "data",
+    "label": "YML"
+  },
+  "xml": {
+    "kind": "data",
+    "label": "XML"
+  },
+  "ini": {
+    "kind": "data",
+    "label": "INI"
+  },
+  "cfg": {
+    "kind": "data",
+    "label": "CFG"
+  },
+  "conf": {
+    "kind": "data",
+    "label": "CONF"
+  },
+  "csv": {
+    "kind": "data",
+    "label": "CSV"
+  },
+  "tsv": {
+    "kind": "data",
+    "label": "TSV"
+  },
+  "properties": {
+    "kind": "data",
+    "label": "PROP"
+  },
+  "lock": {
+    "kind": "data",
+    "label": "LOCK"
+  },
+  "c": {
+    "kind": "code",
+    "label": "C"
+  },
+  "h": {
+    "kind": "code",
+    "label": "H"
+  },
+  "cpp": {
+    "kind": "code",
+    "label": "CPP"
+  },
+  "cxx": {
+    "kind": "code",
+    "label": "CXX"
+  },
+  "cc": {
+    "kind": "code",
+    "label": "CC"
+  },
+  "hpp": {
+    "kind": "code",
+    "label": "HPP"
+  },
+  "hxx": {
+    "kind": "code",
+    "label": "HXX"
+  },
+  "cs": {
+    "kind": "code",
+    "label": "CS"
+  },
+  "java": {
+    "kind": "code",
+    "label": "JAVA"
+  },
+  "kt": {
+    "kind": "code",
+    "label": "KT"
+  },
+  "rs": {
+    "kind": "code",
+    "label": "RS"
+  },
+  "go": {
+    "kind": "code",
+    "label": "GO"
+  },
+  "swift": {
+    "kind": "code",
+    "label": "SWIFT"
+  },
+  "py": {
+    "kind": "code",
+    "label": "PY"
+  },
+  "rb": {
+    "kind": "code",
+    "label": "RB"
+  },
+  "php": {
+    "kind": "code",
+    "label": "PHP"
+  },
+  "lua": {
+    "kind": "code",
+    "label": "LUA"
+  },
+  "js": {
+    "kind": "code",
+    "label": "JS"
+  },
+  "jsx": {
+    "kind": "code",
+    "label": "JSX"
+  },
+  "mjs": {
+    "kind": "code",
+    "label": "MJS"
+  },
+  "cjs": {
+    "kind": "code",
+    "label": "CJS"
+  },
+  "ts": {
+    "kind": "code",
+    "label": "TS"
+  },
+  "tsx": {
+    "kind": "code",
+    "label": "TSX"
+  },
+  "html": {
+    "kind": "code",
+    "label": "HTML"
+  },
+  "htm": {
+    "kind": "code",
+    "label": "HTM"
+  },
+  "css": {
+    "kind": "code",
+    "label": "CSS"
+  },
+  "scss": {
+    "kind": "code",
+    "label": "SCSS"
+  },
+  "less": {
+    "kind": "code",
+    "label": "LESS"
+  },
+  "svelte": {
+    "kind": "code",
+    "label": "SVELTE"
+  },
+  "vue": {
+    "kind": "code",
+    "label": "VUE"
+  },
+  "sql": {
+    "kind": "code",
+    "label": "SQL"
+  },
+  "sh": {
+    "kind": "code",
+    "label": "SH"
+  },
+  "bash": {
+    "kind": "code",
+    "label": "BASH"
+  },
+  "ps1": {
+    "kind": "code",
+    "label": "PS1"
+  },
+  "psm1": {
+    "kind": "code",
+    "label": "PSM1"
+  },
+  "bat": {
+    "kind": "code",
+    "label": "BAT"
+  },
+  "cmd": {
+    "kind": "code",
+    "label": "CMD"
+  },
+  "document": {
+    "kind": "other",
+    "label": null
+  }
+}
