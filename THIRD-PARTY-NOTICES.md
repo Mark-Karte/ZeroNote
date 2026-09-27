@@ -515,7 +515,7 @@ ZeroNote — свободная программа под лицензией MIT
 Лицензия: MIT. Текст — № 55.
 Исходники: https://github.com/marijnh/w3c-keyname
 
-## Библиотеки ядра (Rust) — 209
+## Библиотеки ядра (Rust) — 210
 
 ### aho-corasick 1.1.5
 
@@ -549,14 +549,19 @@ ZeroNote — свободная программа под лицензией MIT
 Лицензия: MIT OR Apache-2.0. Текст — № 63, № 65.
 Исходники: https://github.com/marshallpierce/rust-base64
 
-### bitflags 2.13.1
+### base64 0.23.1
 
 Лицензия: MIT OR Apache-2.0. Текст — № 63, № 66.
+Исходники: https://github.com/marshallpierce/rust-base64
+
+### bitflags 2.13.1
+
+Лицензия: MIT OR Apache-2.0. Текст — № 63, № 67.
 Исходники: https://github.com/bitflags/bitflags
 
 ### brotli 8.0.4
 
-Лицензия: BSD-3-Clause AND MIT. Текст — № 59, № 67.
+Лицензия: BSD-3-Clause AND MIT. Текст — № 59, № 68.
 Исходники: https://github.com/dropbox/rust-brotli
 
 ### brotli-decompressor 5.0.3
@@ -566,7 +571,7 @@ ZeroNote — свободная программа под лицензией MIT
 
 ### bstr 1.13.1
 
-Лицензия: MIT OR Apache-2.0. Текст — № 68, № 63, № 69.
+Лицензия: MIT OR Apache-2.0. Текст — № 69, № 63, № 70.
 Исходники: https://github.com/BurntSushi/bstr
 
 ### byteorder 1.5.0
@@ -576,87 +581,87 @@ ZeroNote — свободная программа под лицензией MIT
 
 ### bytes 1.12.1
 
-Лицензия: MIT. Текст — № 70.
+Лицензия: MIT. Текст — № 71.
 Исходники: https://github.com/tokio-rs/bytes
 
 ### cfb 0.7.3
 
-Лицензия: MIT. Текст — № 71.
+Лицензия: MIT. Текст — № 72.
 Исходники: https://github.com/mdsteele/rust-cfb
 
 ### cfg-if 1.0.4
 
-Лицензия: MIT OR Apache-2.0. Текст — № 63, № 72.
+Лицензия: MIT OR Apache-2.0. Текст — № 63, № 73.
 Исходники: https://github.com/rust-lang/cfg-if
 
 ### cookie 0.18.2
 
-Лицензия: MIT OR Apache-2.0. Текст — № 73, № 74.
+Лицензия: MIT OR Apache-2.0. Текст — № 74, № 75.
 Исходники: https://github.com/SergioBenitez/cookie-rs
 
 ### crc32fast 1.5.0
 
-Лицензия: MIT OR Apache-2.0. Текст — № 75, № 76.
+Лицензия: MIT OR Apache-2.0. Текст — № 76, № 77.
 Исходники: https://github.com/srijs/rust-crc32fast
 
 ### crossbeam-channel 0.5.16
 
-Лицензия: MIT OR Apache-2.0. Текст — № 63, № 77, № 78.
+Лицензия: MIT OR Apache-2.0. Текст — № 63, № 78, № 79.
 Исходники: https://github.com/crossbeam-rs/crossbeam
 
 ### crossbeam-deque 0.8.7
 
-Лицензия: MIT OR Apache-2.0. Текст — № 63, № 77.
+Лицензия: MIT OR Apache-2.0. Текст — № 63, № 78.
 Исходники: https://github.com/crossbeam-rs/crossbeam
 
 ### crossbeam-epoch 0.9.20
 
-Лицензия: MIT OR Apache-2.0. Текст — № 63, № 77.
+Лицензия: MIT OR Apache-2.0. Текст — № 63, № 78.
 Исходники: https://github.com/crossbeam-rs/crossbeam
 
 ### crossbeam-utils 0.8.22
 
-Лицензия: MIT OR Apache-2.0. Текст — № 63, № 77.
+Лицензия: MIT OR Apache-2.0. Текст — № 63, № 78.
 Исходники: https://github.com/crossbeam-rs/crossbeam
 
 ### ctor 0.8.0
 
-Лицензия: Apache-2.0 OR MIT. Текст — № 75, № 79.
+Лицензия: Apache-2.0 OR MIT. Текст — № 76, № 80.
 Исходники: https://github.com/mmastrac/rust-ctor
 
 ### deranged 0.5.8
 
-Лицензия: MIT OR Apache-2.0. Текст — № 80, № 81.
+Лицензия: MIT OR Apache-2.0. Текст — № 81, № 82.
 Исходники: https://github.com/jhpratt/deranged
 
 ### dirs 6.0.0
 
-Лицензия: MIT OR Apache-2.0. Текст — № 82, № 83.
+Лицензия: MIT OR Apache-2.0. Текст — № 83, № 84.
 Исходники: https://github.com/soc/dirs-rs
 
 ### dirs-sys 0.5.0
 
-Лицензия: MIT OR Apache-2.0. Текст — № 82, № 83.
+Лицензия: MIT OR Apache-2.0. Текст — № 83, № 84.
 Исходники: https://github.com/dirs-dev/dirs-sys-rs
 
 ### dpi 0.1.2
 
-Лицензия: Apache-2.0 AND MIT. Текст — № 75, № 84.
+Лицензия: Apache-2.0 AND MIT. Текст — № 76, № 85.
 Исходники: https://github.com/rust-windowing/winit
 
 ### dunce 1.0.5
 
-Лицензия: CC0-1.0 OR MIT-0 OR Apache-2.0. Текст — № 85.
+Лицензия: CC0-1.0 OR MIT-0 OR Apache-2.0. Текст — № 86.
 Исходники: https://gitlab.com/kornelski/dunce
 
 ### encoding_rs 0.8.35
 
-Лицензия: (Apache-2.0 OR MIT) AND BSD-3-Clause. Текст — № 86, № 10, № 87, № 88.
+Лицензия: (Apache-2.0 OR MIT) AND BSD-3-Clause. Текст — № 87, № 10, № 88, № 89.
 Исходники: https://github.com/hsivonen/encoding_rs
 
 ### equivalent 1.0.2
 
-Лицензия: Apache-2.0 OR MIT. Текст — № 63, № 89.
+Лицензия: Apache-2.0 OR MIT. Текст — № 63, № 90.
 Исходники: https://github.com/indexmap-rs/equivalent
 
 ### erased-serde 0.4.10
@@ -666,12 +671,12 @@ ZeroNote — свободная программа под лицензией MIT
 
 ### fallible-iterator 0.3.0
 
-Лицензия: MIT/Apache-2.0. Текст — № 75, № 90.
+Лицензия: MIT/Apache-2.0. Текст — № 76, № 91.
 Исходники: https://github.com/sfackler/rust-fallible-iterator
 
 ### fallible-streaming-iterator 0.1.9
 
-Лицензия: MIT/Apache-2.0. Текст — № 75, № 91.
+Лицензия: MIT/Apache-2.0. Текст — № 76, № 92.
 Исходники: https://github.com/sfackler/fallible-streaming-iterator
 
 ### fastrand 2.5.0
@@ -681,62 +686,62 @@ ZeroNote — свободная программа под лицензией MIT
 
 ### fnv 1.0.7
 
-Лицензия: Apache-2.0 / MIT. Текст — № 63, № 92.
+Лицензия: Apache-2.0 / MIT. Текст — № 63, № 93.
 Исходники: https://github.com/servo/rust-fnv
 
 ### foldhash 0.1.5
 
-Лицензия: Zlib. Текст — № 93.
+Лицензия: Zlib. Текст — № 94.
 Исходники: https://github.com/orlp/foldhash
 
 ### form_urlencoded 1.2.2
 
-Лицензия: MIT OR Apache-2.0. Текст — № 63, № 94.
+Лицензия: MIT OR Apache-2.0. Текст — № 63, № 95.
 Исходники: https://github.com/servo/rust-url
 
 ### futures-channel 0.3.34
 
-Лицензия: MIT OR Apache-2.0. Текст — № 95, № 96.
+Лицензия: MIT OR Apache-2.0. Текст — № 96, № 97.
 Исходники: https://github.com/rust-lang/futures-rs
 
 ### futures-core 0.3.34
 
-Лицензия: MIT OR Apache-2.0. Текст — № 95, № 96.
+Лицензия: MIT OR Apache-2.0. Текст — № 96, № 97.
 Исходники: https://github.com/rust-lang/futures-rs
 
 ### futures-sink 0.3.34
 
-Лицензия: MIT OR Apache-2.0. Текст — № 95, № 96.
+Лицензия: MIT OR Apache-2.0. Текст — № 96, № 97.
 Исходники: https://github.com/rust-lang/futures-rs
 
 ### futures-task 0.3.34
 
-Лицензия: MIT OR Apache-2.0. Текст — № 95, № 96.
+Лицензия: MIT OR Apache-2.0. Текст — № 96, № 97.
 Исходники: https://github.com/rust-lang/futures-rs
 
 ### futures-util 0.3.34
 
-Лицензия: MIT OR Apache-2.0. Текст — № 95, № 96.
+Лицензия: MIT OR Apache-2.0. Текст — № 96, № 97.
 Исходники: https://github.com/rust-lang/futures-rs
 
 ### getrandom 0.2.17
 
-Лицензия: MIT OR Apache-2.0. Текст — № 97, № 98.
+Лицензия: MIT OR Apache-2.0. Текст — № 98, № 99.
 Исходники: https://github.com/rust-random/getrandom
 
 ### getrandom 0.3.4
 
-Лицензия: MIT OR Apache-2.0. Текст — № 97, № 99.
+Лицензия: MIT OR Apache-2.0. Текст — № 98, № 100.
 Исходники: https://github.com/rust-random/getrandom
 
 ### getrandom 0.4.3
 
-Лицензия: MIT OR Apache-2.0. Текст — № 97, № 100.
+Лицензия: MIT OR Apache-2.0. Текст — № 98, № 101.
 Исходники: https://github.com/rust-random/getrandom
 
 ### glob 0.3.4
 
-Лицензия: MIT OR Apache-2.0. Текст — № 63, № 66.
+Лицензия: MIT OR Apache-2.0. Текст — № 63, № 67.
 Исходники: https://github.com/rust-lang/glob
 
 ### globset 0.4.19
@@ -746,102 +751,102 @@ ZeroNote — свободная программа под лицензией MIT
 
 ### hashbrown 0.15.5
 
-Лицензия: MIT OR Apache-2.0. Текст — № 63, № 101.
+Лицензия: MIT OR Apache-2.0. Текст — № 63, № 102.
 Исходники: https://github.com/rust-lang/hashbrown
 
 ### hashbrown 0.17.1
 
-Лицензия: MIT OR Apache-2.0. Текст — № 63, № 101.
+Лицензия: MIT OR Apache-2.0. Текст — № 63, № 102.
 Исходники: https://github.com/rust-lang/hashbrown
 
 ### hashlink 0.10.0
 
-Лицензия: MIT OR Apache-2.0. Текст — № 102, № 103.
+Лицензия: MIT OR Apache-2.0. Текст — № 103, № 104.
 Исходники: https://github.com/kyren/hashlink
 
 ### heck 0.5.0
 
-Лицензия: MIT OR Apache-2.0. Текст — № 63, № 104.
+Лицензия: MIT OR Apache-2.0. Текст — № 63, № 105.
 Исходники: https://github.com/withoutboats/heck
 
 ### http 1.5.0
 
-Лицензия: MIT OR Apache-2.0. Текст — № 105, № 106.
+Лицензия: MIT OR Apache-2.0. Текст — № 106, № 107.
 Исходники: https://github.com/hyperium/http
 
 ### http-body 1.1.0
 
-Лицензия: MIT. Текст — № 107.
+Лицензия: MIT. Текст — № 108.
 Исходники: https://github.com/hyperium/http-body
 
 ### http-body-util 0.1.5
 
-Лицензия: MIT. Текст — № 107.
+Лицензия: MIT. Текст — № 108.
 Исходники: https://github.com/hyperium/http-body
 
 ### httparse 1.10.1
 
-Лицензия: MIT OR Apache-2.0. Текст — № 63, № 108.
+Лицензия: MIT OR Apache-2.0. Текст — № 63, № 109.
 Исходники: https://github.com/seanmonstar/httparse
 
 ### hyper 1.11.0
 
-Лицензия: MIT. Текст — № 109.
+Лицензия: MIT. Текст — № 110.
 Исходники: https://github.com/hyperium/hyper
 
 ### hyper-rustls 0.27.9
 
-Лицензия: Apache-2.0 OR ISC OR MIT. Текст — № 63, № 110, № 111.
+Лицензия: Apache-2.0 OR ISC OR MIT. Текст — № 63, № 111, № 112.
 Исходники: https://github.com/rustls/hyper-rustls
 
 ### hyper-util 0.1.20
 
-Лицензия: MIT. Текст — № 112.
+Лицензия: MIT. Текст — № 113.
 Исходники: https://github.com/hyperium/hyper-util
 
 ### icu_collections 2.1.1
 
-Лицензия: Unicode-3.0. Текст — № 113.
+Лицензия: Unicode-3.0. Текст — № 114.
 Исходники: https://github.com/unicode-org/icu4x
 
 ### icu_locale_core 2.1.1
 
-Лицензия: Unicode-3.0. Текст — № 113.
+Лицензия: Unicode-3.0. Текст — № 114.
 Исходники: https://github.com/unicode-org/icu4x
 
 ### icu_normalizer 2.1.1
 
-Лицензия: Unicode-3.0. Текст — № 113.
+Лицензия: Unicode-3.0. Текст — № 114.
 Исходники: https://github.com/unicode-org/icu4x
 
 ### icu_normalizer_data 2.1.1
 
-Лицензия: Unicode-3.0. Текст — № 113.
+Лицензия: Unicode-3.0. Текст — № 114.
 Исходники: https://github.com/unicode-org/icu4x
 
 ### icu_properties 2.1.2
 
-Лицензия: Unicode-3.0. Текст — № 113.
+Лицензия: Unicode-3.0. Текст — № 114.
 Исходники: https://github.com/unicode-org/icu4x
 
 ### icu_properties_data 2.1.2
 
-Лицензия: Unicode-3.0. Текст — № 113.
+Лицензия: Unicode-3.0. Текст — № 114.
 Исходники: https://github.com/unicode-org/icu4x
 
 ### icu_provider 2.1.1
 
-Лицензия: Unicode-3.0. Текст — № 113.
+Лицензия: Unicode-3.0. Текст — № 114.
 Исходники: https://github.com/unicode-org/icu4x
 
 ### idna 1.1.0
 
-Лицензия: MIT OR Apache-2.0. Текст — № 63, № 114.
+Лицензия: MIT OR Apache-2.0. Текст — № 63, № 115.
 Исходники: https://github.com/servo/rust-url/
 
 ### idna_adapter 1.2.1
 
-Лицензия: Apache-2.0 OR MIT. Текст — № 63, № 115.
+Лицензия: Apache-2.0 OR MIT. Текст — № 63, № 116.
 Исходники: https://github.com/hsivonen/idna_adapter
 
 ### ignore 0.4.30
@@ -851,17 +856,17 @@ ZeroNote — свободная программа под лицензией MIT
 
 ### indexmap 2.14.0
 
-Лицензия: Apache-2.0 OR MIT. Текст — № 63, № 116.
+Лицензия: Apache-2.0 OR MIT. Текст — № 63, № 117.
 Исходники: https://github.com/indexmap-rs/indexmap
 
 ### infer 0.19.0
 
-Лицензия: MIT. Текст — № 117.
+Лицензия: MIT. Текст — № 118.
 Исходники: https://github.com/bojand/infer
 
 ### ipnet 2.12.1
 
-Лицензия: MIT OR Apache-2.0. Текст — № 118, № 119.
+Лицензия: MIT OR Apache-2.0. Текст — № 119, № 120.
 Исходники: https://github.com/krisprice/ipnet
 
 ### itoa 1.0.18
@@ -871,42 +876,42 @@ ZeroNote — свободная программа под лицензией MIT
 
 ### json-patch 3.0.1
 
-Лицензия: MIT/Apache-2.0. Текст — № 75, № 120.
+Лицензия: MIT/Apache-2.0. Текст — № 76, № 121.
 Исходники: https://github.com/idubrov/json-patch
 
 ### jsonptr 0.6.3
 
-Лицензия: MIT OR Apache-2.0. Текст — № 121, № 122.
+Лицензия: MIT OR Apache-2.0. Текст — № 122, № 123.
 Исходники: https://github.com/chanced/jsonptr
 
 ### keyboard-types 0.7.0
 
-Лицензия: MIT OR Apache-2.0. Текст — № 63, № 123.
+Лицензия: MIT OR Apache-2.0. Текст — № 63, № 124.
 Исходники: https://github.com/pyfisch/keyboard-types
 
 ### libc 0.2.189
 
-Лицензия: MIT OR Apache-2.0. Текст — № 61, № 124.
+Лицензия: MIT OR Apache-2.0. Текст — № 61, № 125.
 Исходники: https://github.com/rust-lang/libc
 
 ### libsqlite3-sys 0.35.0
 
-Лицензия: MIT. Текст — № 125.
+Лицензия: MIT. Текст — № 126.
 Исходники: https://github.com/rusqlite/rusqlite
 
 ### litemap 0.8.3
 
-Лицензия: Unicode-3.0. Текст — № 113.
+Лицензия: Unicode-3.0. Текст — № 114.
 Исходники: https://github.com/unicode-org/icu4x
 
 ### lock_api 0.4.14
 
-Лицензия: MIT OR Apache-2.0. Текст — № 63, № 126.
+Лицензия: MIT OR Apache-2.0. Текст — № 63, № 127.
 Исходники: https://github.com/Amanieu/parking_lot
 
 ### log 0.4.33
 
-Лицензия: MIT OR Apache-2.0. Текст — № 63, № 66.
+Лицензия: MIT OR Apache-2.0. Текст — № 63, № 67.
 Исходники: https://github.com/rust-lang/log
 
 ### memchr 2.8.3
@@ -916,37 +921,37 @@ ZeroNote — свободная программа под лицензией MIT
 
 ### mime 0.3.17
 
-Лицензия: MIT OR Apache-2.0. Текст — № 63, № 127.
+Лицензия: MIT OR Apache-2.0. Текст — № 63, № 128.
 Исходники: https://github.com/hyperium/mime
 
 ### minisign-verify 0.2.5
 
-Лицензия: MIT. Текст — № 128.
+Лицензия: MIT. Текст — № 129.
 Исходники: https://github.com/jedisct1/rust-minisign-verify
 
 ### mio 1.2.2
 
-Лицензия: MIT. Текст — № 129.
+Лицензия: MIT. Текст — № 130.
 Исходники: https://github.com/tokio-rs/mio
 
 ### muda 0.19.3
 
-Лицензия: Apache-2.0 OR MIT. Текст — № 63, № 130.
+Лицензия: Apache-2.0 OR MIT. Текст — № 63, № 131.
 Исходники: https://github.com/tauri-apps/muda
 
 ### notify 8.2.0
 
-Лицензия: CC0-1.0. Текст — № 131.
+Лицензия: CC0-1.0. Текст — № 132.
 Исходники: https://github.com/notify-rs/notify.git
 
 ### notify-types 2.1.0
 
-Лицензия: MIT OR Apache-2.0. Текст — № 132, № 133.
+Лицензия: MIT OR Apache-2.0. Текст — № 133, № 134.
 Исходники: https://github.com/notify-rs/notify.git
 
-### num-conv 0.1.0
+### num-conv 0.2.2
 
-Лицензия: MIT OR Apache-2.0. Текст — № 134, № 135.
+Лицензия: MIT OR Apache-2.0. Текст — № 18, № 135.
 Исходники: https://github.com/jhpratt/num-conv
 
 ### once_cell 1.21.4
@@ -961,17 +966,17 @@ ZeroNote — свободная программа под лицензией MIT
 
 ### parking_lot 0.12.5
 
-Лицензия: MIT OR Apache-2.0. Текст — № 63, № 126.
+Лицензия: MIT OR Apache-2.0. Текст — № 63, № 127.
 Исходники: https://github.com/Amanieu/parking_lot
 
 ### parking_lot_core 0.9.12
 
-Лицензия: MIT OR Apache-2.0. Текст — № 63, № 126.
+Лицензия: MIT OR Apache-2.0. Текст — № 63, № 127.
 Исходники: https://github.com/Amanieu/parking_lot
 
 ### percent-encoding 2.3.2
 
-Лицензия: MIT OR Apache-2.0. Текст — № 63, № 114.
+Лицензия: MIT OR Apache-2.0. Текст — № 63, № 115.
 Исходники: https://github.com/servo/rust-url/
 
 ### phf 0.13.1
@@ -989,14 +994,14 @@ ZeroNote — свободная программа под лицензией MIT
 Лицензия: Apache-2.0 OR MIT. Текст — № 18, № 62.
 Исходники: https://github.com/taiki-e/pin-project-lite
 
-### plist 1.8.0
+### plist 1.10.1
 
 Лицензия: MIT. Текст — № 138.
 Исходники: https://github.com/ebarnard/rust-plist/
 
 ### potential_utf 0.1.6
 
-Лицензия: Unicode-3.0. Текст — № 113.
+Лицензия: Unicode-3.0. Текст — № 114.
 Исходники: https://github.com/unicode-org/icu4x
 
 ### powerfmt 0.2.0
@@ -1004,7 +1009,7 @@ ZeroNote — свободная программа под лицензией MIT
 Лицензия: MIT OR Apache-2.0. Текст — № 139, № 140.
 Исходники: https://github.com/jhpratt/powerfmt
 
-### quick-xml 0.38.4
+### quick-xml 0.42.0
 
 Лицензия: MIT. Текст — № 141.
 Исходники: https://github.com/tafia/quick-xml
@@ -1016,17 +1021,17 @@ ZeroNote — свободная программа под лицензией MIT
 
 ### regex 1.13.1
 
-Лицензия: MIT OR Apache-2.0. Текст — № 63, № 66.
+Лицензия: MIT OR Apache-2.0. Текст — № 63, № 67.
 Исходники: https://github.com/rust-lang/regex
 
 ### regex-automata 0.4.18
 
-Лицензия: MIT OR Apache-2.0. Текст — № 63, № 66.
+Лицензия: MIT OR Apache-2.0. Текст — № 63, № 67.
 Исходники: https://github.com/rust-lang/regex
 
 ### regex-syntax 0.8.11
 
-Лицензия: MIT OR Apache-2.0. Текст — № 63, № 66.
+Лицензия: MIT OR Apache-2.0. Текст — № 63, № 67.
 Исходники: https://github.com/rust-lang/regex
 
 ### reqwest 0.13.4
@@ -1046,12 +1051,12 @@ ZeroNote — свободная программа под лицензией MIT
 
 ### rusqlite 0.37.0
 
-Лицензия: MIT. Текст — № 125.
+Лицензия: MIT. Текст — № 126.
 Исходники: https://github.com/rusqlite/rusqlite
 
-### rustls 0.23.43
+### rustls 0.23.45
 
-Лицензия: Apache-2.0 OR ISC OR MIT. Текст — № 63, № 110, № 111.
+Лицензия: Apache-2.0 OR ISC OR MIT. Текст — № 63, № 111, № 112.
 Исходники: https://github.com/rustls/rustls
 
 ### rustls-pki-types 1.15.1
@@ -1101,7 +1106,7 @@ ZeroNote — свободная программа под лицензией MIT
 
 ### serde_spanned 1.1.1
 
-Лицензия: MIT OR Apache-2.0. Текст — № 75, № 156.
+Лицензия: MIT OR Apache-2.0. Текст — № 76, № 156.
 Исходники: https://github.com/toml-rs/toml
 
 ### serde_with 3.17.0
@@ -1136,7 +1141,7 @@ ZeroNote — свободная программа под лицензией MIT
 
 ### socket2 0.6.5
 
-Лицензия: MIT OR Apache-2.0. Текст — № 63, № 72.
+Лицензия: MIT OR Apache-2.0. Текст — № 63, № 73.
 Исходники: https://github.com/rust-lang/socket2
 
 ### softbuffer 0.4.8
@@ -1161,7 +1166,7 @@ ZeroNote — свободная программа под лицензией MIT
 
 ### tao 0.35.3
 
-Лицензия: Apache-2.0. Текст — № 75.
+Лицензия: Apache-2.0. Текст — № 76.
 Исходники: https://github.com/tauri-apps/tao
 
 ### tauri 2.11.5
@@ -1214,19 +1219,19 @@ ZeroNote — свободная программа под лицензией MIT
 Лицензия: MIT OR Apache-2.0. Текст — № 61, № 62.
 Исходники: https://github.com/dtolnay/thiserror
 
-### time 0.3.45
+### time 0.3.55
 
 Лицензия: MIT OR Apache-2.0. Текст — № 18, № 168.
 Исходники: https://github.com/time-rs/time
 
-### time-core 0.1.7
+### time-core 0.1.9
 
 Лицензия: MIT OR Apache-2.0. Текст — № 18, № 168.
 Исходники: https://github.com/time-rs/time
 
 ### tinystr 0.8.4
 
-Лицензия: Unicode-3.0. Текст — № 113.
+Лицензия: Unicode-3.0. Текст — № 114.
 Исходники: https://github.com/unicode-org/icu4x
 
 ### tokio 1.53.1
@@ -1246,37 +1251,37 @@ ZeroNote — свободная программа под лицензией MIT
 
 ### toml 0.9.12+spec-1.1.0
 
-Лицензия: MIT OR Apache-2.0. Текст — № 75, № 156.
+Лицензия: MIT OR Apache-2.0. Текст — № 76, № 156.
 Исходники: https://github.com/toml-rs/toml
 
 ### toml 1.1.4+spec-1.1.0
 
-Лицензия: MIT OR Apache-2.0. Текст — № 75, № 156.
+Лицензия: MIT OR Apache-2.0. Текст — № 76, № 156.
 Исходники: https://github.com/toml-rs/toml
 
 ### toml_datetime 0.7.5+spec-1.1.0
 
-Лицензия: MIT OR Apache-2.0. Текст — № 75, № 156.
+Лицензия: MIT OR Apache-2.0. Текст — № 76, № 156.
 Исходники: https://github.com/toml-rs/toml
 
 ### toml_datetime 1.1.1+spec-1.1.0
 
-Лицензия: MIT OR Apache-2.0. Текст — № 75, № 156.
+Лицензия: MIT OR Apache-2.0. Текст — № 76, № 156.
 Исходники: https://github.com/toml-rs/toml
 
 ### toml_edit 0.25.13+spec-1.1.0
 
-Лицензия: MIT OR Apache-2.0. Текст — № 75, № 156.
+Лицензия: MIT OR Apache-2.0. Текст — № 76, № 156.
 Исходники: https://github.com/toml-rs/toml
 
 ### toml_parser 1.1.3+spec-1.1.0
 
-Лицензия: MIT OR Apache-2.0. Текст — № 75, № 156.
+Лицензия: MIT OR Apache-2.0. Текст — № 76, № 156.
 Исходники: https://github.com/toml-rs/toml
 
 ### toml_writer 1.1.2+spec-1.1.0
 
-Лицензия: MIT OR Apache-2.0. Текст — № 75, № 156.
+Лицензия: MIT OR Apache-2.0. Текст — № 76, № 156.
 Исходники: https://github.com/toml-rs/toml
 
 ### tower 0.5.3
@@ -1356,7 +1361,7 @@ ZeroNote — свободная программа под лицензией MIT
 
 ### unicode-segmentation 1.13.3
 
-Лицензия: MIT OR Apache-2.0. Текст — № 177, № 63, № 104.
+Лицензия: MIT OR Apache-2.0. Текст — № 177, № 63, № 105.
 Исходники: https://github.com/unicode-rs/unicode-segmentation
 
 ### untrusted 0.9.0
@@ -1366,7 +1371,7 @@ ZeroNote — свободная программа под лицензией MIT
 
 ### url 2.5.8
 
-Лицензия: MIT OR Apache-2.0. Текст — № 63, № 114.
+Лицензия: MIT OR Apache-2.0. Текст — № 63, № 115.
 Исходники: https://github.com/servo/rust-url
 
 ### urlpattern 0.3.0
@@ -1376,7 +1381,7 @@ ZeroNote — свободная программа под лицензией MIT
 
 ### utf8_iter 1.0.4
 
-Лицензия: Apache-2.0 OR MIT. Текст — № 180, № 10, № 87.
+Лицензия: Apache-2.0 OR MIT. Текст — № 180, № 10, № 88.
 Исходники: https://github.com/hsivonen/utf8_iter
 
 ### uuid 1.24.1
@@ -1535,7 +1540,7 @@ ZeroNote — свободная программа под лицензией MIT
 
 ### writeable 0.6.4
 
-Лицензия: Unicode-3.0. Текст — № 113.
+Лицензия: Unicode-3.0. Текст — № 114.
 Исходники: https://github.com/unicode-org/icu4x
 
 ### wry 0.55.1
@@ -1545,12 +1550,12 @@ ZeroNote — свободная программа под лицензией MIT
 
 ### yoke 0.8.3
 
-Лицензия: Unicode-3.0. Текст — № 113.
+Лицензия: Unicode-3.0. Текст — № 114.
 Исходники: https://github.com/unicode-org/icu4x
 
 ### zerofrom 0.1.8
 
-Лицензия: Unicode-3.0. Текст — № 113.
+Лицензия: Unicode-3.0. Текст — № 114.
 Исходники: https://github.com/unicode-org/icu4x
 
 ### zeroize 1.9.0
@@ -1560,12 +1565,12 @@ ZeroNote — свободная программа под лицензией MIT
 
 ### zerotrie 0.2.5
 
-Лицензия: Unicode-3.0. Текст — № 113.
+Лицензия: Unicode-3.0. Текст — № 114.
 Исходники: https://github.com/unicode-org/icu4x
 
 ### zerovec 0.11.7
 
-Лицензия: Unicode-3.0. Текст — № 113.
+Лицензия: Unicode-3.0. Текст — № 114.
 Исходники: https://github.com/unicode-org/icu4x
 
 ### zip 4.6.1
@@ -4342,6 +4347,32 @@ THE SOFTWARE.
 ### № 66
 
 ```text
+The MIT License (MIT)
+
+Copyright (c) 2025 Alice Maz, Marshall Pierce
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
+
+### № 67
+
+```text
 Copyright (c) 2014 The Rust Project Developers
 
 Permission is hereby granted, free of charge, to any
@@ -4369,7 +4400,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### № 67
+### № 68
 
 ```text
 Copyright (c) 2009, 2010, 2013-2016 by the Brotli Authors.
@@ -4393,7 +4424,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### № 68
+### № 69
 
 ```text
 This project is licensed under either of
@@ -4406,7 +4437,7 @@ This project is licensed under either of
 at your option.
 ```
 
-### № 69
+### № 70
 
 ```text
 The MIT License (MIT)
@@ -4432,7 +4463,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### № 70
+### № 71
 
 ```text
 Copyright (c) 2018 Carl Lerche
@@ -4462,7 +4493,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### № 71
+### № 72
 
 ```text
 MIT License
@@ -4488,7 +4519,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### № 72
+### № 73
 
 ```text
 Copyright (c) 2014 Alex Crichton
@@ -4518,7 +4549,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### № 73
+### № 74
 
 ```text
 Apache License
@@ -4725,7 +4756,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-### № 74
+### № 75
 
 ```text
 Copyright (c) 2017 Sergio Benitez
@@ -4756,7 +4787,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### № 75
+### № 76
 
 ```text
 Apache License
@@ -4962,7 +4993,7 @@ Apache License
    limitations under the License.
 ```
 
-### № 76
+### № 77
 
 ```text
 MIT License
@@ -4988,7 +5019,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### № 77
+### № 78
 
 ```text
 The MIT License (MIT)
@@ -5020,7 +5051,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### № 78
+### № 79
 
 ```text
 ===============================================================================
@@ -5618,7 +5649,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-### № 79
+### № 80
 
 ```text
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
@@ -5628,7 +5659,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### № 80
+### № 81
 
 ```text
 Apache License
@@ -5834,7 +5865,7 @@ Apache License
    limitations under the License.
 ```
 
-### № 81
+### № 82
 
 ```text
 Copyright (c) 2024 Jacob Pratt et al.
@@ -5858,7 +5889,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### № 82
+### № 83
 
 ```text
 Apache License
@@ -6037,7 +6068,7 @@ TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
    of your accepting any such warranty or additional liability.
 ```
 
-### № 83
+### № 84
 
 ```text
 Copyright (c) 2018-2019 dirs-rs contributors
@@ -6061,7 +6092,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### № 84
+### № 85
 
 ```text
 rust-lang/libm as a whole is available for use under the MIT license:
@@ -6117,7 +6148,7 @@ have been licensed under extremely permissive terms.
 ------------------------------------------------------------------------------
 ```
 
-### № 85
+### № 86
 
 ```text
 Creative Commons Legal Code
@@ -6243,7 +6274,7 @@ express Statement of Purpose.
     this CC0 or use of the Work.
 ```
 
-### № 86
+### № 87
 
 ```text
 encoding_rs is copyright Mozilla Foundation.
@@ -6265,7 +6296,7 @@ Test code within encoding_rs is dedicated to the Public Domain when so
 designated (see the individual files for PD/CC0-dedicated sections).
 ```
 
-### № 87
+### № 88
 
 ```text
 Copyright Mozilla Foundation
@@ -6295,7 +6326,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### № 88
+### № 89
 
 ```text
 Copyright © WHATWG (Apple, Google, Mozilla, Microsoft).
@@ -6326,7 +6357,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-### № 89
+### № 90
 
 ```text
 Copyright (c) 2016--2023
@@ -6356,7 +6387,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### № 90
+### № 91
 
 ```text
 Copyright (c) 2015 The rust-openssl-verify Developers
@@ -6380,7 +6411,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### № 91
+### № 92
 
 ```text
 Copyright (c) 2016 The fallible-streaming-iterator Developers
@@ -6404,7 +6435,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### № 92
+### № 93
 
 ```text
 Copyright (c) 2017 Contributors
@@ -6434,7 +6465,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### № 93
+### № 94
 
 ```text
 Copyright (c) 2024 Orson Peters
@@ -6458,7 +6489,7 @@ the following restrictions:
 3. This notice may not be removed or altered from any source distribution.
 ```
 
-### № 94
+### № 95
 
 ```text
 Copyright (c) 2013-2016 The rust-url developers
@@ -6488,7 +6519,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### № 95
+### № 96
 
 ```text
 Apache License
@@ -6695,7 +6726,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-### № 96
+### № 97
 
 ```text
 Copyright (c) 2016 Alex Crichton
@@ -6726,7 +6757,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### № 97
+### № 98
 
 ```text
 Apache License
@@ -6932,7 +6963,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-### № 98
+### № 99
 
 ```text
 Copyright (c) 2018-2024 The rust-random Project Developers
@@ -6963,7 +6994,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### № 99
+### № 100
 
 ```text
 Copyright (c) 2018-2025 The rust-random Project Developers
@@ -6994,7 +7025,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### № 100
+### № 101
 
 ```text
 Copyright (c) 2018-2026 The rust-random Project Developers
@@ -7025,7 +7056,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### № 101
+### № 102
 
 ```text
 Copyright (c) 2016 Amanieu d'Antras
@@ -7055,7 +7086,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### № 102
+### № 103
 
 ```text
 Apache License
@@ -7261,7 +7292,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-### № 103
+### № 104
 
 ```text
 This work is derived in part from the `linked-hash-map` crate, Copyright (c)
@@ -7292,7 +7323,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### № 104
+### № 105
 
 ```text
 Copyright (c) 2015 The Rust Project Developers
@@ -7322,7 +7353,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### № 105
+### № 106
 
 ```text
 Apache License
@@ -7528,7 +7559,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-### № 106
+### № 107
 
 ```text
 Copyright (c) 2017 http-rs authors
@@ -7558,7 +7589,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### № 107
+### № 108
 
 ```text
 Copyright (c) 2019-2026 Sean McArthur & Hyper Contributors
@@ -7588,7 +7619,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### № 108
+### № 109
 
 ```text
 Copyright (c) 2015-2025 Sean McArthur
@@ -7612,7 +7643,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### № 109
+### № 110
 
 ```text
 Copyright (c) 2014-2026 Sean McArthur
@@ -7636,7 +7667,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### № 110
+### № 111
 
 ```text
 ISC License (ISC)
@@ -7656,7 +7687,7 @@ ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
 THIS SOFTWARE.
 ```
 
-### № 111
+### № 112
 
 ```text
 Copyright (c) 2016 Joseph Birr-Pixton <jpixton@gmail.com>
@@ -7686,7 +7717,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### № 112
+### № 113
 
 ```text
 Copyright (c) 2023-2025 Sean McArthur
@@ -7710,7 +7741,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### № 113
+### № 114
 
 ```text
 UNICODE LICENSE V3
@@ -7761,7 +7792,7 @@ Portions of ICU4X may have been adapted from ICU4C and/or ICU4J.
 ICU 1.8.1 to ICU 57.1 © 1995-2016 International Business Machines Corporation and others.
 ```
 
-### № 114
+### № 115
 
 ```text
 Copyright (c) 2013-2025 The rust-url developers
@@ -7791,7 +7822,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### № 115
+### № 116
 
 ```text
 Copyright (c) The rust-url developers
@@ -7821,7 +7852,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### № 116
+### № 117
 
 ```text
 Copyright (c) 2016--2017
@@ -7851,7 +7882,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### № 117
+### № 118
 
 ```text
 MIT License
@@ -7877,7 +7908,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### № 118
+### № 119
 
 ```text
 Apache License
@@ -8083,7 +8114,7 @@ Apache License
    limitations under the License.
 ```
 
-### № 119
+### № 120
 
 ```text
 Copyright 2017 Juniper Networks, Inc.
@@ -8095,7 +8126,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
-### № 120
+### № 121
 
 ```text
 MIT License
@@ -8121,7 +8152,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### № 121
+### № 122
 
 ```text
 Apache License
@@ -8327,7 +8358,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-### № 122
+### № 123
 
 ```text
 MIT License
@@ -8353,7 +8384,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### № 123
+### № 124
 
 ```text
 Copyright (c) 2017 Pyfisch
@@ -8377,7 +8408,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### № 124
+### № 125
 
 ```text
 Copyright (c) The Rust Project Developers
@@ -8407,7 +8438,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### № 125
+### № 126
 
 ```text
 Copyright (c) 2014 The rusqlite developers
@@ -8431,7 +8462,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### № 126
+### № 127
 
 ```text
 Copyright (c) 2016 The Rust Project Developers
@@ -8461,7 +8492,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### № 127
+### № 128
 
 ```text
 Copyright (c) 2014 Sean McArthur
@@ -8485,7 +8516,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### № 128
+### № 129
 
 ```text
 Copyright (c) 2019-2025 Frank Denis
@@ -8549,7 +8580,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### № 129
+### № 130
 
 ```text
 Copyright (c) 2014 Carl Lerche and other MIO contributors
@@ -8573,7 +8604,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
 
-### № 130
+### № 131
 
 ```text
 MIT License
@@ -8599,7 +8630,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-### № 131
+### № 132
 
 ```text
 Creative Commons CC0 1.0 Universal
@@ -8645,7 +8676,7 @@ For these and/or other purposes and motivations, and without any expectation of 
      d. Affirmer understands and acknowledges that Creative Commons is not a party to this document and has no duty or obligation with respect to this CC0 or use of the Work.
 ```
 
-### № 132
+### № 133
 
 ```text
 Apache License
@@ -8851,7 +8882,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 ```
 
-### № 133
+### № 134
 
 ```text
 Copyright (c) 2023 Notify Contributors
@@ -8881,216 +8912,10 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 ```
 
-### № 134
-
-```text
-Apache License
-                           Version 2.0, January 2004
-                        http://www.apache.org/licenses/
-
-   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
-
-   1. Definitions.
-
-      "License" shall mean the terms and conditions for use, reproduction,
-      and distribution as defined by Sections 1 through 9 of this document.
-
-      "Licensor" shall mean the copyright owner or entity authorized by
-      the copyright owner that is granting the License.
-
-      "Legal Entity" shall mean the union of the acting entity and all
-      other entities that control, are controlled by, or are under common
-      control with that entity. For the purposes of this definition,
-      "control" means (i) the power, direct or indirect, to cause the
-      direction or management of such entity, whether by contract or
-      otherwise, or (ii) ownership of fifty percent (50%) or more of the
-      outstanding shares, or (iii) beneficial ownership of such entity.
-
-      "You" (or "Your") shall mean an individual or Legal Entity
-      exercising permissions granted by this License.
-
-      "Source" form shall mean the preferred form for making modifications,
-      including but not limited to software source code, documentation
-      source, and configuration files.
-
-      "Object" form shall mean any form resulting from mechanical
-      transformation or translation of a Source form, including but
-      not limited to compiled object code, generated documentation,
-      and conversions to other media types.
-
-      "Work" shall mean the work of authorship, whether in Source or
-      Object form, made available under the License, as indicated by a
-      copyright notice that is included in or attached to the work
-      (an example is provided in the Appendix below).
-
-      "Derivative Works" shall mean any work, whether in Source or Object
-      form, that is based on (or derived from) the Work and for which the
-      editorial revisions, annotations, elaborations, or other modifications
-      represent, as a whole, an original work of authorship. For the purposes
-      of this License, Derivative Works shall not include works that remain
-      separable from, or merely link (or bind by name) to the interfaces of,
-      the Work and Derivative Works thereof.
-
-      "Contribution" shall mean any work of authorship, including
-      the original version of the Work and any modifications or additions
-      to that Work or Derivative Works thereof, that is intentionally
-      submitted to Licensor for inclusion in the Work by the copyright owner
-      or by an individual or Legal Entity authorized to submit on behalf of
-      the copyright owner. For the purposes of this definition, "submitted"
-      means any form of electronic, verbal, or written communication sent
-      to the Licensor or its representatives, including but not limited to
-      communication on electronic mailing lists, source code control systems,
-      and issue tracking systems that are managed by, or on behalf of, the
-      Licensor for the purpose of discussing and improving the Work, but
-      excluding communication that is conspicuously marked or otherwise
-      designated in writing by the copyright owner as "Not a Contribution."
-
-      "Contributor" shall mean Licensor and any individual or Legal Entity
-      on behalf of whom a Contribution has been received by Licensor and
-      subsequently incorporated within the Work.
-
-   2. Grant of Copyright License. Subject to the terms and conditions of
-      this License, each Contributor hereby grants to You a perpetual,
-      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
-      copyright license to reproduce, prepare Derivative Works of,
-      publicly display, publicly perform, sublicense, and distribute the
-      Work and such Derivative Works in Source or Object form.
-
-   3. Grant of Patent License. Subject to the terms and conditions of
-      this License, each Contributor hereby grants to You a perpetual,
-      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
-      (except as stated in this section) patent license to make, have made,
-      use, offer to sell, sell, import, and otherwise transfer the Work,
-      where such license applies only to those patent claims licensable
-      by such Contributor that are necessarily infringed by their
-      Contribution(s) alone or by combination of their Contribution(s)
-      with the Work to which such Contribution(s) was submitted. If You
-      institute patent litigation against any entity (including a
-      cross-claim or counterclaim in a lawsuit) alleging that the Work
-      or a Contribution incorporated within the Work constitutes direct
-      or contributory patent infringement, then any patent licenses
-      granted to You under this License for that Work shall terminate
-      as of the date such litigation is filed.
-
-   4. Redistribution. You may reproduce and distribute copies of the
-      Work or Derivative Works thereof in any medium, with or without
-      modifications, and in Source or Object form, provided that You
-      meet the following conditions:
-
-      (a) You must give any other recipients of the Work or
-          Derivative Works a copy of this License; and
-
-      (b) You must cause any modified files to carry prominent notices
-          stating that You changed the files; and
-
-      (c) You must retain, in the Source form of any Derivative Works
-          that You distribute, all copyright, patent, trademark, and
-          attribution notices from the Source form of the Work,
-          excluding those notices that do not pertain to any part of
-          the Derivative Works; and
-
-      (d) If the Work includes a "NOTICE" text file as part of its
-          distribution, then any Derivative Works that You distribute must
-          include a readable copy of the attribution notices contained
-          within such NOTICE file, excluding those notices that do not
-          pertain to any part of the Derivative Works, in at least one
-          of the following places: within a NOTICE text file distributed
-          as part of the Derivative Works; within the Source form or
-          documentation, if provided along with the Derivative Works; or,
-          within a display generated by the Derivative Works, if and
-          wherever such third-party notices normally appear. The contents
-          of the NOTICE file are for informational purposes only and
-          do not modify the License. You may add Your own attribution
-          notices within Derivative Works that You distribute, alongside
-          or as an addendum to the NOTICE text from the Work, provided
-          that such additional attribution notices cannot be construed
-          as modifying the License.
-
-      You may add Your own copyright statement to Your modifications and
-      may provide additional or different license terms and conditions
-      for use, reproduction, or distribution of Your modifications, or
-      for any such Derivative Works as a whole, provided Your use,
-      reproduction, and distribution of the Work otherwise complies with
-      the conditions stated in this License.
-
-   5. Submission of Contributions. Unless You explicitly state otherwise,
-      any Contribution intentionally submitted for inclusion in the Work
-      by You to the Licensor shall be under the terms and conditions of
-      this License, without any additional terms or conditions.
-      Notwithstanding the above, nothing herein shall supersede or modify
-      the terms of any separate license agreement you may have executed
-      with Licensor regarding such Contributions.
-
-   6. Trademarks. This License does not grant permission to use the trade
-      names, trademarks, service marks, or product names of the Licensor,
-      except as required for reasonable and customary use in describing the
-      origin of the Work and reproducing the content of the NOTICE file.
-
-   7. Disclaimer of Warranty. Unless required by applicable law or
-      agreed to in writing, Licensor provides the Work (and each
-      Contributor provides its Contributions) on an "AS IS" BASIS,
-      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
-      implied, including, without limitation, any warranties or conditions
-      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
-      PARTICULAR PURPOSE. You are solely responsible for determining the
-      appropriateness of using or redistributing the Work and assume any
-      risks associated with Your exercise of permissions under this License.
-
-   8. Limitation of Liability. In no event and under no legal theory,
-      whether in tort (including negligence), contract, or otherwise,
-      unless required by applicable law (such as deliberate and grossly
-      negligent acts) or agreed to in writing, shall any Contributor be
-      liable to You for damages, including any direct, indirect, special,
-      incidental, or consequential damages of any character arising as a
-      result of this License or out of the use or inability to use the
-      Work (including but not limited to damages for loss of goodwill,
-      work stoppage, computer failure or malfunction, or any and all
-      other commercial damages or losses), even if such Contributor
-      has been advised of the possibility of such damages.
-
-   9. Accepting Warranty or Additional Liability. While redistributing
-      the Work or Derivative Works thereof, You may choose to offer,
-      and charge a fee for, acceptance of support, warranty, indemnity,
-      or other liability obligations and/or rights consistent with this
-      License. However, in accepting such obligations, You may act only
-      on Your own behalf and on Your sole responsibility, not on behalf
-      of any other Contributor, and only if You agree to indemnify,
-      defend, and hold each Contributor harmless for any liability
-      incurred by, or claims asserted against, such Contributor by reason
-      of your accepting any such warranty or additional liability.
-
-   END OF TERMS AND CONDITIONS
-
-   APPENDIX: How to apply the Apache License to your work.
-
-      To apply the Apache License to your work, attach the following
-      boilerplate notice, with the fields enclosed by brackets "[]"
-      replaced with your own identifying information. (Don't include
-      the brackets!)  The text should be enclosed in the appropriate
-      comment syntax for the file format. We also recommend that a
-      file or class name and description of purpose be included on the
-      same "printed page" as the copyright notice for easier
-      identification within third-party archives.
-
-   Copyright 2023 Jacob Pratt
-
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
-```
-
 ### № 135
 
 ```text
-Copyright (c) 2023 Jacob Pratt
+Copyright (c) Jacob Pratt
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
