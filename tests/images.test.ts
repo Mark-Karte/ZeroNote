@@ -26,6 +26,27 @@ describe('адрес картинки', () => {
     expect(localTarget('//example.org/р.png')).toBeNull();
   });
 
+  /**
+   * Сетевой **путь** — тоже (задача 139, находка Р1 ревизии). Читая
+   * `\\сервер\папка\x.png`, Windows сама входит на сервер и отдаёт ему
+   * хэш пароля (NTLM), а недоступный сервер держит окно до тайм-аута.
+   * Проверялось только `//` — и только до раскодирования процентов.
+   */
+  it('сетевой путь отвергается в любой записи', () => {
+    expect(localTarget('\\\\сервер\\папка\\x.png')).toBeNull();
+    expect(localTarget('\\/сервер/папка/x.png')).toBeNull();
+    expect(localTarget('/\\сервер\\x.png')).toBeNull();
+    expect(localTarget('%5C%5Cсервер%5Cx.png')).toBeNull();
+    expect(localTarget('%2F%2Fсервер%2Fx.png')).toBeNull();
+    expect(localTarget('<\\\\сервер\\x.png>')).toBeNull();
+  });
+
+  /** Одна косая в начале — путь от корня диска, а не сеть. */
+  it('путь от корня диска остаётся', () => {
+    expect(localTarget('\\снимки\\x.png')).toBe('\\снимки\\x.png');
+    expect(localTarget('/снимки/x.png')).toBe('/снимки/x.png');
+  });
+
   /** `data:` и `file:` тоже адреса, а не пути: разбирать их мы не беремся. */
   it('прочие схемы отвергаются', () => {
     expect(localTarget('data:image/png;base64,AAAA')).toBeNull();

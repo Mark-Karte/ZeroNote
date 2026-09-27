@@ -139,7 +139,10 @@ impl IgnoreRules {
         let mut chain = Vec::new();
         for dir in dirs {
             let file = dir.join(".gitignore");
-            if !file.exists() {
+            // Только настоящий файл: ссылку не читаем — её цель может
+            // лежать на чужом сервере, а читается цепочка без нажатия,
+            // при одном раскрытии папки (задача 139).
+            if !crate::tree::is_plain_file(&file) {
                 continue;
             }
             let mut builder = GitignoreBuilder::new(&dir);

@@ -178,6 +178,20 @@ pub struct Loaded {
 pub fn load(root: &Path) -> Loaded {
     let path = project_path(root);
 
+    // `zeronote.toml` — ссылкой на другой файл? Не читаем: цель может лежать
+    // на чужом сервере, а файл проекта читается сам, при открытии папки
+    // (задача 139). Говорим об этом, а не молчим: иначе «настройки проекта
+    // не действуют» без объяснения.
+    if std::fs::symlink_metadata(&path).is_ok_and(|meta| meta.file_type().is_symlink()) {
+        return Loaded {
+            project: Project::default(),
+            present: true,
+            problem: Some(
+                "zeronote.toml — ссылка на другой файл; такой файл проекта не читается".to_owned(),
+            ),
+        };
+    }
+
     let Ok(source) = std::fs::read_to_string(&path) else {
         return Loaded {
             project: Project::default(),
@@ -427,6 +441,29 @@ mod tests {
         assert_eq!(loaded.project, Project::default());
         assert!(loaded.present);
         assert!(loaded.problem.is_some(), "о поломке надо сказать");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Файл проекта ссылкой не читается (задача 139, Я5): его читает само
+    /// открытие папки, а цель ссылки может лежать на чужом сервере.
+    /// Символьная ссылка на файл создаётся только в режиме разработчика
+    /// или с правами администратора — без них проверять нечего.
+    #[cfg(windows)]
+    #[test]
+    fn project_file_behind_a_link_is_not_read() {
+        let dir = temp_dir("link");
+        let real = dir.join("настоящий.toml");
+        std::fs::write(&real, "[editor]\ndefault_encoding = \"windows1251\"\n").unwrap();
+        if std::os::windows::fs::symlink_file(&real, project_path(&dir)).is_err() {
+            eprintln!("символьная ссылка не создалась — проверка пропущена");
+            let _ = std::fs::remove_dir_all(&dir);
+            return;
+        }
+
+        let loaded = load(&dir);
+
+        assert_eq!(loaded.project, Project::default(), "файл по ссылке прочитан");
+        assert!(loaded.problem.is_some(), "о пропуске надо сказать");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

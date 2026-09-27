@@ -27,6 +27,8 @@ import { IMAGE_EXTENSIONS } from '../actions/file-types';
  * Чистая функция и отдельно от виджета — ради проверки: правила здесь
  * не про рисование, а про разбор чужого текста, и ошибиться в них легко.
  */
+const NETWORK = /^[\\/]{2}/;
+
 export function localTarget(url: string): string | null {
   let text = url.trim();
   if (text === '') return null;
@@ -42,8 +44,10 @@ export function localTarget(url: string): string | null {
   // и его-то как раз показывать надо.
   if (/^[a-z][a-z0-9+.-]+:/i.test(text)) return null;
 
-  // Адрес без схемы, но с двумя косыми, — тоже сетевой.
-  if (text.startsWith('//')) return null;
+  // Две косые в начале, любые, — сетевой адрес или сетевой путь
+  // `\\сервер\папка` (задача 139). Путь тоже нельзя: читая его, Windows
+  // сама входит на сервер и отдаёт ему хэш пароля, без всякого нажатия.
+  if (NETWORK.test(text)) return null;
 
   // Пробелы и кириллица в markdown часто записаны процентами.
   try {
@@ -51,6 +55,9 @@ export function localTarget(url: string): string | null {
   } catch {
     // Одинокий процент — не повод отказываться от картинки: берём как есть.
   }
+
+  // И после раскодирования: `%5C%5Cсервер` — те же две косые.
+  if (NETWORK.test(text)) return null;
 
   return text === '' ? null : text;
 }

@@ -689,6 +689,20 @@ pub fn image_source(state: tauri::State<'_, AppState>, id: BufferId) -> Fallible
 pub fn preview_image(link: String, base: Option<String>) -> Fallible<String> {
     let link = PathBuf::from(link);
 
+    // Сетевой путь из текста заметки не читается (задача 139, находки Р1
+    // и Ф4 ревизии). Читая `\\сервер\папка\x.png`, Windows сама входит
+    // на сервер и отдаёт ему хэш пароля (NTLM), а недоступный сервер держит
+    // окно до тайм-аута, — и всё это без единого нажатия, просто оттого,
+    // что заметку открыли. Р-202 запрещал сетевые **адреса**; сетевой
+    // **путь** — то же самое. Относительный путь у заметки, которая сама
+    // лежит на сетевой папке, остаётся: туда человек пришёл сам.
+    if crate::fsx::network::is_network(&link) {
+        return Err(format!(
+            "сетевой путь не открывается сам по себе: {}",
+            link.display()
+        ));
+    }
+
     let path = if link.is_absolute() {
         link
     } else {
@@ -916,6 +930,17 @@ mod tests {
     #[test]
     fn nothing_dropped_is_not_an_error() {
         assert_eq!(split_paths(Vec::new()), SplitPaths::default());
+    }
+
+    /// Картинка по сетевому пути из текста заметки не читается (задача 139,
+    /// находки Р1 и Ф4): отказ приходит до всякого обращения к диску,
+    /// и называет причину — до задачи 139 здесь было «не удалось прочитать»
+    /// после попытки входа на сервер.
+    #[test]
+    fn network_image_is_refused_before_reading() {
+        let error = preview_image(r"\\127.0.0.1\нет-такой-папки\x.png".to_owned(), None)
+            .expect_err("сетевой путь обязан отвергаться");
+        assert!(error.contains("сетевой путь"), "{error}");
     }
 
     /// Повторное открытие открытого файла не читает диск и не снимает

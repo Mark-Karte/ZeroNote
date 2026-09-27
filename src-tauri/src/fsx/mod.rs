@@ -4,6 +4,7 @@
 pub mod atomic_save;
 pub mod config;
 pub mod entry_ops;
+pub mod network;
 pub mod paths;
 pub mod recycle;
 pub mod reveal;

@@ -153,12 +153,14 @@ pub fn read_children(dir: &Path, rules: &IgnoreRules) -> Result<Vec<Entry>, Tree
         };
 
         let is_link = file_type.is_symlink();
-        // У ссылки на папку сам тип записи — «ссылка», а не «папка». Чтобы
-        // показать её с нужным значком и раскрывающим уголком, приходится
-        // спросить, куда она ведёт. Это единственное место, где мы идём
-        // по ссылке, и внутрь мы всё равно не заходим.
+        // У ссылки на папку сам тип записи — «ссылка», а не «папка». Папка ли
+        // она, видно по самой записи — Windows помечает ссылку на папку
+        // признаком папки, — и по ссылке мы не ходим вовсе (задача 139).
+        // До задачи 139 здесь спрашивали цель, то есть шли по ссылке, а цель
+        // может лежать на чужом сервере: открыть папку значило бы войти
+        // на него и отдать ему хэш пароля, ни на что не нажав.
         let is_dir = if is_link {
-            std::fs::metadata(&path).map(|m| m.is_dir()).unwrap_or(false)
+            link_is_dir(&file_type)
         } else {
             file_type.is_dir()
         };
@@ -185,6 +187,28 @@ pub fn read_children(dir: &Path, rules: &IgnoreRules) -> Result<Vec<Entry>, Tree
 
     out.sort_by(compare);
     Ok(out)
+}
+
+/// Папка ли ссылка — по самой записи каталога, не переходя по ней.
+///
+/// `FileTypeExt` — расширение std только для Windows: ссылку на папку она
+/// создаёт с признаком папки, и std его отдаёт без обращения к цели.
+#[cfg(windows)]
+fn link_is_dir(file_type: &std::fs::FileType) -> bool {
+    use std::os::windows::fs::FileTypeExt;
+    file_type.is_symlink_dir()
+}
+
+#[cfg(not(windows))]
+fn link_is_dir(_file_type: &std::fs::FileType) -> bool {
+    false
+}
+
+/// Обычный ли это файл — не ссылка и не папка. Для своих файлов в папке
+/// проекта (`zeronote.toml`, `.gitignore`): ссылку вместо них не читаем,
+/// её цель может лежать на чужом сервере (задача 139).
+pub fn is_plain_file(path: &Path) -> bool {
+    std::fs::symlink_metadata(path).is_ok_and(|meta| meta.file_type().is_file())
 }
 
 #[cfg(test)]
@@ -291,6 +315,40 @@ mod tests {
         let rules = ignore::build(&dir, &IgnoreSettings::default());
 
         assert!(read_children(&dir, &rules).unwrap().is_empty());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Ссылка в папке не разыменовывается, чтобы узнать, папка ли она
+    /// (задача 139, находка Я5). Переход по ссылке — это чтение её цели,
+    /// а цель может лежать на чужом сервере: открыть папку значило бы войти
+    /// на него, отдав хэш пароля. Вид берётся из самой записи.
+    ///
+    /// Junction на несуществующую папку создаётся без прав администратора
+    /// и отличает одно от другого: переход по ней падает, и до задачи 139
+    /// такая ссылка показывалась файлом.
+    #[test]
+    fn link_is_not_followed_to_tell_a_folder() {
+        let dir = temp_dir("junction");
+        let link = dir.join("ссылка");
+        let made = std::process::Command::new("cmd")
+            .args(["/C", "mklink", "/J"])
+            .arg(&link)
+            .arg(dir.join("нет-такой-папки"))
+            .output()
+            .is_ok_and(|out| out.status.success());
+        if !made {
+            eprintln!("junction не создалась — проверка пропущена");
+            let _ = std::fs::remove_dir_all(&dir);
+            return;
+        }
+        let rules = ignore::build(&dir, &IgnoreSettings::default());
+
+        let entries = read_children(&dir, &rules).unwrap();
+
+        assert_eq!(entries.len(), 1);
+        assert!(entries[0].is_link);
+        assert!(entries[0].is_dir, "папка-ссылка показана файлом: по ней ходили");
+        let _ = std::fs::remove_dir(&link);
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

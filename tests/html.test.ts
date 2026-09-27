@@ -71,6 +71,19 @@ describe('экранирование и адреса', () => {
     expect(safeHref('file:///C:/secret')).toBeNull();
     expect(safeHref('//evil.example/x')).toBeNull();
   });
+
+  /**
+   * Сетевой путь любыми косыми (задача 139, находка Р6): в экспортированном
+   * файле браузер читает обратную косую как прямую, и `\\сервер\папка`
+   * становится `file://сервер/папка` — вход на чужой сервер по щелчку.
+   */
+  it('не пускает сетевой путь, записанный обратными косыми', () => {
+    expect(safeHref('\\\\evil\\x')).toBeNull();
+    expect(safeHref('\\/evil/x')).toBeNull();
+    expect(safeHref(' \\\\evil\\x')).toBeNull();
+    // Одна косая — путь от корня, его оставляем.
+    expect(safeHref('\\docs\\readme.md')).toBe('\\docs\\readme.md');
+  });
 });
 
 describe('текст', () => {

@@ -44,7 +44,8 @@ export function safeHref(url: string): string | null {
 
   // `//сервер/путь` — адрес другого сервера без схемы; ссылки в заметке
   // так не пишут, а в экспортированном файле он превратился бы в `file:`.
-  if (bare.startsWith('//')) return null;
+  // Косые — любые (задача 139): браузер читает `\\сервер\папка` так же.
+  if (/^[\\/]{2}/.test(bare)) return null;
 
   if (/^www\./i.test(text)) return `http://${text}`;
   return text;
