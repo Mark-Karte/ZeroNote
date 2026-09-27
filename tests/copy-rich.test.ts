@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { opaque, pickText, styleFor, textStyle } from '../src/export/copy';
+import { opaque, pasteSize, pickText, styleFor, textStyle } from '../src/export/copy';
 
 /**
  * Копировать с оформлением (задача 112): что из вычисленного стиля
@@ -110,6 +110,20 @@ describe('что понимает Word (найдено вставкой)', () =>
     expect(textStyle(BASE)).toBe(
       'font-family: "IBM Plex Sans", sans-serif; font-size: 14px; color: rgb(31, 35, 40)',
     );
+  });
+
+  /**
+   * Ровно 12 pt Word у пунктов списка и блоков подменяет на 14 (приёмка
+   * этапа 18): шрифт заметки 16 px уходит как 12,5 pt, прочие — как есть.
+   */
+  it('12 pt — в 12,5, чтобы Word не подменил кегль пунктов', () => {
+    expect(pasteSize('16px')).toBe('12.5pt');
+    expect(pasteSize('15.9px')).toBe('12.5pt');
+    expect(pasteSize('14px')).toBe('14px');
+    expect(pasteSize('16.8px')).toBe('16.8px');
+    expect(pasteSize('1em')).toBe('1em');
+    expect(textStyle({ ...BASE, 'font-size': '16px' })).toContain('font-size: 12.5pt');
+    expect(styleFor({ ...BASE, 'font-size': '16px' }, BASE)).toBe('font-size: 12.5pt');
   });
 });
 

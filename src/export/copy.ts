@@ -85,6 +85,23 @@ export function opaque(value: string): string {
 }
 
 /**
+ * Кегль для вставки. Ровно 12 pt Word считает кеглем по умолчанию
+ * и у пунктов списка и блоков подменяет своим — 14 pt, как его
+ * ни запиши: `16px`, `12pt`, `12.0pt`, с `mso-`-припиской, у пункта
+ * или у куска текста внутри него. Найдено приёмкой этапа 18, когда
+ * шрифт заметки стал 16 px: пункты и текст коллаута выходили крупнее
+ * абзацев. 11,5, 12,5 и 13 pt Word держит честно, поэтому 12 pt
+ * уходят как 12,5 — весь текст одним кеглем, на 4 % крупнее экрана.
+ */
+export function pasteSize(value: string): string {
+  const match = /^([\d.]+)px$/.exec(value);
+  if (!match) return value;
+  // Word округляет кегль до половины пункта: 15,9 px — тоже его 12 pt.
+  const points = Math.round(Number(match[1]) * 0.75 * 2) / 2;
+  return points === 12 ? '12.5pt' : value;
+}
+
+/**
  * Вес шрифта словом. Word знает только «жирный» и «обычный»: наш вес
  * заголовка 600 он читал как обычный, и заголовки теряли жирность.
  */
@@ -106,7 +123,9 @@ export function styleFor(own: Style, parent: Style): string {
   for (const name of INHERITED) {
     const value = own[name];
     if (value === undefined || value === parent[name]) continue;
-    out.push(`${name}: ${name === 'font-weight' ? weight(value) : opaque(value)}`);
+    const written =
+      name === 'font-weight' ? weight(value) : name === 'font-size' ? pasteSize(value) : opaque(value);
+    out.push(`${name}: ${written}`);
   }
 
   for (const [name, empty] of OWN) {
@@ -131,7 +150,7 @@ export function styleFor(own: Style, parent: Style): string {
 export function textStyle(root: Style): string {
   return ['font-family', 'font-size', 'color']
     .filter((name) => root[name])
-    .map((name) => `${name}: ${opaque(root[name]!)}`)
+    .map((name) => `${name}: ${name === 'font-size' ? pasteSize(root[name]!) : opaque(root[name]!)}`)
     .join('; ');
 }
 
