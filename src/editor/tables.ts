@@ -6,7 +6,7 @@ import { Decoration, EditorView, WidgetType } from '@codemirror/view';
 import { Renderer, alignmentsFrom, type Align } from '../html/markdown';
 import { Source } from '../html/source';
 import { lookupFor } from './callouts';
-import { loadMath, mathReady, mathSource, renderMath } from './math';
+import { loadMath, mathArrived, mathReady, mathSource, renderMath } from './math';
 import { touched } from './live-preview';
 import { wikilinkSpans } from './wikilinks';
 
@@ -146,7 +146,9 @@ const PARSED_LIMIT = 8;
 export function tableAt(state: EditorState, node: SyntaxNode): TableModel | null {
   const source = state.doc.sliceString(node.from, node.to);
   const known = parsed.get(source);
-  if (known) return known;
+  // Модель без формул годится, только пока Temml не приехал (Р4 ревизии):
+  // потом та же таблица читается заново — уже с формулами.
+  if (known && (known.math || !mathReady())) return known;
 
   const model = readTable(state, node);
   if (!model) return null;
@@ -190,6 +192,16 @@ export class TableWidget extends WidgetType {
   }
 
   override toDOM(view: EditorView): HTMLElement {
+    // Формулы в ячейках ещё исходником — Temml не приехал. Приедет —
+    // поле блочного превью пересоберёт сетку уже с формулами (Р4 ревизии).
+    // Закрытое представление CodeMirror вынимает из документа: ему слать
+    // незачем.
+    if (!this.model.math) {
+      void loadMath().then(() => {
+        if (view.dom.isConnected) view.dispatch({ effects: mathArrived.of(null) });
+      });
+    }
+
     const box = document.createElement('div');
     box.className = 'zn-table';
 

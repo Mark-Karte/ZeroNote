@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { embedIsImage, localTarget } from '../src/editor/images';
+import {
+  ImageWidget,
+  cachedBytes,
+  embedIsImage,
+  forgetImages,
+  imageKey,
+  localTarget,
+  remember,
+  rememberFailure,
+} from '../src/editor/images';
 import { wikilinkSpans } from '../src/editor/wikilinks';
 
 /**
@@ -127,5 +136,57 @@ describe('вставка файла', () => {
     expect(embedIsImage('заметка.md')).toBe(false);
     expect(embedIsImage('устав.pdf')).toBe(false);
     expect(embedIsImage('файл.png.txt')).toBe(false);
+  });
+});
+
+/**
+ * Кэш картинок превью (Р3 ревизии). Раньше его не сбрасывал никто:
+ * картинка, которой не было при первом показе, оставалась «картинки нет»
+ * до перезапуска, заменённая на диске — старыми байтами, а одна картинка,
+ * загруженная двумя виджетами разом, считалась дважды.
+ */
+describe('кэш картинок превью', () => {
+  const NOTE = String.raw`C:\заметки\а.md`;
+
+  /**
+   * Порядок — как на экране, и найден живой проверкой: виджет собран
+   * до ошибки, загрузка падает у него же, потом слежение сообщает о новом
+   * файле. Признак, снятый только при сборке, оставлял упавший виджет
+   * «здоровым», и новый был ему равен — картинка не появлялась.
+   */
+  it('ошибка забывается, и упавший виджет пересоздаётся', () => {
+    forgetImages();
+    const shown = new ImageWidget('новый.png', NOTE, '');
+    expect(shown.failing).toBe(false);
+
+    // Загрузка упала — так её отмечает `fillWith`.
+    rememberFailure(imageKey('новый.png', NOTE), 'нет файла');
+    shown.failing = true;
+
+    // Пока ошибка помнится, пересборка его не трогает — лишних попыток нет.
+    const meanwhile = new ImageWidget('новый.png', NOTE, '');
+    expect(meanwhile.failing).toBe(true);
+    expect(meanwhile.eq(shown)).toBe(true);
+
+    // Файл появился, слежение сообщило — ошибка забыта, новый виджет
+    // не равен упавшему, и узел пересоздаётся и пробует снова.
+    forgetImages();
+    const retry = new ImageWidget('новый.png', NOTE, '');
+    expect(retry.failing).toBe(false);
+    expect(retry.eq(shown)).toBe(false);
+
+    // Здоровые картинки при этом не мигают: равны себе.
+    const healthy = new ImageWidget('старый.png', NOTE, '');
+    expect(new ImageWidget('старый.png', NOTE, '').eq(healthy)).toBe(true);
+  });
+
+  it('одна картинка считается один раз', () => {
+    forgetImages();
+    const id = imageKey('рис.png', NOTE);
+    remember(id, 'data:image/png;base64,AAAA');
+    remember(id, 'data:image/png;base64,AAAA');
+    expect(cachedBytes()).toBe('data:image/png;base64,AAAA'.length);
+    forgetImages();
+    expect(cachedBytes()).toBe(0);
   });
 });

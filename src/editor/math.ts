@@ -1,7 +1,7 @@
 import { styleTags, tags } from '@lezer/highlight';
 import type { SyntaxNode } from '@lezer/common';
 import type { BlockContext, Line, MarkdownConfig } from '@lezer/markdown';
-import type { Text } from '@codemirror/state';
+import { StateEffect, type Text } from '@codemirror/state';
 import { WidgetType, type EditorView } from '@codemirror/view';
 
 /**
@@ -280,6 +280,16 @@ export function loadMath(): Promise<void> {
   });
   return loading;
 }
+
+/**
+ * Temml приехал — пересобрать блочное превью (Р4 ревизии).
+ *
+ * Строчная и выключная формула дорисовывают себя сами, а сетка таблицы
+ * собирается из готовой модели, и формулы в ячейках оставались исходником,
+ * пока таблицу не поправят. Шлёт виджет таблицы, собранный без формул,
+ * ловит поле блочного превью.
+ */
+export const mathArrived = StateEffect.define<null>();
 
 /** Загружен ли Temml: тогда формула рисуется сразу, без ожидания. */
 export function mathReady(): boolean {

@@ -96,14 +96,31 @@ const CACHE_LIMIT = 24 * 1024 * 1024;
 const cache = new Map<string, string>();
 let cached = 0;
 
-/** Почему картинка не показалась. Помним, чтобы не спрашивать снова и снова. */
+/**
+ * Почему картинка не показалась. Помним, чтобы не спрашивать снова и снова, —
+ * до `forgetImages`: картинки могло не быть, пока индекс строился, или её
+ * положили в папку позже (Р3 ревизии).
+ */
 const failed = new Map<string, string>();
 
-function key(link: string, base: string | null): string {
+export function imageKey(link: string, base: string | null): string {
   return `${base ?? ''}\u0000${link}`;
 }
 
-function remember(id: string, source: string): void {
+/**
+ * Запомнить байты картинки.
+ *
+ * Прежнее значение того же ключа вычитается из счёта (Р3 ревизии): одна
+ * картинка дважды на экране грузится двумя виджетами разом, и без этого
+ * её длина прибавлялась дважды, а вычиталась при вытеснении один раз —
+ * счёт рос без предела, и кэш вырождался до одной картинки.
+ */
+export function remember(id: string, source: string): void {
+  const previous = cache.get(id);
+  if (previous !== undefined) {
+    cached -= previous.length;
+    cache.delete(id);
+  }
   cache.set(id, source);
   cached += source.length;
 
@@ -117,7 +134,22 @@ function remember(id: string, source: string): void {
   }
 }
 
-/** Забыть всё: заметку закрыли или файлы на диске поменялись. */
+/** Сколько байтов картинок сейчас помнит окно. */
+export function cachedBytes(): number {
+  return cached;
+}
+
+/** Картинка не показалась — запомнить почему. */
+export function rememberFailure(id: string, problem: string): void {
+  failed.set(id, problem);
+}
+
+/**
+ * Забыть всё: файлы на диске поменялись или индекс закончил проход (Р3
+ * ревизии). Зовётся на событие слежения и на конец индексации — там же,
+ * где забываются ответы про вики-ссылки. Картинка, которой не было,
+ * пробуется снова, а заменённая на диске читается заново.
+ */
 export function forgetImages(): void {
   cache.clear();
   failed.clear();
@@ -131,13 +163,25 @@ export function forgetImages(): void {
  * в документе нет. Документ при этом не меняется ни на знак —
  * `Decoration.replace` подменяет показ (Р-160).
  */
-export class ImageWidget extends WidgetType {
+export class ImageWidget extends WidgetType implements Shown {
+  /**
+   * Картинка не показалась — входит в сравнение (Р3 ревизии). Ставится
+   * при сборке, если ошибка уже запомнена, и самой загрузкой, когда она
+   * падает у виджета на экране: ошибка случается позже сборки, и признак,
+   * снятый только при ней, оставлял упавший виджет «здоровым» — найдено
+   * живой проверкой. После `forgetImages` новый виджет уже не «в ошибке»,
+   * не равен упавшему, и узел пересоздаётся и пробует снова; здоровые
+   * картинки остаются на месте и не мигают.
+   */
+  failing: boolean;
+
   constructor(
     readonly link: string,
     readonly base: string | null,
     readonly alt: string,
   ) {
     super();
+    this.failing = failed.has(imageKey(link, base));
   }
 
   /**
@@ -145,11 +189,16 @@ export class ImageWidget extends WidgetType {
    * на каждое движение курсора, — и картинка мигала бы при наборе.
    */
   override eq(other: ImageWidget): boolean {
-    return other.link === this.link && other.base === this.base && other.alt === this.alt;
+    return (
+      other.link === this.link &&
+      other.base === this.base &&
+      other.alt === this.alt &&
+      other.failing === this.failing
+    );
   }
 
   override toDOM(): HTMLElement {
-    return paint(this.link, key(this.link, this.base), this.alt, () =>
+    return paint(this, this.link, imageKey(this.link, this.base), this.alt, () =>
       previewImage(this.link, this.base),
     );
   }
@@ -168,21 +217,25 @@ export class ImageWidget extends WidgetType {
  * способ добыть байты. Общего у них ровно то, что оба показывают картинку,
  * и это общее вынесено в `paint`.
  */
-export class EmbedWidget extends WidgetType {
+export class EmbedWidget extends WidgetType implements Shown {
+  /** Как у `ImageWidget`: после сброса кэша ошибочная вставка пробует снова. */
+  failing: boolean;
+
   constructor(
     readonly target: string,
     readonly from: string | null,
     readonly alt: string,
   ) {
     super();
+    this.failing = failed.has(imageKey(target, from));
   }
 
   override eq(other: EmbedWidget): boolean {
-    return other.target === this.target && other.from === this.from;
+    return other.target === this.target && other.from === this.from && other.failing === this.failing;
   }
 
   override toDOM(): HTMLElement {
-    return paint(this.target, key(this.target, this.from), this.alt, async () => {
+    return paint(this, this.target, imageKey(this.target, this.from), this.alt, async () => {
       if (this.from === null) {
         throw new Error('заметка ещё не сохранена: ссылку не по чему разрешать');
       }
@@ -195,8 +248,14 @@ export class EmbedWidget extends WidgetType {
   }
 }
 
+/** Что знает виджет о своём показе: не показалась ли картинка. */
+interface Shown {
+  failing: boolean;
+}
+
 /** Общая часть обоих виджетов: рамка, кэш, жалоба вместо пустого места. */
 function paint(
+  shown: Shown,
   link: string,
   id: string,
   alt: string,
@@ -221,11 +280,12 @@ function paint(
     return box;
   }
 
-  void fillWith(box, image, link, id, load);
+  void fillWith(shown, box, image, link, id, load);
   return box;
 }
 
 async function fillWith(
+  shown: Shown,
   box: HTMLElement,
   image: HTMLImageElement,
   link: string,
@@ -238,7 +298,8 @@ async function fillWith(
     image.src = source;
   } catch (error) {
     const problem = String(error);
-    failed.set(id, problem);
+    rememberFailure(id, problem);
+    shown.failing = true;
     // Узел мог уехать с экрана, пока читали файл, — тогда его уже нет
     // в разметке, и трогать нечего.
     if (box.isConnected) {

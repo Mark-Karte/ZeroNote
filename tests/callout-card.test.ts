@@ -5,6 +5,8 @@ import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 
 import { InCard, blockShapes, cardSelection } from '../src/editor/block-preview';
 import { cssTintOf, lookupFor } from '../src/editor/callouts';
+import { MathWidget } from '../src/editor/math';
+import { TableWidget } from '../src/editor/tables';
 import { languages } from '../src/editor/markdown-code';
 
 /**
@@ -170,5 +172,22 @@ describe('выделение в коде карточки', () => {
   it('без выделения — ничего', () => {
     const editor = state(doc, doc.indexOf('ls'));
     expect(cardSelection(editor, blockShapes(editor, LIST).lines).size).toBe(0);
+  });
+});
+
+/**
+ * Разные виджеты в карточке (Р5 ревизии): CodeMirror сверяет вид только
+ * внешнего `InCard`, и таблица сравнивалась с формулой — `TableWidget.eq`
+ * читал модель, которой у формулы нет, и обновление падало.
+ */
+describe('виджеты разного вида в карточке', () => {
+  it('сравниваются без исключения и не равны', () => {
+    const model = { align: [], head: [], rows: [], source: '| a |', math: true };
+    const table = new InCard(new TableWidget(model, 0), 'tint', false);
+    const math = new InCard(new MathWidget('$$x$$', { tex: 'x', display: true }, true), 'tint', false);
+
+    expect(table.eq(math)).toBe(false);
+    expect(math.eq(table)).toBe(false);
+    expect(table.eq(new InCard(new TableWidget(model, 0), 'tint', false))).toBe(true);
   });
 });

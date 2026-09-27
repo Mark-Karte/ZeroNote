@@ -46,11 +46,57 @@ export interface Property {
   line: number;
 }
 
-/** Ключ и то, что за ним. Ключ — без кавычек и служебных знаков YAML в начале. */
-const KEY = /^([^\s#:'"\-?[\]{},&*!|>%@`][^:]*?)[ \t]*:(?:[ \t]+(.*?))?[ \t]*$/;
+/**
+ * Знаки, с которых ключ начинаться не может: пробел, кавычки и служебные
+ * знаки YAML. Проверяется только первый знак.
+ */
+const KEY_START = /^[\s#:'"\-?[\]{},&*!|>%@`]/;
 
-/** Пункт списка строкой: `- значение` или пустой `-`. */
-const ITEM = /^[ \t]*-(?:[ \t]+(.*?))?[ \t]*$/;
+/*
+ * Ключ и пункт списка разбираются руками, а не выражениями вида
+ * `^(…[^:]*?)[ \t]*:(?:[ \t]+(.*?))?[ \t]*$` (Р7 ревизии): там ленивый
+ * повтор и следующий за ним `[ \t]*` делят один пробельный отрезок, и строка
+ * с десятками тысяч пробелов разбиралась секунду — а поле блочного превью
+ * разбирает frontmatter на каждое нажатие. Правила прежние.
+ */
+
+function isBlank(char: string | undefined): boolean {
+  return char === ' ' || char === '\t';
+}
+
+/** Снять пробелы и табуляции по краям. */
+function stripBlank(text: string): string {
+  let from = 0;
+  let to = text.length;
+  while (from < to && isBlank(text[from])) from += 1;
+  while (to > from && isBlank(text[to - 1])) to -= 1;
+  return text.slice(from, to);
+}
+
+/**
+ * Ключ и то, что за ним: `ключ: значение`. `null` — строка не такая.
+ * Ключ — до первого двоеточия, без кавычек и служебных знаков YAML
+ * в начале; за двоеточием — пробел или конец строки: `ключ:значение`
+ * YAML ключом не читает.
+ */
+export function splitKey(text: string): [string, string] | null {
+  if (text === '' || KEY_START.test(text)) return null;
+  const colon = text.indexOf(':');
+  if (colon < 0) return null;
+  const after = text.slice(colon + 1);
+  if (after !== '' && !isBlank(after[0])) return null;
+  return [stripBlank(text.slice(0, colon)), stripBlank(after)];
+}
+
+/** Пункт списка строкой: `- значение` или пустой `-`. `null` — не пункт. */
+export function listItem(text: string): string | null {
+  let at = 0;
+  while (at < text.length && isBlank(text[at])) at += 1;
+  if (text[at] !== '-') return null;
+  const after = text.slice(at + 1);
+  if (after !== '' && !isBlank(after[0])) return null;
+  return stripBlank(after);
+}
 
 /** Строка без смысла для свойств: пустая или комментарий. */
 const QUIET = /^[ \t]*(?:#.*)?$/;
@@ -173,10 +219,9 @@ export function readProperties(lines: readonly string[]): Property[] | null {
       continue;
     }
 
-    const match = KEY.exec(text);
-    if (!match) return null;
-    const key = match[1] ?? '';
-    const rest = match[2] ?? '';
+    const parts = splitKey(text);
+    if (!parts) return null;
+    const [key, rest] = parts;
     const line = index + 1;
     index += 1;
 
@@ -202,9 +247,9 @@ export function readProperties(lines: readonly string[]): Property[] | null {
     let list = false;
     while (index < lines.length) {
       const next = lines[index] ?? '';
-      const item = ITEM.exec(next);
-      if (item) {
-        const value = readScalar(item[1] ?? '');
+      const item = listItem(next);
+      if (item !== null) {
+        const value = readScalar(item);
         if (value === null) return null;
         if (value !== '') values.push(value);
         list = true;

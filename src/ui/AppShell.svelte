@@ -48,6 +48,7 @@
   import { applyProgress, refreshProgress } from '../state/index.svelte';
   import { INDEX_PROGRESS, type IndexProgress } from '../ipc/index';
   import { forgetResolved } from '../editor/wikilinks';
+  import { forgetImages } from '../editor/images';
   import { diagramThemeChanged } from '../editor/diagram';
   import { appearance } from '../theme/store.svelte';
   import { openDropped, closeAllTabs } from '../actions/files';
@@ -223,6 +224,9 @@
     // могло измениться, а перечитываем мы только раскрытые.
     unlistenTree = await listen<string[]>(TREE_CHANGED, (event) => {
       void refreshDirs(event.payload);
+      // Картинку могли положить или заменить — запомненные байты и ошибки
+      // превью больше не верны (Р3 ревизии).
+      forgetImages();
     });
 
     // Слежение могло потерять события — ядро сверило корни с диском
@@ -244,7 +248,11 @@
       applyProgress(event.payload);
       // Индексация закончилась — висячая ссылка могла стать рабочей,
       // и наоборот. Запомненные ответы про ссылки больше не действительны.
-      if (!event.payload.running) forgetResolved();
+      // То же с картинками по имени: `![[рисунок.png]]` разрешает индекс.
+      if (!event.payload.running) {
+        forgetResolved();
+        forgetImages();
+      }
     });
     // Одно состояние на старте: индексация могла начаться до подписки.
     void refreshProgress();

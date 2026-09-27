@@ -20,7 +20,7 @@ import {
 import { lookupFor, parseCallout, type CalloutLookup, type CalloutStyle } from './callouts';
 import { diagramBlock } from './diagram';
 import { touched } from './live-preview';
-import { MathWidget, drawsAsBlock, mathSource } from './math';
+import { MathWidget, drawsAsBlock, mathArrived, mathSource } from './math';
 import { propertiesBlock } from './properties';
 import { tableBlock } from './tables';
 
@@ -175,11 +175,19 @@ export class InCard extends WidgetType {
     super();
   }
 
+  /**
+   * Внутреннее сравнивается, только если вид у него один (Р5 ревизии):
+   * CodeMirror сверяет вид лишь внешнего виджета, а внутри карточки таблица
+   * сравнивалась и с формулой — и `TableWidget.eq` падал на её
+   * несуществующей модели. Так же сверяет сам CodeMirror (`compare`),
+   * но наружу он этот вызов не отдаёт.
+   */
   override eq(other: InCard): boolean {
     return (
       other instanceof InCard &&
       other.tint === this.tint &&
       other.last === this.last &&
+      other.inner.constructor === this.inner.constructor &&
       this.inner.eq(other.inner)
     );
   }
@@ -722,6 +730,13 @@ export function blockField(callouts: CalloutLookup = lookupFor([])): StateField<
 
       if (syntaxTree(tr.startState) !== syntaxTree(tr.state)) {
         return { shapes: blockShapes(tr.state, callouts), signature: signature(tr.state) };
+      }
+
+      // Temml приехал: сетки таблиц собираются заново — с формулами
+      // в ячейках (Р4 ревизии). Строки и поля от этого не меняются.
+      if (tr.effects.some((effect) => effect.is(mathArrived))) {
+        const blocks = blocksOf(walk(tr.state, callouts, 0, tr.state.doc.length, { blocks: true, lines: false }));
+        return { shapes: { ...value.shapes, blocks }, signature: value.signature };
       }
 
       if (tr.selection !== undefined) {

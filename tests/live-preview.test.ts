@@ -261,6 +261,27 @@ describe('живое превью: знаки вокруг текста', () => 
     expect(hiddenParts(doc, doc.length)).toEqual([]);
   });
 
+  /**
+   * Подпись через перенос строки (Р2 ревизии): плагину CodeMirror замена
+   * через границу строк запрещена — на ней он бросает, и превью не
+   * обновляется на всём экране. Такая картинка остаётся исходником.
+   */
+  it('картинка с подписью в две строки не заменяется через перенос', () => {
+    const doc = 'текст\n![а\nб](x.png)\nконец';
+    const editor = state(doc, doc.length);
+    const set = decorateLivePreview(editor, [{ from: 0, to: editor.doc.length }]);
+
+    const crossing: string[] = [];
+    for (const it = set.iter(); it.value !== null; it.next()) {
+      if (!it.value.point || it.to === it.from) continue;
+      if (editor.doc.lineAt(it.from).number !== editor.doc.lineAt(it.to).number) {
+        crossing.push(editor.doc.sliceString(it.from, it.to));
+      }
+    }
+    expect(crossing).toEqual([]);
+    expect(shown(doc, doc.length)).toContain('![а');
+  });
+
   /** Буква диска — не схема адреса: `C:` показывать надо. */
   it('картинка по полному пути Windows показывается', () => {
     const doc = '![снимок](C:/снимки/экран.png)\n\n';

@@ -1,5 +1,5 @@
 import { syntaxTree } from '@codemirror/language';
-import type { EditorState, Line, Range } from '@codemirror/state';
+import type { EditorState, Line, Range, Text } from '@codemirror/state';
 import type { SyntaxNode } from '@lezer/common';
 import {
   Decoration,
@@ -487,7 +487,11 @@ export function decorateLivePreview(
         // вопрос «как удалить картинку» — стереть строку.
         if (node.name === 'Image') {
           const line = doc.lineAt(node.from);
-          if (touched(state, line)) return false;
+          // Подпись через перенос строки (`![снимок\nэкрана](x.png)` — так
+          // переносит, например, Prettier) — запись остаётся исходником,
+          // как формула через перенос: плагину замена через границу строк
+          // запрещена, CodeMirror на ней бросает (Р2 ревизии).
+          if (node.to > line.to || touched(state, line)) return false;
 
           const url = node.node.getChild('URL');
           if (!url) return false;
@@ -613,7 +617,25 @@ export function decorateLivePreview(
   // Сортировка вместо `RangeSetBuilder`: источников три — дерево разбора,
   // свой разбор вики-ссылок и коды цвета, — и в порядке возрастания они
   // приходят только вперемешку.
-  return Decoration.set(found, true);
+  //
+  // Замену через перенос строки плагину CodeMirror не принимает: бросает
+  // из `dispatch`, и превью не обновляется на всём экране, а состояние
+  // вкладки отстаёт от представления (Р2 ревизии). Своя проверка стоит
+  // у каждой записи, а здесь — страховка: проглядевшая её запись остаётся
+  // исходником, а не роняет всё остальное.
+  return Decoration.set(
+    found.filter((range) => !crossesLine(doc, range)),
+    true,
+  );
+}
+
+/** Замена, которая тянется через перенос строки. */
+function crossesLine(doc: Text, range: Range<Decoration>): boolean {
+  return (
+    range.value.point &&
+    range.to > range.from &&
+    doc.lineAt(range.from).number !== doc.lineAt(range.to).number
+  );
 }
 
 /**

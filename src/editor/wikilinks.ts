@@ -38,7 +38,6 @@ export interface Target {
   to: number;
 }
 
-const LINK = /\[\[([^\]\n]+)\]\]/g;
 /**
  * Тег: решётка, за ней буква, дальше буквы, цифры, дефис, подчёркивание,
  * косая черта. Перед решёткой — начало строки или знак, не входящий в слово,
@@ -106,16 +105,39 @@ export interface WikilinkSpan {
 export function wikilinkSpans(text: string): WikilinkSpan[] {
   const out: WikilinkSpan[] = [];
 
-  // `lastIndex` сбрасывается на каждом заходе: выражение глобальное и общее,
-  // а вызывают его из разных мест.
-  LINK.lastIndex = 0;
-  for (let m = LINK.exec(text); m !== null; m = LINK.exec(text)) {
-    out.push({
-      from: m.index,
-      to: m.index + m[0].length,
-      inner: m[1] ?? '',
-      embed: m.index > 0 && text[m.index - 1] === '!',
-    });
+  // Руками, а не выражением `\[\[([^\]\n]+)\]\]` (Р7 ревизии): на ряде
+  // из десятков тысяч `[` без закрытия оно от каждого `[[` доходило
+  // до конца строки и откатывалось — секунда на пересборку превью,
+  // то есть на каждое нажатие. Правило то же: внутри хотя бы один знак,
+  // ни `]`, ни переноса строки, и сразу за ним `]]`.
+  //
+  // Ближайшие `]` и перенос помнятся, пока начало не ушло за них: иначе
+  // тот же ряд `[` с одной `]` в конце снова стоил бы квадрат. Переноса
+  // нет — помнится конец текста, а не «не нашли»: «не нашли» искалось бы
+  // заново на каждом шаге.
+  let close = -1;
+  let newline = -1;
+  let at = text.indexOf('[[');
+  while (at >= 0) {
+    const inside = at + 2;
+    if (close < inside) close = text.indexOf(']', inside);
+    if (close < 0) break;
+    if (newline < inside) {
+      newline = text.indexOf('\n', inside);
+      if (newline < 0) newline = text.length;
+    }
+
+    if (newline > close && close > inside && text[close + 1] === ']') {
+      out.push({
+        from: at,
+        to: close + 2,
+        inner: text.slice(inside, close),
+        embed: at > 0 && text[at - 1] === '!',
+      });
+      at = text.indexOf('[[', close + 2);
+    } else {
+      at = text.indexOf('[[', at + 1);
+    }
   }
 
   return out;
@@ -219,17 +241,11 @@ export function targetAt(view: EditorView, pos: number): Target | null {
   const text = line.text;
   const offset = pos - line.from;
 
-  LINK.lastIndex = 0;
-  for (let m = LINK.exec(text); m !== null; m = LINK.exec(text)) {
-    if (offset >= m.index && offset <= m.index + m[0].length) {
-      const value = linkTarget(m[1] ?? '');
+  for (const span of wikilinkSpans(text)) {
+    if (offset >= span.from && offset <= span.to) {
+      const value = linkTarget(span.inner);
       if (value === '') return null;
-      return {
-        kind: 'link',
-        value,
-        from: line.from + m.index,
-        to: line.from + m.index + m[0].length,
-      };
+      return { kind: 'link', value, from: line.from + span.from, to: line.from + span.to };
     }
   }
 
