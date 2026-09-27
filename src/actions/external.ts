@@ -1,5 +1,5 @@
 import * as ipc from '../ipc/files';
-import { markChanged, replaceContent, resetBaseline, tabById, close } from '../state/tabs.svelte';
+import { markChanged, replaceContent, tabById, close } from '../state/tabs.svelte';
 import { askChoice } from '../state/modal.svelte';
 import { forgetDraft } from '../state/persist.svelte';
 
@@ -146,11 +146,4 @@ export async function confirmOverwrite(id: number): Promise<boolean> {
   );
 
   return answer === 'overwrite';
-}
-
-/** Перечитать активный буфер с диска, отказавшись от правок. */
-export async function reloadFromDisk(id: number): Promise<void> {
-  replaceContent(await ipc.reloadBuffer(id));
-  resetBaseline(id);
-  await forgetDraft(id);
 }

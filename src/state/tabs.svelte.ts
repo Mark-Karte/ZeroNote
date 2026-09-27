@@ -1215,16 +1215,6 @@ async function renameFromTitle(id: number, typed: string): Promise<void> {
   await renameTo(path, old, name);
 }
 
-/** Считать текущий текст исходным: буфер стал чистым. */
-export function resetBaseline(id: number): void {
-  const tab = tabById(id);
-  if (tab?.editor) {
-    baselines.set(id, tab.editor.state.doc);
-    // Буфер сохранён — теперь есть с чем сравнивать, подпорка не нужна.
-    dirtyUntilSaved.delete(id);
-  }
-}
-
 /**
  * Показать вкладку по номеру: в активной области, если она там есть,
  * иначе в первой области, где есть, — и та становится активной (Р-210).
