@@ -185,6 +185,30 @@ impl Buffer {
         format!("Без имени {number}")
     }
 
+    /// Безымянный буфер с заданными номерами: буфера и имени «Без имени N».
+    ///
+    /// Одна функция и для создания нажатием, и для черновика, поднятого без
+    /// снимка сессии (задача 137): номер у такого буфера — номер его
+    /// черновика, иначе связь с файлом черновика порвалась бы.
+    pub fn untitled(id: BufferId, number: u32, eol: Eol) -> Buffer {
+        Buffer {
+            id,
+            kind: TabKind::Text,
+            path: None,
+            title: Buffer::untitled_name(number),
+            encoding: Encoding::Utf8,
+            bom: false,
+            eol,
+            eol_mixed: false,
+            modified: false,
+            read_only: false,
+            large: false,
+            lossy: false,
+            encoding_confident: true,
+            disk: None,
+        }
+    }
+
     /// Вкладка параметров с заданным номером.
     ///
     /// Одна функция и для создания, и для восстановления из сессии: вкладка,
@@ -349,22 +373,7 @@ impl Buffers {
         let number = self.next_untitled;
         self.next_untitled += 1;
 
-        self.items.push(Buffer {
-            id,
-            kind: TabKind::Text,
-            path: None,
-            title: Buffer::untitled_name(number),
-            encoding: Encoding::Utf8,
-            bom: false,
-            eol,
-            eol_mixed: false,
-            modified: false,
-            read_only: false,
-            large: false,
-            lossy: false,
-            encoding_confident: true,
-            disk: None,
-        });
+        self.items.push(Buffer::untitled(id, number, eol));
 
         self.items.last().expect("буфер только что добавлен")
     }

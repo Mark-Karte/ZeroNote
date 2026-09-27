@@ -218,19 +218,95 @@ pub fn write_session(data: &Path, workspace: &WorkspaceSnapshot) -> Result<(), S
     atomic_save::save(&session_path(data), text.as_bytes()).map_err(|e| e.to_string())
 }
 
+/// Чем кончилось чтение снимка.
+#[derive(Debug, PartialEq)]
+pub enum Loaded {
+    /// Файла нет — первый запуск.
+    Missing,
+    Snapshot(WorkspaceSnapshot),
+    /// Файл есть, но прочитать его нельзя: порча, чужая версия формата,
+    /// занят другой программой. Текст — для человека.
+    Unreadable(String),
+}
+
 /// Прочитать снимок сессии.
 ///
-/// Любая беда с файлом — отсутствие, порча, чужая версия формата — означает
-/// «сессии нет», а не остановку запуска. Приложение обязано открыться.
-pub fn read_session(data: &Path) -> Option<WorkspaceSnapshot> {
-    let text = std::fs::read_to_string(session_path(data)).ok()?;
-    let file: SessionFile = toml::from_str(&text).ok()?;
+/// Ни одна беда с файлом не останавливает запуск — приложение обязано
+/// открыться. Но **«снимка нет» и «снимок не читается» — разные случаи**
+/// (задача 137, Я4): во втором на диске лежат черновики прошлой сессии,
+/// и о них надо позаботиться, а не начать нумерацию буферов с единицы
+/// поверх них.
+pub fn load_session(data: &Path) -> Loaded {
+    let text = match std::fs::read_to_string(session_path(data)) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Loaded::Missing,
+        Err(e) => return Loaded::Unreadable(format!("не удалось прочитать session.toml: {e}")),
+    };
+    let file: SessionFile = match toml::from_str(&text) {
+        Ok(file) => file,
+        Err(e) => return Loaded::Unreadable(format!("session.toml не разбирается: {}", e.message())),
+    };
 
     if file.schema != SESSION_SCHEMA {
-        return None;
+        return Loaded::Unreadable(format!(
+            "версия формата сессии {} не поддерживается, ожидается {SESSION_SCHEMA}",
+            file.schema
+        ));
     }
 
-    file.workspaces.into_iter().next()
+    match file.workspaces.into_iter().next() {
+        Some(workspace) => Loaded::Snapshot(workspace),
+        // Снимок без единого окна — то же, что его отсутствие: вкладок
+        // в нём не было, и черновиков, чьих номеров он не знает, тоже.
+        None => Loaded::Missing,
+    }
+}
+
+/// Снимок, если он прочитался. Для тех, кому разница между «нет»
+/// и «не читается» не важна, — тестов формата.
+pub fn read_session(data: &Path) -> Option<WorkspaceSnapshot> {
+    match load_session(data) {
+        Loaded::Snapshot(workspace) => Some(workspace),
+        Loaded::Missing | Loaded::Unreadable(_) => None,
+    }
+}
+
+/// Отложить нечитаемый снимок, чтобы первая же запись сессии его не затёрла.
+///
+/// Файл переименовывается в `session.unreadable.toml` (прошлый такой
+/// заменяется): по нему человек — или откат на версию, которая этот снимок
+/// понимает, — восстановит пути вкладок (задача 137).
+pub fn set_aside(data: &Path) -> Result<PathBuf, String> {
+    let kept = data.join("session.unreadable.toml");
+    std::fs::rename(session_path(data), &kept).map_err(|e| e.to_string())?;
+    Ok(kept)
+}
+
+/// Все черновики в папке данных: номер буфера и текст, по возрастанию
+/// номера.
+///
+/// Нужны, когда снимок прочитать не удалось: какому буферу принадлежит
+/// черновик, знал только снимок, а содержимое — только черновик.
+/// Нечитаемый черновик пропускается — отдать нечего.
+pub fn all_drafts(data: &Path) -> Vec<(BufferId, String)> {
+    let Ok(entries) = std::fs::read_dir(drafts_dir(data)) else {
+        return Vec::new();
+    };
+
+    let mut drafts: Vec<(BufferId, String)> = entries
+        .flatten()
+        .filter_map(|entry| {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("draft") {
+                return None;
+            }
+            let id = path.file_stem()?.to_str()?.parse::<BufferId>().ok()?;
+            let text = std::fs::read_to_string(&path).ok()?;
+            Some((id, text))
+        })
+        .collect();
+    drafts.sort_by_key(|(id, _)| *id);
+    drafts
 }
 
 pub fn write_draft(data: &Path, id: BufferId, text: &str) -> Result<(), String> {

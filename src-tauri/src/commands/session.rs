@@ -165,10 +165,29 @@ pub struct DraftEntry {
 /// для буферов, содержимое которых с прошлого сброса менялось.
 #[tauri::command]
 pub fn flush_drafts(state: tauri::State<'_, AppState>, entries: Vec<DraftEntry>) -> Fallible<()> {
-    for entry in &entries {
-        session::write_draft(&state.data_dir.path, entry.id, &entry.text)?;
+    flush(&state.data_dir.path, &entries)
+}
+
+/// Записать все черновики, даже если какой-то не записался.
+///
+/// До задачи 137 цикл обрывался на первой ошибке: антивирус, придержавший
+/// один временный файл, оставлял без черновика и все следующие буферы
+/// пачки. Ошибка называет каждый незаписанный, и фронтенд пошлёт их снова.
+fn flush(data: &std::path::Path, entries: &[DraftEntry]) -> Fallible<()> {
+    let failed: Vec<String> = entries
+        .iter()
+        .filter_map(|entry| {
+            session::write_draft(data, entry.id, &entry.text)
+                .err()
+                .map(|e| format!("буфер {}: {e}", entry.id))
+        })
+        .collect();
+
+    if failed.is_empty() {
+        Ok(())
+    } else {
+        Err(format!("черновики не записаны — {}", failed.join("; ")))
     }
-    Ok(())
 }
 
 /// Убрать черновик: буфер сохранён на диск или закрыт.
@@ -217,23 +236,31 @@ pub struct RestoredBuffer {
 /// Пустой редактор лучше, чем не запустившийся.
 #[tauri::command]
 pub fn restore_session(state: tauri::State<'_, AppState>) -> RestoredSession {
+    restore(&state)
+}
+
+fn restore(state: &AppState) -> RestoredSession {
     let data = &state.data_dir.path;
     let mut notices = Vec::new();
 
-    let Some(snapshot) = session::read_session(data) else {
-        // Первый запуск или испорченный снимок: вкладок нет, а дом для
-        // заметок есть — он приходит из настройки и не зависит от сессии.
-        let vault = super::roots::sync_vault(&state, &mut notices);
-        return RestoredSession {
-            buffers: Vec::new(),
-            layout: Layout::default(),
-            pane_views: Vec::new(),
-            roots: vault.into_iter().collect(),
-            sidebar: false,
-            sidebar_width: 0,
-            sidebar_panel: String::new(),
-            notices,
-        };
+    let snapshot = match session::load_session(data) {
+        session::Loaded::Snapshot(snapshot) => snapshot,
+        session::Loaded::Missing => {
+            // Первый запуск: вкладок нет, а дом для заметок есть — он
+            // приходит из настройки и не зависит от сессии.
+            let vault = super::roots::sync_vault(state, &mut notices);
+            return RestoredSession {
+                buffers: Vec::new(),
+                layout: Layout::default(),
+                pane_views: Vec::new(),
+                roots: vault.into_iter().collect(),
+                sidebar: false,
+                sidebar_width: 0,
+                sidebar_panel: String::new(),
+                notices,
+            };
+        }
+        session::Loaded::Unreadable(problem) => return restore_unreadable(state, problem),
     };
 
     // Корни восстанавливаются до файлов: открываемый файл должен уже знать
@@ -456,9 +483,165 @@ pub fn restore_session(state: tauri::State<'_, AppState>) -> RestoredSession {
     }
 }
 
+/// Снимок есть, но не читается: порча, чужая версия формата после отката,
+/// файл занят (задача 137, находка Я4 ревизии).
+///
+/// До задачи 137 это был «первый запуск»: пустое окно без единого слова,
+/// реестр буферов с номера 1 — и первый же безымянный буфер через две
+/// секунды писал `drafts/1.draft` поверх черновика прошлой сессии, а первая
+/// запись нового снимка затирала старый, после чего следующий запуск
+/// удалял все остальные черновики как «ничьи». Один неудачный старт через
+/// два перезапуска уничтожал содержимое всех несохранённых буферов.
+///
+/// Теперь ничего не теряется: снимок откладывается в сторону — по нему
+/// восстанавливаются пути, — а каждый черновик поднимается безымянной
+/// вкладкой под своим же номером, изменённой до сохранения. Номера новых
+/// буферов идут выше, и чужой черновик никто не затрёт.
+fn restore_unreadable(state: &AppState, problem: String) -> RestoredSession {
+    let data = &state.data_dir.path;
+    let mut notices = Vec::new();
+
+    notices.push(match session::set_aside(data) {
+        Ok(kept) => format!(
+            "вкладки не восстановлены: {problem}. Прежний снимок сохранён в {}",
+            kept.display()
+        ),
+        Err(e) => format!("вкладки не восстановлены: {problem}. Отложить прежний снимок не удалось: {e}"),
+    });
+
+    let mut restored = Vec::new();
+    let mut buffers = Vec::new();
+    for (number, (id, text)) in (1u32..).zip(session::all_drafts(data)) {
+        let mut buffer = Buffer::untitled(id, number, crate::text::eol::DEFAULT);
+        // Содержимое есть только в черновике: буфер изменён до сохранения.
+        buffer.modified = true;
+        restored.push(RestoredBuffer {
+            buffer: BufferWithText {
+                buffer: buffer.clone(),
+                text,
+            },
+            cursor: 0,
+            scroll_top: 0.0,
+            language: None,
+            bookmarks: Vec::new(),
+        });
+        buffers.push(buffer);
+    }
+    if !buffers.is_empty() {
+        notices.push(format!(
+            "несохранённое из прошлой сессии открыто безымянными вкладками: {}",
+            buffers.len()
+        ));
+    }
+
+    let ids: Vec<BufferId> = buffers.iter().map(|b| b.id).collect();
+    let next_untitled = u32::try_from(buffers.len()).unwrap_or(u32::MAX - 1) + 1;
+    let layout = Layout::single(ids.clone(), ids.first().copied());
+    // `restore` поднимает счётчик номеров выше наибольшего черновика.
+    *state.buffers.lock().expect("реестр буферов повреждён") =
+        Buffers::restore(buffers, 1, next_untitled);
+    *state.layout.lock().expect("раскладка повреждена") = layout.clone();
+
+    let vault = super::roots::sync_vault(state, &mut notices);
+    RestoredSession {
+        buffers: restored,
+        layout,
+        pane_views: Vec::new(),
+        roots: vault.into_iter().collect(),
+        sidebar: false,
+        sidebar_width: 0,
+        sidebar_panel: String::new(),
+        notices,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn temp_dir(tag: &str) -> std::path::PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let dir = std::env::temp_dir().join(format!("zeronote-restore-{tag}-{nanos}"));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// Нечитаемый снимок не губит черновики (задача 137, Я4).
+    #[test]
+    fn unreadable_session_keeps_every_draft() {
+        let data = temp_dir("unreadable");
+        std::fs::write(session::session_path(&data), "это не сессия = = =").unwrap();
+        session::write_draft(&data, 1, "важное").unwrap();
+        session::write_draft(&data, 5, "второе").unwrap();
+        let state = AppState::for_tests(data.clone());
+
+        let restored = restore(&state);
+
+        // Черновики — вкладками, под своими номерами, изменёнными.
+        let texts: Vec<(BufferId, &str, bool)> = restored
+            .buffers
+            .iter()
+            .map(|b| (b.buffer.buffer.id, b.buffer.text.as_str(), b.buffer.buffer.modified))
+            .collect();
+        assert_eq!(texts, vec![(1, "важное", true), (5, "второе", true)]);
+        assert!(!restored.notices.is_empty(), "о потерянных вкладках надо сказать");
+
+        // Снимок отложен, а не затёрт: первая запись сессии его не тронет.
+        assert!(!session::session_path(&data).exists());
+        assert_eq!(
+            std::fs::read_to_string(data.join("session.unreadable.toml")).unwrap(),
+            "это не сессия = = ="
+        );
+
+        // Новый буфер не займёт номер чужого черновика.
+        let fresh = state
+            .buffers
+            .lock()
+            .unwrap()
+            .create_untitled(crate::text::eol::DEFAULT)
+            .id;
+        assert!(fresh > 5, "номер {fresh} уже занят черновиком");
+        assert_eq!(session::read_draft(&data, 1).as_deref(), Some("важное"));
+
+        let _ = std::fs::remove_dir_all(&data);
+    }
+
+    /// Первый запуск остаётся первым запуском: ни вкладок, ни жалоб.
+    #[test]
+    fn missing_session_is_a_quiet_first_start() {
+        let data = temp_dir("first");
+        let state = AppState::for_tests(data.clone());
+
+        let restored = restore(&state);
+
+        assert!(restored.buffers.is_empty());
+        assert!(restored.notices.is_empty(), "{:?}", restored.notices);
+        let _ = std::fs::remove_dir_all(&data);
+    }
+
+    /// Сброс черновиков пишет все, даже если один не записался (задача 137, Я3).
+    #[test]
+    fn one_failed_draft_does_not_stop_the_rest() {
+        let data = temp_dir("flush");
+        // Папка на месте файла черновика 2 — его запись обязана упасть.
+        std::fs::create_dir_all(session::draft_path(&data, 2)).unwrap();
+
+        let result = flush(
+            &data,
+            &[
+                DraftEntry { id: 2, text: "второй".to_owned() },
+                DraftEntry { id: 3, text: "третий".to_owned() },
+            ],
+        );
+
+        let error = result.expect_err("отказ записи обязан дойти до фронтенда");
+        assert!(error.contains("буфер 2"), "{error}");
+        assert_eq!(session::read_draft(&data, 3).as_deref(), Some("третий"));
+        let _ = std::fs::remove_dir_all(&data);
+    }
 
     /// У вкладки, которая не текст, черновика нет.
     ///

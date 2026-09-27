@@ -378,6 +378,8 @@ impl Default for FontSettings {
 pub enum SettingsError {
     Parse(String),
     UnsupportedSchema { found: u32 },
+    /// Файл есть, но прочитать его нельзя: занят, не в UTF-8, нет прав.
+    Unreadable(String),
 }
 
 impl std::fmt::Display for SettingsError {
@@ -390,6 +392,7 @@ impl std::fmt::Display for SettingsError {
                 f,
                 "версия формата настроек {found} не поддерживается, ожидается {SETTINGS_SCHEMA}"
             ),
+            SettingsError::Unreadable(message) => f.write_str(message),
         }
     }
 }
@@ -631,9 +634,12 @@ pub fn load(path: &Path) -> Result<Settings, SettingsError> {
 /// Чтение с диска вместе с тем, что из файла применить не удалось. Для тех,
 /// кто об этом говорит человеку: полосы предупреждений и окна параметров.
 pub fn load_full(path: &Path) -> Result<Loaded, SettingsError> {
-    match std::fs::read_to_string(path) {
-        Ok(source) => parse(&source),
-        Err(_) => Ok(Loaded::default()),
+    // Нет файла и нечитаемый файл — разные случаи (задача 137): второй
+    // до задачи 137 молча давал умолчания, вопреки абзацу выше.
+    match crate::fsx::config::read(path) {
+        Ok(Some(source)) => parse(&source),
+        Ok(None) => Ok(Loaded::default()),
+        Err(message) => Err(SettingsError::Unreadable(message)),
     }
 }
 
@@ -1375,6 +1381,28 @@ mod tests {
         let path = std::env::temp_dir().join("zeronote-нет-такого-файла.toml");
         assert_eq!(load(&path), Ok(Settings::default()));
         assert_eq!(load_full(&path), Ok(Loaded::default()));
+    }
+
+    /// Файл есть, но не читается — это не «файла нет» (задача 137, Я2).
+    ///
+    /// `>>` в Windows PowerShell 5.1 дописывает в UTF-16, а `Set-Content` —
+    /// в ANSI; в образце кириллица, и файл перестаёт быть UTF-8. До задачи
+    /// 137 такое читалось как отсутствие файла: умолчания без единого слова,
+    /// а первая правка из окна параметров писала образец поверх всего,
+    /// что человек настроил.
+    #[test]
+    fn unreadable_file_is_an_error_not_defaults() {
+        let path = std::env::temp_dir().join(format!(
+            "zeronote-settings-utf16-{}.toml",
+            std::process::id()
+        ));
+        std::fs::write(&path, crate::fsx::config::utf16_for_tests("schema = 1\n")).unwrap();
+
+        let result = load_full(&path);
+        let _ = std::fs::remove_file(&path);
+
+        let error = result.expect_err("нечитаемый файл — ошибка, а не умолчания");
+        assert!(error.to_string().contains("UTF-8"), "{error}");
     }
 
     /// Существующий файл не перезаписывается: там могут быть правки и комментарии.

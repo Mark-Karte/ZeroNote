@@ -22,6 +22,13 @@ import { roots } from './roots.svelte';
 
 const DRAFT_DELAY_MS = 2000;
 
+/**
+ * Черновики не записались. Висит в полосе предупреждений, пока запись
+ * не удастся: человек уверен, что его правки переживут сбой, и молчать,
+ * когда это не так, нельзя (задача 137).
+ */
+export const draftTrouble = $state<{ problem: string | null }>({ problem: null });
+
 /** Быстрый снимок содержимого для проверки «менялось ли с прошлого сброса». */
 let lastFlushed = new Map<number, string>();
 
@@ -72,11 +79,24 @@ async function writeDrafts(): Promise<void> {
     }
   }
 
-  lastFlushed = seen;
-
   if (entries.length > 0) {
-    await ipc.flushDrafts(entries);
+    try {
+      await ipc.flushDrafts(entries);
+      draftTrouble.problem = null;
+    } catch (error) {
+      // Не записано — значит, не сброшено (задача 137). До неё пачка
+      // считалась сброшенной ещё до ответа ядра, а отказ проглатывался:
+      // следующий сброс не слал тексты, которые с тех пор не менялись,
+      // и черновик оставался старым или не появлялся вовсе. Теперь
+      // незаписанное уходит снова через ту же паузу, а человек знает,
+      // что его правки пока только в памяти.
+      for (const entry of entries) seen.delete(entry.id);
+      draftTrouble.problem = `Черновики не записаны: ${String(error)}. Правки пока только в памяти — повтор через две секунды.`;
+      noteEdit();
+    }
   }
+
+  lastFlushed = seen;
 
   // Снимок пишется вместе с черновиками: положение курсора и прокрутки
   // тоже меняется при правке, и отставать ему незачем.

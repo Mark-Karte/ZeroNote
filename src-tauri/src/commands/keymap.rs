@@ -44,15 +44,18 @@ pub struct CommandInfo {
 
 /// Сборка раскладки, отделённая от путей ради тестов.
 pub fn build(data_dir: &std::path::Path) -> KeymapState {
-    let (bindings, broken, problems) = match std::fs::read_to_string(data_dir.join("keymap.toml")) {
-        Ok(source) => match keymap::parse(&source) {
+    let (bindings, broken, problems) = match crate::fsx::config::read(&data_dir.join("keymap.toml")) {
+        Ok(Some(source)) => match keymap::parse(&source) {
             Ok(loaded) => (loaded.bindings, None, loaded.problems),
             // Испорченный файл не должен оставлять пользователя без
             // горячих клавиш вовсе: работаем на умолчаниях и говорим почему.
             Err(e) => (keymap::defaults(), Some(e.to_string()), Vec::new()),
         },
         // Файла нет — это нормально, действует раскладка по умолчанию.
-        Err(_) => (keymap::defaults(), None, Vec::new()),
+        Ok(None) => (keymap::defaults(), None, Vec::new()),
+        // Файл есть, но не читается — испорчен, а не отсутствует
+        // (задача 137): иначе редактор клавиш правил бы его как образец.
+        Err(message) => (keymap::defaults(), Some(message), Vec::new()),
     };
 
     let commands = keymap::COMMANDS
@@ -95,12 +98,15 @@ fn keymap_path(state: &AppState) -> std::path::PathBuf {
 /// А вот испорченный файл не правится вовсе (Р-089). Мы не знаем, что именно
 /// в нём сломано, и запись поверх стёрла бы то, что человек не дописал.
 fn source_for_edit(state: &AppState) -> Result<String, String> {
-    match std::fs::read_to_string(keymap_path(state)) {
-        Ok(source) => match keymap::parse(&source) {
+    match crate::fsx::config::read(&keymap_path(state)) {
+        Ok(Some(source)) => match keymap::parse(&source) {
             Ok(_) => Ok(source),
             Err(e) => Err(format!("файл раскладки не разбирается, правка отменена: {e}")),
         },
-        Err(_) => Ok(keymap::DEFAULT_TEMPLATE.to_owned()),
+        Ok(None) => Ok(keymap::DEFAULT_TEMPLATE.to_owned()),
+        // Нечитаемый — тоже не правится (задача 137): до неё он правился
+        // как отсутствующий, и образец ложился поверх всех переназначений.
+        Err(message) => Err(format!("{message}; правка отменена")),
     }
 }
 
@@ -190,6 +196,24 @@ mod tests {
 
         assert_eq!(state.bindings["ctrl+s"], "file.save");
         assert!(state.broken.is_some());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Файл не в UTF-8 — испорченный, а не отсутствующий (задача 137, Я2):
+    /// иначе редактор клавиш правил бы его как отсутствующий и писал образец
+    /// поверх всех переназначений человека.
+    #[test]
+    fn unreadable_file_is_broken_and_not_edited() {
+        let dir = temp_dir("utf16");
+        let file = dir.join("keymap.toml");
+        let bytes = crate::fsx::config::utf16_for_tests("schema = 1\n");
+        std::fs::write(&file, &bytes).unwrap();
+
+        assert!(build(&dir).broken.is_some());
+
+        let state = AppState::for_tests(dir.clone());
+        assert!(source_for_edit(&state).is_err());
+        assert_eq!(std::fs::read(&file).unwrap(), bytes);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

@@ -66,6 +66,8 @@ pub const CALLOUTS_SCHEMA: u32 = 1;
 pub enum CalloutsError {
     Parse(String),
     UnsupportedSchema { found: u32 },
+    /// Файл есть, но прочитать его нельзя: занят, не в UTF-8, нет прав.
+    Unreadable(String),
 }
 
 impl std::fmt::Display for CalloutsError {
@@ -78,6 +80,7 @@ impl std::fmt::Display for CalloutsError {
                 f,
                 "версия формата коллаутов {found} не поддерживается, ожидается {CALLOUTS_SCHEMA}"
             ),
+            CalloutsError::Unreadable(message) => f.write_str(message),
         }
     }
 }
@@ -198,10 +201,14 @@ pub fn parse(source: &str) -> Result<Loaded, CalloutsError> {
 
 /// Чтение с диска. Файла нет — образец: список коллаутов не бывает пустым
 /// оттого, что файл удалили, — удалённый файл вернётся при следующем запуске.
+///
+/// Файл есть, но не читается — ошибка, а не образец (задача 137): образец
+/// вместо своих коллаутов выглядел бы как «мои коллауты пропали».
 pub fn load_full(path: &Path) -> Result<Loaded, CalloutsError> {
-    match std::fs::read_to_string(path) {
-        Ok(source) => parse(&source),
-        Err(_) => parse(DEFAULT_TEMPLATE),
+    match crate::fsx::config::read(path) {
+        Ok(Some(source)) => parse(&source),
+        Ok(None) => parse(DEFAULT_TEMPLATE),
+        Err(message) => Err(CalloutsError::Unreadable(message)),
     }
 }
 
@@ -509,5 +516,22 @@ mod tests {
         let path = std::env::temp_dir().join("zeronote-нет-коллаутов.toml");
         let loaded = load_full(&path).unwrap();
         assert_eq!(loaded.callouts.len(), 27);
+    }
+
+    /// Файл есть, но не в UTF-8 — ошибка, а не образец (задача 137, Я2):
+    /// образец вместо своих коллаутов — это «мои коллауты пропали» без
+    /// единого слова почему.
+    #[test]
+    fn unreadable_file_is_an_error_not_the_template() {
+        let path = std::env::temp_dir().join(format!(
+            "zeronote-callouts-utf16-{}.toml",
+            std::process::id()
+        ));
+        std::fs::write(&path, crate::fsx::config::utf16_for_tests("schema = 1\n")).unwrap();
+
+        let result = load_full(&path);
+        let _ = std::fs::remove_file(&path);
+
+        assert!(result.is_err(), "нечитаемый файл — ошибка, а не образец");
     }
 }

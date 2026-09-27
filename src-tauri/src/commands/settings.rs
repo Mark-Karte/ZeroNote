@@ -72,15 +72,24 @@ pub fn update_setting(
         return Err("путь к настройке пуст".to_owned());
     }
 
-    let file = settings_path(&state);
+    write_setting(&settings_path(&state), &path, value)
+}
 
+/// Тело `update_setting`, отделённое от состояния Tauri ради теста.
+fn write_setting(
+    file: &std::path::Path,
+    path: &[String],
+    value: Option<edit::Setting>,
+) -> Result<(), String> {
     // Файла может не быть: первый запуск, а окно параметров открыли раньше,
     // чем что-либо записалось. Правим образец, а не пустоту, — иначе первая же
     // настройка из окна оставила бы файл без единого пояснения.
-    let source = match std::fs::read_to_string(&file) {
-        Ok(source) => source,
-        Err(_) => settings::DEFAULT_TEMPLATE.to_owned(),
-    };
+    //
+    // А нечитаемый файл — не «файла нет» (задача 137): до неё образец
+    // писался и поверх файла не в UTF-8, стирая всё, что человек настроил.
+    let source = crate::fsx::config::read(file)
+        .map_err(|message| format!("{message}; правка отменена"))?
+        .unwrap_or_else(|| settings::DEFAULT_TEMPLATE.to_owned());
 
     let keys: Vec<&str> = path.iter().map(String::as_str).collect();
     let updated = match &value {
@@ -98,7 +107,7 @@ pub fn update_setting(
 
     // Атомарно, как и любой файл: настройки не наши, их правят руками
     // и кладут в git (инвариант 3).
-    atomic_save::save(&file, updated.as_bytes()).map_err(|e| e.to_string())
+    atomic_save::save(file, updated.as_bytes()).map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
@@ -142,6 +151,48 @@ mod tests {
             "pine".to_owned()
         );
 
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// Файл не в UTF-8 правкой из окна не переписывается (задача 137, Я2).
+    ///
+    /// До задачи 137 нечитаемый файл читался как отсутствующий, и первая же
+    /// правка из окна параметров писала образец плюс один ключ поверх всего,
+    /// что человек настроил.
+    #[test]
+    fn unreadable_file_is_not_rewritten() {
+        let dir = temp_dir("utf16");
+        let file = dir.join("settings.toml");
+        let bytes = crate::fsx::config::utf16_for_tests("schema = 1\n");
+        fs::write(&file, &bytes).unwrap();
+
+        let result = write_setting(
+            &file,
+            &["appearance".to_owned(), "theme".to_owned()],
+            Some(edit::Setting::Text("pine".to_owned())),
+        );
+
+        assert!(result.is_err());
+        assert_eq!(fs::read(&file).unwrap(), bytes, "файл переписан");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// Файла нет — правится образец, как и раньше.
+    #[test]
+    fn missing_file_starts_from_the_template() {
+        let dir = temp_dir("fresh");
+        let file = dir.join("settings.toml");
+
+        write_setting(
+            &file,
+            &["appearance".to_owned(), "theme".to_owned()],
+            Some(edit::Setting::Text("pine".to_owned())),
+        )
+        .unwrap();
+
+        let after = fs::read_to_string(&file).unwrap();
+        assert!(after.contains("# Настройки ZeroNote."));
+        assert!(after.contains("theme = \"pine\""));
         let _ = fs::remove_dir_all(&dir);
     }
 

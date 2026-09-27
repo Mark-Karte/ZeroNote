@@ -38,7 +38,7 @@
     applyLivePreview,
     applyLineNumbers,
   } from '../state/tabs.svelte';
-  import { flushNow } from '../state/persist.svelte';
+  import { draftTrouble, flushNow } from '../state/persist.svelte';
   import { layout, activeTabId } from '../state/panes.svelte';
   import { autosave, autosaveNow } from '../state/autosave.svelte';
   import { noteArrival } from '../actions/navigate';
@@ -346,7 +346,13 @@
 <div class="shell" class:drop={dropActive}>
   <TitleBar />
   <NoticeStrip
-    extra={[...restoreNotices, ...rootProblems(), ...autosave.problems, ...notices.items]}
+    extra={[
+      ...restoreNotices,
+      ...rootProblems(),
+      ...autosave.problems,
+      ...(draftTrouble.problem ? [draftTrouble.problem] : []),
+      ...notices.items,
+    ]}
   />
 
   <div class="body">

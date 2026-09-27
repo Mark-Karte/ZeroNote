@@ -49,8 +49,13 @@ pub fn callouts_state(state: tauri::State<'_, AppState>) -> CalloutsState {
 
 /// Текст файла для правки. Файла нет — правим образец, а не пустоту:
 /// иначе первая же правка из окна оставила бы файл без пояснений.
-fn source(path: &std::path::Path) -> String {
-    std::fs::read_to_string(path).unwrap_or_else(|_| callouts::DEFAULT_TEMPLATE.to_owned())
+///
+/// Нечитаемый файл не правится вовсе (задача 137): до неё он правился
+/// как отсутствующий, и образец ложился поверх своих коллаутов человека.
+fn source(path: &std::path::Path) -> Result<String, String> {
+    Ok(crate::fsx::config::read(path)
+        .map_err(|message| format!("{message}; правка отменена"))?
+        .unwrap_or_else(|| callouts::DEFAULT_TEMPLATE.to_owned()))
 }
 
 #[tauri::command]
@@ -60,7 +65,7 @@ pub fn save_callout(
     callout: Callout,
 ) -> Result<CalloutsState, String> {
     let path = file(&state);
-    let updated = edit::upsert(&source(&path), original.as_deref(), &callout)?;
+    let updated = edit::upsert(&source(&path)?, original.as_deref(), &callout)?;
     atomic_save::save(&path, updated.as_bytes()).map_err(|e| e.to_string())?;
     Ok(build(&path))
 }
@@ -68,7 +73,7 @@ pub fn save_callout(
 #[tauri::command]
 pub fn remove_callout(state: tauri::State<'_, AppState>, id: String) -> Result<CalloutsState, String> {
     let path = file(&state);
-    let updated = edit::remove(&source(&path), &id)?;
+    let updated = edit::remove(&source(&path)?, &id)?;
     atomic_save::save(&path, updated.as_bytes()).map_err(|e| e.to_string())?;
     Ok(build(&path))
 }
