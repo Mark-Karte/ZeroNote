@@ -1,5 +1,5 @@
 import * as ipc from '../ipc/files';
-import { applyMeta, replaceContent, resetBaseline, tabById, close } from '../state/tabs.svelte';
+import { markChanged, replaceContent, resetBaseline, tabById, close } from '../state/tabs.svelte';
 import { askChoice } from '../state/modal.svelte';
 import { forgetDraft } from '../state/persist.svelte';
 
@@ -68,8 +68,10 @@ async function onModified(id: number): Promise<void> {
   }
 
   // Оставляем свои правки. Состояние файла принимается как эталонное, иначе
-  // вопрос повторялся бы при каждом возврате в окно.
-  applyMeta(await ipc.acceptExternal(id));
+  // вопрос повторялся бы при каждом возврате в окно. На диске теперь чужая
+  // версия, и буфер изменён до сохранения, даже если отменить все правки
+  // (задача 136).
+  markChanged(await ipc.acceptExternal(id));
 }
 
 async function onRemoved(id: number): Promise<void> {
@@ -92,7 +94,10 @@ async function onRemoved(id: number): Promise<void> {
   }
 
   // Путь остаётся: по нему буфер и запишется обратно при сохранении.
-  applyMeta(await ipc.markDetached(id));
+  // Копия содержимого теперь только здесь — буфер изменён до сохранения,
+  // иначе набор знака и его отмена сделали бы его «чистым», и закрытие
+  // выбросило бы единственную копию без вопроса (задача 136).
+  markChanged(await ipc.markDetached(id));
 }
 
 /**

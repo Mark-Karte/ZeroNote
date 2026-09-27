@@ -238,14 +238,27 @@ export const tabs = $state<{ items: Tab[] }>({
 const baselines = new Map<number, Text>();
 
 /**
- * Буферы, поднятые из черновика после аварийного завершения.
+ * Буферы, изменённые до первого сохранения, что бы ни стало с текстом.
  *
- * Для них исходного текста мы не знаем: на диске лежит одно, в черновике
- * другое, и сравнивать не с чем. Такой буфер считается изменённым до первого
- * сохранения — иначе, стерев в нём всё, пользователь получил бы «чистую»
- * вкладку и закрыл бы её без вопросов, потеряв восстановленное.
+ * Сравнение с исходным текстом отвечает на вопрос «изменён ли буфер»,
+ * только когда файл отличается от буфера одним текстом. Здесь — случаи,
+ * когда это не так, и отмена всех правок чистым буфер не делает:
+ *
+ * * **поднят из черновика** после аварийного завершения: на диске одно,
+ *   в черновике другое, и сравнивать не с чем;
+ * * **непустой безымянный**: содержимое есть только в памяти;
+ * * **сменились кодировка, метка BOM или переносы** — текст тот же,
+ *   а файл станет другим (задача 136);
+ * * **файл исчез, а содержимое оставлено** — копия только здесь;
+ * * **своя версия оставлена вопреки изменённой на диске** — на диске
+ *   теперь чужая.
+ *
+ * До задачи 136 здесь были только восстановленные, и в остальных случаях
+ * набор знака и его отмена снимали признак: смена кодировки молча
+ * не записывалась, а содержимое удалённого снаружи файла закрывалось
+ * без вопроса — единственная копия пропадала.
  */
-const restoredDirty = new Set<number>();
+const dirtyUntilSaved = new Set<number>();
 
 /** Активная вкладка окна — активная вкладка активной области (Р-210). */
 export function activeTab(): Tab | null {
@@ -358,7 +371,7 @@ function afterPrimaryChange(tab: Tab): void {
   const id = tab.meta.id;
 
   const baseline = baselines.get(id);
-  const modified = restoredDirty.has(id) || (baseline ? !editor.state.doc.eq(baseline) : false);
+  const modified = dirtyUntilSaved.has(id) || (baseline ? !editor.state.doc.eq(baseline) : false);
 
   if (modified !== tab.meta.modified) {
     tab.meta = { ...tab.meta, modified };
@@ -1136,6 +1149,44 @@ export function applyMeta(meta: Buffer): void {
 }
 
 /**
+ * Сведения о буфере сменились так, что файл станет другим, каким бы
+ * ни стал текст: кодировка, метка BOM, переносы, исчезнувший файл,
+ * оставленная вопреки диску своя версия. Буфер изменён до сохранения —
+ * набор знака и его отмена признак не снимают (задача 136).
+ */
+export function markChanged(meta: Buffer): void {
+  applyMeta(meta);
+  dirtyUntilSaved.add(meta.id);
+}
+
+/**
+ * Буфер записан: исходным становится **записанный** текст, а не тот,
+ * что во вкладке сейчас.
+ *
+ * Пока ядро пишет файл, человек может печатать дальше. До задачи 136
+ * исходным становился текущий текст — набранное за время записи
+ * считалось сохранённым, признак снимался, черновик удалялся, и знак,
+ * которого в файле нет, пропадал при закрытии без вопроса.
+ *
+ * Возвращает, чист ли буфер теперь: черновик удаляют только у чистого.
+ */
+export function markSaved(meta: Buffer, written: Text): boolean {
+  applyMeta(meta);
+  const tab = tabById(meta.id);
+  if (!tab?.editor) return true;
+
+  baselines.set(meta.id, written);
+  dirtyUntilSaved.delete(meta.id);
+  if (tab.editor.state.doc.eq(written)) return true;
+
+  // Ядро, записав, сочло буфер чистым — вернуть ему признак.
+  tab.meta = { ...tab.meta, modified: true };
+  void ipc.setModified(meta.id, true);
+  noteEdit();
+  return false;
+}
+
+/**
  * Заголовок заметки переименовывает её файл (задача 129) — тем же путём,
  * что дерево, и только внутри открытых папок, как дерево.
  */
@@ -1169,7 +1220,7 @@ export function resetBaseline(id: number): void {
   if (tab?.editor) {
     baselines.set(id, tab.editor.state.doc);
     // Буфер сохранён — теперь есть с чем сравнивать, подпорка не нужна.
-    restoredDirty.delete(id);
+    dirtyUntilSaved.delete(id);
   }
 }
 
@@ -1327,7 +1378,7 @@ async function restoreInner(): Promise<string[]> {
     const state = makeState(meta, text, cursor, indent, bookmarks ?? []);
 
     if (meta.modified) {
-      restoredDirty.add(meta.id);
+      dirtyUntilSaved.add(meta.id);
     }
     baselines.set(meta.id, state.doc);
     tabs.items.push({
@@ -1368,7 +1419,7 @@ export async function createEmpty(text = ''): Promise<void> {
   // Непустая вкладка изменена с рождения: содержимое есть только в памяти,
   // и потерять его при закрытии нельзя (инвариант 4).
   if (text !== '') {
-    restoredDirty.add(meta.id);
+    dirtyUntilSaved.add(meta.id);
     tabById(meta.id)!.meta = { ...meta, modified: true };
     void ipc.setModified(meta.id, true);
     noteEdit();
@@ -1536,7 +1587,7 @@ export function replaceContent(opened: BufferWithText): void {
   );
   // Текст теперь ровно тот, что на диске: восстановленному из черновика
   // подпорка «изменён до сохранения» больше не нужна.
-  restoredDirty.delete(opened.id);
+  dirtyUntilSaved.delete(opened.id);
   void applyLanguage(opened.id);
   noteStructureChange();
 }
@@ -1550,21 +1601,35 @@ export function replaceContent(opened: BufferWithText): void {
  * `removeTab` в `state/panes`, и до сюда такое не доходит.
  */
 export async function close(id: number): Promise<void> {
-  const index = tabs.items.findIndex((t) => t.meta.id === id);
-  if (index < 0) return;
+  const tab = tabById(id);
+  // Второе закрытие той же вкладки, пока первое ждёт ядро, — зажатый
+  // Ctrl+W при занятом ядре — ничего не делает.
+  if (!tab || closing.has(id)) return;
+  closing.add(id);
 
-  noteClosed(tabs.items[index]!);
+  try {
+    noteClosed(tab);
 
-  const layout = await ipc.closeBuffer(id);
-  tabs.items.splice(index, 1);
-  baselines.delete(id);
-  restoredDirty.delete(id);
-  applyLayout(layout);
-  // Черновик закрытой вкладки больше не нужен: восстанавливать её не будем.
-  await forgetDraft(id);
+    const layout = await ipc.closeBuffer(id);
+    // Место в списке — после ответа, а не до (задача 136): за время
+    // ожидания список мог сдвинуться, и старый номер убирал из окна
+    // соседнюю вкладку — в ядре живую, а на экране пропавшую.
+    const index = tabs.items.findIndex((t) => t.meta.id === id);
+    if (index >= 0) tabs.items.splice(index, 1);
+    baselines.delete(id);
+    dirtyUntilSaved.delete(id);
+    applyLayout(layout);
+    // Черновик закрытой вкладки больше не нужен: восстанавливать её не будем.
+    await forgetDraft(id);
 
-  noteStructureChange();
+    noteStructureChange();
+  } finally {
+    closing.delete(id);
+  }
 }
+
+/** Вкладки, закрытие которых уже ждёт ответа ядра. */
+const closing = new Set<number>();
 
 // Раскладка меняется в `state/panes`, а состояния вкладок живут здесь:
 // после каждой замены дерева зеркала без области убираются, а главное

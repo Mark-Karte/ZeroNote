@@ -1,7 +1,7 @@
 import { message } from '@tauri-apps/plugin-dialog';
 import * as ipc from '../ipc/files';
 import type { EncodingId, LineEnding } from '../ipc/files';
-import { applyMeta, replaceContent, tabById, contentOf } from '../state/tabs.svelte';
+import { markChanged, replaceContent, tabById, contentOf } from '../state/tabs.svelte';
 import { askChoice } from '../state/modal.svelte';
 
 /**
@@ -54,7 +54,9 @@ export async function convertTo(id: number, encoding: EncodingId): Promise<void>
   try {
     // Ядро проверяет переводимость текста до того, как что-либо менять:
     // узнать о непереводимом символе при сохранении было бы поздно.
-    applyMeta(await ipc.convertEncoding(id, encoding, contentOf(tab.editor)));
+    // Текст тот же, а файл станет другим: признак держится до сохранения,
+    // что бы ни стало с текстом (задача 136).
+    markChanged(await ipc.convertEncoding(id, encoding, contentOf(tab.editor)));
   } catch (error) {
     await report(error);
   }
@@ -62,7 +64,7 @@ export async function convertTo(id: number, encoding: EncodingId): Promise<void>
 
 export async function setBom(id: number, bom: boolean): Promise<void> {
   try {
-    applyMeta(await ipc.setBom(id, bom));
+    markChanged(await ipc.setBom(id, bom));
   } catch (error) {
     await report(error);
   }
@@ -70,7 +72,7 @@ export async function setBom(id: number, bom: boolean): Promise<void> {
 
 export async function setLineEnding(id: number, eol: LineEnding): Promise<void> {
   try {
-    applyMeta(await ipc.setLineEnding(id, eol));
+    markChanged(await ipc.setLineEnding(id, eol));
   } catch (error) {
     await report(error);
   }

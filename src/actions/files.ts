@@ -2,12 +2,10 @@ import { open as openDialog, save as saveDialog, message } from '@tauri-apps/plu
 import * as ipc from '../ipc/files';
 import {
   activeTab,
-  applyMeta,
   createEmpty,
+  markSaved,
   openPath,
-  resetBaseline,
   tabById,
-  contentOf,
   tabs,
   close as closeTabState,
   reopenClosed,
@@ -138,22 +136,24 @@ async function writeTo(id: number, path?: string): Promise<boolean> {
   if (!(await resolveMixedLineEndings(id))) return false;
 
   try {
-    let result = await ipc.saveBuffer(id, contentOf(tab.editor), path);
+    // Записывается текст этого мгновения, и исходным станет он, а не тот,
+    // что окажется во вкладке к ответу ядра (задача 136).
+    let written = tab.editor.state.doc;
+    let result = await ipc.saveBuffer(id, written.toString(), path);
 
     // Файл изменили между чтением и сохранением. Молча затирать чужую
     // работу нельзя — спрашиваем и пишем только с разрешения.
     if (result.conflict) {
       if (!(await confirmOverwrite(id))) return false;
-      result = await ipc.saveBuffer(id, contentOf(tab.editor), path, true);
+      written = tab.editor.state.doc;
+      result = await ipc.saveBuffer(id, written.toString(), path, true);
     }
 
     if (!result.buffer) return false;
 
-    applyMeta(result.buffer);
-    // Текущий текст становится исходным: буфер чист.
-    resetBaseline(id);
-    // Содержимое доехало до настоящего файла — черновик больше не нужен.
-    await forgetDraft(id);
+    // Содержимое доехало до настоящего файла — черновик больше не нужен,
+    // если только за время записи не напечатали ещё.
+    if (markSaved(result.buffer, written)) await forgetDraft(id);
     noteStructureChange();
     return true;
   } catch (error) {
@@ -177,18 +177,17 @@ export async function autosaveAll(): Promise<string[]> {
   const complaints: string[] = [];
   let saved = false;
 
-  // Снимок списка: `applyMeta` правит вкладки, а между шагами есть await.
+  // Снимок списка: `markSaved` правит вкладки, а между шагами есть await.
   for (const tab of [...tabs.items]) {
     const editor = tab.editor;
     if (!editor || !autosavable(tab.meta)) continue;
 
     try {
-      const result = await ipc.saveBuffer(tab.meta.id, contentOf(editor));
+      const written = editor.state.doc;
+      const result = await ipc.saveBuffer(tab.meta.id, written.toString());
       if (result.conflict || !result.buffer) continue;
 
-      applyMeta(result.buffer);
-      resetBaseline(tab.meta.id);
-      await forgetDraft(tab.meta.id);
+      if (markSaved(result.buffer, written)) await forgetDraft(tab.meta.id);
       saved = true;
     } catch (error) {
       complaints.push(`не удалось сохранить «${tab.meta.title}»: ${String(error)}`);
@@ -260,44 +259,55 @@ export async function closeActiveTab(): Promise<boolean> {
  *
  * `pane` — из какой области закрывают. Если буфер показан ещё где-то
  * (зеркало, Р-209), вкладка просто уходит из этой области, а буфер живёт
- * дальше — и спрашивать не о чем: терять нечего. Без области закрывается
- * там, где вкладка показана; из последней области — совсем.
+ * дальше — и спрашивать не о чем: терять нечего.
+ *
+ * Без области закрывается буфер целиком, во всех областях, — и с вопросом,
+ * если есть что терять. Так закрывают «Закрыть все» (Р-211) и закрытие
+ * окна. До задачи 136 без области бралась первая область с вкладкой,
+ * и буфер с зеркалом уходил из неё молча: окно закрывалось без вопроса,
+ * а набранное за последние две секунды, до черновика, пропадало.
  */
 export async function closeTab(id: number, pane: number | null = null): Promise<boolean> {
   const tab = tabById(id);
   if (!tab) return true;
 
-  const from = pane ?? paneShowing(id)?.id ?? null;
   const holders = panesWith(id);
-  if (from !== null && holders.length > 1 && holders.some((holder) => holder.id === from)) {
-    await removeTab(from, id);
+  if (pane !== null && holders.length > 1 && holders.some((holder) => holder.id === pane)) {
+    await removeTab(pane, id);
     return true;
   }
 
-  if (tab.meta.modified) {
-    // Три варианта, а не два: у системного диалога Tauri их только два, и
-    // «отмена» в нём означала бы «не сохранять», то есть тихую потерю правок.
-    const answer = await askChoice(
-      'Есть несохранённые изменения',
-      `Сохранить изменения в «${tab.meta.title}» перед закрытием?`,
-      [
-        { id: 'cancel', label: 'Отмена', cancel: true },
-        { id: 'discard', label: 'Не сохранять', danger: true },
-        { id: 'save', label: 'Сохранить', primary: true },
-      ],
-    );
-
-    if (answer === null || answer === 'cancel') return false;
-
-    if (answer === 'save') {
-      // Именно этот буфер, а не активный: закрывать можно и не текущую вкладку.
-      const saved = await save(id);
-      // Не сохранилось — закрывать нельзя, иначе правки пропадут молча.
-      if (!saved) return false;
-    }
-  }
+  if (!(await settleUnsaved(id))) return false;
 
   await closeTabState(id);
+  return true;
+}
+
+/**
+ * Разобраться с несохранёнными правками перед закрытием: спросить и, если
+ * попросят, сохранить. `true` — закрывать можно: правок нет, они записаны
+ * или от них отказались; `false` — человек передумал или записать не вышло.
+ */
+async function settleUnsaved(id: number): Promise<boolean> {
+  const tab = tabById(id);
+  if (!tab?.meta.modified) return true;
+
+  // Три варианта, а не два: у системного диалога Tauri их только два, и
+  // «отмена» в нём означала бы «не сохранять», то есть тихую потерю правок.
+  const answer = await askChoice(
+    'Есть несохранённые изменения',
+    `Сохранить изменения в «${tab.meta.title}» перед закрытием?`,
+    [
+      { id: 'cancel', label: 'Отмена', cancel: true },
+      { id: 'discard', label: 'Не сохранять', danger: true },
+      { id: 'save', label: 'Сохранить', primary: true },
+    ],
+  );
+
+  if (answer === null || answer === 'cancel') return false;
+  // Именно этот буфер, а не активный: закрывать можно и не текущую вкладку.
+  // Не сохранилось — закрывать нельзя, иначе правки пропадут молча.
+  if (answer === 'save') return save(id);
   return true;
 }
 
@@ -306,13 +316,20 @@ export async function closeTab(id: number, pane: number | null = null): Promise<
  *
  * Возвращает `false`, если пользователь передумал хотя бы на одной: тогда
  * закрытие окна должно быть отменено целиком.
+ *
+ * **Сначала все вопросы, потом закрытие** (найдено живой проверкой задачи
+ * 136). Закрытие шло по вкладкам подряд, и к вопросу про третью первые
+ * две были уже закрыты: «Отмена» оставляла окно без них.
  */
 export async function closeAllTabs(): Promise<boolean> {
   // Копия списка: закрытие меняет исходный массив прямо во время обхода.
   const ids = tabs.items.map((t) => t.meta.id);
 
   for (const id of ids) {
-    if (!(await closeTab(id))) return false;
+    if (!(await settleUnsaved(id))) return false;
+  }
+  for (const id of ids) {
+    await closeTabState(id);
   }
   return true;
 }

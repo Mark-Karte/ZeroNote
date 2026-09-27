@@ -116,7 +116,7 @@ describe('повторное открытие', () => {
   });
 
   it('не подменяет вкладку с несохранёнными правками', async () => {
-    const path = 'C:\\заметки\\a.md';
+    const path = 'C:\\заметки\\a.txt';
     vi.mocked(ipc.openFile)
       .mockResolvedValueOnce({ ...meta(1, path), text: 'диск', reused: false })
       // Ядро узнало открытый файл: текста в ответе нет, его держит вкладка.
@@ -135,13 +135,13 @@ describe('повторное открытие', () => {
 
   it('делает вкладку активной, как любое открытие', async () => {
     vi.mocked(ipc.openFile)
-      .mockResolvedValueOnce({ ...meta(1, 'C:\\a.md'), text: 'а', reused: false })
-      .mockResolvedValueOnce({ ...meta(2, 'C:\\b.md'), text: 'б', reused: false })
-      .mockResolvedValueOnce({ ...meta(1, 'C:\\a.md'), text: '', reused: true });
+      .mockResolvedValueOnce({ ...meta(1, 'C:\\a.txt'), text: 'а', reused: false })
+      .mockResolvedValueOnce({ ...meta(2, 'C:\\b.txt'), text: 'б', reused: false })
+      .mockResolvedValueOnce({ ...meta(1, 'C:\\a.txt'), text: '', reused: true });
 
-    await openPath('C:\\a.md');
-    await openPath('C:\\b.md');
-    await openPath('C:\\a.md');
+    await openPath('C:\\a.txt');
+    await openPath('C:\\b.txt');
+    await openPath('C:\\a.txt');
 
     expect(paneById(1)!.active).toBe(1);
     expect(contentOf(tabById(1)!.editor!)).toBe('а');
@@ -157,12 +157,12 @@ describe('тихое перечитывание', () => {
 
   it('не переносит вкладку в активную область и не делает её активной', async () => {
     vi.mocked(ipc.openFile)
-      .mockResolvedValueOnce({ ...meta(1, 'C:\\a.md'), text: 'старое', reused: false })
-      .mockResolvedValueOnce({ ...meta(2, 'C:\\b.md'), text: 'б', reused: false });
-    await openPath('C:\\a.md');
-    await openPath('C:\\b.md');
+      .mockResolvedValueOnce({ ...meta(1, 'C:\\a.txt'), text: 'старое', reused: false })
+      .mockResolvedValueOnce({ ...meta(2, 'C:\\b.txt'), text: 'б', reused: false });
+    await openPath('C:\\a.txt');
+    await openPath('C:\\b.txt');
 
-    replaceContent({ ...meta(1, 'C:\\a.md'), text: 'новое' });
+    replaceContent({ ...meta(1, 'C:\\a.txt'), text: 'новое' });
 
     expect(paneById(1)!.active).toBe(2);
     expect(contentOf(tabById(1)!.editor!)).toBe('новое');
@@ -170,17 +170,17 @@ describe('тихое перечитывание', () => {
 
   it('оставляет курсор, прокрутку и выбранный язык', async () => {
     vi.mocked(ipc.openFile).mockResolvedValueOnce({
-      ...meta(1, 'C:\\a.md'),
+      ...meta(1, 'C:\\a.txt'),
       text: 'первая\nвторая',
       reused: false,
     });
-    await openPath('C:\\a.md');
+    await openPath('C:\\a.txt');
     const tab = tabById(1)!;
     tab.editor!.state = tab.editor!.state.update({ selection: { anchor: 9 } }).state;
     tab.editor!.scrollTop = 120;
     tab.editor!.language = 'python';
 
-    replaceContent({ ...meta(1, 'C:\\a.md'), text: 'первая\nвторая\nтретья' });
+    replaceContent({ ...meta(1, 'C:\\a.txt'), text: 'первая\nвторая\nтретья' });
 
     const after = tabById(1)!.editor!;
     expect(after.state.selection.main.head).toBe(9);
@@ -190,20 +190,20 @@ describe('тихое перечитывание', () => {
 
   it('при возврате фокуса не стирает набранное, пока файл читался', async () => {
     vi.mocked(ipc.openFile).mockResolvedValueOnce({
-      ...meta(1, 'C:\\a.md'),
+      ...meta(1, 'C:\\a.txt'),
       text: 'диск',
       reused: false,
     });
-    await openPath('C:\\a.md');
+    await openPath('C:\\a.txt');
 
     vi.mocked(ipc.checkExternal).mockResolvedValueOnce([{ id: 1, status: 'modified' }]);
     // Пока ядро читает файл, человек успевает напечатать: вкладка была
     // чистой, когда чтение началось, и стала изменённой к его концу.
     vi.mocked(ipc.reloadBuffer).mockImplementationOnce(async () => {
       type(1, 'x');
-      return { ...meta(1, 'C:\\a.md'), text: 'чужое' };
+      return { ...meta(1, 'C:\\a.txt'), text: 'чужое' };
     });
-    vi.mocked(ipc.acceptExternal).mockResolvedValueOnce(meta(1, 'C:\\a.md', true));
+    vi.mocked(ipc.acceptExternal).mockResolvedValueOnce(meta(1, 'C:\\a.txt', true));
 
     await checkExternalChanges();
 

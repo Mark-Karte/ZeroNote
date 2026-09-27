@@ -1,10 +1,11 @@
 import { message } from '@tauri-apps/plugin-dialog';
 import * as ipc from '../ipc/tree';
-import { moveBuffer } from '../ipc/files';
+import { markDetached, moveBuffer } from '../ipc/files';
 import { applyEdits } from '../ipc/edits';
 import { askChoice, askInput } from '../state/modal.svelte';
 import {
   applyMeta,
+  markChanged,
   tabs,
   unsavedPaths,
   close as closeTabState,
@@ -191,14 +192,25 @@ export async function deleteEntry(path: string, name: string, folder: boolean): 
  * Через состояние, а не через обычное закрытие с вопросом: файла уже нет,
  * и предлагать «сохранить изменения перед закрытием» означало бы предложить
  * создать его заново — ровно то, от чего человек только что отказался.
+ *
+ * **Кроме изменённых** (задача 136). У них в корзину ушла версия с диска,
+ * а набранное есть только во вкладке, и закрытие стирало его вместе
+ * с черновиком — хотя вопрос об удалении обещал «оттуда можно вернуть».
+ * Такая вкладка остаётся, отвязанной от файла, как при «Оставить
+ * в редакторе» для удалённого снаружи: закрыть её можно обычным путём,
+ * и тогда вопрос про несохранённое будет честным.
  */
 async function closeTabsUnder(path: string): Promise<void> {
   const prefix = `${path}\\`;
 
   for (const tab of [...tabs.items]) {
     const open = tab.meta.path;
-    if (open !== null && (open === path || open.startsWith(prefix))) {
-      await closeTabState(tab.meta.id);
+    if (open === null || (open !== path && !open.startsWith(prefix))) continue;
+
+    if (tab.meta.modified) {
+      markChanged(await markDetached(tab.meta.id));
+      continue;
     }
+    await closeTabState(tab.meta.id);
   }
 }

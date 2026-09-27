@@ -141,6 +141,12 @@ const CONTEXTUAL: Record<string, string> = {
  */
 const WEBVIEW_DEFAULTS = new Set([
   'f5',
+  // Перезагрузка мимо кэша — та же перезагрузка страницы. До задачи 136
+  // их здесь не было, и Ctrl+F5 по привычке из VS Code («запуск без
+  // отладки») поднимал фронтенд заново посреди работы.
+  'ctrl+f5',
+  'shift+f5',
+  'ctrl+shift+f5',
   'ctrl+p',
   'ctrl+r',
   'ctrl+j',
