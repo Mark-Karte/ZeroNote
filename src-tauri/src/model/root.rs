@@ -48,7 +48,7 @@ pub fn same_path(a: &Path, b: &Path) -> bool {
 }
 
 /// Лежит ли путь внутри корня (или равен ему).
-fn inside(root: &Path, path: &Path) -> bool {
+pub fn inside(root: &Path, path: &Path) -> bool {
     let root_text = root.to_string_lossy().to_lowercase();
     let path_text = path.to_string_lossy().to_lowercase();
 

@@ -16,6 +16,7 @@
 //!   короткими партиями и отпускает: иначе поиск ждал бы конца индексации,
 //!   то есть ровно того, ради чего он и нужен.
 
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, Sender};
@@ -28,7 +29,24 @@ use tauri::{AppHandle, Emitter};
 use crate::model::root::RootId;
 use crate::project::ignore::IgnoreRules;
 
+use super::scope::{Scope, Scopes};
 use super::{query, schema, writer};
+
+/// Как давно корень сверялся с диском, чтобы при возвращении фокуса
+/// сверить его снова (задача 140, находка Я15).
+///
+/// Слежение за папкой теряет события молча: на всплеске — `git checkout`,
+/// распаковка архива — буфер `ReadDirectoryChangesW` переполняется, и `notify`
+/// не сообщает ни события, ни ошибки, а на неизвестной ошибке снимает
+/// наблюдателя, тоже молча. Полный проход сверяет только время и размер,
+/// поэтому дёшев; пять минут — чтобы переключение окон не гоняло его зря,
+/// а потерянное находилось в пределах перерыва на чай.
+pub const CATCH_UP: Duration = Duration::from_secs(5 * 60);
+
+/// Куда сообщать о ходе работы. В приложении — событием окну, в тестах —
+/// никуда: рабочему потоку окно не нужно, и проверять очередь без него
+/// тоже можно.
+type Report = Box<dyn Fn(Progress) + Send>;
 
 /// Событие фронтенду: ход индексации.
 pub const INDEX_PROGRESS: &str = "index-progress";
@@ -59,19 +77,43 @@ enum Task {
         path: PathBuf,
         rules: Arc<IgnoreRules>,
         max_size: u64,
+        /// Не показывать ход работы: догоняющая сверка (Я15) — уборка,
+        /// а не работа, о которой человеку нужно знать; строка состояния
+        /// мигала бы индексацией на каждом пятиминутном переключении окон.
+        quiet: bool,
     },
     /// Перечитать конкретные папки — пришли события файловой системы.
     RescanDirs {
         root_id: RootId,
-        /// Путь корня: по нему считается путь внутри проекта, а по нему
-        /// разрешаются `[[ссылки]]`.
-        root_path: PathBuf,
         dirs: Vec<PathBuf>,
         rules: Arc<IgnoreRules>,
         max_size: u64,
     },
     /// Корень убрали из рабочего пространства.
     ForgetRoot { root_id: RootId },
+    /// Забыть записи всех корней, кроме живых: при запуске, когда реестр
+    /// восстановлен (Я10).
+    KeepOnly { live: Vec<RootId> },
+    /// Отметка в очереди: ответить, когда до неё дошло. Нужна тестам,
+    /// чтобы дождаться конца работы, а не гадать о нём по времени.
+    #[cfg(test)]
+    Barrier(Sender<()>),
+}
+
+impl Task {
+    /// Задание, которое отмена не снимает (Я10).
+    ///
+    /// Отмена — просьба не тратить время на индексацию, а не на уборку:
+    /// снятое «забыть корень» оставляло записи убранной папки в поиске
+    /// навсегда. Уборка короткая, и прервать её ради скорости нечем.
+    fn survives_cancel(&self) -> bool {
+        match self {
+            Task::ForgetRoot { .. } | Task::KeepOnly { .. } => true,
+            #[cfg(test)]
+            Task::Barrier(_) => true,
+            Task::ScanRoot { .. } | Task::RescanDirs { .. } => false,
+        }
+    }
 }
 
 struct Job {
@@ -88,6 +130,13 @@ pub struct Index {
     sender: Option<Sender<Job>>,
     generation: Arc<AtomicU64>,
     progress: Arc<Mutex<Progress>>,
+    /// Убранные корни (Я10): их идущий проход прерывается, а стоящие
+    /// в очереди задания не берутся — иначе проход дописал бы записи
+    /// корня уже после того, как их забыли. Новый проход корня снимает
+    /// с него пометку: корень вернули.
+    gone: Arc<Mutex<HashSet<RootId>>>,
+    /// Когда корень последний раз ставился на полный проход (Я15).
+    scanned: HashMap<RootId, Instant>,
 }
 
 impl Index {
@@ -97,6 +146,21 @@ impl Index {
     /// работает, просто не ищет по проекту. Молча — нельзя, поэтому вызов
     /// возвращает сообщение для полосы предупреждений.
     pub fn start(&mut self, app: AppHandle, data_dir: &Path) -> Result<(), String> {
+        self.start_with(
+            data_dir,
+            Box::new(move |value| {
+                let _ = app.emit(INDEX_PROGRESS, value);
+            }),
+        )
+    }
+
+    /// То же для тестов: ход работы никуда не сообщается.
+    #[cfg(test)]
+    pub fn start_for_tests(&mut self, data_dir: &Path) {
+        self.start_with(data_dir, Box::new(|_| {})).expect("индекс для теста");
+    }
+
+    fn start_with(&mut self, data_dir: &Path, report: Report) -> Result<(), String> {
         let connection = schema::open(&schema::index_path(data_dir))
             .map_err(|e| format!("индекс недоступен, поиск по проекту не работает: {e}"))?;
 
@@ -106,10 +170,33 @@ impl Index {
         self.connection = Some(connection.clone());
         self.sender = Some(tx);
 
-        let generation = self.generation.clone();
-        let progress = self.progress.clone();
-        std::thread::spawn(move || work(app, connection, rx, generation, progress));
+        let shared = Shared {
+            generation: self.generation.clone(),
+            progress: self.progress.clone(),
+            gone: self.gone.clone(),
+            report,
+        };
+        std::thread::spawn(move || work(connection, rx, shared));
         Ok(())
+    }
+
+    /// Дождаться, пока очередь дойдёт до этого места.
+    #[cfg(test)]
+    pub fn wait_idle(&self) {
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.submit(Task::Barrier(tx));
+        let _ = rx.recv_timeout(Duration::from_secs(30));
+    }
+
+    /// Отодвинуть время последнего прохода — проверить догоняющий без
+    /// пяти минут ожидания.
+    #[cfg(test)]
+    pub fn backdate_scan(&mut self, root_id: RootId, by: Duration) {
+        if let Some(at) = self.scanned.get_mut(&root_id)
+            && let Some(earlier) = at.checked_sub(by)
+        {
+            *at = earlier;
+        }
     }
 
     fn submit(&self, task: Task) {
@@ -126,24 +213,38 @@ impl Index {
     }
 
     pub fn scan_root(
-        &self,
+        &mut self,
         root_id: RootId,
         path: PathBuf,
         rules: Arc<IgnoreRules>,
         max_size: u64,
+        quiet: bool,
     ) {
+        // Проход корня, который забывали, — корень вернули. В приложении
+        // номер не переиспользуется, а замерочный стенд берёт один и тот же.
+        self.gone.lock().expect("индекс повреждён").remove(&root_id);
+        self.scanned.insert(root_id, Instant::now());
         self.submit(Task::ScanRoot {
             root_id,
             path,
             rules,
             max_size,
+            quiet,
         });
+    }
+
+    /// Пора ли сверить корень с диском заново (Я15): полного прохода
+    /// не было дольше `CATCH_UP`. Корень, которого индекс ещё не видел,
+    /// тоже пора.
+    pub fn needs_catch_up(&self, root_id: RootId) -> bool {
+        self.scanned
+            .get(&root_id)
+            .is_none_or(|at| at.elapsed() >= CATCH_UP)
     }
 
     pub fn rescan_dirs(
         &self,
         root_id: RootId,
-        root_path: PathBuf,
         dirs: Vec<PathBuf>,
         rules: Arc<IgnoreRules>,
         max_size: u64,
@@ -153,15 +254,25 @@ impl Index {
         }
         self.submit(Task::RescanDirs {
             root_id,
-            root_path,
             dirs,
             rules,
             max_size,
         });
     }
 
-    pub fn forget_root(&self, root_id: RootId) {
+    /// Забыть убранный корень (Я10). Его идущий проход прерывается сразу,
+    /// а само забывание отмена не снимает.
+    pub fn forget_root(&mut self, root_id: RootId) {
+        self.gone.lock().expect("индекс повреждён").insert(root_id);
+        self.scanned.remove(&root_id);
         self.submit(Task::ForgetRoot { root_id });
+    }
+
+    /// Забыть записи корней, которых нет в реестре (Я10). Зовётся при
+    /// запуске: забывание убранного корня могло не дойти до базы, если
+    /// приложение закрыли раньше.
+    pub fn keep_only(&self, live: Vec<RootId>) {
+        self.submit(Task::KeepOnly { live });
     }
 
     /// Отменить всё, что идёт и что стоит в очереди.
@@ -178,26 +289,27 @@ impl Index {
     pub fn search(
         &self,
         input: &str,
-        root_id: Option<RootId>,
+        scope: Option<&Scope>,
         limit: u32,
     ) -> Result<Vec<query::Hit>, String> {
         let Some(connection) = &self.connection else {
             return Ok(Vec::new());
         };
         let connection = connection.lock().expect("соединение с индексом повреждено");
-        query::search(&connection, input, root_id, limit).map_err(|e| e.to_string())
+        query::search(&connection, input, scope, limit).map_err(|e| e.to_string())
     }
 
     /// Куда ведёт `[[ссылка]]` из этого файла. `None` — ссылка висячая.
+    /// `scope` — область самого глубокого корня ссылающегося файла.
     pub fn resolve_link(
         &self,
         target: &str,
         from: &str,
-        root_id: RootId,
+        scope: &Scope,
     ) -> Option<super::graph::Resolved> {
         let connection = self.connection.as_ref()?;
         let connection = connection.lock().expect("соединение с индексом повреждено");
-        super::graph::resolve(&connection, target, from, root_id)
+        super::graph::resolve(&connection, target, from, scope)
             .ok()
             .flatten()
     }
@@ -209,15 +321,14 @@ impl Index {
     /// путей не увидит никто, включая индексацию в фоне.
     pub fn rename_plan(
         &self,
-        root_id: RootId,
-        root_path: &str,
+        scopes: &Scopes,
         from: &str,
         to: &str,
         hint: Option<crate::text::encoding::Encoding>,
     ) -> Option<super::rename::RenamePlan> {
         let connection = self.connection.as_ref()?;
         let mut connection = connection.lock().expect("соединение с индексом повреждено");
-        super::rename::plan(&mut connection, root_id, root_path, from, to, hint).ok()
+        super::rename::plan(&mut connection, scopes, from, to, hint).ok()
     }
 
     /// Каким текстом сослаться на этот файл из того (Р-134).
@@ -225,21 +336,21 @@ impl Index {
         &self,
         path: &str,
         from: &str,
-        root_id: RootId,
+        scope: &Scope,
         relative: &str,
     ) -> Option<String> {
         let connection = self.connection.as_ref()?;
         let connection = connection.lock().expect("соединение с индексом повреждено");
-        super::graph::link_text(&connection, path, from, root_id, relative).ok()
+        super::graph::link_text(&connection, path, from, scope, relative).ok()
     }
 
     /// Кто ссылается на этот файл.
-    pub fn backlinks(&self, path: &str) -> Vec<super::graph::Backlink> {
+    pub fn backlinks(&self, path: &str, scopes: &Scopes) -> Vec<super::graph::Backlink> {
         let Some(connection) = &self.connection else {
             return Vec::new();
         };
         let connection = connection.lock().expect("соединение с индексом повреждено");
-        super::graph::backlinks(&connection, path).unwrap_or_default()
+        super::graph::backlinks(&connection, path, scopes).unwrap_or_default()
     }
 
     /// Файлы, помеченные тегом.
@@ -280,13 +391,14 @@ impl Index {
         writer::text_files(&connection).unwrap_or_default()
     }
 
-    /// Сколько файлов корня лежит в индексе. Нужно строке состояния.
-    pub fn count(&self, root_id: RootId) -> u64 {
+    /// Сколько файлов корня лежит в индексе — всё под его папкой. Нужно
+    /// строке состояния.
+    pub fn count(&self, scope: &Scope) -> u64 {
         let Some(connection) = &self.connection else {
             return 0;
         };
         let connection = connection.lock().expect("соединение с индексом повреждено");
-        writer::count(&connection, root_id).unwrap_or(0)
+        writer::count_under(&connection, scope).unwrap_or(0)
     }
 }
 
@@ -330,15 +442,14 @@ pub fn collect_files(
     Some(files)
 }
 
-/// Записать партию файлов. Возвращает `false`, если работу отменили.
+/// Записать партию файлов. Возвращает `false`, если работу отменили
+/// или корень убрали.
 fn write_batch(
     connection: &Mutex<Connection>,
     root_id: RootId,
-    root_path: &Path,
     paths: &[PathBuf],
     max_size: u64,
-    generation: &AtomicU64,
-    mine: u64,
+    should_stop: &dyn Fn() -> bool,
 ) -> bool {
     let db = connection.lock().expect("соединение с индексом повреждено");
 
@@ -349,14 +460,14 @@ fn write_batch(
     };
 
     for path in paths {
-        if generation.load(Ordering::SeqCst) != mine {
+        if should_stop() {
             // Незаконченную партию не сохраняем: недописанное состояние хуже
             // отсутствующего, потому что выглядит завершённым.
             return false;
         }
         // Ошибка на отдельном файле — не повод бросать всю индексацию:
         // файл могли удалить прямо сейчас или закрыть к нему доступ.
-        let _ = writer::index_file(&db, root_id, &root_path, path, max_size);
+        let _ = writer::index_file(&db, root_id, path, max_size);
     }
 
     let _ = transaction.commit();
@@ -373,7 +484,7 @@ fn forget_missing(connection: &Mutex<Connection>, root_id: RootId, seen: &[PathB
 
     // Сравниваем по строкам, приведённым к нижнему регистру: Windows не
     // различает регистр путей, а в базу путь мог попасть в любом.
-    let seen: std::collections::HashSet<String> = seen
+    let seen: HashSet<String> = seen
         .iter()
         .map(|p| p.to_string_lossy().to_lowercase())
         .collect();
@@ -385,23 +496,43 @@ fn forget_missing(connection: &Mutex<Connection>, root_id: RootId, seen: &[PathB
     }
 }
 
-fn publish(app: &AppHandle, progress: &Mutex<Progress>, value: Progress) {
-    *progress.lock().expect("состояние индекса повреждено") = value;
-    let _ = app.emit(INDEX_PROGRESS, value);
-}
-
-fn work(
-    app: AppHandle,
-    connection: Arc<Mutex<Connection>>,
-    rx: Receiver<Job>,
+/// Что рабочий поток делит с `Index`.
+///
+/// Всё в `Arc`: поток живёт отдельно от `Index` и обязан владеть тем,
+/// чем пользуется, а `Index` в это время продолжает ставить задания,
+/// отменять и спрашивать о ходе работы.
+struct Shared {
     generation: Arc<AtomicU64>,
     progress: Arc<Mutex<Progress>>,
-) {
+    gone: Arc<Mutex<HashSet<RootId>>>,
+    report: Report,
+}
+
+impl Shared {
+    fn publish(&self, value: Progress) {
+        *self.progress.lock().expect("состояние индекса повреждено") = value;
+        (self.report)(value);
+    }
+
+    /// Задание больше не нужно: его отменили или убрали его корень.
+    fn stale(&self, mine: u64, root_id: RootId) -> bool {
+        self.generation.load(Ordering::SeqCst) != mine
+            || self.gone.lock().expect("индекс повреждён").contains(&root_id)
+    }
+}
+
+fn work(connection: Arc<Mutex<Connection>>, rx: Receiver<Job>, shared: Shared) {
+    const RUNNING: Progress = Progress {
+        running: true,
+        done: 0,
+        total: 0,
+    };
+
     // Ошибка получения означает, что отправители уничтожены: приложение
     // закрывается.
     while let Ok(job) = rx.recv() {
         let mine = job.generation;
-        if generation.load(Ordering::SeqCst) != mine {
+        if !job.task.survives_cancel() && shared.generation.load(Ordering::SeqCst) != mine {
             // Задание из отменённого поколения. Именно ради этого случая
             // отмена — счётчик, а не флаг.
             continue;
@@ -413,25 +544,38 @@ fn work(
                 let _ = writer::forget_root(&db, root_id);
             }
 
+            Task::KeepOnly { live } => {
+                let db = connection.lock().expect("соединение с индексом повреждено");
+                let _ = writer::forget_roots_except(&db, &live);
+            }
+
+            #[cfg(test)]
+            Task::Barrier(done) => {
+                let _ = done.send(());
+            }
+
             Task::ScanRoot {
                 root_id,
                 path,
                 rules,
                 max_size,
+                quiet,
             } => {
-                publish(
-                    &app,
-                    &progress,
-                    Progress {
-                        running: true,
-                        done: 0,
-                        total: 0,
-                    },
-                );
+                if shared.stale(mine, root_id) {
+                    continue;
+                }
+                // Тихий проход хода работы не показывает вовсе — ни начала,
+                // ни шагов, ни конца.
+                let publish = |value: Progress| {
+                    if !quiet {
+                        shared.publish(value);
+                    }
+                };
+                publish(RUNNING);
 
-                let stale = || generation.load(Ordering::SeqCst) != mine;
+                let stale = || shared.stale(mine, root_id);
                 let Some(files) = collect_files(&path, &rules, &stale) else {
-                    publish(&app, &progress, Progress::default());
+                    publish(Progress::default());
                     continue;
                 };
 
@@ -441,15 +585,7 @@ fn work(
                 let mut cancelled = false;
 
                 for chunk in files.chunks(BATCH) {
-                    if !write_batch(
-                        &connection,
-                        root_id,
-                        &path,
-                        chunk,
-                        max_size,
-                        &generation,
-                        mine,
-                    ) {
+                    if !write_batch(&connection, root_id, chunk, max_size, &stale) {
                         cancelled = true;
                         break;
                     }
@@ -457,43 +593,34 @@ fn work(
                     done += chunk.len() as u64;
                     if last_report.elapsed() >= PROGRESS_INTERVAL {
                         last_report = Instant::now();
-                        publish(
-                            &app,
-                            &progress,
-                            Progress {
-                                running: true,
-                                done,
-                                total,
-                            },
-                        );
+                        publish(Progress {
+                            running: true,
+                            done,
+                            total,
+                        });
                     }
                 }
 
                 if !cancelled {
                     forget_missing(&connection, root_id, &files);
                 }
-                publish(&app, &progress, Progress::default());
+                publish(Progress::default());
             }
 
             Task::RescanDirs {
                 root_id,
-                root_path,
                 dirs,
                 rules,
                 max_size,
             } => {
-                publish(
-                    &app,
-                    &progress,
-                    Progress {
-                        running: true,
-                        done: 0,
-                        total: 0,
-                    },
-                );
+                if shared.stale(mine, root_id) {
+                    continue;
+                }
+                shared.publish(RUNNING);
 
+                let stale = || shared.stale(mine, root_id);
                 for dir in dirs {
-                    if generation.load(Ordering::SeqCst) != mine {
+                    if stale() {
                         break;
                     }
 
@@ -509,19 +636,11 @@ fn work(
                         .map(|e| e.path)
                         .collect();
 
-                    write_batch(
-                        &connection,
-                        root_id,
-                        &root_path,
-                        &files,
-                        max_size,
-                        &generation,
-                        mine,
-                    );
+                    write_batch(&connection, root_id, &files, max_size, &stale);
                     forget_missing_in_dir(&connection, root_id, &dir, &files);
                 }
 
-                publish(&app, &progress, Progress::default());
+                shared.publish(Progress::default());
             }
         }
     }
@@ -576,5 +695,104 @@ fn forget_missing_in_dir(
         if !seen.contains(&lower) {
             let _ = writer::forget_file(&db, Path::new(&path));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::project::{IgnoreSettings, ignore};
+
+    fn temp_dir(tag: &str) -> PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let dir = std::env::temp_dir().join(format!("zeronote-jobs-{tag}-{nanos}"));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// Папка с заметками и индекс на отдельной папке данных — чтобы файл
+    /// базы не попал в обход.
+    fn setup(tag: &str, files: usize) -> (PathBuf, PathBuf, Index) {
+        let root = temp_dir(&format!("{tag}-root"));
+        for i in 0..files {
+            std::fs::write(root.join(format!("заметка-{i}.md")), "текст").unwrap();
+        }
+        let data = temp_dir(&format!("{tag}-data"));
+        let mut index = Index::default();
+        index.start_for_tests(&data);
+        (root, data, index)
+    }
+
+    fn scan(index: &mut Index, id: RootId, root: &Path) {
+        let rules = Arc::new(ignore::build(root, &IgnoreSettings::default()));
+        index.scan_root(id, root.to_path_buf(), rules, 2 * 1024 * 1024, false);
+    }
+
+    /// Отмена не снимает забывание убранного корня (Я10): иначе записи
+    /// папки оставались в быстром открытии и поиске навсегда.
+    #[test]
+    fn forgetting_a_root_survives_cancel() {
+        let (root, data, mut index) = setup("forget-cancel", 3);
+        scan(&mut index, 5, &root);
+        index.wait_idle();
+        let scope = Scope::new(5, &root);
+        assert_eq!(index.count(&scope), 3);
+
+        index.forget_root(5);
+        index.cancel();
+        index.wait_idle();
+
+        assert_eq!(index.count(&scope), 0, "записи убранного корня остались");
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(&data);
+    }
+
+    /// Проход убранного корня, стоявший в очереди, записей не дописывает.
+    #[test]
+    fn scan_of_a_removed_root_writes_nothing() {
+        let (root, data, mut index) = setup("forget-queued", 50);
+        scan(&mut index, 6, &root);
+        index.forget_root(6);
+        index.wait_idle();
+
+        assert_eq!(index.count(&Scope::new(6, &root)), 0);
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(&data);
+    }
+
+    /// При запуске записи корней, которых нет в реестре, уходят (Я10):
+    /// забывание могло не дойти до базы до закрытия приложения.
+    #[test]
+    fn keep_only_forgets_roots_missing_from_the_registry() {
+        let (root, data, mut index) = setup("keep-only", 2);
+        scan(&mut index, 7, &root);
+        index.wait_idle();
+
+        index.keep_only(vec![1, 2]);
+        index.wait_idle();
+
+        assert_eq!(index.count(&Scope::new(7, &root)), 0);
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(&data);
+    }
+
+    /// Догоняющий проход (Я15): корень, сверенный только что, ждёт; сверенный
+    /// давно или ни разу — пора.
+    #[test]
+    fn catch_up_is_due_after_the_interval() {
+        let (root, data, mut index) = setup("catch-up", 1);
+        assert!(index.needs_catch_up(8), "корень без прохода — пора");
+
+        scan(&mut index, 8, &root);
+        assert!(!index.needs_catch_up(8), "только что сверенный — не пора");
+
+        index.backdate_scan(8, CATCH_UP);
+        assert!(index.needs_catch_up(8));
+        index.wait_idle();
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(&data);
     }
 }

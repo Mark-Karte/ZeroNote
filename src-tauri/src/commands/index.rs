@@ -7,10 +7,33 @@ use crate::index::graph::{Backlink, Resolved, TagHit, Tagged};
 use crate::index::jobs::Progress;
 use crate::index::names::FileHit;
 use crate::index::query::Hit;
+use crate::index::scope::{Scope, Scopes};
 use crate::model::root::RootId;
 use crate::state::AppState;
 
 type Fallible<T> = Result<T, String>;
+
+/// Корни рабочего пространства как области (задача 140).
+///
+/// Какой корень видит файл, решает путь при запросе, а не номер в строке
+/// индекса: при вложенных корнях этот номер — кто проиндексировал первым.
+/// Берутся все корни, и недоступные тоже: их записи в индексе остаются
+/// (Р-052), и вопрос «чей это файл» к ним по-прежнему применим.
+pub(crate) fn scopes(state: &AppState) -> Scopes {
+    let roots = state.roots.lock().expect("реестр корней повреждён");
+    Scopes::new(
+        roots
+            .list()
+            .iter()
+            .map(|root| Scope::new(root.id, &root.path))
+            .collect(),
+    )
+}
+
+/// Область самого глубокого корня этого файла. `None` — файл вне корней.
+pub(crate) fn scope_of(state: &AppState, path: &str) -> Option<Scope> {
+    scopes(state).for_path(path).cloned()
+}
 
 /// Поставить корень в очередь на индексацию.
 ///
@@ -18,6 +41,10 @@ type Fallible<T> = Result<T, String>;
 /// только изменившееся. Поэтому «переиндексировать» стоит дёшево и зовётся
 /// при каждом добавлении корня и при каждом запуске.
 pub fn schedule_scan(state: &AppState, root_id: RootId) {
+    schedule(state, root_id, false);
+}
+
+fn schedule(state: &AppState, root_id: RootId, quiet: bool) {
     let Some((path, rules, max_size)) = ({
         let roots = state.roots.lock().expect("реестр корней повреждён");
         roots.get(root_id).filter(|root| root.available).map(|root| {
@@ -35,7 +62,7 @@ pub fn schedule_scan(state: &AppState, root_id: RootId) {
         .index
         .lock()
         .expect("индекс повреждён")
-        .scan_root(root_id, path, rules, max_size);
+        .scan_root(root_id, path, rules, max_size, quiet);
 }
 
 #[tauri::command]
@@ -43,10 +70,28 @@ pub fn index_progress(state: tauri::State<'_, AppState>) -> Progress {
     state.index.lock().expect("индекс повреждён").progress()
 }
 
-/// Сколько файлов корня лежит в индексе.
+/// Пора ли сверить корень с диском заново (Я15).
+pub fn needs_catch_up(state: &AppState, root_id: RootId) -> bool {
+    state
+        .index
+        .lock()
+        .expect("индекс повреждён")
+        .needs_catch_up(root_id)
+}
+
+/// Догоняющая сверка корня с диском — тихо, без хода работы в строке
+/// состояния (Я15).
+pub fn schedule_catch_up(state: &AppState, root_id: RootId) {
+    schedule(state, root_id, true);
+}
+
+/// Сколько файлов корня лежит в индексе — всё под его папкой.
 #[tauri::command]
 pub fn index_count(state: tauri::State<'_, AppState>, root_id: RootId) -> u64 {
-    state.index.lock().expect("индекс повреждён").count(root_id)
+    let Some(scope) = scopes(&state).get(root_id).cloned() else {
+        return 0;
+    };
+    state.index.lock().expect("индекс повреждён").count(&scope)
 }
 
 /// Отменить индексацию — и ту, что идёт, и ту, что стоит в очереди.
@@ -71,16 +116,12 @@ pub fn resolve_link(
     target: String,
     from: String,
 ) -> Option<Resolved> {
-    let root_id = {
-        let roots = state.roots.lock().expect("реестр корней повреждён");
-        roots.for_path(std::path::Path::new(&from)).map(|r| r.id)?
-    };
-
+    let scope = scope_of(&state, &from)?;
     state
         .index
         .lock()
         .expect("индекс повреждён")
-        .resolve_link(&target, &from, root_id)
+        .resolve_link(&target, &from, &scope)
 }
 
 /// Какие из этих ссылок ведут в существующие заметки.
@@ -94,21 +135,16 @@ pub fn resolve_links(
     targets: Vec<String>,
     from: String,
 ) -> Vec<bool> {
-    let root_id = {
-        let roots = state.roots.lock().expect("реестр корней повреждён");
-        roots.for_path(std::path::Path::new(&from)).map(|r| r.id)
-    };
-
     // Файл вне корней: разрешать ссылки не по чему, и висячими они тоже
     // не считаются — мы просто не знаем.
-    let Some(root_id) = root_id else {
+    let Some(scope) = scope_of(&state, &from) else {
         return vec![true; targets.len()];
     };
 
     let index = state.index.lock().expect("индекс повреждён");
     targets
         .iter()
-        .map(|target| index.resolve_link(target, &from, root_id).is_some())
+        .map(|target| index.resolve_link(target, &from, &scope).is_some())
         .collect()
 }
 
@@ -172,22 +208,39 @@ pub fn create_note(
 /// Кто ссылается на этот файл.
 #[tauri::command]
 pub fn backlinks(state: tauri::State<'_, AppState>, path: String) -> Vec<Backlink> {
-    state.index.lock().expect("индекс повреждён").backlinks(&path)
+    let scopes = scopes(&state);
+    state
+        .index
+        .lock()
+        .expect("индекс повреждён")
+        .backlinks(&path, &scopes)
 }
 
 /// Файлы, помеченные тегом. Вложенные теги считаются: `#работа` находит
 /// и `#работа/срочное`.
+///
+/// Корень у файла — самый глубокий живой, в котором он лежит: им подписано
+/// место в списке. Записи корня, которого в реестре уже нет, не выдаются
+/// (Я10): забывание могло ещё не дойти до базы.
 #[tauri::command]
 pub fn files_with_tag(
     state: tauri::State<'_, AppState>,
     tag: String,
     limit: Option<u32>,
 ) -> Vec<Tagged> {
-    state
+    let scopes = scopes(&state);
+    let files = state
         .index
         .lock()
         .expect("индекс повреждён")
-        .files_with_tag(&tag, limit.unwrap_or(200))
+        .files_with_tag(&tag, limit.unwrap_or(200));
+    files
+        .into_iter()
+        .filter_map(|mut file| {
+            file.root_id = scopes.for_path(&file.path)?.id;
+            Some(file)
+        })
+        .collect()
 }
 
 /// Теги проекта для палитры в режиме `#`.
@@ -223,60 +276,23 @@ pub fn find_files(
     limit: Option<u32>,
 ) -> Vec<FileHit> {
     let files = state.index.lock().expect("индекс повреждён").files();
+    let scopes = scopes(&state);
 
     // Путь корня из сопоставления убираем. Иначе совпадать будет он сам:
     // папка вроде `C:\Users\пользователь\Desktop\Project` содержит столько
     // букв, что под неё подходит почти любой запрос, и в выдачу попадают
     // все файлы проекта разом. Найдено это живой проверкой, а не тестом.
-    let prefixes: Vec<(u64, String)> = {
-        let roots = state.roots.lock().expect("реестр корней повреждён");
-        roots
-            .list()
-            .iter()
-            .map(|root| (root.id, root.path.display().to_string()))
-            .collect()
-    };
-
-    let relative = files.into_iter().map(|file| {
-        let inside = prefixes
-            .iter()
-            .find(|(id, _)| *id == file.root_id)
-            .and_then(|(_, prefix)| file.path.get(prefix.len()..))
-            .map(|tail| tail.trim_start_matches(['\\', '/']).to_owned())
-            .unwrap_or_else(|| file.path.clone());
-        (file.root_id, file.path, file.name, inside)
+    //
+    // Корень у файла — самый глубокий, в котором он лежит (задача 140), а
+    // файл вне всех корней — запись убранной папки, забывание которой ещё
+    // не дошло до базы (Я10): такого в выдаче быть не должно.
+    let relative = files.into_iter().filter_map(|file| {
+        let scope = scopes.for_path(&file.path)?;
+        let inside = scope.relative(&file.path)?;
+        Some((scope.id, file.path, file.name, inside))
     });
 
     crate::index::names::best(&query, relative, limit.unwrap_or(50) as usize)
-}
-
-/// Корень ссылающегося файла: номер и путь.
-///
-/// Ссылка не покидает пределов своего проекта, поэтому всё, что связано
-/// с `[[ссылками]]`, начинается с этого вопроса.
-fn root_of(state: &AppState, from: &str) -> Option<(RootId, String)> {
-    let roots = state.roots.lock().expect("реестр корней повреждён");
-    roots
-        .for_path(std::path::Path::new(from))
-        .map(|root| (root.id, root.path.display().to_string()))
-}
-
-/// Путь внутри корня в настоящем регистре.
-///
-/// Проверка префикса — по приведённым ключам: путь корня приходит из реестра,
-/// путь файла — из базы, и совпадать по регистру они не обязаны.
-pub(crate) fn inside_root(path: &str, root_path: &str) -> Option<String> {
-    let key = crate::index::writer::path_key(std::path::Path::new(path));
-    let root_key = crate::index::writer::path_key(std::path::Path::new(root_path));
-    if !key.starts_with(&root_key) {
-        return None;
-    }
-
-    Some(
-        path.get(root_path.len()..)?
-            .trim_start_matches(['\\', '/'])
-            .to_owned(),
-    )
 }
 
 /// Заметки для подсказки имён при `[[` (Р-132).
@@ -294,7 +310,7 @@ pub fn find_notes(
     embed: Option<bool>,
     limit: Option<u32>,
 ) -> Vec<FileHit> {
-    let Some((root_id, root_path)) = root_of(&state, &from) else {
+    let Some(scope) = scope_of(&state, &from) else {
         return Vec::new();
     };
 
@@ -311,14 +327,12 @@ pub fn find_notes(
     drop(index);
     let limit = limit.unwrap_or(20) as usize;
 
-    let relative = files
-        .into_iter()
-        .filter(|file| file.root_id == root_id)
-        .map(|file| {
-            let inside =
-                inside_root(&file.path, &root_path).unwrap_or_else(|| file.path.clone());
-            (file.root_id, file.path, file.name, inside)
-        });
+    // Список — всё под папкой корня, кто бы это ни проиндексировал
+    // (задача 140): ровно то, куда ссылка сможет привести.
+    let relative = files.into_iter().filter_map(|file| {
+        let inside = scope.relative(&file.path)?;
+        Some((scope.id, file.path, file.name, inside))
+    });
 
     // Себя отсеиваем после отбора, а не до: приведение пути к общему виду
     // стоит одной строки на файл, и платить эту цену за все десять тысяч имён
@@ -344,19 +358,22 @@ pub fn link_target(
     path: String,
     from: String,
 ) -> Option<String> {
-    let (root_id, root_path) = root_of(&state, &from)?;
-    let relative = inside_root(&path, &root_path)?;
+    let scope = scope_of(&state, &from)?;
+    let relative = scope.relative(&path)?;
 
     state
         .index
         .lock()
         .expect("индекс повреждён")
-        .link_text(&path, &from, root_id, &relative)
+        .link_text(&path, &from, &scope, &relative)
 }
 
 /// Поиск по содержимому.
 ///
-/// `root_id` не задан — ищем во всех корнях сразу.
+/// `root_id` не задан — ищем во всех корнях сразу. Задан — во всём, что
+/// лежит под папкой корня, вместе с вложенными проектами (задача 140).
+/// Корень у находки — самый глубокий, в котором она лежит; записи корня,
+/// которого в реестре уже нет, не выдаются (Я10).
 #[tauri::command]
 pub fn search_project(
     state: tauri::State<'_, AppState>,
@@ -364,9 +381,25 @@ pub fn search_project(
     root_id: Option<RootId>,
     limit: Option<u32>,
 ) -> Fallible<Vec<Hit>> {
-    state
+    let scopes = scopes(&state);
+    let scope = match root_id {
+        Some(id) => match scopes.get(id) {
+            Some(scope) => Some(scope),
+            None => return Ok(Vec::new()),
+        },
+        None => None,
+    };
+
+    let hits = state
         .index
         .lock()
         .expect("индекс повреждён")
-        .search(&query, root_id, limit.unwrap_or(200))
+        .search(&query, scope, limit.unwrap_or(200))?;
+    Ok(hits
+        .into_iter()
+        .filter_map(|mut hit| {
+            hit.root_id = scopes.for_path(&hit.path)?.id;
+            Some(hit)
+        })
+        .collect())
 }

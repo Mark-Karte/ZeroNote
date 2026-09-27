@@ -731,19 +731,14 @@ pub fn preview_embed(
     target: String,
     from: String,
 ) -> Fallible<String> {
-    let root_id = {
-        let roots = state.roots.lock().expect("реестр корней повреждён");
-        roots
-            .for_path(std::path::Path::new(&from))
-            .map(|root| root.id)
-            .ok_or_else(|| "заметка не в проекте: ссылку не по чему разрешать".to_owned())?
-    };
+    let scope = super::index::scope_of(&state, &from)
+        .ok_or_else(|| "заметка не в проекте: ссылку не по чему разрешать".to_owned())?;
 
     let found = state
         .index
         .lock()
         .expect("индекс повреждён")
-        .resolve_link(&target, &from, root_id)
+        .resolve_link(&target, &from, &scope)
         .ok_or_else(|| format!("в проекте нет файла «{target}»"))?;
 
     image_data_url(std::path::Path::new(&found.path))

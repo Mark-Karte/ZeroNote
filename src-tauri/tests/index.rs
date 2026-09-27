@@ -12,6 +12,7 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use rusqlite::Connection;
 use zeronote_lib::index::{graph, jobs, query, schema, writer};
 use zeronote_lib::project::{IgnoreSettings, ignore};
+use zeronote_lib::index::scope::Scope;
 
 const MAX: u64 = 2 * 1024 * 1024;
 
@@ -30,7 +31,7 @@ fn temp_dir(tag: &str) -> PathBuf {
 fn scan(db: &Connection, root: &Path, rules: &ignore::IgnoreRules) -> usize {
     let files = jobs::collect_files(root, rules, &|| false).expect("обход не отменяли");
     for path in &files {
-        writer::index_file(db, 1, root, path, MAX).expect("индексация не должна падать");
+        writer::index_file(db, 1, path, MAX).expect("индексация не должна падать");
     }
     files.len()
 }
@@ -85,7 +86,7 @@ fn second_pass_changes_nothing() {
     let files = jobs::collect_files(&dir, &rules, &|| false).unwrap();
     let mut unchanged = 0;
     for path in &files {
-        if writer::index_file(&db, 1, &dir, path, MAX).unwrap() == writer::Indexed::Unchanged {
+        if writer::index_file(&db, 1, path, MAX).unwrap() == writer::Indexed::Unchanged {
             unchanged += 1;
         }
     }
@@ -216,7 +217,7 @@ fn links_reach_attachments_but_notes_win() {
 
     let from = note.to_string_lossy().into_owned();
     let resolve = |target: &str| {
-        graph::resolve(&db, target, &from, 1)
+        graph::resolve(&db, target, &from, &Scope::new(1, &dir))
             .unwrap()
             .map(|found| found.path)
     };
@@ -301,15 +302,17 @@ fn search_spans_all_roots() {
     let rules_b = ignore::build(&second, &IgnoreSettings::default());
 
     for path in jobs::collect_files(&first, &rules_a, &|| false).unwrap() {
-        writer::index_file(&db, 1, &first, &path, MAX).unwrap();
+        writer::index_file(&db, 1, &path, MAX).unwrap();
     }
     for path in jobs::collect_files(&second, &rules_b, &|| false).unwrap() {
-        writer::index_file(&db, 2, &second, &path, MAX).unwrap();
+        writer::index_file(&db, 2, &path, MAX).unwrap();
     }
 
     assert_eq!(query::search(&db, "абрикос", None, 20).unwrap().len(), 2);
     assert_eq!(
-        query::search(&db, "абрикос", Some(2), 20).unwrap().len(),
+        query::search(&db, "абрикос", Some(&Scope::new(2, &second)), 20)
+            .unwrap()
+            .len(),
         1
     );
 

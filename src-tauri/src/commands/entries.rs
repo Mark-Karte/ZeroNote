@@ -126,22 +126,24 @@ pub fn plan_rename(
     name: String,
 ) -> Fallible<crate::index::rename::RenamePlan> {
     let path = PathBuf::from(path);
-    let root = guard(&state, &path)?;
+    guard(&state, &path)?;
 
     let target = entry_ops::renamed_path(&path, &name).map_err(|e| e.to_string())?;
     guard(&state, &target)?;
 
-    let (root_id, hint) = {
+    let hint = {
         let roots = state.roots.lock().expect("реестр корней повреждён");
         roots
             .for_path(&path)
-            .map(|root| (root.id, root.project.editor.default_encoding))
+            .map(|root| root.project.editor.default_encoding)
             .ok_or("путь не входит ни в одну открытую папку")?
     };
 
+    // Ссылки на переименовываемое бывают из всех корней, в которых оно лежит
+    // (задача 140): каждая разрешается в области своего файла.
+    let scopes = super::index::scopes(&state);
     let plan = state.index.lock().expect("индекс повреждён").rename_plan(
-        root_id,
-        &root.display().to_string(),
+        &scopes,
         &path.to_string_lossy(),
         &target.to_string_lossy(),
         hint,

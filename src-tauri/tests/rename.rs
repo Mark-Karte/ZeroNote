@@ -12,8 +12,18 @@ use rusqlite::Connection;
 use zeronote_lib::fsx::text_edit;
 use zeronote_lib::index::{graph, jobs, rename, schema, writer};
 use zeronote_lib::project::{IgnoreSettings, ignore};
+use zeronote_lib::index::scope::{Scope, Scopes};
 
 const MAX: u64 = 2 * 1024 * 1024;
+
+/// Хранилище теста — один корень; область ссылок — его папка (задача 140).
+fn root(dir: &Path) -> Scope {
+    Scope::new(1, dir)
+}
+
+fn roots(dir: &Path) -> Scopes {
+    Scopes::new(vec![root(dir)])
+}
 
 fn temp_dir(tag: &str) -> PathBuf {
     let nanos = std::time::SystemTime::now()
@@ -41,7 +51,7 @@ fn vault(dir: &Path, files: &[(&str, &str)]) -> Connection {
         if path.extension().and_then(|e| e.to_str()) == Some("db") {
             continue;
         }
-        writer::index_file(&db, 1, dir, &path, MAX).unwrap();
+        writer::index_file(&db, 1, &path, MAX).unwrap();
     }
     db
 }
@@ -53,11 +63,9 @@ fn rename_and_fix(
     from: &Path,
     to: &Path,
 ) -> rename::RenamePlan {
-    let root = dir.display().to_string();
     let plan = rename::plan(
         db,
-        1,
-        &root,
+        &roots(dir),
         &from.display().to_string(),
         &to.display().to_string(),
         None,
@@ -83,7 +91,7 @@ fn reindex(dir: &Path) -> Connection {
         if path.extension().and_then(|e| e.to_str()) == Some("db") {
             continue;
         }
-        writer::index_file(&db, 1, dir, &path, MAX).unwrap();
+        writer::index_file(&db, 1, &path, MAX).unwrap();
     }
     db
 }
@@ -164,7 +172,7 @@ fn taken_name_forces_the_path_form() {
     // заметку, а не в ту, что оказалась с тем же именем.
     let after = reindex(&dir);
     let from = dir.join("Дневник.md").display().to_string();
-    let resolved = graph::resolve(&after, "работа/Задачи", &from, 1).unwrap().unwrap();
+    let resolved = graph::resolve(&after, "работа/Задачи", &from, &root(&dir)).unwrap().unwrap();
     assert!(resolved.path.contains("работа"), "{}", resolved.path);
     let _ = fs::remove_dir_all(&dir);
 }
@@ -211,7 +219,7 @@ fn folder_rename_pins_a_link_that_would_drift() {
         ],
     );
 
-    let before = graph::resolve(&db, "Планы", &dir.join("Дневник.md").display().to_string(), 1)
+    let before = graph::resolve(&db, "Планы", &dir.join("Дневник.md").display().to_string(), &root(&dir))
         .unwrap()
         .unwrap();
     assert!(before.path.contains("аа"), "проверка построена не на том: {}", before.path);
@@ -226,7 +234,7 @@ fn folder_rename_pins_a_link_that_would_drift() {
         &after,
         "яяяяя/Планы",
         &dir.join("Дневник.md").display().to_string(),
-        1,
+        &root(&dir),
     )
     .unwrap()
     .unwrap();
@@ -306,5 +314,43 @@ fn nothing_but_the_target_changes_in_bytes() {
     expected.extend_from_slice("# Дневник\r\n\r\nПро [[Задачи]].\nХвост\r\n".as_bytes());
 
     assert_eq!(after, expected, "изменилось что-то кроме цели ссылки");
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// Вложенные корни (Я8): внешняя папка `dir` и проект `dir/работа`, файлы
+/// которого проиндексировал внешний корень. Переименование файла проекта
+/// обязано найти ссылки из обеих папок — из внешней путём от неё,
+/// из вложенной именем, — иначе они ломаются без вопроса.
+#[test]
+fn nested_root_rename_finds_links_from_both_roots() {
+    let dir = temp_dir("nested");
+    let mut db = vault(
+        &dir,
+        &[
+            ("Дневник.md", "Про [[работа/План]].\n"),
+            ("работа/Заметка.md", "Про [[План]].\n"),
+            ("работа/План.md", "# План\n"),
+        ],
+    );
+    let scopes = Scopes::new(vec![Scope::new(1, &dir), Scope::new(2, &dir.join("работа"))]);
+    let from = dir.join("работа").join("План.md");
+    let to = dir.join("работа").join("Задачи.md");
+
+    let plan = rename::plan(
+        &mut db,
+        &scopes,
+        &from.display().to_string(),
+        &to.display().to_string(),
+        None,
+    )
+    .expect("план должен считаться");
+    fs::rename(&from, &to).unwrap();
+    for file in &plan.files {
+        text_edit::apply(Path::new(&file.path), &file.edits, None).unwrap();
+    }
+
+    assert_eq!(plan.links, 2, "{plan:?}");
+    assert_eq!(read(&dir.join("Дневник.md")), "Про [[работа/Задачи]].\n");
+    assert_eq!(read(&dir.join("работа").join("Заметка.md")), "Про [[Задачи]].\n");
     let _ = fs::remove_dir_all(&dir);
 }

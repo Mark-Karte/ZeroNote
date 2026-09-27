@@ -14,6 +14,17 @@ use crate::text::document;
 /// двоичном формате попадается почти сразу.
 const BINARY_PROBE: usize = 8 * 1024;
 
+/// Потолок содержимого для индекса — какой бы предел ни просил файл проекта.
+///
+/// Задача 140, находка Я13. Предел `[index] max_file_size` берётся из
+/// `zeronote.toml`, а тот бывает чужим: в скачанном репозитории могут лежать
+/// `max_file_size = 9223372036854775807` и журнал на четыре гигабайта из одной
+/// буквы — git и zip сжимают такое до килобайт. Индексация читала бы его
+/// целиком, дважды (байты и раскодированный текст), под замком базы — при
+/// каждом открытии папки. Потолок тот же, что у упрощённого режима
+/// редактора (таблица целей: «свыше 50 МБ — без индексации»).
+pub const CONTENT_CEILING: u64 = crate::fsx::text_file::LARGE_FILE_THRESHOLD;
+
 /// Что стало с файлом при попытке его проиндексировать.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Indexed {
@@ -87,7 +98,7 @@ pub fn looks_binary(bytes: &[u8]) -> bool {
 fn read_text(path: &Path, size: u64, max_size: u64) -> Option<String> {
     use std::io::Read;
 
-    if size > max_size {
+    if size > max_size.min(CONTENT_CEILING) {
         return None;
     }
 
@@ -120,10 +131,6 @@ fn now_ms() -> i64 {
     millis(std::time::SystemTime::now()).unwrap_or(0)
 }
 
-/// Записать файл в индекс.
-///
-/// `max_size` — предел из настроек проекта. Файл крупнее в индекс не попадает:
-/// поиск по журналу на сто мегабайт не нужен никому, а память и время он съест.
 /// Markdown ли это — по расширению.
 ///
 /// Связи разбираются только у markdown: `[[ссылки]]` в исходнике на C++ —
@@ -148,20 +155,13 @@ pub fn path_key(path: &Path) -> String {
     path.to_string_lossy().replace('/', "\\").to_lowercase()
 }
 
-/// Путь внутри корня, имя без расширения и имя целиком — в общем виде.
+/// Имя без расширения и имя целиком — в общем виде.
 ///
-/// Три ключа, а не два: на заметку ссылаются без расширения (`[[Планы]]`),
+/// Два ключа, а не один: на заметку ссылаются без расширения (`[[Планы]]`),
 /// на вложение — с ним (`![[рисунок.png]]`), и разрешение спрашивает индекс
-/// об этом порознь (Р-217).
-fn keys(root: &Path, path: &Path) -> (String, String, String) {
-    let full = path.to_string_lossy();
-    let prefix = root.to_string_lossy();
-
-    let relative = full
-        .get(prefix.len()..)
-        .map(|tail| tail.trim_start_matches(['\\', '/']))
-        .unwrap_or(&full);
-
+/// об этом порознь (Р-217). Путь внутри корня не хранится: он зависит
+/// от того, какой корень спрашивает (задача 140, `index/scope.rs`).
+pub fn keys(path: &Path) -> (String, String) {
     let name = path
         .file_stem()
         .map(|n| n.to_string_lossy().to_lowercase())
@@ -172,13 +172,21 @@ fn keys(root: &Path, path: &Path) -> (String, String, String) {
         .map(|n| n.to_string_lossy().to_lowercase())
         .unwrap_or_default();
 
-    (markdown::links::link_key(relative), name, file)
+    (name, file)
 }
 
+/// Записать файл в индекс.
+///
+/// `max_size` — предел из настроек проекта, но не выше `CONTENT_CEILING`.
+/// Файл крупнее попадает в индекс только именем: поиск по журналу на сто
+/// мегабайт не нужен никому, а память и время он съест.
+///
+/// `root_id` — корень, который индексирует файл. Он нужен только
+/// обслуживанию индекса — сверке с диском и забыванию убранного корня;
+/// какой корень видит файл, решает путь при запросе (`index/scope.rs`).
 pub fn index_file(
     connection: &Connection,
     root_id: RootId,
-    root_path: &Path,
     path: &Path,
     max_size: u64,
 ) -> Result<Indexed, IndexError> {
@@ -217,20 +225,19 @@ pub fn index_file(
     // а два вхождения одного файла давали бы его дважды в выдаче.
     forget_file(connection, path)?;
 
-    let (rel_key, name_key, file_key) = keys(root_path, path);
+    let (name_key, file_key) = keys(path);
 
     connection.execute(
         "INSERT INTO files
-            (root_id, path, path_key, name, has_text, rel_key, name_key,
+            (root_id, path, path_key, name, has_text, name_key,
              file_key, mtime_ms, size, indexed_ms)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         rusqlite::params![
             root_id as i64,
             text_path.as_ref(),
             path_key(path),
             name,
             text.is_some() as i64,
-            rel_key,
             name_key,
             file_key,
             mtime,
@@ -410,7 +417,42 @@ pub fn text_files(connection: &Connection) -> Result<Vec<FileRow>, IndexError> {
     Ok(out)
 }
 
-/// Сколько файлов корня в индексе.
+/// Убрать записи всех корней, кроме перечисленных, — осиротевшие.
+///
+/// Задача 140, находка Я10. Убранный корень забывается заданием в очереди,
+/// а очередь живёт в памяти: закрыли приложение раньше, чем задание дошло, —
+/// и записи корня остались бы навсегда (номер корня сквозной и повторно
+/// не выдаётся, так что никакой проход по живым корням до них не дотянется).
+/// Зовётся при запуске, когда реестр корней уже восстановлен. Возвращает,
+/// сколько корней забыто.
+pub fn forget_roots_except(connection: &Connection, live: &[RootId]) -> Result<usize, IndexError> {
+    let mut statement = connection.prepare("SELECT DISTINCT root_id FROM files")?;
+    let ids: Vec<RootId> = statement
+        .query_map([], |row| row.get::<_, i64>(0))?
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter()
+        .map(|id| id as RootId)
+        .filter(|id| !live.contains(id))
+        .collect();
+    for id in &ids {
+        forget_root(connection, *id)?;
+    }
+    Ok(ids.len())
+}
+
+/// Сколько файлов лежит под папкой корня — кто бы их ни проиндексировал
+/// (задача 140): у вложенного корня его файлы могли достаться внешнему.
+pub fn count_under(connection: &Connection, scope: &super::scope::Scope) -> Result<u64, IndexError> {
+    let value: i64 = connection.query_row(
+        "SELECT count(*) FROM files WHERE path_key LIKE ?1 ESCAPE '\\'",
+        [scope.like_pattern()],
+        |row| row.get(0),
+    )?;
+    Ok(value as u64)
+}
+
+/// Сколько файлов записал этот корень. Нужно тестам сверки с диском:
+/// строке состояния — `count_under`.
 pub fn count(connection: &Connection, root_id: RootId) -> Result<u64, IndexError> {
     let value: i64 = connection.query_row(
         "SELECT count(*) FROM files WHERE root_id = ?1",
@@ -448,7 +490,7 @@ mod tests {
         std::fs::write(&path, "съешь ещё этих мягких французских булок").unwrap();
         let db = connection(&dir);
 
-        assert_eq!(index_file(&db, 1, &dir, &path, BIG).unwrap(), Indexed::Stored);
+        assert_eq!(index_file(&db, 1, &path, BIG).unwrap(), Indexed::Stored);
         assert_eq!(count(&db, 1).unwrap(), 1);
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -462,8 +504,8 @@ mod tests {
         std::fs::write(&path, "текст").unwrap();
         let db = connection(&dir);
 
-        assert_eq!(index_file(&db, 1, &dir, &path, BIG).unwrap(), Indexed::Stored);
-        assert_eq!(index_file(&db, 1, &dir, &path, BIG).unwrap(), Indexed::Unchanged);
+        assert_eq!(index_file(&db, 1, &path, BIG).unwrap(), Indexed::Stored);
+        assert_eq!(index_file(&db, 1, &path, BIG).unwrap(), Indexed::Unchanged);
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -474,14 +516,14 @@ mod tests {
         let path = dir.join("заметка.md");
         std::fs::write(&path, "первоначальное содержимое").unwrap();
         let db = connection(&dir);
-        index_file(&db, 1, &dir, &path, BIG).unwrap();
+        index_file(&db, 1, &path, BIG).unwrap();
 
         // Ждём, чтобы отметка времени заведомо изменилась: файловые системы
         // Windows хранят её с грубым шагом.
         std::thread::sleep(std::time::Duration::from_millis(30));
         std::fs::write(&path, "совершенно другое наполнение").unwrap();
 
-        assert_eq!(index_file(&db, 1, &dir, &path, BIG).unwrap(), Indexed::Stored);
+        assert_eq!(index_file(&db, 1, &path, BIG).unwrap(), Indexed::Stored);
         assert_eq!(count(&db, 1).unwrap(), 1, "файл не должен удвоиться");
 
         let stale: i64 = db
@@ -506,7 +548,7 @@ mod tests {
         std::fs::write(&path, [0x89, b'P', b'N', b'G', 0x00, 0x1A, 0x0A]).unwrap();
         let db = connection(&dir);
 
-        assert_eq!(index_file(&db, 1, &dir, &path, BIG).unwrap(), Indexed::Listed);
+        assert_eq!(index_file(&db, 1, &path, BIG).unwrap(), Indexed::Listed);
 
         let files = all_files(&db).unwrap();
         assert_eq!(files.len(), 1, "имя картинки должно быть в индексе");
@@ -530,7 +572,7 @@ mod tests {
         std::fs::write(&path, "строка\n".repeat(1000)).unwrap();
         let db = connection(&dir);
 
-        assert_eq!(index_file(&db, 1, &dir, &path, 100).unwrap(), Indexed::Listed);
+        assert_eq!(index_file(&db, 1, &path, 100).unwrap(), Indexed::Listed);
 
         let files = all_files(&db).unwrap();
         assert_eq!(files.len(), 1);
@@ -548,13 +590,13 @@ mod tests {
         let path = dir.join("растущий.md");
         std::fs::write(&path, "коротко").unwrap();
         let db = connection(&dir);
-        index_file(&db, 1, &dir, &path, 1000).unwrap();
+        index_file(&db, 1, &path, 1000).unwrap();
         assert_eq!(count(&db, 1).unwrap(), 1);
 
         std::thread::sleep(std::time::Duration::from_millis(30));
         std::fs::write(&path, "длинно ".repeat(1000)).unwrap();
 
-        assert_eq!(index_file(&db, 1, &dir, &path, 1000).unwrap(), Indexed::Listed);
+        assert_eq!(index_file(&db, 1, &path, 1000).unwrap(), Indexed::Listed);
         assert_eq!(count(&db, 1).unwrap(), 1, "имя остаётся");
 
         let stale: i64 = db
@@ -577,9 +619,9 @@ mod tests {
         std::fs::write(&path, [0x89, b'P', b'N', b'G', 0x00]).unwrap();
         let db = connection(&dir);
 
-        assert_eq!(index_file(&db, 1, &dir, &path, BIG).unwrap(), Indexed::Listed);
+        assert_eq!(index_file(&db, 1, &path, BIG).unwrap(), Indexed::Listed);
         assert_eq!(
-            index_file(&db, 1, &dir, &path, BIG).unwrap(),
+            index_file(&db, 1, &path, BIG).unwrap(),
             Indexed::Unchanged
         );
         let _ = std::fs::remove_dir_all(&dir);
@@ -597,7 +639,7 @@ mod tests {
         std::fs::write(&path, bytes).unwrap();
         let db = connection(&dir);
 
-        index_file(&db, 1, &dir, &path, BIG).unwrap();
+        index_file(&db, 1, &path, BIG).unwrap();
 
         let found: i64 = db
             .query_row(
@@ -618,7 +660,7 @@ mod tests {
         for (i, root) in [(1, 1u64), (2, 1), (3, 2)] {
             let path = dir.join(format!("файл-{i}.md"));
             std::fs::write(&path, "содержимое").unwrap();
-            index_file(&db, root, &dir, &path, BIG).unwrap();
+            index_file(&db, root, &path, BIG).unwrap();
         }
 
         forget_root(&db, 1).unwrap();
@@ -632,6 +674,58 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// Потолок сильнее файла проекта (Я13): чужой `zeronote.toml` с пределом
+    /// в эксабайты не заставит индексацию поднять в память файл крупнее
+    /// потолка — имя попадёт в индекс, содержимое нет.
+    #[test]
+    fn project_limit_cannot_lift_the_ceiling() {
+        use std::io::Write;
+
+        let dir = temp_dir("ceiling");
+        let path = dir.join("огромный.log");
+        {
+            let mut file = std::fs::File::create(&path).unwrap();
+            let chunk = vec![b'a'; 1024 * 1024];
+            for _ in 0..=(CONTENT_CEILING / chunk.len() as u64) {
+                file.write_all(&chunk).unwrap();
+            }
+        }
+        let db = connection(&dir);
+
+        // Самое большое целое, какое пропустит TOML.
+        let limit = i64::MAX as u64;
+        assert_eq!(index_file(&db, 1, &path, limit).unwrap(), Indexed::Listed);
+        let stored: i64 = db
+            .query_row("SELECT count(*) FROM content", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(stored, 0, "содержимое крупнее потолка попало в индекс");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Записи корня, которого больше нет в реестре, уходят целиком (Я10),
+    /// а живые остаются.
+    #[test]
+    fn orphaned_roots_are_forgotten() {
+        let dir = temp_dir("orphans");
+        let db = connection(&dir);
+        for (i, root) in [(1, 1u64), (2, 5), (3, 5), (4, 7)] {
+            let path = dir.join(format!("файл-{i}.md"));
+            std::fs::write(&path, "содержимое #тег").unwrap();
+            index_file(&db, root, &path, BIG).unwrap();
+        }
+
+        assert_eq!(forget_roots_except(&db, &[1, 7]).unwrap(), 1);
+
+        assert_eq!(count(&db, 1).unwrap(), 1);
+        assert_eq!(count(&db, 5).unwrap(), 0);
+        assert_eq!(count(&db, 7).unwrap(), 1);
+        let content: i64 = db
+            .query_row("SELECT count(*) FROM content", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(content, 2, "содержимое забытого корня осталось");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn known_paths_lists_only_this_root() {
         let dir = temp_dir("known");
@@ -641,8 +735,8 @@ mod tests {
         let second = dir.join("два.md");
         std::fs::write(&first, "текст").unwrap();
         std::fs::write(&second, "текст").unwrap();
-        index_file(&db, 1, &dir, &first, BIG).unwrap();
-        index_file(&db, 2, &dir, &second, BIG).unwrap();
+        index_file(&db, 1, &first, BIG).unwrap();
+        index_file(&db, 2, &second, BIG).unwrap();
 
         let paths = known_paths(&db, 1).unwrap();
 

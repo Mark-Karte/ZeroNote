@@ -395,7 +395,7 @@ pub fn bench_run_index() -> Result<String, String> {
     {
         let transaction = db.unchecked_transaction().map_err(|e| e.to_string())?;
         for path in &files {
-            let _ = writer::index_file(&db, 1, &dir, path, max_size);
+            let _ = writer::index_file(&db, 1, path, max_size);
         }
         transaction.commit().map_err(|e| e.to_string())?;
     }
@@ -409,7 +409,7 @@ pub fn bench_run_index() -> Result<String, String> {
     // с уже готовым индексом.
     let start = Instant::now();
     for path in &files {
-        let _ = writer::index_file(&db, 1, &dir, path, max_size);
+        let _ = writer::index_file(&db, 1, path, max_size);
     }
     let again_ms = start.elapsed().as_secs_f64() * 1000.0;
     report.push_str(&format!(
@@ -542,6 +542,7 @@ pub fn bench_start_index(
         dir.clone(),
         rules,
         max_size,
+        false,
     );
 
     Ok(dir.display().to_string())
@@ -558,7 +559,7 @@ pub fn bench_stop_index(
     }
 
     {
-        let index = state.index.lock().expect("индекс повреждён");
+        let mut index = state.index.lock().expect("индекс повреждён");
         index.cancel();
         index.forget_root(BENCH_ROOT_ID);
     }

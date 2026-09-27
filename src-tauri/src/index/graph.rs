@@ -19,6 +19,8 @@ use rusqlite::Connection;
 use crate::markdown::links::link_key;
 use crate::model::root::RootId;
 
+use super::scope::{Scope, Scopes, escape_like};
+
 /// Файл-кандидат при разрешении ссылки.
 #[derive(Debug, Clone)]
 struct Candidate {
@@ -88,14 +90,15 @@ fn nearest(mut candidates: Vec<Candidate>, from: &str) -> Option<Candidate> {
     candidates.into_iter().next()
 }
 
+/// Кандидаты из области корня: `?1` — ключ, `?2` — шаблон «под папкой корня».
 fn query_candidates(
     connection: &Connection,
     sql: &str,
     key: &str,
-    root_id: RootId,
+    scope: &Scope,
 ) -> Result<Vec<Candidate>, rusqlite::Error> {
     let mut statement = connection.prepare(sql)?;
-    let rows = statement.query_map(rusqlite::params![key, root_id as i64], |row| {
+    let rows = statement.query_map(rusqlite::params![key, scope.like_pattern()], |row| {
         Ok(Candidate {
             id: row.get(0)?,
             path: row.get(1)?,
@@ -112,11 +115,13 @@ fn query_candidates(
 /// Найти файл, на который указывает цель ссылки.
 ///
 /// `from` — путь ссылающегося файла: по нему выбирается ближайший кандидат.
+/// `scope` — область самого глубокого корня этого файла (задача 140):
+/// кандидаты — все файлы под его папкой, кто бы их ни проиндексировал.
 fn resolve_id(
     connection: &Connection,
     target: &str,
     from: &str,
-    root_id: RootId,
+    scope: &Scope,
 ) -> Result<Option<Candidate>, rusqlite::Error> {
     let key = link_key(target);
     if key.is_empty() {
@@ -124,14 +129,25 @@ fn resolve_id(
     }
 
     // Путь от корня — если в цели есть косая черта, имя файла тут ни при чём.
-    // Вложение по пути пишется с расширением, и `rel_key` его хранит.
+    // Путь считается от корня области, а не берётся записанным при
+    // индексации: тот считался от корня, который проиндексировал файл,
+    // и при вложенных корнях был путём от чужой папки. `link_key` снимает
+    // только `.md`, поэтому у заметки ключ пути — с ним, у вложения —
+    // как написано.
     if key.contains('/') {
-        let by_path = query_candidates(
-            connection,
-            "SELECT id, path FROM files WHERE rel_key = ?1 AND root_id = ?2",
-            &key,
-            root_id,
-        )?;
+        let exact = scope.key_of(&key);
+        let mut statement =
+            connection.prepare("SELECT id, path FROM files WHERE path_key IN (?1, ?2)")?;
+        let rows = statement.query_map(rusqlite::params![exact, format!("{exact}.md")], |row| {
+            Ok(Candidate {
+                id: row.get(0)?,
+                path: row.get(1)?,
+            })
+        })?;
+        let mut by_path = Vec::new();
+        for row in rows {
+            by_path.push(row?);
+        }
         return Ok(nearest(by_path, from));
     }
 
@@ -140,9 +156,9 @@ fn resolve_id(
     // на такую ссылку заметкой-тёзкой было бы подменой.
     let by_file = query_candidates(
         connection,
-        "SELECT id, path FROM files WHERE file_key = ?1 AND root_id = ?2",
+        "SELECT id, path FROM files WHERE file_key = ?1 AND path_key LIKE ?2 ESCAPE '\\'",
         &key,
-        root_id,
+        scope,
     )?;
     if let Some(found) = nearest(by_file, from) {
         return Ok(Some(found));
@@ -155,9 +171,9 @@ fn resolve_id(
     let by_note = query_candidates(
         connection,
         "SELECT id, path FROM files
-         WHERE name_key = ?1 AND root_id = ?2 AND has_text = 1",
+         WHERE name_key = ?1 AND path_key LIKE ?2 ESCAPE '\\' AND has_text = 1",
         &key,
-        root_id,
+        scope,
     )?;
     if let Some(found) = nearest(by_note, from) {
         return Ok(Some(found));
@@ -165,9 +181,9 @@ fn resolve_id(
 
     let by_name = query_candidates(
         connection,
-        "SELECT id, path FROM files WHERE name_key = ?1 AND root_id = ?2",
+        "SELECT id, path FROM files WHERE name_key = ?1 AND path_key LIKE ?2 ESCAPE '\\'",
         &key,
-        root_id,
+        scope,
     )?;
     if let Some(found) = nearest(by_name, from) {
         return Ok(Some(found));
@@ -178,9 +194,9 @@ fn resolve_id(
         connection,
         "SELECT f.id, f.path FROM aliases a
          JOIN files f ON f.id = a.file_id
-         WHERE a.alias_key = ?1 AND f.root_id = ?2",
+         WHERE a.alias_key = ?1 AND f.path_key LIKE ?2 ESCAPE '\\'",
         &key,
-        root_id,
+        scope,
     )?;
     Ok(nearest(by_alias, from))
 }
@@ -190,9 +206,9 @@ pub fn resolve(
     connection: &Connection,
     target: &str,
     from: &str,
-    root_id: RootId,
+    scope: &Scope,
 ) -> Result<Option<Resolved>, rusqlite::Error> {
-    let Some(found) = resolve_id(connection, target, from, root_id)? else {
+    let Some(found) = resolve_id(connection, target, from, scope)? else {
         return Ok(None);
     };
 
@@ -232,17 +248,16 @@ fn without_md(text: &str) -> &str {
 /// когда оно и правда ведёт в выбранный файл; иначе — путь от корня.
 ///
 /// Расширение снимается у обоих видов: в индексе имя лежит без расширения
-/// (`name_key` считается от `file_stem`), а путь — с расширением, но
-/// без `.md` (`rel_key` считается через `link_key`). Ссылка, записанная
-/// иначе, не разрешится.
+/// (`name_key` считается от `file_stem`), а путь сверяется без `.md`
+/// (так считает `link_key`). Ссылка, записанная иначе, не разрешится.
 ///
-/// `relative` — путь внутри корня в настоящем регистре: в базе лежит только
-/// приведённый к нижнему, а в текст идёт тот, что видит человек.
+/// `relative` — путь внутри корня области в настоящем регистре: в базе
+/// лежит только приведённый к нижнему, а в текст идёт тот, что видит человек.
 pub fn link_text(
     connection: &Connection,
     path: &str,
     from: &str,
-    root_id: RootId,
+    scope: &Scope,
     relative: &str,
 ) -> Result<String, rusqlite::Error> {
     let short = std::path::Path::new(path)
@@ -252,7 +267,7 @@ pub fn link_text(
 
     if !short.is_empty() {
         let key = crate::index::writer::path_key(std::path::Path::new(path));
-        let resolves_here = resolve_id(connection, &short, from, root_id)?
+        let resolves_here = resolve_id(connection, &short, from, scope)?
             .is_some_and(|found| {
                 crate::index::writer::path_key(std::path::Path::new(&found.path)) == key
             });
@@ -279,17 +294,29 @@ pub fn path_form(relative: &str) -> String {
 /// Кто ссылается на этот файл.
 ///
 /// Берутся ссылки, чья цель совпадает с одним из имён файла, — а затем каждая
-/// разрешается по-настоящему. Без второго шага `[[Задачи]]` из другой папки
-/// попал бы в обратные ссылки заметки, на которую он не ведёт.
+/// разрешается по-настоящему, в области своего файла. Без второго шага
+/// `[[Задачи]]` из другой папки попал бы в обратные ссылки заметки,
+/// на которую он не ведёт.
+///
+/// Имён у файла несколько: без расширения, целиком (`![[рисунок.png]]`,
+/// Р-217), псевдонимы и путь — **от каждого корня, в котором файл лежит**
+/// (задача 140): при вложенных корнях заметка внешней папки пишет
+/// `[[Работа/План]]`, а заметка вложенной — `[[План]]`.
 pub fn backlinks(
     connection: &Connection,
     path: &str,
+    scopes: &Scopes,
 ) -> Result<Vec<Backlink>, rusqlite::Error> {
-    let Some((file_id, root_id, rel_key, name_key)) = file_keys(connection, path)? else {
+    let Some((file_id, stored_path, name_key, file_key)) = file_keys(connection, path)? else {
         return Ok(Vec::new());
     };
 
-    let mut keys = vec![rel_key, name_key];
+    let mut keys = vec![name_key, file_key];
+    for scope in scopes.containing(&stored_path) {
+        if let Some(relative) = scope.relative(&stored_path) {
+            keys.push(link_key(&relative));
+        }
+    }
 
     let mut statement =
         connection.prepare("SELECT alias_key FROM aliases WHERE file_id = ?1")?;
@@ -307,28 +334,21 @@ pub fn backlinks(
 
     let placeholders = vec!["?"; keys.len()].join(", ");
     let sql = format!(
-        "SELECT f.id, f.root_id, f.path, f.name, l.target_raw, l.heading, l.alias, l.embed
+        "SELECT f.path, f.name, l.target_raw, l.heading, l.alias, l.embed
          FROM links l
          JOIN files f ON f.id = l.source_id
-         WHERE l.target_key IN ({placeholders}) AND f.root_id = ?{}",
-        keys.len() + 1
+         WHERE l.target_key IN ({placeholders})"
     );
 
-    let mut params: Vec<Box<dyn rusqlite::ToSql>> = keys
-        .iter()
-        .map(|k| Box::new(k.clone()) as Box<dyn rusqlite::ToSql>)
-        .collect();
-    params.push(Box::new(root_id as i64));
-
     let mut statement = connection.prepare(&sql)?;
-    let rows = statement.query_map(rusqlite::params_from_iter(params.iter()), |row| {
+    let rows = statement.query_map(rusqlite::params_from_iter(keys.iter()), |row| {
         Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
             row.get::<_, String>(2)?,
-            row.get::<_, String>(3)?,
-            row.get::<_, String>(4)?,
-            row.get::<_, Option<String>>(5)?,
-            row.get::<_, Option<String>>(6)?,
-            row.get::<_, i64>(7)? != 0,
+            row.get::<_, Option<String>>(3)?,
+            row.get::<_, Option<String>>(4)?,
+            row.get::<_, i64>(5)? != 0,
         ))
     })?;
 
@@ -336,12 +356,22 @@ pub fn backlinks(
     for row in rows {
         let (source_path, name, target_raw, heading, alias, embed) = row?;
 
+        // Ссылка ищет в области своего файла; файл вне всех корней ссылаться
+        // не может, а область, в которой нас нет, до нас не дотянется.
+        let Some(scope) = scopes.for_path(&source_path) else {
+            continue;
+        };
+        if !scope.contains(&stored_path) {
+            continue;
+        }
+
         // Ссылка могла разрешиться не в наш файл: в проекте бывают две
         // заметки с одним именем в разных папках.
-        let resolved = resolve_id(connection, &target_raw, &source_path, root_id)?;
+        let resolved = resolve_id(connection, &target_raw, &source_path, scope)?;
         if resolved.map(|c| c.id) != Some(file_id) {
             continue;
         }
+        let root_id = scope.id;
 
         let mut text = target_raw;
         if let Some(heading) = heading {
@@ -376,19 +406,19 @@ pub fn backlinks(
 fn file_keys(
     connection: &Connection,
     path: &str,
-) -> Result<Option<(i64, RootId, String, String)>, rusqlite::Error> {
+) -> Result<Option<(i64, String, String, String)>, rusqlite::Error> {
     use rusqlite::OptionalExtension;
 
     let normalized = crate::index::writer::path_key(std::path::Path::new(path));
 
     connection
         .query_row(
-            "SELECT id, root_id, rel_key, name_key FROM files WHERE path_key = ?1",
+            "SELECT id, path, name_key, file_key FROM files WHERE path_key = ?1",
             [normalized],
             |row| {
                 Ok((
                     row.get::<_, i64>(0)?,
-                    row.get::<_, i64>(1)? as RootId,
+                    row.get::<_, String>(1)?,
                     row.get::<_, String>(2)?,
                     row.get::<_, String>(3)?,
                 ))
@@ -418,16 +448,18 @@ pub fn files_with_tag(
         return Ok(Vec::new());
     }
 
+    // Вложенные — через `LIKE`, и тег экранируется (Я14): `_` в теге
+    // разрешён, а в `LIKE` значит «любой знак» — `#to_do` находил и `#toxdo/…`.
     let mut statement = connection.prepare(
         "SELECT DISTINCT f.root_id, f.path, f.name
          FROM tags t JOIN files f ON f.id = t.file_id
-         WHERE t.tag = ?1 OR t.tag LIKE ?2
+         WHERE t.tag = ?1 OR t.tag LIKE ?2 ESCAPE '\\'
          ORDER BY f.name
          LIMIT ?3",
     )?;
 
     let rows = statement.query_map(
-        rusqlite::params![tag, format!("{tag}/%"), limit as i64],
+        rusqlite::params![tag, format!("{}/%", escape_like(&tag)), limit as i64],
         |row| {
             Ok(Tagged {
                 root_id: row.get::<_, i64>(0)? as RootId,
@@ -449,23 +481,6 @@ pub fn files_with_tag(
 pub struct TagHit {
     pub tag: String,
     pub count: u32,
-}
-
-/// Экранирование строки пользователя для `LIKE`.
-///
-/// Та же беда, что с запросом к FTS5, только тише: `_` в `LIKE` означает
-/// «любой символ», а `%` — «любая строка». Тег `план_б`, набранный как есть,
-/// нашёл бы и `планаб`, и `план-б`. Экранируем сами и объявляем escape-символ
-/// в запросе — иначе он тоже был бы обычным символом.
-fn escape_like(query: &str) -> String {
-    let mut out = String::with_capacity(query.len());
-    for ch in query.chars() {
-        if ch == '\\' || ch == '%' || ch == '_' {
-            out.push('\\');
-        }
-        out.push(ch);
-    }
-    out
 }
 
 /// Теги, подходящие под запрос, вместе с числом помеченных файлов.

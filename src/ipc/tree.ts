@@ -27,6 +27,12 @@ export const readChildren = (rootId: number, path: string): Promise<TreeEntry[]>
 /** Событие ядра: содержимое перечисленных папок могло измениться. */
 export const TREE_CHANGED = 'tree-changed';
 
+/**
+ * Событие ядра: под этими корнями слежение могло потерять события
+ * (задача 140) — перечитать всё раскрытое под ними, а не одну папку.
+ */
+export const TREE_STALE = 'tree-stale';
+
 /** Создать пустой файл или папку. Возвращает путь созданного. */
 export const createEntry = (parent: string, name: string, folder: boolean): Promise<string> =>
   invoke('create_entry', { parent, name, folder });

@@ -9,6 +9,8 @@ use rusqlite::Connection;
 
 use crate::model::root::RootId;
 
+use super::scope::Scope;
+
 /// Чем в отрывке помечено совпадение.
 ///
 /// Управляющие знаки, а не `<b>`: в текстах пользователя встречается что
@@ -57,12 +59,14 @@ pub fn to_match_query(input: &str) -> Option<String> {
 
 /// Найти файлы, содержащие все слова запроса.
 ///
-/// `root_id` = `None` — искать во всех корнях сразу. Это и есть довод
+/// `scope` = `None` — искать во всех корнях сразу. Это и есть довод
 /// за одну базу вместо файла на корень (Р-059): такой поиск — один запрос.
+/// Область корня — всё под его папкой (задача 140): у вложенного корня
+/// его файлы могли достаться внешнему, и отбор по номеру их терял.
 pub fn search(
     connection: &Connection,
     input: &str,
-    root_id: Option<RootId>,
+    scope: Option<&Scope>,
     limit: u32,
 ) -> Result<Vec<Hit>, rusqlite::Error> {
     let Some(query) = to_match_query(input) else {
@@ -80,8 +84,8 @@ pub fn search(
          WHERE content MATCH ?1 {}
          ORDER BY bm25(content)
          LIMIT ?2",
-        if root_id.is_some() {
-            "AND f.root_id = ?3"
+        if scope.is_some() {
+            "AND f.path_key LIKE ?3 ESCAPE '\\'"
         } else {
             ""
         }
@@ -98,9 +102,9 @@ pub fn search(
         })
     };
 
-    let rows = match root_id {
-        Some(id) => statement.query_map(
-            rusqlite::params![query, limit as i64, id as i64],
+    let rows = match scope {
+        Some(scope) => statement.query_map(
+            rusqlite::params![query, limit as i64, scope.like_pattern()],
             map,
         )?,
         None => statement.query_map(rusqlite::params![query, limit as i64], map)?,
@@ -134,7 +138,7 @@ mod tests {
         for (name, text) in files {
             let path = dir.join(name);
             std::fs::write(&path, text).unwrap();
-            writer::index_file(&db, 1, dir, &path, 2 * 1024 * 1024).unwrap();
+            writer::index_file(&db, 1, &path, 2 * 1024 * 1024).unwrap();
         }
         db
     }
@@ -220,16 +224,35 @@ mod tests {
         let dir = temp_dir("root");
         let db = schema::open(&schema::index_path(&dir)).unwrap();
 
-        for (root, name) in [(1u64, "первый.md"), (2, "второй.md")] {
-            let path = dir.join(name);
+        for (root, folder) in [(1u64, "первый"), (2, "второй")] {
+            std::fs::create_dir_all(dir.join(folder)).unwrap();
+            let path = dir.join(folder).join("заметка.md");
             std::fs::write(&path, "общее слово метель").unwrap();
-            writer::index_file(&db, root, &dir, &path, 2 * 1024 * 1024).unwrap();
+            writer::index_file(&db, root, &path, 2 * 1024 * 1024).unwrap();
         }
 
         assert_eq!(search(&db, "метель", None, 20).unwrap().len(), 2);
-        let only = search(&db, "метель", Some(2), 20).unwrap();
+        let scope = Scope::new(2, &dir.join("второй"));
+        let only = search(&db, "метель", Some(&scope), 20).unwrap();
         assert_eq!(only.len(), 1);
-        assert_eq!(only[0].name, "второй.md");
+        assert!(only[0].path.contains("второй"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Поиск во вложенном корне находит его файлы, даже если их проиндексировал
+    /// внешний (Я8): область — папка, а не номер в строке.
+    #[test]
+    fn nested_root_search_finds_files_indexed_by_the_outer_root() {
+        let dir = temp_dir("nested");
+        let db = schema::open(&schema::index_path(&dir)).unwrap();
+        std::fs::create_dir_all(dir.join("работа")).unwrap();
+        let path = dir.join("работа").join("план.md");
+        std::fs::write(&path, "секретное слово кумкват").unwrap();
+        // Первым файл проиндексировал внешний корень.
+        writer::index_file(&db, 1, &path, 2 * 1024 * 1024).unwrap();
+
+        let nested = Scope::new(2, &dir.join("работа"));
+        assert_eq!(search(&db, "кумкват", Some(&nested), 20).unwrap().len(), 1);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

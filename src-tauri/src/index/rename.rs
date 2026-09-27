@@ -19,10 +19,10 @@ use rusqlite::Connection;
 
 use crate::markdown;
 use crate::model::edit::{FileEdits, TextEdit};
-use crate::model::root::RootId;
 
 use super::graph;
-use super::writer::path_key;
+use super::scope::{Scopes, escape_like};
+use super::writer::{keys, path_key};
 
 /// План целиком.
 ///
@@ -66,15 +66,20 @@ fn moved_path(path: &str, from: &str, to: &str) -> Option<String> {
 }
 
 /// Все проиндексированные файлы, которые переедут вместе с переименованием.
-fn moved_files(
-    connection: &Connection,
-    root_id: RootId,
-    from: &str,
-    to: &str,
-) -> Result<Vec<Moved>, rusqlite::Error> {
-    let mut statement =
-        connection.prepare("SELECT path FROM files WHERE root_id = ?1")?;
-    let rows = statement.query_map([root_id as i64], |row| row.get::<_, String>(0))?;
+///
+/// По пути, а не по номеру корня (задача 140): при вложенных корнях файл
+/// мог проиндексировать внешний корень, и отбор по номеру вложенного
+/// давал пустой план — ссылки ломались без вопроса.
+fn moved_files(connection: &Connection, from: &str, to: &str) -> Result<Vec<Moved>, rusqlite::Error> {
+    let from_key = path_key(Path::new(from));
+    // Разделитель экранируется вместе с путём: голый `\%` при `ESCAPE '\'`
+    // означал бы буквальный знак процента, а не «всё внутри папки».
+    let inside = format!("{}%", escape_like(&format!("{from_key}\\")));
+    let mut statement = connection
+        .prepare("SELECT path FROM files WHERE path_key = ?1 OR path_key LIKE ?2 ESCAPE '\\'")?;
+    let rows = statement.query_map(rusqlite::params![from_key, inside], |row| {
+        row.get::<_, String>(0)
+    })?;
 
     let mut out = Vec::new();
     for row in rows {
@@ -113,11 +118,12 @@ fn is_markdown(path: &str) -> bool {
 fn candidate_sources(
     connection: &Connection,
     moved: &[Moved],
+    scopes: &Scopes,
 ) -> Result<Vec<String>, rusqlite::Error> {
     let mut seen = BTreeMap::new();
 
     for file in moved {
-        for back in graph::backlinks(connection, &file.old)? {
+        for back in graph::backlinks(connection, &file.old, scopes)? {
             seen.insert(path_key(Path::new(&back.path)), back.path);
         }
         if is_markdown(&file.old) {
@@ -129,32 +135,22 @@ fn candidate_sources(
 }
 
 /// Подменить в базе пути переехавших файлов — временно, внутри транзакции.
-fn apply_moves(
-    connection: &Connection,
-    root_path: &str,
-    moved: &[Moved],
-) -> Result<(), rusqlite::Error> {
+///
+/// Вместе с путём — оба имени: и без расширения, и целиком. Без второго
+/// симуляция отвечала бы на `![[рисунок.png]]` старым именем.
+fn apply_moves(connection: &Connection, moved: &[Moved]) -> Result<(), rusqlite::Error> {
     let mut statement = connection.prepare(
-        "UPDATE files SET path = ?1, path_key = ?2, rel_key = ?3, name_key = ?4
+        "UPDATE files SET path = ?1, path_key = ?2, name_key = ?3, file_key = ?4
          WHERE path_key = ?5",
     )?;
 
     for file in moved {
-        let relative = file
-            .new
-            .get(root_path.len()..)
-            .map(|tail| tail.trim_start_matches(['\\', '/']))
-            .unwrap_or(&file.new);
-        let name_key = Path::new(&file.new)
-            .file_stem()
-            .map(|stem| stem.to_string_lossy().to_lowercase())
-            .unwrap_or_default();
-
+        let (name_key, file_key) = keys(Path::new(&file.new));
         statement.execute(rusqlite::params![
             file.new,
             path_key(Path::new(&file.new)),
-            markdown::links::link_key(relative),
             name_key,
+            file_key,
             path_key(Path::new(&file.old)),
         ])?;
     }
@@ -166,21 +162,24 @@ fn apply_moves(
 /// `from` и `to` — старый и новый путь переименовываемого файла или папки.
 /// Читаются файлы с диска, а не содержимое индекса: смещения ссылок должны
 /// указывать в те самые байты, которые будут правиться.
+///
+/// `scopes` — все корни (задача 140): каждая ссылка разрешается в области
+/// своего файла, и при вложенных корнях на переименовываемое ссылаются
+/// из обеих — из внешней папки путём от неё, из вложенной — от вложенной.
 pub fn plan(
     connection: &mut Connection,
-    root_id: RootId,
-    root_path: &str,
+    scopes: &Scopes,
     from: &str,
     to: &str,
     hint: Option<crate::text::encoding::Encoding>,
 ) -> Result<RenamePlan, rusqlite::Error> {
-    let moved = moved_files(connection, root_id, from, to)?;
+    let moved = moved_files(connection, from, to)?;
     let by_old: BTreeMap<String, String> = moved
         .iter()
         .map(|m| (path_key(Path::new(&m.old)), m.new.clone()))
         .collect();
 
-    let sources = candidate_sources(connection, &moved)?;
+    let sources = candidate_sources(connection, &moved, scopes)?;
 
     // Содержимое файлов и разбор — до транзакции: чтение с диска внутри неё
     // держало бы блокировку базы дольше, чем нужно.
@@ -203,9 +202,11 @@ pub fn plan(
     // Разрешение «до»: куда каждая ссылка ведёт сейчас.
     let mut candidates: Vec<Candidate> = Vec::new();
     for (source_old, source_new, links) in &parsed {
+        let Some(scope) = scopes.for_path(source_old) else {
+            continue;
+        };
         for link in &links.links {
-            let Some(found) = graph::resolve(connection, &link.target, source_old, root_id)?
-            else {
+            let Some(found) = graph::resolve(connection, &link.target, source_old, scope)? else {
                 // Висячая ссылка висячей и останется — чинить в ней нечего.
                 continue;
             };
@@ -226,16 +227,14 @@ pub fn plan(
     // Разрешение «после» — в откатываемой транзакции (Р-137). Соединение
     // с индексом одно и под мьютексом, поэтому подмены никто не увидит.
     let transaction = connection.transaction()?;
-    apply_moves(&transaction, root_path, &moved)?;
+    apply_moves(&transaction, &moved)?;
 
     let mut by_file: BTreeMap<String, Vec<TextEdit>> = BTreeMap::new();
     for candidate in &candidates {
-        let now = graph::resolve(
-            &transaction,
-            &candidate.was,
-            &candidate.source_new,
-            root_id,
-        )?;
+        let Some(scope) = scopes.for_path(&candidate.source_new) else {
+            continue;
+        };
+        let now = graph::resolve(&transaction, &candidate.was, &candidate.source_new, scope)?;
 
         // Ведёт туда же — трогать нечего. Это самый частый исход, и ради него
         // симуляция и затевалась: правится минимум.
@@ -244,24 +243,25 @@ pub fn plan(
             continue;
         }
 
-        let relative = candidate
-            .intended
-            .get(root_path.len()..)
-            .map(|tail| tail.trim_start_matches(['\\', '/']))
-            .unwrap_or(&candidate.intended);
+        // Путь для текста ссылки — от корня её области: именно от него
+        // ссылка и будет разрешаться. Цель вне области — ссылкой её
+        // не выразить, и такую правку не предлагаем.
+        let Some(relative) = scope.relative(&candidate.intended) else {
+            continue;
+        };
         // Форма ссылки остаётся авторской: путь остаётся путём, имя — именем.
         // Иначе переименование папки заодно переписывало бы `[[работа/Планы]]`
         // в `[[Планы]]` — ссылка рабочая, но правка больше необходимой,
         // а мы правим чужой файл.
         let becomes = if candidate.was.contains(['/', '\\']) {
-            graph::path_form(relative)
+            graph::path_form(&relative)
         } else {
             graph::link_text(
                 &transaction,
                 &candidate.intended,
                 &candidate.source_new,
-                root_id,
-                relative,
+                scope,
+                &relative,
             )?
         };
 
@@ -287,9 +287,9 @@ pub fn plan(
             // По возрастанию смещения: правка идёт с конца, и порядок должен
             // быть известен, а не унаследован от порядка разбора.
             edits.sort_by_key(|edit| edit.offset);
-            let inside = path
-                .get(root_path.len()..)
-                .map(|tail| tail.trim_start_matches(['\\', '/']).to_owned())
+            let inside = scopes
+                .for_path(&path)
+                .and_then(|scope| scope.relative(&path))
                 .unwrap_or_else(|| path.clone());
             FileEdits { path, inside, edits }
         })

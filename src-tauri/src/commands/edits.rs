@@ -19,8 +19,9 @@ use crate::replace::{self, Candidate, Matcher, Options, ReplacePlan, Search};
 use crate::state::AppState;
 use crate::text::encoding::Encoding;
 
+use crate::index::scope::{Scope, Scopes};
+
 use super::entries::guard;
-use super::index::inside_root;
 
 /// Что вышло из применения правок.
 #[derive(Debug, Clone, Default, serde::Serialize)]
@@ -178,19 +179,38 @@ fn candidates(state: &AppState, only: Option<RootId>) -> Vec<Candidate> {
 /// а защита: одинаковые библиотеки лежат в разных проектах, и переименование
 /// переменной в одном из них не должно доехать до остальных (замечание
 /// владельца после задачи 88).
+///
+/// Своя папка файла — самый глубокий корень, в котором он лежит: от неё
+/// путь в списке и подсказка кодировки. По пути, а не по номеру в строке
+/// индекса (задача 140): при вложенных корнях файл мог проиндексировать
+/// внешний корень, и «только в этой папке» теряло его.
 fn pick(
     files: Vec<crate::index::writer::FileRow>,
     roots: &[(RootId, String, Option<Encoding>)],
     only: Option<RootId>,
 ) -> Vec<Candidate> {
+    let scopes = Scopes::new(
+        roots
+            .iter()
+            .map(|(id, path, _)| Scope::new(*id, Path::new(path)))
+            .collect(),
+    );
+    // Выбранная папка — всё под ней, вместе с вложенным проектом.
+    let only = only.map(|id| scopes.get(id));
+
     files
         .into_iter()
-        .filter(|file| only.is_none_or(|id| file.root_id == id))
         .filter_map(|file| {
-            let (_, root_path, hint) = roots.iter().find(|(id, _, _)| *id == file.root_id)?;
-            let inside = inside_root(&file.path, root_path)?;
+            if let Some(only) = only
+                && !only.is_some_and(|scope| scope.contains(&file.path))
+            {
+                return None;
+            }
+            let scope = scopes.for_path(&file.path)?;
+            let (_, _, hint) = roots.iter().find(|(id, _, _)| *id == scope.id)?;
+            let inside = scope.relative(&file.path)?;
             Some(Candidate {
-                root_id: file.root_id,
+                root_id: scope.id,
                 path: file.path,
                 inside,
                 hint: *hint,
@@ -316,5 +336,27 @@ mod tests {
         let files = vec![file(7, r"C:\чужое\файл.md")];
 
         assert!(pick(files, &roots(), None).is_empty());
+    }
+
+    /// Вложенный корень находит свой файл, даже если его проиндексировал
+    /// внешний (Я8), и файл числится за вложенным — его папкой.
+    #[test]
+    fn nested_root_takes_files_indexed_by_the_outer_one() {
+        let roots = vec![
+            (1, r"C:\заметки".to_owned(), None),
+            (2, r"C:\заметки\работа".to_owned(), None),
+        ];
+        let files = vec![
+            file(1, r"C:\заметки\работа\план.md"),
+            file(1, r"C:\заметки\личное.md"),
+        ];
+
+        let picked = pick(files.clone(), &roots, Some(2));
+        assert_eq!(picked.len(), 1);
+        assert_eq!(picked[0].root_id, 2);
+        assert_eq!(picked[0].inside, "план.md");
+
+        // Внешняя папка — всё под ней, вместе с вложенной.
+        assert_eq!(pick(files, &roots, Some(1)).len(), 2);
     }
 }

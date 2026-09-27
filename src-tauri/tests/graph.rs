@@ -11,8 +11,18 @@ use std::path::{Path, PathBuf};
 use rusqlite::Connection;
 use zeronote_lib::index::{graph, jobs, schema, writer};
 use zeronote_lib::project::{IgnoreSettings, ignore};
+use zeronote_lib::index::scope::{Scope, Scopes};
 
 const MAX: u64 = 2 * 1024 * 1024;
+
+/// Хранилище теста — один корень; область ссылок — его папка (задача 140).
+fn root(dir: &Path) -> Scope {
+    Scope::new(1, dir)
+}
+
+fn roots(dir: &Path) -> Scopes {
+    Scopes::new(vec![root(dir)])
+}
 
 fn temp_dir(tag: &str) -> PathBuf {
     let nanos = std::time::SystemTime::now()
@@ -42,7 +52,7 @@ fn vault(dir: &Path, files: &[(&str, &str)]) -> Connection {
         if path.extension().and_then(|e| e.to_str()) == Some("db") {
             continue;
         }
-        writer::index_file(&db, 1, dir, &path, MAX).unwrap();
+        writer::index_file(&db, 1, &path, MAX).unwrap();
     }
     db
 }
@@ -60,7 +70,7 @@ fn link_leads_to_the_note() {
     );
 
     let from = dir.join("Дневник.md").display().to_string();
-    let resolved = graph::resolve(&db, "Планы", &from, 1).unwrap();
+    let resolved = graph::resolve(&db, "Планы", &from, &root(&dir)).unwrap();
 
     assert!(resolved.is_some(), "ссылка должна разрешиться");
     assert_eq!(resolved.unwrap().name, "Планы.md");
@@ -81,7 +91,7 @@ fn backlink_points_at_the_source() {
     );
 
     let target = dir.join("Планы.md").display().to_string();
-    let found = graph::backlinks(&db, &target).unwrap();
+    let found = graph::backlinks(&db, &target, &roots(&dir)).unwrap();
 
     assert_eq!(found.len(), 1, "{found:?}");
     assert_eq!(found[0].name, "Дневник.md");
@@ -104,7 +114,7 @@ fn nearest_note_wins_and_the_other_gets_nothing() {
     );
 
     let from = dir.join("работа/Дневник.md").display().to_string();
-    let resolved = graph::resolve(&db, "Планы", &from, 1).unwrap().unwrap();
+    let resolved = graph::resolve(&db, "Планы", &from, &root(&dir)).unwrap().unwrap();
     assert!(
         resolved.path.contains("работа"),
         "выбрана не та заметка: {}",
@@ -114,9 +124,9 @@ fn nearest_note_wins_and_the_other_gets_nothing() {
     let work = dir.join("работа/Планы.md").display().to_string();
     let personal = dir.join("личное/Планы.md").display().to_string();
 
-    assert_eq!(graph::backlinks(&db, &work).unwrap().len(), 1);
+    assert_eq!(graph::backlinks(&db, &work, &roots(&dir)).unwrap().len(), 1);
     assert!(
-        graph::backlinks(&db, &personal).unwrap().is_empty(),
+        graph::backlinks(&db, &personal, &roots(&dir)).unwrap().is_empty(),
         "обратная ссылка попала не в ту заметку"
     );
     let _ = fs::remove_dir_all(&dir);
@@ -136,7 +146,7 @@ fn path_link_ignores_the_nearer_namesake() {
     );
 
     let from = dir.join("работа/Дневник.md").display().to_string();
-    let resolved = graph::resolve(&db, "личное/Планы", &from, 1).unwrap().unwrap();
+    let resolved = graph::resolve(&db, "личное/Планы", &from, &root(&dir)).unwrap().unwrap();
 
     assert!(resolved.path.contains("личное"), "{}", resolved.path);
     let _ = fs::remove_dir_all(&dir);
@@ -158,7 +168,7 @@ fn alias_resolves_the_link() {
     );
 
     let from = dir.join("Дневник.md").display().to_string();
-    let resolved = graph::resolve(&db, "Итоги года", &from, 1).unwrap();
+    let resolved = graph::resolve(&db, "Итоги года", &from, &root(&dir)).unwrap();
 
     assert_eq!(resolved.map(|r| r.name), Some("Годовой отчёт 2026.md".to_owned()));
     let _ = fs::remove_dir_all(&dir);
@@ -172,7 +182,7 @@ fn dangling_link_resolves_to_nothing() {
 
     let from = dir.join("Дневник.md").display().to_string();
 
-    assert!(graph::resolve(&db, "Ненаписанное", &from, 1).unwrap().is_none());
+    assert!(graph::resolve(&db, "Ненаписанное", &from, &root(&dir)).unwrap().is_none());
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -184,14 +194,14 @@ fn link_starts_working_when_the_note_appears() {
     let db = vault(&dir, &[("Дневник.md", "Ссылка на [[Будущее]].\n")]);
 
     let from = dir.join("Дневник.md").display().to_string();
-    assert!(graph::resolve(&db, "Будущее", &from, 1).unwrap().is_none());
+    assert!(graph::resolve(&db, "Будущее", &from, &root(&dir)).unwrap().is_none());
 
     let created = dir.join("Будущее.md");
     fs::write(&created, "# Будущее\n").unwrap();
-    writer::index_file(&db, 1, &dir, &created, MAX).unwrap();
+    writer::index_file(&db, 1, &created, MAX).unwrap();
 
     assert!(
-        graph::resolve(&db, "Будущее", &from, 1).unwrap().is_some(),
+        graph::resolve(&db, "Будущее", &from, &root(&dir)).unwrap().is_some(),
         "ссылка не заработала после появления заметки"
     );
     let _ = fs::remove_dir_all(&dir);
@@ -238,11 +248,11 @@ fn reindexing_does_not_duplicate_links() {
         // нечего, и проверка ничего не проверит.
         fs::write(&source, format!("Ссылка на [[Планы]]. Правка {i}\n")).unwrap();
         std::thread::sleep(std::time::Duration::from_millis(20));
-        writer::index_file(&db, 1, &dir, &source, MAX).unwrap();
+        writer::index_file(&db, 1, &source, MAX).unwrap();
     }
 
     let target = dir.join("Планы.md").display().to_string();
-    assert_eq!(graph::backlinks(&db, &target).unwrap().len(), 1);
+    assert_eq!(graph::backlinks(&db, &target, &roots(&dir)).unwrap().len(), 1);
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -265,7 +275,7 @@ fn links_in_code_blocks_are_not_connections() {
     let target = dir.join("Планы.md").display().to_string();
 
     assert!(
-        graph::backlinks(&db, &target).unwrap().is_empty(),
+        graph::backlinks(&db, &target, &roots(&dir)).unwrap().is_empty(),
         "ссылка из блока кода попала в связи"
     );
     let _ = fs::remove_dir_all(&dir);
@@ -343,11 +353,11 @@ fn link_text_is_short_when_the_name_is_unique() {
     let from = dir.join("Дневник.md").display().to_string();
     let target = dir.join("работа").join("Планы.md").display().to_string();
 
-    let text = graph::link_text(&db, &target, &from, 1, r"работа\Планы.md").unwrap();
+    let text = graph::link_text(&db, &target, &from, &root(&dir), r"работа\Планы.md").unwrap();
 
     assert_eq!(text, "Планы");
     // И она обязана вести обратно ровно туда, откуда взята.
-    let back = graph::resolve(&db, &text, &from, 1).unwrap().unwrap();
+    let back = graph::resolve(&db, &text, &from, &root(&dir)).unwrap().unwrap();
     assert_eq!(back.path, target);
     let _ = fs::remove_dir_all(&dir);
 }
@@ -373,15 +383,15 @@ fn link_text_takes_the_path_when_the_name_is_taken() {
     let near = dir.join("работа").join("Планы.md").display().to_string();
     let far = dir.join("личное").join("Планы.md").display().to_string();
 
-    let to_near = graph::link_text(&db, &near, &from, 1, r"работа\Планы.md").unwrap();
-    let to_far = graph::link_text(&db, &far, &from, 1, r"личное\Планы.md").unwrap();
+    let to_near = graph::link_text(&db, &near, &from, &root(&dir), r"работа\Планы.md").unwrap();
+    let to_far = graph::link_text(&db, &far, &from, &root(&dir), r"личное\Планы.md").unwrap();
 
     assert_eq!(to_near, "Планы");
     assert_eq!(to_far, "личное/Планы");
 
     // Проверка, ради которой тест и написан: обе ссылки ведут каждая в свою.
-    assert_eq!(graph::resolve(&db, &to_near, &from, 1).unwrap().unwrap().path, near);
-    assert_eq!(graph::resolve(&db, &to_far, &from, 1).unwrap().unwrap().path, far);
+    assert_eq!(graph::resolve(&db, &to_near, &from, &root(&dir)).unwrap().unwrap().path, near);
+    assert_eq!(graph::resolve(&db, &to_far, &from, &root(&dir)).unwrap().unwrap().path, far);
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -398,10 +408,10 @@ fn link_text_drops_the_extension_of_other_files() {
     let from = dir.join("Дневник.md").display().to_string();
     let target = dir.join("схема.svg").display().to_string();
 
-    let text = graph::link_text(&db, &target, &from, 1, "схема.svg").unwrap();
+    let text = graph::link_text(&db, &target, &from, &root(&dir), "схема.svg").unwrap();
 
     assert_eq!(text, "схема");
-    assert!(graph::resolve(&db, &text, &from, 1).unwrap().is_some());
+    assert!(graph::resolve(&db, &text, &from, &root(&dir)).unwrap().is_some());
     let _ = fs::remove_dir_all(&dir);
 }
 
@@ -424,9 +434,106 @@ fn link_text_is_not_confused_by_an_alias() {
     let from = dir.join("Дневник.md").display().to_string();
     let target = dir.join("Планы.md").display().to_string();
 
-    let text = graph::link_text(&db, &target, &from, 1, "Планы.md").unwrap();
+    let text = graph::link_text(&db, &target, &from, &root(&dir), "Планы.md").unwrap();
 
     assert_eq!(text, "Планы");
-    assert_eq!(graph::resolve(&db, &text, &from, 1).unwrap().unwrap().path, target);
+    assert_eq!(graph::resolve(&db, &text, &from, &root(&dir)).unwrap().unwrap().path, target);
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// Подчёркивание в теге — буква, а не «любой знак» (Я14): `#a_b` не находит
+/// `#axb/c`, хотя в `LIKE` без экранирования нашёл бы.
+#[test]
+fn underscore_in_tag_is_literal() {
+    let dir = temp_dir("tag-underscore");
+    let db = vault(
+        &dir,
+        &[
+            ("Первая.md", "Текст с #a_b тут.\n"),
+            ("Вторая.md", "Текст с #axb/c тут.\n"),
+        ],
+    );
+
+    let found = graph::files_with_tag(&db, "a_b", 50).unwrap();
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].name, "Первая.md");
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// Вложенные корни (Я8): внешняя папка `dir` и проект `dir/работа`, файлы
+/// которого проиндексировал внешний корень — первым, как бывает на деле.
+/// Корень у ссылки — самый глубокий корень её файла, а кандидаты — всё под
+/// его папкой, кто бы это ни проиндексировал.
+fn nested(dir: &Path) -> Scopes {
+    Scopes::new(vec![Scope::new(1, dir), Scope::new(2, &dir.join("работа"))])
+}
+
+#[test]
+fn nested_root_resolves_files_indexed_by_the_outer_one() {
+    let dir = temp_dir("nested-resolve");
+    // `vault` индексирует всё номером 1 — внешним корнем.
+    let db = vault(
+        &dir,
+        &[
+            ("работа/Заметка.md", "Про [[План]] и [[папка/Схема]].\n"),
+            ("работа/План.md", "# План\n"),
+            ("работа/папка/Схема.md", "# Схема\n"),
+        ],
+    );
+    let scopes = nested(&dir);
+    let from = dir.join("работа").join("Заметка.md").display().to_string();
+    let inner = scopes.for_path(&from).unwrap();
+    assert_eq!(inner.id, 2);
+
+    let by_name = graph::resolve(&db, "План", &from, inner).unwrap();
+    assert!(by_name.is_some_and(|r| r.path.ends_with("План.md")), "ссылка по имени висит");
+
+    // Путь — от вложенного корня, а не от того, кто проиндексировал файл.
+    let by_path = graph::resolve(&db, "папка/Схема", &from, inner).unwrap();
+    assert!(by_path.is_some_and(|r| r.path.ends_with("Схема.md")), "ссылка путём висит");
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// Обратные ссылки собираются из обеих папок: внешняя пишет путь от себя,
+/// вложенная — от себя.
+#[test]
+fn backlinks_come_from_both_nested_roots() {
+    let dir = temp_dir("nested-back");
+    let db = vault(
+        &dir,
+        &[
+            ("Дневник.md", "Про [[работа/План]].\n"),
+            ("работа/Заметка.md", "Про [[План]].\n"),
+            ("работа/План.md", "# План\n"),
+        ],
+    );
+    let target = dir.join("работа").join("План.md").display().to_string();
+
+    let found = graph::backlinks(&db, &target, &nested(&dir)).unwrap();
+    let names: Vec<&str> = found.iter().map(|b| b.name.as_str()).collect();
+    assert_eq!(names, vec!["Дневник.md", "Заметка.md"], "{found:?}");
+    // Место подписано корнем ссылающегося файла.
+    assert_eq!(found[0].root_id, 1);
+    assert_eq!(found[1].root_id, 2);
+    let _ = fs::remove_dir_all(&dir);
+}
+
+/// Ссылка из вложенного корня не выходит за его папку: тёзка снаружи
+/// не подменяет висячую ссылку.
+#[test]
+fn nested_root_does_not_see_outside_its_folder() {
+    let dir = temp_dir("nested-outside");
+    let db = vault(
+        &dir,
+        &[
+            ("работа/Заметка.md", "Про [[Снаружи]].\n"),
+            ("Снаружи.md", "# Снаружи\n"),
+        ],
+    );
+    let scopes = nested(&dir);
+    let from = dir.join("работа").join("Заметка.md").display().to_string();
+
+    let found = graph::resolve(&db, "Снаружи", &from, scopes.for_path(&from).unwrap()).unwrap();
+    assert!(found.is_none(), "{found:?}");
     let _ = fs::remove_dir_all(&dir);
 }

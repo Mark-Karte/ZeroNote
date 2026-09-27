@@ -43,8 +43,8 @@
   import { autosave, autosaveNow } from '../state/autosave.svelte';
   import { noteArrival } from '../actions/navigate';
   import { roots, refresh as refreshRoots, rootProblems } from '../state/roots.svelte';
-  import { refreshDirs } from '../state/tree.svelte';
-  import { TREE_CHANGED } from '../ipc/tree';
+  import { refreshDirs, expandedUnder } from '../state/tree.svelte';
+  import { TREE_CHANGED, TREE_STALE } from '../ipc/tree';
   import { applyProgress, refreshProgress } from '../state/index.svelte';
   import { INDEX_PROGRESS, type IndexProgress } from '../ipc/index';
   import { forgetResolved } from '../editor/wikilinks';
@@ -72,6 +72,7 @@
   let unlistenClose: UnlistenFn | null = null;
   let unlistenFocus: UnlistenFn | null = null;
   let unlistenTree: UnlistenFn | null = null;
+  let unlistenStale: UnlistenFn | null = null;
   let unlistenIndex: UnlistenFn | null = null;
   let unlistenOpen: UnlistenFn | null = null;
   let removeFollow: (() => void) | null = null;
@@ -224,6 +225,13 @@
       void refreshDirs(event.payload);
     });
 
+    // Слежение могло потерять события — ядро сверило корни с диском
+    // догоняющим проходом (задача 140), и раскрытое под ними тоже
+    // перечитываем.
+    unlistenStale = await listen<string[]>(TREE_STALE, (event) => {
+      void refreshDirs(expandedUnder(event.payload));
+    });
+
     // Второй экземпляр приложения передал нам свои пути и ушёл (Р-191).
     // Окно ядро уже показало и вывело вперёд — наше дело открыть то,
     // что просили, тем же путём, что и брошенное в окно.
@@ -337,6 +345,7 @@
     unlistenClose?.();
     unlistenFocus?.();
     unlistenTree?.();
+    unlistenStale?.();
     unlistenIndex?.();
     unlistenOpen?.();
     removeFollow?.();

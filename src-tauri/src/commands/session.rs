@@ -305,19 +305,27 @@ fn restore(state: &AppState) -> RestoredSession {
     // в снимке она лежит обычным корнем и потому сохраняет свой номер —
     // по номеру названы записи индекса, и корень, получающий новый номер
     // при каждом запуске, переиндексировался бы целиком каждый раз.
-    super::roots::sync_vault(&state, &mut notices);
+    super::roots::sync_vault(state, &mut notices);
 
     let root_views: Vec<RootView> = {
         let roots = state.roots.lock().expect("реестр корней повреждён");
         roots.list().iter().map(RootView::of).collect()
     };
 
+    // Записи корней, которых в реестре нет, — убранных, чьё забывание
+    // не дошло до базы до закрытия (Я10). Первым в очереди: иначе проходы
+    // ниже отдавали бы их поиску ещё какое-то время.
+    {
+        let live: Vec<_> = root_views.iter().map(|view| view.id).collect();
+        state.index.lock().expect("индекс повреждён").keep_only(live);
+    }
+
     // Индексация восстановленных корней идёт в фоне и старт не задерживает:
     // цель по тёплому старту — 800 мс, а обход хранилища столько не стоит.
     // Полный проход дешёв, потому что сверяет время и размер и перечитывает
     // только изменившееся за время простоя.
     for id in available {
-        super::index::schedule_scan(&state, id);
+        super::index::schedule_scan(state, id);
     }
 
     let mut buffers = Vec::new();

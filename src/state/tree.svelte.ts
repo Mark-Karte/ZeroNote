@@ -140,6 +140,15 @@ export async function refreshDirs(dirs: string[]): Promise<void> {
   }
 }
 
+/**
+ * Раскрытые папки под этими корнями — те, что надо перечитать, когда
+ * слежение могло потерять события (задача 140, Я15): ядро сверило корень
+ * с диском догоняющим проходом, и дерево тоже могло устареть.
+ */
+export function expandedUnder(roots: string[]): string[] {
+  return tree.expanded.filter((dir) => roots.some((root) => insidePath(root, dir)));
+}
+
 /** Строка плоского списка, из которого рисуется дерево. */
 export interface Row {
   rootId: number;

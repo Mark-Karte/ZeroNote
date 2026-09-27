@@ -167,15 +167,37 @@ pub fn add_root(state: tauri::State<'_, AppState>, path: String) -> Fallible<Roo
 
 #[tauri::command]
 pub fn remove_root(state: tauri::State<'_, AppState>, id: RootId) -> bool {
-    let removed = {
+    remove(&state, id)
+}
+
+fn remove(state: &AppState, id: RootId) -> bool {
+    let (removed, overlapping) = {
         let mut roots = state.roots.lock().expect("реестр корней повреждён");
         // Папку заметок «Убрать папку» не берёт: её роль задана настройкой,
         // и корень вернулся бы на место при следующем запуске. Отказ здесь
         // честнее исчезновения на один сеанс.
-        if roots.get(id).is_some_and(|root| root.is_vault) {
+        let Some(root) = roots.get(id) else {
+            return false;
+        };
+        if root.is_vault {
             return false;
         }
-        roots.remove(id)
+        let path = root.path.clone();
+        // Корни, чьи папки пересекаются с убранной, — вложенные в неё
+        // и те, в которые вложена она (задача 140). Строка индекса одна
+        // на файл, и файлы общей части могли быть записаны за убранным
+        // корнем: забудутся вместе с ним, и их надо записать заново.
+        let overlapping: Vec<RootId> = roots
+            .list()
+            .iter()
+            .filter(|other| other.id != id && other.available)
+            .filter(|other| {
+                crate::model::root::inside(&other.path, &path)
+                    || crate::model::root::inside(&path, &other.path)
+            })
+            .map(|other| other.id)
+            .collect();
+        (roots.remove(id), overlapping)
     };
 
     if removed {
@@ -186,11 +208,15 @@ pub fn remove_root(state: tauri::State<'_, AppState>, id: RootId) -> bool {
             .unwatch(id);
         // Индекс убранного корня больше не нужен: он занимает место и портит
         // выдачу поиска путями, которых в рабочем пространстве уже нет.
+        // Забывание стоит в очереди до проходов ниже — они придут после.
         state
             .index
             .lock()
             .expect("индекс повреждён")
             .forget_root(id);
+        for other in overlapping {
+            super::index::schedule_scan(state, other);
+        }
     }
     removed
 }
@@ -200,25 +226,105 @@ pub fn remove_root(state: tauri::State<'_, AppState>, id: RootId) -> bool {
 /// Зовётся при возвращении фокуса в окно — тогда же, когда сверяются открытые
 /// файлы (Р-014). Именно в этот момент пользователь мог поправить
 /// `zeronote.toml` в другой программе или подключить пропавший диск.
+///
+/// Заодно здесь индекс догоняет диск (задача 140). Сменились правила
+/// игнорирования или предел размера — полный проход сразу (Я9): иначе
+/// скрытое правилом оставалось находимым поиском до перезапуска. Корень
+/// не сверялся дольше `CATCH_UP` — наблюдатель ставится заново, и идёт
+/// тихий проход (Я15): слежение теряет события молча, а наблюдатель
+/// на неизвестной ошибке `notify` снимает, тоже молча. Папки таких корней
+/// уходят фронтенду событием `tree-stale`: раскрытое в дереве тоже могло
+/// устареть.
 #[tauri::command]
-pub fn refresh_roots(state: tauri::State<'_, AppState>) -> Vec<RootView> {
-    let views: Vec<RootView> = {
+pub fn refresh_roots(app: tauri::AppHandle, state: tauri::State<'_, AppState>) -> Vec<RootView> {
+    use tauri::Emitter;
+
+    let (views, stale) = refresh(&state);
+    if !stale.is_empty() {
+        let _ = app.emit(crate::tree::watch::TREE_STALE, stale);
+    }
+    views
+}
+
+/// Перечитывание без окна: список корней и папки, которые могли устареть.
+fn refresh(state: &AppState) -> (Vec<RootView>, Vec<String>) {
+    let (views, changed) = {
         let mut roots = state.roots.lock().expect("реестр корней повреждён");
+        // Что было до перечитывания — по этому видно, чьи правила сменились.
+        let before: Vec<(RootId, project::IgnoreSettings, u64, bool)> = roots
+            .list()
+            .iter()
+            .map(|root| {
+                (
+                    root.id,
+                    root.project.ignore.clone(),
+                    root.project.index.max_file_size,
+                    root.available,
+                )
+            })
+            .collect();
         roots.reload_all();
-        roots.list().iter().map(RootView::of).collect()
+
+        let changed: Vec<RootId> = roots
+            .list()
+            .iter()
+            .filter(|root| root.available)
+            .filter(|root| {
+                before.iter().find(|b| b.0 == root.id).is_none_or(|b| {
+                    b.1 != root.project.ignore
+                        || b.2 != root.project.index.max_file_size
+                        // Папка вернулась: пока её не было, событий о ней
+                        // не приходило.
+                        || !b.3
+                })
+            })
+            .map(|root| root.id)
+            .collect();
+        (roots.list().iter().map(RootView::of).collect::<Vec<_>>(), changed)
     };
 
-    // Корень мог стать доступным — подключили диск, поднялся VPN. Тогда самое
-    // время начать за ним следить. Уже поставленных наблюдателей не трогаем:
-    // пересоздавать их на каждое переключение окна незачем.
-    let mut watchers = state.watchers.lock().expect("наблюдатели повреждены");
-    for view in &views {
-        if view.available && !watchers.is_watching(view.id) {
-            watchers.watch(view.id, std::path::Path::new(&view.path));
+    // Кому пора догонять — спрашиваем до наблюдателей, чтобы не держать
+    // две блокировки разом.
+    let catch_up: Vec<RootId> = views
+        .iter()
+        .filter(|view| view.available && !changed.contains(&view.id))
+        .filter(|view| super::index::needs_catch_up(state, view.id))
+        .map(|view| view.id)
+        .collect();
+
+    let mut rescan = changed.clone();
+    {
+        let mut watchers = state.watchers.lock().expect("наблюдатели повреждены");
+        for view in views.iter().filter(|view| view.available) {
+            let path = std::path::Path::new(&view.path);
+            // Корень мог стать доступным — подключили диск, поднялся VPN:
+            // самое время начать за ним следить. Наблюдателя догоняющего
+            // корня ставим заново — прежний мог молча умереть. Остальных
+            // не трогаем: пересоздавать их на каждое переключение окна незачем.
+            if !watchers.is_watching(view.id) {
+                watchers.watch(view.id, path);
+                if !rescan.contains(&view.id) && !catch_up.contains(&view.id) {
+                    rescan.push(view.id);
+                }
+            } else if catch_up.contains(&view.id) {
+                watchers.watch(view.id, path);
+            }
         }
     }
 
-    views
+    for id in &rescan {
+        super::index::schedule_scan(state, *id);
+    }
+    for id in &catch_up {
+        super::index::schedule_catch_up(state, *id);
+    }
+
+    let stale = views
+        .iter()
+        .filter(|view| rescan.contains(&view.id) || catch_up.contains(&view.id))
+        .map(|view| view.path.clone())
+        .collect();
+    (views, stale)
 }
 
 /// Что переходник Obsidian готов перенести из этого корня.
@@ -317,4 +423,110 @@ pub fn create_project_file(state: tauri::State<'_, AppState>, id: RootId) -> Fal
     let root = roots.get_mut(id).ok_or("корень не найден")?;
     root.reload();
     Ok(RootView::of(root))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_dir(tag: &str) -> PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let dir = std::env::temp_dir().join(format!("zeronote-roots-{tag}-{nanos}"));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// Состояние с настоящим индексом и наблюдателями, корень добавлен
+    /// и проиндексирован — как после добавления папки в окне.
+    fn with_root(tag: &str) -> (AppState, RootId, PathBuf, PathBuf) {
+        let data = temp_dir(&format!("{tag}-data"));
+        let root = temp_dir(&format!("{tag}-root"));
+        std::fs::create_dir_all(root.join("личное")).unwrap();
+        std::fs::write(root.join("личное").join("секрет.md"), "слово кумкват").unwrap();
+
+        let state = AppState::for_tests(data.clone());
+        state.index.lock().unwrap().start_for_tests(&data);
+        state.watchers.lock().unwrap().start_for_tests();
+        let id = state.roots.lock().unwrap().add(root.clone()).id;
+        let path = state.roots.lock().unwrap().get(id).unwrap().path.clone();
+        state.watchers.lock().unwrap().watch(id, &path);
+        super::super::index::schedule_scan(&state, id);
+        state.index.lock().unwrap().wait_idle();
+        (state, id, root, data)
+    }
+
+    fn found(state: &AppState, word: &str) -> usize {
+        state.index.lock().unwrap().search(word, None, 20).unwrap().len()
+    }
+
+    /// Новое правило игнорирования убирает файлы из поиска сразу (Я9),
+    /// а не после перезапуска: скрытое в дереве, но находимое поиском, —
+    /// утечка.
+    #[test]
+    fn new_ignore_rule_hides_files_from_search() {
+        let (state, _, root, data) = with_root("rule");
+        assert_eq!(found(&state, "кумкват"), 1);
+
+        std::fs::write(root.join("zeronote.toml"), "[ignore]\nrules = [\"личное/\"]\n").unwrap();
+        refresh(&state);
+        state.index.lock().unwrap().wait_idle();
+
+        assert_eq!(found(&state, "кумкват"), 0, "скрытое правилом находится поиском");
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(&data);
+    }
+
+    /// Потерянные слежением события догоняет проход при возвращении фокуса
+    /// (Я15), а раскрытое в дереве под этим корнем объявляется устаревшим.
+    #[test]
+    fn stale_root_is_caught_up_on_focus() {
+        let (state, id, root, data) = with_root("catch-up");
+        // Файл появился, а событие о нём потерялось: наблюдатели теста
+        // отправляют события в пустоту.
+        std::fs::write(root.join("новое.md"), "слово фейхоа").unwrap();
+
+        // Только что сверенный корень не трогаем.
+        let (_, stale) = refresh(&state);
+        state.index.lock().unwrap().wait_idle();
+        assert!(stale.is_empty(), "{stale:?}");
+        assert_eq!(found(&state, "фейхоа"), 0);
+
+        state
+            .index
+            .lock()
+            .unwrap()
+            .backdate_scan(id, crate::index::jobs::CATCH_UP);
+        let (_, stale) = refresh(&state);
+        state.index.lock().unwrap().wait_idle();
+
+        assert_eq!(found(&state, "фейхоа"), 1, "потерянное событие не догнали");
+        assert_eq!(stale.len(), 1);
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(&data);
+    }
+
+    /// Убрали вложенный корень — файлы его папки, записанные за ним,
+    /// возвращает проход внешнего (задача 140).
+    #[test]
+    fn removing_a_nested_root_keeps_its_files_in_the_outer_one() {
+        let (state, outer, root, data) = with_root("nested-remove");
+        let inner_path = root.join("личное");
+        let inner = state.roots.lock().unwrap().add(inner_path.clone()).id;
+        // Файл переписан — теперь его строка за вложенным корнем.
+        std::thread::sleep(std::time::Duration::from_millis(30));
+        std::fs::write(inner_path.join("секрет.md"), "слово кумкват снова").unwrap();
+        super::super::index::schedule_scan(&state, inner);
+        state.index.lock().unwrap().wait_idle();
+
+        assert!(remove(&state, inner));
+        state.index.lock().unwrap().wait_idle();
+
+        assert_eq!(found(&state, "кумкват"), 1, "файл пропал из внешнего корня");
+        assert!(state.roots.lock().unwrap().get(outer).is_some());
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(&data);
+    }
 }

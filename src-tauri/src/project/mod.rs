@@ -171,8 +171,22 @@ pub struct Loaded {
     pub project: Project,
     /// Файл проекта существует.
     pub present: bool,
-    /// Файл есть, но разобрать его не удалось. Действуют умолчания.
+    /// Что не так с файлом проекта: не разобрался (тогда действуют
+    /// умолчания) или просит невозможного (тогда действует, но не в этом).
     pub problem: Option<String>,
+}
+
+/// Предел индекса выше потолка — сказать словами, а не урезать молча
+/// (задача 140, Я13): потолок ставит ядро, какой бы предел ни просил файл.
+fn index_limit_problem(path: &Path, project: &Project) -> Option<String> {
+    let ceiling = crate::fsx::text_file::LARGE_FILE_THRESHOLD;
+    (project.index.max_file_size > ceiling).then(|| {
+        format!(
+            "{}: [index] max_file_size больше {} МиБ — содержимое крупнее индекс не читает",
+            path.display(),
+            ceiling / (1024 * 1024)
+        )
+    })
 }
 
 pub fn load(root: &Path) -> Loaded {
@@ -202,9 +216,9 @@ pub fn load(root: &Path) -> Loaded {
 
     match parse(&source) {
         Ok(project) => Loaded {
+            problem: index_limit_problem(&path, &project),
             project,
             present: true,
-            problem: None,
         },
         // Сломанный файл не должен ломать работу с папкой: она открывается
         // на умолчаниях, а ошибка едет пользователю полосой предупреждений.
@@ -464,6 +478,31 @@ mod tests {
 
         assert_eq!(loaded.project, Project::default(), "файл по ссылке прочитан");
         assert!(loaded.problem.is_some(), "о пропуске надо сказать");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Предел индекса выше потолка называется словами (Я13), а остальной
+    /// файл проекта действует.
+    #[test]
+    fn index_limit_above_the_ceiling_is_reported() {
+        let dir = temp_dir("ceiling");
+        std::fs::write(
+            project_path(&dir),
+            "[project]\nname = \"чужой\"\n\n[index]\nmax_file_size = 9223372036854775807\n",
+        )
+        .unwrap();
+
+        let loaded = load(&dir);
+
+        assert_eq!(loaded.project.project.name.as_deref(), Some("чужой"));
+        assert!(
+            loaded.problem.as_deref().is_some_and(|p| p.contains("max_file_size")),
+            "{:?}",
+            loaded.problem
+        );
+
+        std::fs::write(project_path(&dir), "[index]\nmax_file_size = 4194304\n").unwrap();
+        assert_eq!(load(&dir).problem, None, "обычный предел — не жалоба");
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

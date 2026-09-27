@@ -33,6 +33,11 @@ use crate::project::ignore::IgnoreRules;
 /// Событие фронтенду: список папок, содержимое которых могло измениться.
 pub const TREE_CHANGED: &str = "tree-changed";
 
+/// Событие фронтенду: корни, за которыми слежение могло потерять события
+/// (задача 140, Я15), — перечитать всё раскрытое под ними. Отдельно от
+/// `tree-changed`: там папка — это ровно она, здесь — всё поддерево.
+pub const TREE_STALE: &str = "tree-stale";
+
 /// Сколько ждать тишины, прежде чем разослать накопленное.
 const QUIET: Duration = Duration::from_millis(150);
 
@@ -62,6 +67,15 @@ impl Watchers {
         let (tx, rx) = std::sync::mpsc::channel();
         self.sender = Some(tx);
         std::thread::spawn(move || collect(app, rx));
+    }
+
+    /// То же для тестов: наблюдатели ставятся по-настоящему, а события
+    /// уходят в пустоту — как будто слежение их потеряло (Я15).
+    #[cfg(test)]
+    pub fn start_for_tests(&mut self) {
+        let (tx, rx) = std::sync::mpsc::channel::<PathBuf>();
+        self.sender = Some(tx);
+        std::thread::spawn(move || while rx.recv().is_ok() {});
     }
 
     /// Начать следить за корнем. Повторный вызов заменяет наблюдателя.
@@ -126,6 +140,16 @@ fn affected_dir(path: &Path) -> Option<PathBuf> {
     path.parent().map(|p| p.to_path_buf())
 }
 
+/// Меняет ли этот файл правила игнорирования (Я9).
+///
+/// `.gitignore` дерево читает при каждом обходе, поэтому для дерева правка
+/// видна сразу — а индекс перечитывает по событию только папку самого
+/// файла, и скрытое правилом глубже оставалось бы находимым поиском.
+fn is_rules_file(path: &Path) -> bool {
+    path.file_name()
+        .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case(".gitignore"))
+}
+
 /// Поток-сборщик: копит пути, пока идёт всплеск, и шлёт одно событие.
 fn collect(app: AppHandle, rx: Receiver<PathBuf>) {
     loop {
@@ -136,19 +160,22 @@ fn collect(app: AppHandle, rx: Receiver<PathBuf>) {
         };
 
         let mut dirs = BTreeSet::new();
+        let mut rules = BTreeSet::new();
         let started = Instant::now();
-        if let Some(dir) = affected_dir(&first) {
-            dirs.insert(dir);
-        }
+        let mut take = |path: PathBuf| {
+            if let Some(dir) = affected_dir(&path) {
+                dirs.insert(dir);
+            }
+            if is_rules_file(&path) {
+                rules.insert(path);
+            }
+        };
+        take(first);
 
         // Добираем всё, что придёт за окном тишины, но не дольше предела.
         while started.elapsed() < MAX_WINDOW {
             match rx.recv_timeout(QUIET) {
-                Ok(path) => {
-                    if let Some(dir) = affected_dir(&path) {
-                        dirs.insert(dir);
-                    }
-                }
+                Ok(path) => take(path),
                 Err(_) => break,
             }
         }
@@ -160,7 +187,7 @@ fn collect(app: AppHandle, rx: Receiver<PathBuf>) {
         // Индекс перечитывает те же папки — но, в отличие от дерева, все,
         // а не только раскрытые: файл, не попавший в индекс, не найдётся
         // никогда, и то, что его сейчас не видно на экране, тут ни при чём.
-        reindex(&app, &dirs);
+        reindex(&app, &dirs, &rules);
 
         let payload: Vec<String> = dirs.iter().map(|p| p.display().to_string()).collect();
         // Само событие несёт только имена папок: содержимое фронтенд
@@ -175,36 +202,52 @@ fn collect(app: AppHandle, rx: Receiver<PathBuf>) {
 /// Папки группируются по корню-хозяину: правила игнорирования и предел размера
 /// у каждого корня свои, и задание должно приехать с настройками того корня,
 /// которому папка принадлежит.
-fn reindex(app: &AppHandle, dirs: &BTreeSet<PathBuf>) {
+///
+/// Изменившийся `.gitignore` вместо этого ставит полный проход своего корня:
+/// правило в нём касается всего поддерева, а не одной папки.
+fn reindex(app: &AppHandle, dirs: &BTreeSet<PathBuf>, rules_files: &BTreeSet<PathBuf>) {
     let state = app.state::<crate::state::AppState>();
 
     // Под блокировкой реестра — только раскладка по корням; на диск отсюда
     // не ходим.
-    type Job = (PathBuf, Vec<PathBuf>, Arc<IgnoreRules>, u64);
+    type Job = (Vec<PathBuf>, Arc<IgnoreRules>, u64);
     let mut jobs: HashMap<RootId, Job> = HashMap::new();
+    let mut full: BTreeSet<RootId> = BTreeSet::new();
     {
         let roots = state.roots.lock().expect("реестр корней повреждён");
+        for file in rules_files {
+            if let Some(root) = roots.for_path(file) {
+                full.insert(root.id);
+            }
+        }
         for dir in dirs {
             let Some(root) = roots.for_path(dir) else {
                 continue;
             };
+            if full.contains(&root.id) {
+                continue;
+            }
             jobs.entry(root.id)
                 .or_insert_with(|| {
                     (
-                        root.path.clone(),
                         Vec::new(),
                         root.rules.clone(),
                         root.project.index.max_file_size,
                     )
                 })
-                .1
+                .0
                 .push(dir.clone());
         }
     }
 
-    let index = state.index.lock().expect("индекс повреждён");
-    for (root_id, (root_path, dirs, rules, max_size)) in jobs {
-        index.rescan_dirs(root_id, root_path, dirs, rules, max_size);
+    {
+        let index = state.index.lock().expect("индекс повреждён");
+        for (root_id, (dirs, rules, max_size)) in jobs {
+            index.rescan_dirs(root_id, dirs, rules, max_size);
+        }
+    }
+    for root_id in full {
+        crate::commands::index::schedule_scan(&state, root_id);
     }
 }
 
@@ -217,6 +260,16 @@ mod tests {
     fn event_points_at_the_parent_directory() {
         let dir = affected_dir(Path::new(r"C:\заметки\раздел\файл.md"));
         assert_eq!(dir, Some(PathBuf::from(r"C:\заметки\раздел")));
+    }
+
+    /// Правка `.gitignore` — повод для полного прохода корня (Я9), в любом
+    /// регистре имени; прочие файлы — нет.
+    #[test]
+    fn gitignore_is_a_rules_file() {
+        assert!(is_rules_file(Path::new(r"C:\проект\.gitignore")));
+        assert!(is_rules_file(Path::new(r"C:\проект\sub\.GitIgnore")));
+        assert!(!is_rules_file(Path::new(r"C:\проект\gitignore.md")));
+        assert!(!is_rules_file(Path::new(r"C:\проект\zeronote.toml")));
     }
 
     /// Наш временный файл живёт миллисекунды и перерисовки не стоит.

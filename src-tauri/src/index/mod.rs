@@ -18,6 +18,7 @@ pub mod names;
 pub mod query;
 pub mod rename;
 pub mod schema;
+pub mod scope;
 pub mod writer;
 
 pub use writer::{IndexError, Indexed};
