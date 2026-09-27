@@ -123,10 +123,15 @@
   DeleteRegKey HKCU "Software\Classes\ZeroNote.${EXT}"
   DeleteRegValue HKCU "Software\Classes\.${EXT}\OpenWithProgids" "ZeroNote.${EXT}"
   DeleteRegValue HKCU "Software\Classes\.${EXT}\OpenWithProgids" "${ZN_PROGID}"
-  ; Сам ключ расширения не трогаем никогда: он чужой. Список «Открыть
-  ; с помощью» убираем только если он опустел, то есть кроме нас там
-  ; никого и не было.
+  ; Список «Открыть с помощью» убираем только если он опустел, то есть
+  ; кроме нас там никого и не было. `/ifempty` в NSIS 3 — ни подключей,
+  ; ни значений: чужая запись в списке его сохраняет.
   DeleteRegKey /ifempty HKCU "Software\Classes\.${EXT}\OpenWithProgids"
+  ; Так же и ключ самого расширения: у типа, которого до нас в профиле
+  ; не было (`.bat`, `.kt`, `.svelte`), его завёл наш список, и без этой
+  ; строки после удаления оставался пустой ключ. Чужой ключ, где есть хоть
+  ; одно значение или подключ, не трогается (задача 134, живая проверка).
+  DeleteRegKey /ifempty HKCU "Software\Classes\.${EXT}"
 !macroend
 
 ; --- Глагол «Открыть в ZeroNote» --------------------------------------------

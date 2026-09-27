@@ -96,6 +96,18 @@ describe('значки типов файлов', () => {
     for (const m of lines) expect(m[2], `.${m[1]}`).not.toBe('');
   });
 
+  /**
+   * Ключ расширения удаление снимает, только если он опустел: ключ, который
+   * завёл наш список «Открыть с помощью» (`.bat`, `.kt`), уходит, а чужой,
+   * где есть хоть одно значение, остаётся. Без `/ifempty` удаление ZeroNote
+   * снесло бы чужие сопоставления.
+   */
+  it('ключ расширения удаляется только пустым', () => {
+    const deletions = [...NSH.matchAll(/DeleteRegKey (\/\S+ )?HKCU "Software\\Classes\\\.\$\{EXT\}[^"]*"/g)];
+    expect(deletions.length).toBeGreaterThan(0);
+    for (const m of deletions) expect(m[1], m[0]).toBe('/ifempty ');
+  });
+
   /** Установщик ищет значки там, куда их кладёт сборка. */
   it('лежат там, где их ищет установщик', () => {
     const target = CONF.bundle.resources['icons/files/*.ico'];
