@@ -96,6 +96,40 @@ pub fn is_inside_obsidian(path: &Path) -> bool {
         .is_some_and(|real| names_obsidian(&real))
 }
 
+/// Сторож для обхода многих файлов: развёрнутый путь — один раз на папку.
+///
+/// `is_inside_obsidian` открывает путь на диске (`canonicalize`), и для
+/// одного пути это незаметно. План замены звал его на каждый файл проекта,
+/// и на двадцати тысячах файлов план стал втрое дольше — 370 мс против
+/// 1200 (приёмка этапа 19). Файлы одной папки разворачиваются одинаково,
+/// поэтому здесь у каждого файла проверяется имя (без диска), а папка
+/// разворачивается один раз.
+///
+/// Чего этот сторож не видит: сам файл — ссылка в `.obsidian`. Такой файл
+/// в плане показан будет, но записать его не даст `save` — там сторож
+/// полный, и он главная стена.
+#[derive(Default)]
+pub struct ObsidianGuard {
+    /// Папка → внутри ли она `.obsidian`. `HashMap` владеет путями:
+    /// кандидаты приходят заимствованными и живут меньше сторожа.
+    folders: std::collections::HashMap<PathBuf, bool>,
+}
+
+impl ObsidianGuard {
+    pub fn covers(&mut self, path: &Path) -> bool {
+        if names_obsidian(path) {
+            return true;
+        }
+        let Some(folder) = path.parent() else {
+            return is_inside_obsidian(path);
+        };
+        *self
+            .folders
+            .entry(folder.to_path_buf())
+            .or_insert_with(|| is_inside_obsidian(folder))
+    }
+}
+
 /// Есть ли среди частей пути `.obsidian` — с точками и пробелами на конце
 /// или без: Windows их всё равно отбросит.
 fn names_obsidian(path: &Path) -> bool {
@@ -555,6 +589,17 @@ mod tests {
         assert!(is_inside_obsidian(&link.join("x.md")));
         assert!(save(&link.join("x.md"), b"").is_err());
         assert_eq!(fs::read_dir(&vault).unwrap().count(), 0);
+
+        // Сторож обхода (приёмка этапа 19) видит то же, разворачивая папку
+        // один раз, — и соседнюю обычную папку не путает с ней.
+        let plain = dir.join("заметки");
+        fs::create_dir_all(&plain).unwrap();
+        let mut guard = ObsidianGuard::default();
+        assert!(guard.covers(&link.join("x.md")));
+        assert!(guard.covers(&link.join("y.md")));
+        assert!(guard.covers(&dir.join(".obsidian.").join("z.md")));
+        assert!(!guard.covers(&plain.join("x.md")));
+        assert!(!guard.covers(&plain.join("y.md")));
 
         // Связь убирается отдельно: `remove_dir_all` не ходит по ней.
         let _ = fs::remove_dir(&link);

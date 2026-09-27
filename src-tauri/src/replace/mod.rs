@@ -136,6 +136,10 @@ pub fn scan(
     stop: &dyn Fn() -> bool,
 ) -> ReplacePlan {
     let mut plan = ReplacePlan::default();
+    // Папка разворачивается один раз, а не на каждый файл: на двадцати
+    // тысячах файлов сторож по одному делал план втрое дольше (приёмка
+    // этапа 19). Запись по плану стережёт `save` полным сторожем.
+    let mut obsidian = crate::fsx::atomic_save::ObsidianGuard::default();
 
     for candidate in candidates {
         if stop() {
@@ -145,7 +149,7 @@ pub fn scan(
 
         // Инвариант 2. Правила игнорирования сюда такой файл не пустят,
         // но правила задаёт пользователь, а инвариант — мы.
-        if crate::fsx::atomic_save::is_inside_obsidian(Path::new(&candidate.path)) {
+        if obsidian.covers(Path::new(&candidate.path)) {
             continue;
         }
 
