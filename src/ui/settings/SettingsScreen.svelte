@@ -585,7 +585,7 @@
                 type="text"
                 disabled={broken !== null}
                 value={place.name}
-                placeholder="attachments"
+                placeholder="Вложения"
                 spellcheck="false"
                 onchange={(e) => setPlaceName(e.currentTarget.value)}
               />

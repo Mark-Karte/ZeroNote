@@ -16,8 +16,11 @@ export interface Place {
   name: string;
 }
 
-/** Имя папки, когда его выбирают впервые, — как у Obsidian. */
-export const DEFAULT_FOLDER = 'attachments';
+/**
+ * Имя папки, когда его выбирают впервые. По-русски, решение владельца:
+ * `attachments`, как у Obsidian, — когда дойдёт до перевода интерфейса.
+ */
+export const DEFAULT_FOLDER = 'Вложения';
 
 export function placeOf(value: string): Place {
   const text = value.trim().replace(/\\/g, '/');

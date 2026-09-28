@@ -67,10 +67,13 @@ describe('папка вложений в окне параметров', () => {
     expect(placeOf('/Вложения/')).toEqual({ kind: 'folder', name: 'Вложения' });
   });
 
-  /** Выбрали вид с именем, а имени ещё нет — имя Obsidian. */
-  it('имени нет — attachments', () => {
-    expect(valueOf({ kind: 'beside', name: '' })).toBe('./attachments');
-    expect(valueOf({ kind: 'folder', name: '  ' })).toBe('attachments');
+  /**
+   * Выбрали вид с именем, а имени ещё нет. По-русски — решение владельца;
+   * `attachments`, как у Obsidian, — вместе с переводом интерфейса.
+   */
+  it('имени нет — Вложения', () => {
+    expect(valueOf({ kind: 'beside', name: '' })).toBe('./Вложения');
+    expect(valueOf({ kind: 'folder', name: '  ' })).toBe('Вложения');
     expect(valueOf({ kind: 'note', name: 'img' })).toBe('./');
   });
 });
