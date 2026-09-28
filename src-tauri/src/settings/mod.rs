@@ -65,6 +65,9 @@ pub struct NotesSettings {
     /// Папка заготовок (задача 95). Путь внутри папки заметок, пусто —
     /// шаблонов нет. Как в Obsidian: там папка шаблонов тоже своя настройка.
     pub templates: String,
+    /// Куда ложится картинка, вставленная в заметку из буфера обмена
+    /// (задача 146). Значения Obsidian: `./`, `./имя`, `/`, `имя`.
+    pub attachments: crate::markdown::attachment::Attachments,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -762,6 +765,12 @@ daily_template = ""
 # В шаблоне подставляются {{date}}, {{time}} и {{title}}; исполняемого кода
 # в шаблонах нет и не будет — это подстановка, а не макросы.
 templates = ""
+# Куда класть картинку, вставленную в заметку из буфера обмена. Значения —
+# как у Obsidian: "./" — в папку заметки, "./имя" — во вложенную папку
+# рядом с ней, "/" — в корень проекта, "имя" — в одну папку проекта
+# от корня. Файл называется, как у Obsidian: Pasted image <время>.png.
+# Ключа нет — в папку заметки.
+# attachments = "./"
 
 [toolbar]
 # Панель инструментов над текстом. Удобнее всего её собирать во вкладке
@@ -1063,6 +1072,27 @@ mod tests {
             named(&loaded.problems, &["line_numbers", "code"]),
             "жалоба должна называть ключ и допустимые значения: {:?}",
             loaded.problems
+        );
+    }
+
+    /// Папка вложений (задача 146): годная строка разбирается, негодная
+    /// называется вместе с допустимыми значениями, и берётся умолчание —
+    /// папка заметки. Соседние ключи раздела применяются.
+    #[test]
+    fn attachments_folder_is_read_tolerantly() {
+        use crate::markdown::attachment::Attachments;
+
+        let good = read("schema = 1\n[notes]\nattachments = \"./attachments\"\n");
+        assert_eq!(good.settings.notes.attachments, Attachments::BesideNote("attachments".into()));
+        assert!(good.problems.is_empty(), "{:?}", good.problems);
+
+        let bad = read("schema = 1\n[notes]\nattachments = \"../чужое\"\ntemplates = \"Шаблоны\"\n");
+        assert_eq!(bad.settings.notes.attachments, Attachments::NoteFolder);
+        assert_eq!(bad.settings.notes.templates, "Шаблоны");
+        assert!(
+            named(&bad.problems, &["attachments", "../чужое", "./имя"]),
+            "{:?}",
+            bad.problems
         );
     }
 

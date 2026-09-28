@@ -10,8 +10,10 @@
 //! Команду за день нажимают много раз, и второе нажатие обязано открыть
 //! написанное утром, а не заменить его пустым шаблоном.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
+use crate::markdown::attachment::{self, Attachments, LinkForm};
 use crate::markdown::daily::{self, Fields};
 use crate::state::AppState;
 
@@ -298,6 +300,171 @@ pub fn create_note_from_text(folder: String, name: String, text: String) -> Fall
     Ok(path.to_string_lossy().into_owned())
 }
 
+/// Что вышло у вставки картинки: где файл и что вставить в текст.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct PastedImage {
+    pub path: String,
+    pub link: String,
+}
+
+/// Записать картинку из буфера обмена вложением заметки (задача 146).
+///
+/// Байты PNG приходят телом запроса, а не числами JSON: снимок экрана
+/// весит мегабайты. Путь заметки и отметка времени — заголовками,
+/// в процентной записи (`encodeURIComponent`): заголовок HTTP держит
+/// только ASCII, а в пути кириллица. Отметку приносит окно, как дату
+/// ежедневной заметки: у ядра нет часового пояса.
+///
+/// Запись в папку пользователя без переспроса — то же исключение
+/// из Р-049, что у ежедневной заметки: вставка и есть явная команда,
+/// а файл новый и виден в дереве.
+#[tauri::command]
+pub fn save_pasted_image(
+    state: tauri::State<'_, AppState>,
+    request: tauri::ipc::Request<'_>,
+) -> Fallible<PastedImage> {
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err("картинка пришла не байтами".to_owned());
+    };
+    let header = |name: &str| -> Fallible<String> {
+        let value = request
+            .headers()
+            .get(name)
+            .and_then(|value| value.to_str().ok())
+            .ok_or_else(|| format!("в запросе нет {name}"))?;
+        unescape(value).ok_or_else(|| format!("{name} не раскодируется"))
+    };
+    let note = PathBuf::from(header("zn-note")?);
+    let stamp = header("zn-stamp")?;
+
+    // Настройки — с диска, как у ежедневной заметки: файл и есть
+    // состояние (Р-077). Испорченный файл — умолчание, папка заметки.
+    let settings = crate::settings::load(&state.data_dir.settings_file()).unwrap_or_default();
+
+    // Корень и его правила — дешёвой копией под замком, дальше без него:
+    // запись на диск под замком реестра корней держала бы все команды.
+    let root = {
+        let roots = state.roots.lock().expect("реестр корней повреждён");
+        roots
+            .for_path(&note)
+            .map(|root| (root.path.clone(), Arc::clone(&root.rules)))
+    };
+
+    let path = save_image(
+        &settings.notes.attachments,
+        &note,
+        root.as_ref().map(|(path, _)| path.as_path()),
+        &stamp,
+        bytes,
+    )?;
+
+    let form = match &root {
+        // Вне проектов индекса у заметки нет, и `![[…]]` не показался бы.
+        None => LinkForm::Relative,
+        // Правила скрыли папку вложений — индекс файла не увидит тоже.
+        Some((_, rules)) if rules.is_ignored(&path, false) => LinkForm::Relative,
+        Some((root_path, _)) => {
+            // Имя в проекте уже носит другой файл — одно имя привело бы
+            // к нему. Свежий файл индекс ещё не знает, так что любой
+            // найденный по имени — чужой.
+            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or_default();
+            let from = note.to_string_lossy();
+            let taken = super::index::scope_of(&state, &from).is_some_and(|scope| {
+                state
+                    .index
+                    .lock()
+                    .expect("индекс повреждён")
+                    .resolve_link(name, &from, &scope)
+                    .is_some_and(|found| Path::new(&found.path) != path)
+            });
+            if taken {
+                LinkForm::RootPath(root_path)
+            } else {
+                LinkForm::Name
+            }
+        }
+    };
+
+    let link = attachment::link(&note, &path, form)
+        .ok_or_else(|| format!("на {} не выходит ссылки из заметки", path.display()))?;
+    Ok(PastedImage {
+        path: path.to_string_lossy().into_owned(),
+        link,
+    })
+}
+
+/// Записать PNG в папку вложений заметки. Вернуть путь нового файла.
+///
+/// Существующий файл не переписывается никогда: имя сначала занимается
+/// созданием пустого файла (`create_new` — атомарно на стороне Windows:
+/// второй создатель получит отказ), потом в него пишется картинка
+/// атомарной записью, как всякий файл (инвариант 3). Занято — следующий
+/// номер, как у Obsidian.
+fn save_image(
+    attachments: &Attachments,
+    note: &Path,
+    root: Option<&Path>,
+    stamp: &str,
+    bytes: &[u8],
+) -> Fallible<PathBuf> {
+    if !bytes.starts_with(crate::clipboard::PNG_SIGNATURE) {
+        return Err("вставляется только PNG".to_owned());
+    }
+    if !note.is_absolute() {
+        return Err(format!("путь заметки неполный: {}", note.display()));
+    }
+    // Папки заметки нет — заметку удалили снаружи. Создавать её заново
+    // ради картинки значило бы положить файл туда, где его не ждут.
+    if !note.parent().is_some_and(Path::is_dir) {
+        return Err(format!("папки заметки {} нет на диске", note.display()));
+    }
+
+    let folder = attachments
+        .folder(note, root)
+        .ok_or_else(|| format!("у {} нет папки", note.display()))?;
+    if crate::fsx::atomic_save::is_inside_obsidian(&folder) {
+        return Err("папка вложений внутри .obsidian — туда ZeroNote не пишет (инвариант 2)".to_owned());
+    }
+    std::fs::create_dir_all(&folder)
+        .map_err(|e| format!("не удалось создать папку {}: {e}", folder.display()))?;
+
+    for number in 0..1000 {
+        let path = folder.join(attachment::image_name(stamp, number)?);
+        match std::fs::OpenOptions::new().write(true).create_new(true).open(&path) {
+            Ok(_) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(format!("не удалось создать {}: {e}", path.display())),
+        }
+        if let Err(e) = crate::fsx::atomic_save::save(&path, bytes) {
+            // Пустой файл, занявший имя, — наш: убрать его, чтобы
+            // не оставлять в папке человека пустышку.
+            std::fs::remove_file(&path).ok();
+            return Err(format!("не удалось записать {}: {e}", path.display()));
+        }
+        return Ok(path);
+    }
+    Err("в папке вложений заняты все имена с этой отметкой времени".to_owned())
+}
+
+/// Раскодировать процентную запись (`%D0%97` → `З`). `None` — запись
+/// сломана или внутри не UTF-8.
+fn unescape(text: &str) -> Option<String> {
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut at = 0;
+    while at < bytes.len() {
+        if bytes[at] == b'%' {
+            let hex = std::str::from_utf8(bytes.get(at + 1..at + 3)?).ok()?;
+            out.push(u8::from_str_radix(hex, 16).ok()?);
+            at += 3;
+        } else {
+            out.push(bytes[at]);
+            at += 1;
+        }
+    }
+    String::from_utf8(out).ok()
+}
+
 /// Содержимое новой заметки: шаблон с подстановками или заголовок.
 ///
 /// Шаблон, которого нет на диске, — это отказ, а не тишина: человек его
@@ -455,6 +622,93 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("zeronote-daily-{tag}-{nanos}"));
         std::fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    /// Самый короткий PNG, какой нужен проверке: подпись и хвост.
+    fn png() -> Vec<u8> {
+        let mut bytes = crate::clipboard::PNG_SIGNATURE.to_vec();
+        bytes.extend_from_slice(b"...");
+        bytes
+    }
+
+    const STAMP: &str = "20260928143012";
+
+    /// Картинка ложится по настройке, с именем Obsidian, байт в байт;
+    /// папка создаётся, если её нет.
+    #[test]
+    fn pasted_image_goes_where_the_setting_says() {
+        let root = temp_dir("paste-where");
+        std::fs::create_dir_all(root.join("Проекты")).unwrap();
+        let note = root.join("Проекты").join("Заметка.md");
+
+        let beside = save_image(&Attachments::NoteFolder, &note, Some(&root), STAMP, &png()).unwrap();
+        assert_eq!(beside, root.join("Проекты").join("Pasted image 20260928143012.png"));
+        assert_eq!(std::fs::read(&beside).unwrap(), png());
+
+        let one_place = Attachments::InRoot("Вложения".into());
+        let far = save_image(&one_place, &note, Some(&root), STAMP, &png()).unwrap();
+        assert_eq!(far, root.join("Вложения").join("Pasted image 20260928143012.png"));
+
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// Имя занято — следующий номер; чужой файл не тронут.
+    #[test]
+    fn pasted_image_never_overwrites() {
+        let root = temp_dir("paste-taken");
+        let note = root.join("Заметка.md");
+        let taken = root.join("Pasted image 20260928143012.png");
+        std::fs::write(&taken, "чужое").unwrap();
+
+        let path = save_image(&Attachments::NoteFolder, &note, Some(&root), STAMP, &png()).unwrap();
+
+        assert_eq!(path, root.join("Pasted image 20260928143012 1.png"));
+        assert_eq!(std::fs::read_to_string(&taken).unwrap(), "чужое");
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// В `.obsidian` не пишется, даже если туда ведёт корень проекта:
+    /// настройка `/` у заметки внутри него.
+    #[test]
+    fn pasted_image_stays_out_of_obsidian() {
+        let dir = temp_dir("paste-obsidian");
+        let root = dir.join(".obsidian");
+        std::fs::create_dir_all(&root).unwrap();
+        let note = root.join("Заметка.md");
+
+        assert!(save_image(&Attachments::Root, &note, Some(&root), STAMP, &png()).is_err());
+        assert_eq!(std::fs::read_dir(&root).unwrap().count(), 0);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Не PNG, неполный путь, папки заметки нет — отказ, и ничего
+    /// не создано.
+    #[test]
+    fn pasted_image_refusals() {
+        let root = temp_dir("paste-refuse");
+        let note = root.join("Заметка.md");
+
+        assert!(save_image(&Attachments::NoteFolder, &note, None, STAMP, b"BM....").is_err());
+        assert!(save_image(&Attachments::NoteFolder, Path::new("Заметка.md"), None, STAMP, &png()).is_err());
+        let gone = root.join("удалённая").join("Заметка.md");
+        assert!(save_image(&Attachments::NoteFolder, &gone, None, STAMP, &png()).is_err());
+        assert!(!root.join("удалённая").exists());
+        assert!(save_image(&Attachments::NoteFolder, &note, None, "..\\..\\x", &png()).is_err());
+
+        assert_eq!(std::fs::read_dir(&root).unwrap().count(), 0);
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn headers_are_unescaped() {
+        assert_eq!(
+            unescape("C%3A%5C%D0%97%D0%B0%D0%BC%D0%B5%D1%82%D0%BA%D0%B0.md").as_deref(),
+            Some(r"C:\Заметка.md")
+        );
+        assert_eq!(unescape("abc").as_deref(), Some("abc"));
+        assert_eq!(unescape("%D0").as_deref(), None);
+        assert_eq!(unescape("%Z1").as_deref(), None);
+        assert_eq!(unescape("%4").as_deref(), None);
     }
 
     fn fields() -> Fields {

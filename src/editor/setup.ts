@@ -44,6 +44,7 @@ import { blockPreview } from './block-preview';
 import { noteTitle, type TitleRename } from './note-title';
 import { wikilinks, type Target } from './wikilinks';
 import { linkSuggestions, type LinkContext } from './suggest';
+import { imagePaste } from './image-paste';
 import type { Buffer } from '../ipc/files';
 
 /**
@@ -284,6 +285,12 @@ export interface EditorOptions {
    * не редактор: он не знает ни про дерево, ни про ссылки в других файлах.
    */
   onRenameTitle: TitleRename;
+  /**
+   * Вставили картинку без текста (задача 146). Редактор только замечает:
+   * куда класть файл и что вписать, решают вкладка и ядро. `file` — что
+   * отдал вебвью; `null` — картинку искать в буфере ядром.
+   */
+  onPasteImage: (view: EditorView, file: File | null) => void;
   /** Показывать ли имя файла над заметкой (`[editor] note_title`). */
   noteTitle: boolean;
   wrap: boolean;
@@ -336,6 +343,7 @@ export function extensionsFor(meta: Buffer, options: EditorOptions): Extension[]
     drawSelection(),
     dropCursor(),
     rectangularSelection(),
+    imagePaste(options.onPasteImage),
 
     // Перенос по умолчанию выключен — так ведёт себя Notepad++, и для кода это
     // верное умолчание. Значение приходит из настроек, переключается на лету.

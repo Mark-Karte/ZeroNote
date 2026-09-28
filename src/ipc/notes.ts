@@ -73,3 +73,22 @@ export const createNoteFromText = (
   name: string,
   text: string,
 ): Promise<string> => invoke('create_note_from_text', { folder, name, text });
+
+/** Картинка, вставленная в заметку: где файл и что вписано в текст. */
+export interface PastedImage {
+  path: string;
+  link: string;
+}
+
+/**
+ * Записать PNG вложением заметки (задача 146). Папку выбирает ядро
+ * по настройке `[notes] attachments`, имя — как у Obsidian.
+ *
+ * Байты — телом запроса, а не числами JSON: снимок экрана весит
+ * мегабайты. Путь и отметка — заголовками, в процентной записи:
+ * заголовок держит только ASCII.
+ */
+export const savePastedImage = (note: string, stamp: string, png: Uint8Array): Promise<PastedImage> =>
+  invoke('save_pasted_image', png, {
+    headers: { 'zn-note': encodeURIComponent(note), 'zn-stamp': encodeURIComponent(stamp) },
+  });

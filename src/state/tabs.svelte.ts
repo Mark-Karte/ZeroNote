@@ -798,6 +798,10 @@ function optionsFor(
       return tab ? tab.meta.path : meta.path;
     },
     onRenameTitle: titleRename(meta.id),
+    // Картинка из буфера (задача 146) — по требованию, как переход
+    // по ссылке: в стартовый кусок вставка картинок не едет.
+    onPasteImage: (view, file) =>
+      void import('../actions/paste-image').then((m) => m.pasteImage(meta.id, view, file)),
     noteTitle: noteTitleEnabled(),
     // Перенос считается по вкладке, а не по одной настройке: у markdown
     // его включает читаемая ширина (Р-156).

@@ -894,6 +894,15 @@ pub fn clipboard_text() -> Fallible<String> {
     crate::clipboard::text()
 }
 
+/// Картинка из буфера обмена — для «Вставить» в заметку (задача 146):
+/// PNG или растр файлом BMP, пусто — картинки нет. Байтами, как PDF
+/// (`pdf_bytes`): снимок экрана весит мегабайты, и числами JSON он вырос бы
+/// вчетверо.
+#[tauri::command]
+pub fn clipboard_image() -> Result<tauri::ipc::Response, String> {
+    Ok(tauri::ipc::Response::new(crate::clipboard::image()?))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

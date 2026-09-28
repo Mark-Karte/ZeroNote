@@ -12,6 +12,7 @@
   import ToolbarScreen from './ToolbarScreen.svelte';
   import CalloutsScreen from './CalloutsScreen.svelte';
   import { updates, checkForUpdates } from '../../state/updates.svelte';
+  import { placeOf, valueOf, type PlaceKind } from './attachments';
 
   /**
    * Экран параметров.
@@ -38,6 +39,20 @@
   const file = $derived(settings.state);
   const values = $derived(file?.settings);
   const broken = $derived(file?.broken ?? null);
+
+  /**
+   * Папка вложений (задача 146): строка файла — выбор из четырёх и имя.
+   * Имя спрашивается отдельной строкой и только там, где оно что-то значит.
+   */
+  const place = $derived(placeOf(values?.notes.attachments ?? './'));
+
+  function setPlaceKind(kind: PlaceKind): void {
+    void put(['notes', 'attachments'], valueOf({ kind, name: place.name }));
+  }
+
+  function setPlaceName(name: string): void {
+    void put(['notes', 'attachments'], valueOf({ kind: place.kind, name }));
+  }
 
   async function openFile(): Promise<void> {
     if (file) await openDropped([file.path]);
@@ -531,6 +546,52 @@
             >
           </div>
         </div>
+
+        <div class="row">
+          <div class="what">
+            <span class="name">Папка вложений</span>
+            <span class="note">
+              Куда ложится картинка, вставленная в заметку из буфера обмена.
+              Файл называется, как у Obsidian: Pasted image и время вставки.
+              У заметки вне проектов — всегда рядом с ней.
+            </span>
+          </div>
+          <select
+            class="control"
+            disabled={broken !== null}
+            value={place.kind}
+            onchange={(e) => setPlaceKind(e.currentTarget.value as PlaceKind)}
+          >
+            <option value="note">Рядом с заметкой</option>
+            <option value="beside">В папке рядом с заметкой</option>
+            <option value="root">В корне проекта</option>
+            <option value="folder">В одной папке проекта</option>
+          </select>
+        </div>
+
+        {#if place.kind === 'beside' || place.kind === 'folder'}
+          <div class="row">
+            <div class="what">
+              <span class="name">Имя папки вложений</span>
+              <span class="note">
+                {place.kind === 'beside'
+                  ? 'Папка рядом с каждой заметкой; её нет — создаётся.'
+                  : 'Путь от корня проекта; папки нет — создаётся.'}
+              </span>
+            </div>
+            <div class="control path">
+              <input
+                class="text"
+                type="text"
+                disabled={broken !== null}
+                value={place.name}
+                placeholder="attachments"
+                spellcheck="false"
+                onchange={(e) => setPlaceName(e.currentTarget.value)}
+              />
+            </div>
+          </div>
+        {/if}
 
       </div>
 

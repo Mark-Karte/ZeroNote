@@ -120,7 +120,16 @@ export async function pasteIntoEditor(view: EditorView): Promise<void> {
   if (view.state.readOnly) return;
 
   const text = await readText();
-  if (text === null || text === '') return;
+  if (text === null) return;
+  if (text === '') {
+    // Текста нет — может быть, картинка (задача 146). Читает её ядро,
+    // как и текст: браузерное чтение буфера в нашем вебвью не отвечает.
+    const tab = activeTab();
+    if (!tab) return;
+    const { pasteImage } = await import('./paste-image');
+    await pasteImage(tab.meta.id, view, null);
+    return;
+  }
   view.dispatch(pasteSpec(view.state, text, text === lastLinewise));
 }
 
