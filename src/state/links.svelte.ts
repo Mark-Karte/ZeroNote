@@ -1,9 +1,13 @@
 import { message } from '@tauri-apps/plugin-dialog';
+import { tick } from 'svelte';
 
 import * as ipc from '../ipc/index';
 import type { Backlink, Resolved } from '../ipc/index';
 import type { Target } from '../editor/wikilinks';
-import { activeTab, tryOpenPath } from './tabs.svelte';
+import { editorViewOf } from '../editor/current';
+import { findSubpath, missingSubpath } from '../editor/subpath';
+import { activePane } from './panes.svelte';
+import { activeTab, goToPlace, tabById, tryOpenPath, visibleState } from './tabs.svelte';
 import { notify } from './notices.svelte';
 import { showPanel } from './roots.svelte';
 import { projectSearch, searchByTag } from './project-search.svelte';
@@ -72,25 +76,101 @@ export async function follow(target: Target): Promise<void> {
   }
 
   const tab = activeTab();
+
+  // Раздел этой же заметки (задача 148): `[[#Раздел]]`, `[текст](#Раздел)`.
+  // Пути не нужно — годится и буфер без файла.
+  if (target.value === '') {
+    if (tab) revealIn(tab.meta.id, target.subpath);
+    return;
+  }
+
   const from = tab?.meta.path;
   // Буфер без файла на диске: непонятно, где создавать и от чего считать путь.
   if (!from) return;
 
   // Отказ здесь не молчит (С9 ревизии): переход зовут `void`-ом
   // по щелчку и F12, и пойманной ошибки никто бы не увидел.
+  const failed = (error: unknown): void =>
+    notify(`Ссылка не разрешилась: ${error instanceof Error ? error.message : String(error)}`);
+
+  // Ссылка markdown на файл (задача 148): путь от папки заметки, как
+  // у картинки. Висячую не создаём: адрес мог быть чем угодно — это
+  // `[[ссылка]]` называет заметку, а путь только указывает на файл.
+  if (target.kind === 'path') {
+    let path: string | null;
+    try {
+      path = await ipc.resolvePathLink(target.value, from);
+    } catch (error) {
+      failed(error);
+      return;
+    }
+    if (path === null) {
+      notify(`Файла «${target.value}» нет`);
+      return;
+    }
+    if (await tryOpenPath(path)) await revealOpened(path, target.subpath);
+    return;
+  }
+
   let resolved: Resolved | null;
   try {
     resolved = await ipc.resolveLink(target.value, from);
   } catch (error) {
-    notify(`Ссылка не разрешилась: ${error instanceof Error ? error.message : String(error)}`);
+    failed(error);
     return;
   }
   if (resolved) {
-    await tryOpenPath(resolved.path);
+    if (await tryOpenPath(resolved.path)) await revealOpened(resolved.path, target.subpath);
     return;
   }
 
+  // Новая заметка пуста: раздела в ней нет, и говорить об этом незачем.
   await createByLink(target.value, from);
+}
+
+/** Один ли это путь — без учёта регистра и вида черты, как у Windows. */
+function samePath(a: string | null, b: string): boolean {
+  const norm = (path: string): string => path.replaceAll('/', '\\').toLowerCase();
+  return a !== null && norm(a) === norm(b);
+}
+
+/**
+ * Показать раздел в заметке, которую только что открыли.
+ *
+ * Открытие меняет вкладку, а редактор получает её состояние эффектом
+ * Svelte — не сразу. Прыгнуть раньше значило бы поставить курсор
+ * в состояние, которое экран ещё не показал, и прокрутка потерялась бы.
+ */
+async function revealOpened(path: string, subpath: string): Promise<void> {
+  if (subpath === '') return;
+  await tick();
+  const tab = activeTab();
+  if (!tab || !samePath(tab.meta.path, path)) return;
+
+  for (let frame = 0; frame < 30; frame += 1) {
+    // По документу, как в `goToPlace`: состояние представления меняется
+    // и без правки, а вкладка такие обновления не забирает.
+    const view = editorViewOf(activePane().id);
+    if (view && view.state.doc === visibleState(tab)?.doc) break;
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+  }
+  revealIn(tab.meta.id, subpath);
+}
+
+/**
+ * Поставить курсор на раздел и показать его вверху экрана. Раздела нет —
+ * заметка остаётся, где была, а полоса говорит об этом одной фразой (Р-305).
+ */
+function revealIn(tabId: number, subpath: string): void {
+  const tab = tabById(tabId);
+  const state = tab ? visibleState(tab) : null;
+  if (!state) return;
+  const pos = findSubpath(state.doc, subpath);
+  if (pos === null) {
+    notify(missingSubpath(subpath));
+    return;
+  }
+  goToPlace({ tab: tabId, pane: activePane().id, pos }, { top: true });
 }
 
 /**

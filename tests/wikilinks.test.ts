@@ -65,3 +65,38 @@ describe('ссылки и теги — только в markdown и не в ко�
     expect(at(state, '#тег')).toBeNull();
   });
 });
+
+/**
+ * Раздел в ссылке и ссылка markdown на файл (задача 148): до неё раздел
+ * отбрасывался, `[[#Раздел]]` не был ссылкой вовсе, а Ctrl+щелчок
+ * по `[текст](файл.md)` не делал ничего.
+ */
+describe('раздел и путь', () => {
+  const doc = [
+    'см. [[План#Итоги|итоги]] и [[#Выводы]]',
+    'и [отчёт](<Архив/отчёт за год.md#Квартал%202>) и [выше](#Выводы)',
+    'сайт [сюда](https://example.com#x) и [[#]]',
+  ].join('\n');
+
+  it('ссылка несёт раздел, своя заметка — пустым именем', () => {
+    const state = markdownState(doc);
+    expect(at(state, '[[План')).toMatchObject({ kind: 'link', value: 'План', subpath: '#Итоги' });
+    expect(at(state, '[[#Выводы')).toMatchObject({ kind: 'link', value: '', subpath: '#Выводы' });
+    expect(at(state, '[[#]]')).toBeNull();
+  });
+
+  it('ссылка markdown на файл — путь и раздел, раскодированные', () => {
+    const state = markdownState(doc);
+    expect(at(state, '[отчёт')).toMatchObject({
+      kind: 'path',
+      value: 'Архив/отчёт за год.md',
+      subpath: '#Квартал 2',
+    });
+    expect(at(state, '[выше')).toMatchObject({ kind: 'path', value: '', subpath: '#Выводы' });
+  });
+
+  /** Адрес в сеть — не файл: по нему переход не ходит, как и раньше. */
+  it('адрес в сеть — ничего', () => {
+    expect(at(markdownState(doc), '[сюда')).toBeNull();
+  });
+});

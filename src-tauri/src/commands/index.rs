@@ -368,6 +368,47 @@ pub fn link_target(
         .link_text(&path, &from, &scope, &relative)
 }
 
+/// Предел текста заметки для подсказки заголовков: подсказке нужны
+/// заголовки, а не журнал на сотню мегабайт.
+const NOTE_TEXT_LIMIT: u64 = 4 * 1024 * 1024;
+
+/// Текст заметки — для подсказки заголовков после `[[заметка#`
+/// (задача 148), когда заметка не открыта: открытую подсказка читает
+/// из вкладки, со всеми несохранёнными правками.
+///
+/// Только markdown в открытом корне и не больше `NOTE_TEXT_LIMIT`:
+/// ссылка разрешается в заметку проекта, и читать сверх этого незачем.
+#[tauri::command]
+pub fn note_text(state: tauri::State<'_, AppState>, path: String) -> Result<String, String> {
+    let path = std::path::PathBuf::from(path);
+    let markdown = path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("md") || ext.eq_ignore_ascii_case("markdown"));
+    if !markdown {
+        return Err(format!("{} — не заметка markdown", path.display()));
+    }
+    let in_root = state
+        .roots
+        .lock()
+        .expect("реестр корней повреждён")
+        .for_path(&path)
+        .is_some();
+    if !in_root {
+        return Err(format!("{} — не в проекте", path.display()));
+    }
+    let size = std::fs::metadata(&path)
+        .map_err(|e| format!("не удалось прочитать {}: {e}", path.display()))?
+        .len();
+    if size > NOTE_TEXT_LIMIT {
+        return Err(format!("{} слишком большая для подсказки", path.display()));
+    }
+    let bytes = std::fs::read(&path).map_err(|e| format!("не удалось прочитать {}: {e}", path.display()))?;
+    crate::text::document::read_raw(&bytes, None)
+        .map(|raw| raw.text)
+        .map_err(|e| format!("не удалось прочитать {}: {e}", path.display()))
+}
+
 /// Поиск по содержимому.
 ///
 /// `root_id` не задан — ищем во всех корнях сразу. Задан — во всём, что

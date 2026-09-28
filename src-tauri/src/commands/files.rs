@@ -4,7 +4,7 @@
 //! список буферов ведёт `model/`. Этот слой только переводит между ними
 //! и фронтендом.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::fsx::text_file;
 use crate::model::buffer::{Buffer, BufferId, TabKind};
@@ -888,6 +888,43 @@ pub fn split_paths(paths: Vec<String>) -> SplitPaths {
     out
 }
 
+/// Файл по ссылке markdown `[текст](путь)` — для перехода (задача 148).
+///
+/// Путь считается как у картинки (`preview_image`): относительный — от папки
+/// заметки, абсолютный — как есть. Сетевой путь не открывается сам по себе
+/// (Р-300). `None` — файла нет.
+#[tauri::command]
+pub fn resolve_path_link(link: String, from: String) -> Option<String> {
+    path_link_target(Path::new(&link), Path::new(&from)).map(|path| path.to_string_lossy().into_owned())
+}
+
+/// Существующий файл, на который ведёт путь из ссылки заметки `from`.
+///
+/// `..` снимается (`std::path::absolute` — `GetFullPathNameW` без обращения
+/// к диску): вкладка по пути с `..` была бы второй вкладкой того же файла.
+/// Без расширения пробуется `.md` — так пишут ссылки на заметки.
+fn path_link_target(link: &Path, from: &Path) -> Option<PathBuf> {
+    if crate::fsx::network::is_network(link) {
+        return None;
+    }
+    let joined = if link.is_absolute() {
+        link.to_path_buf()
+    } else {
+        from.parent()?.join(link)
+    };
+    let full = std::path::absolute(joined).ok()?;
+    if full.is_file() {
+        return Some(full);
+    }
+    if full.extension().is_none() {
+        let note = full.with_extension("md");
+        if note.is_file() {
+            return Some(note);
+        }
+    }
+    None
+}
+
 /// Текст из буфера обмена — для пункта «Вставить» (Р-109).
 #[tauri::command]
 pub fn clipboard_text() -> Fallible<String> {
@@ -915,6 +952,25 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("zeronote-split-{tag}-{nanos}"));
         std::fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    /// Ссылка markdown на файл (задача 148): относительно папки заметки,
+    /// с `..`, без расширения — к заметке `.md`; сетевой путь и чего нет —
+    /// никуда.
+    #[test]
+    fn path_links_resolve_from_the_note_folder() {
+        let dir = temp_dir("path-link");
+        std::fs::create_dir_all(dir.join("Заметки")).unwrap();
+        std::fs::write(dir.join("Заметки").join("План.md"), "# План").unwrap();
+        std::fs::write(dir.join("отчёт.pdf"), "pdf").unwrap();
+        let from = dir.join("Заметки").join("Сегодня.md");
+
+        assert_eq!(path_link_target(Path::new("План.md"), &from), Some(dir.join("Заметки").join("План.md")));
+        assert_eq!(path_link_target(Path::new("План"), &from), Some(dir.join("Заметки").join("План.md")));
+        assert_eq!(path_link_target(Path::new("../отчёт.pdf"), &from), Some(dir.join("отчёт.pdf")));
+        assert_eq!(path_link_target(Path::new("Нет.md"), &from), None);
+        assert_eq!(path_link_target(Path::new(r"\\сервер\папка\x.md"), &from), None);
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     /// Папка, брошенная в окно, обязана отличаться от файла: иначе она уедет

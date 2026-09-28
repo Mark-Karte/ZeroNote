@@ -1,6 +1,7 @@
 <script lang="ts">
   import Icon from './Icon.svelte';
   import { iconForFile, kindOf } from '../icons/files';
+  import type { IconName } from '../icons/registry';
   import { suggest, move, accept, close, dismiss } from '../state/suggest.svelte';
   import { roots } from '../state/roots.svelte';
   import { placeAtCaret, type Placed } from './menu-position';
@@ -24,6 +25,7 @@
   $effect(() => {
     // Смена набора меняет высоту, смена курсора — целевое место.
     void suggest.items;
+    void suggest.headings;
     const caret = suggest.caret;
     if (!caret || !element) return;
 
@@ -113,6 +115,20 @@
     return out;
   }
 
+  /** Значок заголовка по уровню — из реестра, как у команд разметки. */
+  const HEADING_ICONS: IconName[] = [
+    'md.heading-1',
+    'md.heading-2',
+    'md.heading-3',
+    'md.heading-4',
+    'md.heading-5',
+    'md.heading-6',
+  ];
+
+  function headingIcon(level: number): IconName {
+    return HEADING_ICONS[Math.min(Math.max(level, 1), 6) - 1]!;
+  }
+
   /** Где файл лежит: путь без имени и без пути корня. */
   function place(path: string, rootId: number): string {
     const root = roots.items.find((r) => r.id === rootId);
@@ -131,12 +147,38 @@
     class:placing={placed === null}
     bind:this={element}
     role="listbox"
-    aria-label="Заметки проекта"
+    aria-label={suggest.mode === 'headings' ? 'Заголовки заметки' : 'Заметки проекта'}
     tabindex="-1"
     style:left={placed ? `${placed.left}px` : null}
     style:top={placed ? `${placed.top}px` : null}
     onmousedown={(event) => event.preventDefault()}
   >
+    {#if suggest.mode === 'headings'}
+      <!-- Заголовки заметки после `[[заметка#` (задача 148): значок
+           уровня — тот же, что у команды разметки заголовка. -->
+      {#each suggest.headings as item, i (i)}
+        <button
+          class="row"
+          class:selected={i === suggest.selected}
+          type="button"
+          role="option"
+          aria-selected={i === suggest.selected}
+          title={item.text}
+          onclick={() => {
+            suggest.selected = i;
+            void accept();
+          }}
+          onmousemove={() => (suggest.selected = i)}
+        >
+          <span class="glyph"><Icon name={headingIcon(item.level)} /></span>
+          <span class="name">
+            {#each pieces(item.text, item.matched) as piece}
+              {#if piece.hit}<mark>{piece.text}</mark>{:else}{piece.text}{/if}
+            {/each}
+          </span>
+        </button>
+      {/each}
+    {:else}
     {#each suggest.items as item, i (item.path)}
       <button
         class="row"
@@ -162,6 +204,7 @@
         <span class="aside">{place(item.path, item.rootId)}</span>
       </button>
     {/each}
+    {/if}
   </div>
 {/if}
 

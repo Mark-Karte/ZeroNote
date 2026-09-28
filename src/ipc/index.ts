@@ -157,3 +157,16 @@ export const searchProject = (
   limit?: number,
 ): Promise<Hit[]> =>
   invoke('search_project', { query, rootId: rootId ?? null, limit: limit ?? null });
+
+/**
+ * Файл по ссылке markdown `[текст](путь)` (задача 148): путь от папки
+ * заметки `from`. `null` — файла нет.
+ */
+export const resolvePathLink = (link: string, from: string): Promise<string | null> =>
+  invoke('resolve_path_link', { link, from });
+
+/**
+ * Текст заметки проекта — для подсказки заголовков после `[[заметка#`
+ * (задача 148), когда заметка не открыта.
+ */
+export const noteText = (path: string): Promise<string> => invoke('note_text', { path });

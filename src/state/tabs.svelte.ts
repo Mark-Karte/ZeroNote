@@ -1253,7 +1253,15 @@ export function cursorAt(place: { tab: number; pane: number }): number | null {
  * где она есть. Курсор ставится через представление, когда оно на экране,
  * и прямо в состояние, когда нет, — то же условие, что в Р-105.
  */
-export function goToPlace(place: { tab: number; pane: number; pos: number }): void {
+export function goToPlace(
+  place: { tab: number; pane: number; pos: number },
+  /**
+   * `top` — поставить место к верху экрана, а не «чтобы было видно»:
+   * переход к разделу по ссылке (задача 148) показывает раздел, а не его
+   * заголовок у нижнего края.
+   */
+  options: { top?: boolean } = {},
+): void {
   const tab = tabById(place.tab);
   if (!tab?.editor) return;
 
@@ -1274,8 +1282,20 @@ export function goToPlace(place: { tab: number; pane: number; pos: number }): vo
   const anchor = Math.min(place.pos, slot.state.doc.length);
   const view = editorViewOf(pane.id);
 
-  if (view && view.state === slot.state) {
-    view.dispatch({ selection: { anchor }, scrollIntoView: true });
+  // Та же ли вкладка на экране — по документу, а не по состоянию целиком.
+  // Состояние представления меняется и без правки и выделения — стрелка
+  // свёртки под указателем, точка броска, перерисовка ссылок, — а вкладка
+  // такие обновления не забирает (`onChange` в `editor/setup.ts`). После
+  // движения мыши над текстом сравнение состояний говорило «не то»,
+  // курсор писался мимо представления, а окно, подменив состояние,
+  // возвращало прежнюю прокрутку: переход к разделу и «назад» ставили
+  // курсор, но экран оставался на месте (живая проверка задачи 148).
+  if (view && view.state.doc === slot.state.doc) {
+    view.dispatch(
+      options.top
+        ? { selection: { anchor }, effects: EditorView.scrollIntoView(anchor, { y: 'start' }) }
+        : { selection: { anchor }, scrollIntoView: true },
+    );
     view.focus();
     return;
   }

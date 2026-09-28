@@ -30,6 +30,13 @@ export interface LinkContext {
    * От этого зависит, что предлагать (Р-218).
    */
   embed: boolean;
+  /**
+   * После `#` набирается раздел (задача 148): предлагаются заголовки
+   * заметки `note` (пусто — этой же), `query` — набранное после последней
+   * решётки, `from` — где оно начинается: вставка заменяет только его.
+   * `null` — набирается имя.
+   */
+  heading: { note: string; query: string; from: number } | null;
 }
 
 const OPEN = '[[';
@@ -38,14 +45,13 @@ const CLOSE = ']]';
 /**
  * Знаки, после которых подсказывать нечего.
  *
- * `#` открывает раздел, `|` — подпись: и то и другое к именам файлов
- * отношения не имеет, а подсказка имени после решётки предлагала бы
- * не то, что человек набирает. Скобки означают, что ссылка уже кончилась
- * или началась заново. Перевод строки — что `[[` осталось на строке выше:
- * ссылка не переносится, и её разбор в `wikilinks.ts` тоже не пускает
- * перевод внутрь.
+ * `|` открывает подпись — к именам и заголовкам она отношения не имеет.
+ * Скобки означают, что ссылка уже кончилась или началась заново. Перевод
+ * строки — что `[[` осталось на строке выше: ссылка не переносится, и её
+ * разбор в `wikilinks.ts` тоже не пускает перевод внутрь. `#` сюда
+ * не входит с задачи 148: после него подсказываются заголовки.
  */
-const STOP = /[[\]#|\n]/;
+const STOP = /[[\]|\n]/;
 
 /**
  * Сколько знаков перед курсором осматривается.
@@ -88,13 +94,35 @@ export function linkContextAt(state: EditorState): LinkContext | null {
     Math.min(state.doc.length, main.head + CLOSE.length),
   );
 
+  const from = start + at + OPEN.length;
+  const hash = query.indexOf('#');
+  const last = query.lastIndexOf('#');
   return {
-    from: start + at + OPEN.length,
+    from,
     to: main.head,
     query,
     closed: after === CLOSE,
     // Знак стоит вплотную к скобкам: `! [[имя]]` — это не вставка.
     embed: at > 0 && before[at - 1] === '!',
+    heading:
+      hash < 0
+        ? null
+        : { note: query.slice(0, hash).trim(), query: query.slice(last + 1), from: from + last + 1 },
+  };
+}
+
+/**
+ * Что вставить вместо набранного после `#` — заголовок в виде для ссылки
+ * (`headingForLink`), закрывающие скобки — если их нет.
+ */
+export function headingInsertion(context: LinkContext, text: string): Insertion | null {
+  if (!context.heading) return null;
+  const from = context.heading.from;
+  return {
+    from,
+    to: context.to,
+    insert: context.closed ? text : text + CLOSE,
+    cursor: from + text.length + CLOSE.length,
   };
 }
 

@@ -1,7 +1,10 @@
 import type { EditorView } from '@codemirror/view';
+import { Text } from '@codemirror/state';
 
-import { findNotes, linkTarget, type FileHit } from '../ipc/index';
-import { insertionFor, linkContextAt, type LinkContext } from '../editor/suggest';
+import { findNotes, linkTarget, noteText, resolveLink, type FileHit } from '../ipc/index';
+import { headingInsertion, insertionFor, linkContextAt, type LinkContext } from '../editor/suggest';
+import { outlineOf } from '../editor/outline';
+import { headingForLink, matchHeadings, type HeadingHit } from '../editor/subpath';
 import { linkSuggestEnabled } from './settings.svelte';
 
 /**
@@ -15,7 +18,13 @@ import { linkSuggestEnabled } from './settings.svelte';
 
 export interface SuggestState {
   open: boolean;
+  /**
+   * Что в списке: имена заметок или, после `#`, заголовки заметки
+   * (задача 148).
+   */
+  mode: 'files' | 'headings';
   items: FileHit[];
+  headings: HeadingHit[];
   selected: number;
   /** Место курсора на экране: по нему список и ставится. */
   caret: { left: number; top: number; bottom: number } | null;
@@ -25,7 +34,9 @@ export interface SuggestState {
 
 export const suggest = $state<SuggestState>({
   open: false,
+  mode: 'files',
   items: [],
+  headings: [],
   selected: 0,
   caret: null,
   query: '',
@@ -79,7 +90,9 @@ export function dismiss(): void {
 export function close(): void {
   generation += 1;
   suggest.open = false;
+  suggest.mode = 'files';
   suggest.items = [];
+  suggest.headings = [];
   suggest.selected = 0;
   suggest.caret = null;
   suggest.query = '';
@@ -126,10 +139,48 @@ export function reportContext(input: {
   view = input.view;
   source = input.path;
   context = input.context;
-  suggest.query = input.context.query;
   suggest.caret = caretOf(input.view, input.context.from);
 
+  const heading = input.context.heading;
+  if (heading) {
+    suggest.query = heading.query;
+    void searchHeadings(heading.note, heading.query, input.path, input.view);
+    return;
+  }
+  suggest.query = input.context.query;
   void search(input.context.query, input.path, input.context.embed);
+}
+
+/**
+ * Откуда брать заголовки: своя заметка — из редактора; другая, если она
+ * открыта, — из её вкладки, со всеми несохранёнными правками; иначе — с диска
+ * (`note_text`). `null` — заметки нет.
+ */
+async function headingSource(note: string, from: string, target: EditorView): Promise<Text | null> {
+  if (note === '') return target.state.doc;
+  const resolved = await resolveLink(note, from);
+  if (!resolved) return null;
+  // Лениво: вкладки сами зовут подсказку, и прямой импорт замкнул бы круг.
+  const { tabs } = await import('./tabs.svelte');
+  const norm = (path: string): string => path.replaceAll('/', '\\').toLowerCase();
+  const wanted = norm(resolved.path);
+  const open = tabs.items.find((tab) => tab.meta.path !== null && norm(tab.meta.path) === wanted);
+  if (open?.editor) return open.editor.state.doc;
+  const text = await noteText(resolved.path);
+  return Text.of(text.split(/\r\n|\r|\n/));
+}
+
+/** Заголовки после `[[заметка#` (задача 148): список — как оглавление. */
+async function searchHeadings(note: string, query: string, from: string, target: EditorView): Promise<void> {
+  const mine = (generation += 1);
+  const doc = await headingSource(note, from, target).catch(() => null);
+  if (mine !== generation) return;
+
+  suggest.mode = 'headings';
+  suggest.items = [];
+  suggest.headings = doc ? matchHeadings(outlineOf(doc), query) : [];
+  suggest.selected = 0;
+  suggest.open = suggest.headings.length > 0 && suggest.caret !== null;
 }
 
 async function search(query: string, from: string, embed: boolean): Promise<void> {
@@ -142,6 +193,8 @@ async function search(query: string, from: string, embed: boolean): Promise<void
   // закрыться. Ответ на отменённый запрос выбрасываем молча.
   if (mine !== generation) return;
 
+  suggest.mode = 'files';
+  suggest.headings = [];
   suggest.items = found;
   // Выбор всегда на первой строке: список пересобран, и «второй пункт»
   // прошлого списка не имеет к новому никакого отношения.
@@ -152,7 +205,7 @@ async function search(query: string, from: string, embed: boolean): Promise<void
 }
 
 export function move(delta: number): void {
-  const count = suggest.items.length;
+  const count = suggest.mode === 'headings' ? suggest.headings.length : suggest.items.length;
   if (count === 0) return;
   // По кругу, как в палитре: список короткий, и упираться в его край
   // раздражает сильнее, чем проскочить мимо.
@@ -167,6 +220,8 @@ export function move(delta: number): void {
  * привело бы в ближайшую — то есть не в ту, которую выбрали.
  */
 export async function accept(): Promise<boolean> {
+  if (suggest.mode === 'headings') return acceptHeading();
+
   const target = suggest.items[suggest.selected];
   const editor = view;
   const from = source;
@@ -187,6 +242,34 @@ export async function accept(): Promise<boolean> {
   if (!now || now.from !== place.from || now.query !== place.query) return false;
 
   const edit = insertionFor(now, text);
+  editor.dispatch({
+    changes: { from: edit.from, to: edit.to, insert: edit.insert },
+    selection: { anchor: edit.cursor },
+    scrollIntoView: true,
+    userEvent: 'input.complete',
+  });
+  editor.focus();
+  return true;
+}
+
+/**
+ * Вставить выбранный заголовок (задача 148): вместо набранного после `#` —
+ * текст заголовка в виде для ссылки, без знаков, которые закрыли бы её
+ * раньше времени (`headingForLink`, правило Obsidian).
+ */
+function acceptHeading(): boolean {
+  const item = suggest.headings[suggest.selected];
+  const editor = view;
+  const place = context;
+  if (!item || !editor || !place) return false;
+
+  close();
+
+  const now = linkContextAt(editor.state);
+  if (!now || now.from !== place.from || now.query !== place.query) return false;
+  const edit = headingInsertion(now, headingForLink(item.text));
+  if (!edit) return false;
+
   editor.dispatch({
     changes: { from: edit.from, to: edit.to, insert: edit.insert },
     selection: { anchor: edit.cursor },

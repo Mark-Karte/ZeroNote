@@ -4,6 +4,8 @@ import { language, syntaxTree } from '@codemirror/language';
 import type { SyntaxNode, Tree } from '@lezer/common';
 
 import { resolveLinks } from '../ipc/index';
+import { localTarget } from './images';
+import { splitSubpath } from './subpath';
 
 /**
  * Ссылки и теги в тексте: подсветка и переход.
@@ -31,9 +33,20 @@ import { resolveLinks } from '../ipc/index';
 
 /** Что нашлось под курсором или под указателем. */
 export interface Target {
-  kind: 'link' | 'tag';
-  /** Для ссылки — цель без раздела и подписи; для тега — имя без решётки. */
+  /**
+   * `link` — `[[ссылка]]`, её разрешает индекс; `path` — ссылка markdown
+   * `[текст](путь)` на файл, путь считается от папки заметки (задача 148);
+   * `tag` — тег.
+   */
+  kind: 'link' | 'path' | 'tag';
+  /**
+   * Для ссылки — цель без раздела и подписи, для пути — путь без раздела,
+   * для тега — имя без решётки. Пусто у ссылки и пути — раздел этой же
+   * заметки: `[[#Раздел]]`, `[текст](#Раздел)`.
+   */
   value: string;
+  /** Раздел с решёткой: `#Раздел`, `#Раздел#Подраздел`, `#^метка`; нет — пусто. */
+  subpath: string;
   from: number;
   to: number;
 }
@@ -150,6 +163,41 @@ export function linkTarget(inner: string): string {
   return withoutHeading.trim();
 }
 
+/** Раздел ссылки с решёткой — `#Раздел`; нет раздела — пусто (задача 148). */
+export function linkSubpath(inner: string): string {
+  const withoutAlias = inner.split('|')[0] ?? inner;
+  const subpath = splitSubpath(withoutAlias).subpath.trim();
+  // Одни решётки — `[[#]]`, `[[План#]]` — раздела не называют.
+  return subpath.replaceAll('#', '').trim() === '' ? '' : subpath;
+}
+
+/**
+ * Ссылка markdown на файл: путь и раздел из адреса `[текст](адрес)`.
+ * `null` — адрес не файл: `https:`, `mailto:`, сетевой путь (Р-202,
+ * Р-300) — по ним переход не ходит, как не ходил и раньше.
+ *
+ * Раздел отделяется до раскодирования: `%23` в имени файла — знак `#`,
+ * а не начало раздела.
+ */
+export function pathLink(address: string): { path: string; subpath: string } | null {
+  let text = address.trim();
+  if (text.startsWith('<') && text.endsWith('>')) text = text.slice(1, -1).trim();
+  const { path: raw, subpath: rawSubpath } = splitSubpath(text);
+
+  let subpath = rawSubpath;
+  try {
+    subpath = decodeURIComponent(rawSubpath);
+  } catch {
+    // Одинокий процент — берём как есть, как `localTarget`.
+  }
+
+  // Одни решётки раздела не называют — как у `linkSubpath`.
+  if (subpath.replaceAll('#', '').trim() === '') subpath = '';
+  if (raw === '') return subpath === '' ? null : { path: '', subpath };
+  const path = localTarget(raw);
+  return path === null ? null : { path, subpath };
+}
+
 /**
  * Узлы кода: внутри них нет ни ссылок, ни тегов (Р-069). Формула — тоже
  * код, на TeX: `\#` там знак, а не тег (задача 115).
@@ -234,7 +282,11 @@ function decorate(view: EditorView, source: string | null, unknown: Set<string>)
 
 /** Что находится в этом месте документа. */
 export function targetAt(view: EditorView, pos: number): Target | null {
-  const { state } = view;
+  return targetIn(view.state, pos);
+}
+
+/** То же по состоянию — ради проверок без окна. */
+export function targetIn(state: EditorState, pos: number): Target | null {
   if (!linksLive(state) || insideNode(syntaxTree(state), pos, CODE_NODES)) return null;
 
   const line = state.doc.lineAt(pos);
@@ -244,9 +296,24 @@ export function targetAt(view: EditorView, pos: number): Target | null {
   for (const span of wikilinkSpans(text)) {
     if (offset >= span.from && offset <= span.to) {
       const value = linkTarget(span.inner);
-      if (value === '') return null;
-      return { kind: 'link', value, from: line.from + span.from, to: line.from + span.to };
+      const subpath = linkSubpath(span.inner);
+      // `[[#Раздел]]` — раздел этой же заметки (задача 148); пустые
+      // скобки — никуда.
+      if (value === '' && subpath === '') return null;
+      return { kind: 'link', value, subpath, from: line.from + span.from, to: line.from + span.to };
     }
+  }
+
+  // Ссылка markdown на файл (задача 148): до неё Ctrl+щелчок по ней
+  // не делал ничего. Узел разбора, а не своё выражение: подпись и адрес
+  // `[текст](адрес)` разбирает тот же разбор, что рисует превью.
+  for (let node: SyntaxNode | null = syntaxTree(state).resolveInner(pos, 1); node; node = node.parent) {
+    if (node.name === 'Image') break;
+    if (node.name !== 'Link') continue;
+    const url = node.getChild('URL');
+    const link = url ? pathLink(state.doc.sliceString(url.from, url.to)) : null;
+    if (link) return { kind: 'path', value: link.path, subpath: link.subpath, from: node.from, to: node.to };
+    break;
   }
 
   TAG.lastIndex = 0;
@@ -254,7 +321,7 @@ export function targetAt(view: EditorView, pos: number): Target | null {
     const start = m.index + (m[1]?.length ?? 0);
     const end = start + 1 + (m[2]?.length ?? 0);
     if (offset >= start && offset <= end) {
-      return { kind: 'tag', value: m[2] ?? '', from: line.from + start, to: line.from + end };
+      return { kind: 'tag', value: m[2] ?? '', subpath: '', from: line.from + start, to: line.from + end };
     }
   }
 

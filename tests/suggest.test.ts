@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { EditorSelection, EditorState } from '@codemirror/state';
-import { insertionFor, linkContextAt } from '../src/editor/suggest';
+import { headingInsertion, insertionFor, linkContextAt } from '../src/editor/suggest';
 import { placeAtCaret } from '../src/ui/menu-position';
 
 /**
@@ -62,13 +62,30 @@ describe('где набирается ссылка', () => {
     expect(linkContextAt(caret('Смотри [[Планы]] и ещё‸'))).toBeNull();
   });
 
-  /**
-   * Раздел и подпись — не имена файлов. Подсказывать в них имена заметок
-   * значило бы предлагать не то, что человек набирает.
-   */
-  it('молчит после решётки и вертикальной черты', () => {
-    expect(linkContextAt(caret('[[Планы#Зад‸'))).toBeNull();
+  /** Подпись — не имя файла и не заголовок: подсказывать в ней нечего. */
+  it('молчит после вертикальной черты', () => {
     expect(linkContextAt(caret('[[Планы|подп‸'))).toBeNull();
+  });
+
+  /**
+   * После решётки набирается раздел (задача 148): подсказываются заголовки
+   * заметки, а не имена. Вставка заменяет только набранное после решётки.
+   */
+  it('после решётки — раздел, а не имя', () => {
+    const text = '[[Планы#Зад‸';
+    const context = linkContextAt(caret(text));
+    expect(context?.heading).toEqual({ note: 'Планы', query: 'Зад', from: '[[Планы#'.length });
+    expect(linkContextAt(caret('[[#Ито‸'))?.heading).toEqual({ note: '', query: 'Ито', from: 3 });
+    expect(linkContextAt(caret('[[Планы#Итоги#Ма‸'))?.heading?.query).toBe('Ма');
+    expect(linkContextAt(caret('[[Планы‸'))?.heading).toBeNull();
+
+    const edit = headingInsertion(context!, 'Задачи на неделю');
+    expect(edit).toEqual({
+      from: '[[Планы#'.length,
+      to: '[[Планы#Зад'.length,
+      insert: 'Задачи на неделю]]',
+      cursor: '[[Планы#Задачи на неделю]]'.length,
+    });
   });
 
   /** Ссылка не переносится: разбор в `wikilinks.ts` тоже не пускает перевод. */
