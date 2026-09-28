@@ -88,6 +88,20 @@ export interface PastedImage {
  * мегабайты. Путь и отметка — заголовками, в процентной записи:
  * заголовок держит только ASCII.
  */
+/** Что вышло с одним брошенным файлом: ссылка или почему её нет. */
+export interface DroppedFile {
+  link: string | null;
+  error: string | null;
+}
+
+/**
+ * Файлы, брошенные на текст заметки, — ссылками (задача 147). Файл из корня
+ * заметки остаётся на месте, файл извне копируется в папку вложений. Ответ —
+ * по файлу, в том же порядке.
+ */
+export const linkDropped = (note: string, files: string[]): Promise<DroppedFile[]> =>
+  invoke('link_dropped', { note, files });
+
 export const savePastedImage = (note: string, stamp: string, png: Uint8Array): Promise<PastedImage> =>
   invoke('save_pasted_image', png, {
     headers: { 'zn-note': encodeURIComponent(note), 'zn-stamp': encodeURIComponent(stamp) },

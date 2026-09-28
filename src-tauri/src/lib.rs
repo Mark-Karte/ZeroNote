@@ -248,6 +248,7 @@ pub fn run() {
             commands::notes::read_template,
             commands::notes::create_note_from_text,
             commands::notes::save_pasted_image,
+            commands::notes::link_dropped,
             commands::entries::delete_entry,
             commands::entries::move_buffer,
             commands::roots::list_roots,

@@ -1,5 +1,6 @@
 //! Заметки, которые приложение создаёт само: ежедневная (задача 90)
-//! и заготовки-шаблоны (задача 95).
+//! и заготовки-шаблоны (задача 95), — и вложения заметки: картинка
+//! из буфера обмена (задача 146) и файлы, брошенные в неё (задача 147).
 //!
 //! Логики здесь нет: имя и подстановки считает `markdown/daily`, пути —
 //! `model/vault`, запись идёт через `fsx::atomic_save`, как всякая другая.
@@ -15,6 +16,8 @@ use std::sync::Arc;
 
 use crate::markdown::attachment::{self, Attachments, LinkForm};
 use crate::markdown::daily::{self, Fields};
+use crate::model::root::RootId;
+use crate::project::ignore::IgnoreRules;
 use crate::state::AppState;
 
 type Fallible<T> = Result<T, String>;
@@ -343,48 +346,18 @@ pub fn save_pasted_image(
 
     // Корень и его правила — дешёвой копией под замком, дальше без него:
     // запись на диск под замком реестра корней держала бы все команды.
-    let root = {
-        let roots = state.roots.lock().expect("реестр корней повреждён");
-        roots
-            .for_path(&note)
-            .map(|root| (root.path.clone(), Arc::clone(&root.rules)))
-    };
+    let root = root_of(&state, &note);
 
     let path = save_image(
         &settings.notes.attachments,
         &note,
-        root.as_ref().map(|(path, _)| path.as_path()),
+        root.as_ref().map(|root| root.path.as_path()),
         &stamp,
         bytes,
     )?;
 
-    let form = match &root {
-        // Вне проектов индекса у заметки нет, и `![[…]]` не показался бы.
-        None => LinkForm::Relative,
-        // Правила скрыли папку вложений — индекс файла не увидит тоже.
-        Some((_, rules)) if rules.is_ignored(&path, false) => LinkForm::Relative,
-        Some((root_path, _)) => {
-            // Имя в проекте уже носит другой файл — одно имя привело бы
-            // к нему. Свежий файл индекс ещё не знает, так что любой
-            // найденный по имени — чужой.
-            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or_default();
-            let from = note.to_string_lossy();
-            let taken = super::index::scope_of(&state, &from).is_some_and(|scope| {
-                state
-                    .index
-                    .lock()
-                    .expect("индекс повреждён")
-                    .resolve_link(name, &from, &scope)
-                    .is_some_and(|found| Path::new(&found.path) != path)
-            });
-            if taken {
-                LinkForm::RootPath(root_path)
-            } else {
-                LinkForm::Name
-            }
-        }
-    };
-
+    let form = link_form(&state, &note, &path, root.as_ref());
+    index_now(&state, root.as_ref(), form, std::slice::from_ref(&path));
     let link = attachment::link(&note, &path, form)
         .ok_or_else(|| format!("на {} не выходит ссылки из заметки", path.display()))?;
     Ok(PastedImage {
@@ -393,13 +366,214 @@ pub fn save_pasted_image(
     })
 }
 
+/// Корень заметки — дешёвой копией из реестра: путь, правила, номер
+/// и предел индекса.
+struct RootOf {
+    path: PathBuf,
+    rules: Arc<IgnoreRules>,
+    id: RootId,
+    max_size: u64,
+}
+
+/// Корень заметки: замок реестра держится только на копирование
+/// указателей, диск дальше читается без него.
+fn root_of(state: &AppState, note: &Path) -> Option<RootOf> {
+    let roots = state.roots.lock().expect("реестр корней повреждён");
+    roots.for_path(note).map(|root| RootOf {
+        path: root.path.clone(),
+        rules: Arc::clone(&root.rules),
+        id: root.id,
+        max_size: root.project.index.max_file_size,
+    })
+}
+
+/// Внести новые файлы в индекс сразу, если на них ссылаются через
+/// индекс (`[[…]]`): иначе превью спросит его раньше слежения и покажет
+/// «нет картинки». Ссылку относительно заметки индекс не разрешает,
+/// а скрытого правилами он знать не должен (Р-303) — таких не вносим.
+fn index_now(state: &AppState, root: Option<&RootOf>, form: LinkForm, paths: &[PathBuf]) {
+    if let (Some(root), LinkForm::Name | LinkForm::RootPath(_)) = (root, form) {
+        state
+            .index
+            .lock()
+            .expect("индекс повреждён")
+            .index_now(root.id, paths, root.max_size);
+    }
+}
+
+/// Как сослаться на `file` из заметки `note` (задачи 146 и 147).
+///
+/// `[[…]]` — только когда файл в корне заметки и индекс его видит:
+/// вне проектов индекса нет, а скрытое правилами он не знает (Р-303),
+/// и там ссылка относительно заметки. Имя, которое в проекте носит другой
+/// файл, привело бы к нему — тогда путь от корня. Только что созданный
+/// файл индекс ещё не знает, так что любой найденный по имени — чужой.
+fn link_form<'a>(state: &AppState, note: &Path, file: &Path, root: Option<&'a RootOf>) -> LinkForm<'a> {
+    let Some(RootOf { path: root_path, rules, .. }) = root else {
+        return LinkForm::Relative;
+    };
+    if !crate::model::root::inside(root_path, file) || rules.is_ignored(file, false) {
+        return LinkForm::Relative;
+    }
+    let Some(name) = attachment::name_text(file) else {
+        return LinkForm::RootPath(root_path);
+    };
+    let from = note.to_string_lossy();
+    let mine = file.to_string_lossy().to_lowercase();
+    let taken = super::index::scope_of(state, &from).is_some_and(|scope| {
+        state
+            .index
+            .lock()
+            .expect("индекс повреждён")
+            .resolve_link(name, &from, &scope)
+            .is_some_and(|found| found.path.to_lowercase() != mine)
+    });
+    if taken {
+        LinkForm::RootPath(root_path)
+    } else {
+        LinkForm::Name
+    }
+}
+
+/// Что вышло с одним брошенным файлом: ссылка или почему её нет.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct DroppedFile {
+    pub link: Option<String>,
+    pub error: Option<String>,
+}
+
+/// Файлы, брошенные на текст заметки, — ссылками (задача 147).
+///
+/// Файл в корне заметки (вне проектов — в её папке) остаётся на месте,
+/// на него ставится ссылка. Файл извне копируется в папку вложений —
+/// как у Obsidian, решение владельца: ссылка полным путём ломается,
+/// как только хранилище переезжает на другой компьютер. Исходный файл
+/// не трогается никогда.
+///
+/// Копирование большого файла — чтение и запись диска, и в потоке
+/// окна оно подвесило бы окно (инвариант 6, Р-308): работа идёт в пуле
+/// потоков. Ответ — по файлу: неудача одного не отменяет остальных.
+/// Запись в папку пользователя — по явному действию человека (Р-049).
+#[tauri::command]
+pub async fn link_dropped(
+    state: tauri::State<'_, AppState>,
+    note: String,
+    files: Vec<String>,
+) -> Fallible<Vec<DroppedFile>> {
+    let note = PathBuf::from(note);
+    let settings = crate::settings::load(&state.data_dir.settings_file()).unwrap_or_default();
+    let root = root_of(&state, &note);
+
+    let placed = {
+        let note = note.clone();
+        let root_path = root.as_ref().map(|root| root.path.clone());
+        tauri::async_runtime::spawn_blocking(move || {
+            files
+                .iter()
+                .map(|file| {
+                    place_file(&settings.notes.attachments, &note, root_path.as_deref(), Path::new(file))
+                })
+                .collect::<Vec<_>>()
+        })
+        .await
+        .map_err(|e| format!("копирование прервалось: {e}"))?
+    };
+
+    Ok(placed
+        .into_iter()
+        .map(|result| match result {
+            Ok(path) => {
+                let form = link_form(&state, &note, &path, root.as_ref());
+                index_now(&state, root.as_ref(), form, std::slice::from_ref(&path));
+                match attachment::link(&note, &path, form) {
+                    Some(link) => DroppedFile { link: Some(link), error: None },
+                    None => DroppedFile {
+                        link: None,
+                        error: Some(format!("на {} не выходит ссылки из заметки", path.display())),
+                    },
+                }
+            }
+            Err(error) => DroppedFile { link: None, error: Some(error) },
+        })
+        .collect())
+}
+
+/// Где будет лежать брошенный файл: на месте, если он в корне заметки
+/// (вне проектов — в её папке), иначе — копией в папке вложений.
+fn place_file(attachments: &Attachments, note: &Path, root: Option<&Path>, file: &Path) -> Fallible<PathBuf> {
+    if !file.is_absolute() || !note.is_absolute() {
+        return Err(format!("путь неполный: {}", file.display()));
+    }
+    if !file.is_file() {
+        return Err(format!("{} — не файл", file.display()));
+    }
+    let area = match root {
+        Some(root) => root,
+        None => note.parent().ok_or_else(|| format!("у {} нет папки", note.display()))?,
+    };
+    if crate::model::root::inside(area, file) {
+        return Ok(file.to_path_buf());
+    }
+
+    let name = file
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| format!("имя {} не в Юникоде", file.display()))?;
+    let folder = attachments_folder(attachments, note, root)?;
+    let target = reserve(&folder, |number| Ok(attachment::numbered(name, number)))?;
+    // Копия ложится поверх пустого файла, занявшего имя, — он наш.
+    // Не атомарно: оборванное копирование оставит неполную копию,
+    // исходник при этом цел. На ошибке копия убирается.
+    if let Err(e) = std::fs::copy(file, &target) {
+        std::fs::remove_file(&target).ok();
+        return Err(format!("не удалось скопировать {}: {e}", file.display()));
+    }
+    Ok(target)
+}
+
+/// Папка вложений заметки: по настройке, с проверкой `.obsidian`,
+/// создаётся, если её нет. Папки самой заметки нет — отказ: заметку
+/// удалили снаружи, и создавать её папку заново ради вложения значило бы
+/// положить файл туда, где его не ждут.
+fn attachments_folder(attachments: &Attachments, note: &Path, root: Option<&Path>) -> Fallible<PathBuf> {
+    if !note.parent().is_some_and(Path::is_dir) {
+        return Err(format!("папки заметки {} нет на диске", note.display()));
+    }
+    let folder = attachments
+        .folder(note, root)
+        .ok_or_else(|| format!("у {} нет папки", note.display()))?;
+    if crate::fsx::atomic_save::is_inside_obsidian(&folder) {
+        return Err("папка вложений внутри .obsidian — туда ZeroNote не пишет (инвариант 2)".to_owned());
+    }
+    std::fs::create_dir_all(&folder)
+        .map_err(|e| format!("не удалось создать папку {}: {e}", folder.display()))?;
+    Ok(folder)
+}
+
+/// Занять в папке свободное имя: `name(0)`, `name(1)`, … — созданием
+/// пустого файла. `create_new` атомарен на стороне Windows: второй
+/// создатель того же имени получит отказ, поэтому существующий файл
+/// не переписывается никогда — даже появившийся в этот самый миг.
+fn reserve(folder: &Path, name: impl Fn(u32) -> Fallible<String>) -> Fallible<PathBuf> {
+    for number in 0..1000 {
+        let path = folder.join(name(number)?);
+        if crate::fsx::atomic_save::is_inside_obsidian(&path) {
+            return Err("в .obsidian ZeroNote не пишет (инвариант 2)".to_owned());
+        }
+        match std::fs::OpenOptions::new().write(true).create_new(true).open(&path) {
+            Ok(_) => return Ok(path),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(format!("не удалось создать {}: {e}", path.display())),
+        }
+    }
+    Err(format!("в папке {} заняты все номера этого имени", folder.display()))
+}
+
 /// Записать PNG в папку вложений заметки. Вернуть путь нового файла.
 ///
-/// Существующий файл не переписывается никогда: имя сначала занимается
-/// созданием пустого файла (`create_new` — атомарно на стороне Windows:
-/// второй создатель получит отказ), потом в него пишется картинка
-/// атомарной записью, как всякий файл (инвариант 3). Занято — следующий
-/// номер, как у Obsidian.
+/// Имя занимает `reserve`, потом в файл пишется картинка атомарной
+/// записью, как всякий файл (инвариант 3). Занято — следующий номер,
+/// как у Obsidian.
 fn save_image(
     attachments: &Attachments,
     note: &Path,
@@ -413,37 +587,18 @@ fn save_image(
     if !note.is_absolute() {
         return Err(format!("путь заметки неполный: {}", note.display()));
     }
-    // Папки заметки нет — заметку удалили снаружи. Создавать её заново
-    // ради картинки значило бы положить файл туда, где его не ждут.
-    if !note.parent().is_some_and(Path::is_dir) {
-        return Err(format!("папки заметки {} нет на диске", note.display()));
-    }
+    // Из отметки складывается имя — проверить до того, как создавать папку.
+    attachment::image_name(stamp, 0)?;
 
-    let folder = attachments
-        .folder(note, root)
-        .ok_or_else(|| format!("у {} нет папки", note.display()))?;
-    if crate::fsx::atomic_save::is_inside_obsidian(&folder) {
-        return Err("папка вложений внутри .obsidian — туда ZeroNote не пишет (инвариант 2)".to_owned());
+    let folder = attachments_folder(attachments, note, root)?;
+    let path = reserve(&folder, |number| attachment::image_name(stamp, number))?;
+    if let Err(e) = crate::fsx::atomic_save::save(&path, bytes) {
+        // Пустой файл, занявший имя, — наш: убрать его, чтобы
+        // не оставлять в папке человека пустышку.
+        std::fs::remove_file(&path).ok();
+        return Err(format!("не удалось записать {}: {e}", path.display()));
     }
-    std::fs::create_dir_all(&folder)
-        .map_err(|e| format!("не удалось создать папку {}: {e}", folder.display()))?;
-
-    for number in 0..1000 {
-        let path = folder.join(attachment::image_name(stamp, number)?);
-        match std::fs::OpenOptions::new().write(true).create_new(true).open(&path) {
-            Ok(_) => {}
-            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
-            Err(e) => return Err(format!("не удалось создать {}: {e}", path.display())),
-        }
-        if let Err(e) = crate::fsx::atomic_save::save(&path, bytes) {
-            // Пустой файл, занявший имя, — наш: убрать его, чтобы
-            // не оставлять в папке человека пустышку.
-            std::fs::remove_file(&path).ok();
-            return Err(format!("не удалось записать {}: {e}", path.display()));
-        }
-        return Ok(path);
-    }
-    Err("в папке вложений заняты все имена с этой отметкой времени".to_owned())
+    Ok(path)
 }
 
 /// Раскодировать процентную запись (`%D0%97` → `З`). `None` — запись
@@ -697,6 +852,78 @@ mod tests {
 
         assert_eq!(std::fs::read_dir(&root).unwrap().count(), 0);
         std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// Файл в корне заметки остаётся на месте — ссылка на него, копии нет.
+    #[test]
+    fn dropped_file_inside_the_root_stays() {
+        let root = temp_dir("drop-inside");
+        std::fs::create_dir_all(root.join("Архив")).unwrap();
+        let note = root.join("Заметка.md");
+        let file = root.join("Архив").join("отчёт.pdf");
+        std::fs::write(&file, "pdf").unwrap();
+
+        let placed = place_file(&Attachments::NoteFolder, &note, Some(&root), &file).unwrap();
+
+        assert_eq!(placed, file);
+        assert!(!root.join("отчёт.pdf").exists());
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    /// Файл извне — копией в папку вложений, под своим именем; занято —
+    /// с номером. Исходник цел, чужой файл с тем же именем тоже.
+    #[test]
+    fn dropped_file_from_outside_is_copied() {
+        let dir = temp_dir("drop-outside");
+        let root = dir.join("Хранилище");
+        let outside = dir.join("Загрузки");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::create_dir_all(&outside).unwrap();
+        let note = root.join("Заметка.md");
+        let file = outside.join("отчёт.pdf");
+        std::fs::write(&file, "свежий").unwrap();
+
+        let beside = Attachments::BesideNote("Вложения".into());
+        let first = place_file(&beside, &note, Some(&root), &file).unwrap();
+        assert_eq!(first, root.join("Вложения").join("отчёт.pdf"));
+        assert_eq!(std::fs::read_to_string(&first).unwrap(), "свежий");
+
+        let second = place_file(&beside, &note, Some(&root), &file).unwrap();
+        assert_eq!(second, root.join("Вложения").join("отчёт 1.pdf"));
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), "свежий");
+        assert_eq!(std::fs::read_to_string(&first).unwrap(), "свежий");
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Вне проектов «корень» — папка заметки: её файлы на месте,
+    /// остальные — копией рядом.
+    #[test]
+    fn dropped_file_for_a_note_outside_projects() {
+        let dir = temp_dir("drop-no-root");
+        let notes = dir.join("Разное");
+        std::fs::create_dir_all(notes.join("img")).unwrap();
+        let note = notes.join("Заметка.md");
+        let near = notes.join("img").join("x.png");
+        let far = dir.join("y.png");
+        std::fs::write(&near, "png").unwrap();
+        std::fs::write(&far, "png").unwrap();
+
+        assert_eq!(place_file(&Attachments::Root, &note, None, &near).unwrap(), near);
+        assert_eq!(place_file(&Attachments::Root, &note, None, &far).unwrap(), notes.join("y.png"));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn dropped_folder_is_refused() {
+        let root = temp_dir("drop-folder");
+        let outside = temp_dir("drop-folder-src");
+        let note = root.join("Заметка.md");
+
+        assert!(place_file(&Attachments::NoteFolder, &note, Some(&root), &outside).is_err());
+        assert_eq!(std::fs::read_dir(&root).unwrap().count(), 0);
+        std::fs::remove_dir_all(&root).ok();
+        std::fs::remove_dir_all(&outside).ok();
     }
 
     #[test]

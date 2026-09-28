@@ -327,6 +327,18 @@
   border-left-color: var(--zn-color-fg-default);
 }
 
+/* Точка броска файла (задача 147): куда ляжет ссылка. Черта без ширины —
+   текст вокруг не сдвигается; цветом выделенного, чтобы её не спутать
+   с кареткой. */
+.cm-editor .zn-drop-point {
+  display: inline-block;
+  width: 0;
+  height: 1lh;
+  margin-inline-end: calc(-1 * var(--zn-border-width-thick));
+  border-inline-start: var(--zn-border-width-thick) solid var(--zn-color-accent);
+  vertical-align: text-bottom;
+}
+
 /* Выделение текста. Роль отдельная от `bg-selected`: та же подложка,
    но плотнее — выделение обязано быть видно поверх подсветки строки.
 

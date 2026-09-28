@@ -52,6 +52,7 @@
   import { diagramThemeChanged } from '../editor/diagram';
   import { appearance } from '../theme/store.svelte';
   import { openDropped, closeAllTabs } from '../actions/files';
+  import { dragLeave, dragOver, dropFiles } from '../actions/drop-files';
   import { checkExternalChanges } from '../actions/external';
   import { startupPaths, openRequests, OPEN_PATHS } from '../ipc/files';
   import { installGlobalKeymap, loadKeymap, commandList } from '../keymap/global.svelte';
@@ -319,14 +320,24 @@
       window.removeEventListener('contextmenu', fieldOn);
     };
 
+    // Бросок из проводника (задача 147): на текст заметки — ссылками,
+    // куда угодно ещё — открыть. Точку Tauri даёт в пикселях экрана,
+    // а разметка живёт в пикселях CSS.
     unlistenDrop = await getCurrentWindow().onDragDropEvent((event) => {
-      if (event.payload.type === 'over') {
-        dropActive = true;
-      } else if (event.payload.type === 'drop') {
+      const payload = event.payload;
+      if (payload.type === 'leave') {
         dropActive = false;
-        void openDropped(event.payload.paths);
+        dragLeave();
+        return;
+      }
+      const scale = window.devicePixelRatio;
+      const point = { x: payload.position.x / scale, y: payload.position.y / scale };
+      if (payload.type === 'drop') {
+        dropActive = false;
+        void dropFiles(payload.paths, point);
       } else {
-        dropActive = false;
+        dropActive = true;
+        dragOver(point);
       }
     });
   });

@@ -260,6 +260,24 @@ impl Index {
         });
     }
 
+    /// Внести в индекс файлы, созданные только что, — сразу, в этом потоке
+    /// (задачи 146 и 147).
+    ///
+    /// Ссылку на вставленную картинку или брошенный файл вписывают в тот же
+    /// миг, и превью спрашивает индекс раньше, чем слежение (`tree/watch.rs`)
+    /// успеет его известить: картинка показывалась «нет» и такой оставалась.
+    /// Слежение потом увидит те же файлы и пропустит их — время и размер
+    /// совпадут. Ошибка — не беда: файл догонит обычный путь.
+    pub fn index_now(&self, root_id: RootId, paths: &[PathBuf], max_size: u64) {
+        let Some(connection) = self.connection.as_ref() else {
+            return;
+        };
+        let connection = connection.lock().expect("соединение с индексом повреждено");
+        for path in paths {
+            let _ = super::writer::index_file(&connection, root_id, path, max_size);
+        }
+    }
+
     /// Забыть убранный корень (Я10). Его идущий проход прерывается сразу,
     /// а само забывание отмена не снимает.
     pub fn forget_root(&mut self, root_id: RootId) {
@@ -746,6 +764,31 @@ mod tests {
         index.wait_idle();
 
         assert_eq!(index.count(&scope), 0, "записи убранного корня остались");
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(&data);
+    }
+
+    /// Файл, на который ссылку вписали только что (задачи 146 и 147),
+    /// находится по имени сразу — без прохода и без слежения: иначе превью
+    /// спрашивало индекс раньше и оставляло картинку «нет» (Р-310).
+    #[test]
+    fn index_now_makes_a_new_file_resolvable_at_once() {
+        let (root, data, mut index) = setup("index-now", 1);
+        scan(&mut index, 8, &root);
+        index.wait_idle();
+        let note = root.join("заметка-0.md").to_string_lossy().into_owned();
+        let scope = Scope::new(8, &root);
+
+        let picture = root.join("Pasted image 20260928143012.png");
+        std::fs::write(&picture, b"png").unwrap();
+        assert!(index.resolve_link("Pasted image 20260928143012.png", &note, &scope).is_none());
+
+        index.index_now(8, std::slice::from_ref(&picture), 2 * 1024 * 1024);
+
+        let found = index
+            .resolve_link("Pasted image 20260928143012.png", &note, &scope)
+            .expect("свежий файл обязан находиться по имени");
+        assert_eq!(found.path, picture.to_string_lossy());
         let _ = std::fs::remove_dir_all(&root);
         let _ = std::fs::remove_dir_all(&data);
     }

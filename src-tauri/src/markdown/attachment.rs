@@ -146,43 +146,83 @@ pub fn image_name(stamp: &str, number: u32) -> Result<String, String> {
     if stamp.len() != 14 || !stamp.bytes().all(|b| b.is_ascii_digit()) {
         return Err(format!("отметка времени «{stamp}» не похожа на 20260928143012"));
     }
-    Ok(if number == 0 {
-        format!("Pasted image {stamp}.png")
-    } else {
-        format!("Pasted image {stamp} {number}.png")
-    })
+    Ok(numbered(&format!("Pasted image {stamp}.png"), number))
+}
+
+/// Имя с номером, когда исходное занято: `отчёт.pdf` → `отчёт 1.pdf`,
+/// как у Obsidian. Номер ноль — имя как есть.
+pub fn numbered(name: &str, number: u32) -> String {
+    if number == 0 {
+        return name.to_owned();
+    }
+    // Расширение — за последней точкой, но не у имени, которое с точки
+    // начинается (`.gitignore`): там точка — часть имени.
+    match name.rfind('.') {
+        Some(dot) if dot > 0 => format!("{} {number}{}", &name[..dot], &name[dot..]),
+        _ => format!("{name} {number}"),
+    }
 }
 
 /// Как сослаться на вложение из текста заметки.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LinkForm<'a> {
-    /// `![[имя]]` — имя разрешает индекс (Р-217). Как у Obsidian
+    /// `[[имя]]` — имя разрешает индекс (Р-217). Как у Obsidian
     /// по умолчанию, и ссылка переживает перенос файла внутри проекта.
     Name,
-    /// `![[путь/от/корня]]` — имя в проекте уже занято другим файлом,
-    /// и одно имя привело бы не к той картинке.
+    /// `[[путь/от/корня]]` — имя в проекте уже занято другим файлом,
+    /// и одно имя привело бы не туда.
     RootPath(&'a Path),
-    /// `![](<путь>)` — относительно папки заметки. Для заметки вне
-    /// проектов и для вложения, которое индекс не видит (правила
-    /// игнорирования): `![[…]]` там не показался бы никогда.
+    /// `[имя](<путь>)` — относительно папки заметки. Для заметки вне
+    /// проектов и для файла, которого индекс не видит (правила
+    /// игнорирования): `[[…]]` там не разрешился бы никогда.
     Relative,
 }
 
-/// Ссылка на вложение `file` из заметки `note`. `None` — путь не выразить
+/// Ссылка на файл `file` из заметки `note`. `None` — путь не выразить
 /// ссылкой (разные диски, имя не в Юникоде).
+///
+/// Картинка вставляется (`!`) и видна в превью; прочее — ссылкой.
+/// Obsidian ставит `!` всему, что бросили, и заметку тогда вставляет
+/// целиком, — вставки заметок у нас нет (решение владельца на этапе 18),
+/// и `![[заметка]]` остался бы исходником. `.md` в ссылке не пишется:
+/// так у Obsidian, и так её разрешает индекс (`link_key`).
 pub fn link(note: &Path, file: &Path, form: LinkForm) -> Option<String> {
+    let bang = if is_image(file) { "!" } else { "" };
     match form {
-        LinkForm::Name => Some(format!("![[{}]]", file.file_name()?.to_str()?)),
+        LinkForm::Name => Some(format!("{bang}[[{}]]", without_md(file.file_name()?.to_str()?))),
         LinkForm::RootPath(root) => {
-            let inside = file.strip_prefix(root).ok()?;
-            Some(format!("![[{}]]", slashed(inside)?))
+            let inside = strip_prefix(file, root)?;
+            Some(format!("{bang}[[{}]]", without_md(&slashed(&inside)?)))
         }
         LinkForm::Relative => {
             let relative = relative_to(note.parent()?, file)?;
-            // Угловые скобки — запись markdown для пути с пробелами:
-            // в имени `Pasted image …` они есть всегда.
-            Some(format!("![](<{}>)", slashed(&relative)?))
+            // Угловые скобки — запись markdown для пути с пробелами.
+            let path = slashed(&relative)?;
+            let text = if bang.is_empty() { without_md(file.file_name()?.to_str()?) } else { "" };
+            Some(format!("{bang}[{text}](<{path}>)"))
         }
+    }
+}
+
+/// Текст короткой ссылки `[[…]]` на файл — имя, у заметки без `.md`.
+/// Им же спрашивают индекс, не занято ли имя другим файлом.
+pub fn name_text(file: &Path) -> Option<&str> {
+    Some(without_md(file.file_name()?.to_str()?))
+}
+
+/// Картинка ли это — по тому же списку, что вкладка картинки.
+fn is_image(file: &Path) -> bool {
+    file.extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| crate::model::buffer::IMAGE_EXTENSIONS.contains(&ext.to_lowercase().as_str()))
+}
+
+/// Снять `.md` на конце. Срез через `get`: три байта от конца могут
+/// прийтись на середину кириллической буквы.
+fn without_md(text: &str) -> &str {
+    match text.get(text.len().saturating_sub(3)..) {
+        Some(tail) if tail.eq_ignore_ascii_case(".md") => &text[..text.len() - 3],
+        _ => text,
     }
 }
 
@@ -192,18 +232,33 @@ fn slashed(path: &Path) -> Option<String> {
     Some(parts?.join("/"))
 }
 
+/// Одна и та же ли часть пути. Без учёта регистра, как у Windows:
+/// путь брошенного файла приходит из проводника, путь заметки — из
+/// вкладки, и `C:` с `c:` — одна папка.
+fn same(a: &Component, b: &Component) -> bool {
+    a.as_os_str().to_string_lossy().to_lowercase() == b.as_os_str().to_string_lossy().to_lowercase()
+}
+
+/// Путь `file` внутри папки `base`. `None` — не внутри.
+fn strip_prefix(file: &Path, base: &Path) -> Option<PathBuf> {
+    let file: Vec<Component> = file.components().collect();
+    let base: Vec<Component> = base.components().collect();
+    if base.len() > file.len() || !base.iter().zip(&file).all(|(a, b)| same(a, b)) {
+        return None;
+    }
+    Some(file[base.len()..].iter().map(|part| part.as_os_str()).collect())
+}
+
 /// Путь `to` относительно папки `from`, с `..`, если нужно выйти вверх.
-///
-/// Части сравниваются как написаны: оба пути сложены из одного корня
-/// или одной папки заметки, и разного написания одной папки здесь не бывает.
 fn relative_to(from: &Path, to: &Path) -> Option<PathBuf> {
     let from: Vec<Component> = from.components().collect();
     let to: Vec<Component> = to.components().collect();
     // Диск или сетевая папка разные — относительного пути нет.
-    if from.first() != to.first() {
-        return None;
+    match (from.first(), to.first()) {
+        (Some(a), Some(b)) if same(a, b) => {}
+        _ => return None,
     }
-    let common = from.iter().zip(&to).take_while(|(a, b)| a == b).count();
+    let common = from.iter().zip(&to).take_while(|(a, b)| same(a, b)).count();
     let mut out = PathBuf::new();
     for _ in common..from.len() {
         out.push("..");
@@ -329,6 +384,43 @@ mod tests {
             link(note, far, LinkForm::Relative).unwrap(),
             "![](<../Вложения/Pasted image 1.png>)"
         );
+    }
+
+    /// Брошенный файл (задача 147): заметка — ссылкой и без `.md`, прочее —
+    /// ссылкой с расширением; вставляется (`!`) только картинка.
+    #[test]
+    fn files_link_by_kind() {
+        let root = Path::new(r"C:\Хранилище");
+        let note = Path::new(r"C:\Хранилище\Проекты\Заметка.md");
+        let other = Path::new(r"C:\Хранилище\Архив\План.md");
+        let pdf = Path::new(r"C:\Хранилище\Проекты\отчёт.pdf");
+
+        assert_eq!(link(note, other, LinkForm::Name).unwrap(), "[[План]]");
+        assert_eq!(link(note, other, LinkForm::RootPath(root)).unwrap(), "[[Архив/План]]");
+        assert_eq!(link(note, other, LinkForm::Relative).unwrap(), "[План](<../Архив/План.md>)");
+        assert_eq!(link(note, pdf, LinkForm::Name).unwrap(), "[[отчёт.pdf]]");
+        assert_eq!(link(note, pdf, LinkForm::Relative).unwrap(), "[отчёт.pdf](<отчёт.pdf>)");
+    }
+
+    /// Путь из проводника и путь вкладки пишут букву диска и папки
+    /// по-разному, а папка одна.
+    #[test]
+    fn paths_compare_without_case() {
+        let root = Path::new(r"C:\Хранилище");
+        let note = Path::new(r"C:\Хранилище\Заметка.md");
+        let file = Path::new(r"c:\хранилище\Картинки\x.png");
+
+        assert_eq!(link(note, file, LinkForm::Relative).unwrap(), "![](<Картинки/x.png>)");
+        assert_eq!(link(note, file, LinkForm::RootPath(root)).unwrap(), "![[Картинки/x.png]]");
+    }
+
+    #[test]
+    fn taken_names_get_a_number() {
+        assert_eq!(numbered("отчёт.pdf", 0), "отчёт.pdf");
+        assert_eq!(numbered("отчёт.pdf", 2), "отчёт 2.pdf");
+        assert_eq!(numbered("архив.tar.gz", 1), "архив.tar 1.gz");
+        assert_eq!(numbered("README", 1), "README 1");
+        assert_eq!(numbered(".gitignore", 1), ".gitignore 1");
     }
 
     #[test]

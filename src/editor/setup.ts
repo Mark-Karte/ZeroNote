@@ -45,6 +45,7 @@ import { noteTitle, type TitleRename } from './note-title';
 import { wikilinks, type Target } from './wikilinks';
 import { linkSuggestions, type LinkContext } from './suggest';
 import { imagePaste } from './image-paste';
+import { dropPoint } from './drop-point';
 import type { Buffer } from '../ipc/files';
 
 /**
@@ -344,6 +345,8 @@ export function extensionsFor(meta: Buffer, options: EditorOptions): Extension[]
     dropCursor(),
     rectangularSelection(),
     imagePaste(options.onPasteImage),
+    // Куда ляжет ссылка на брошенный файл (задача 147).
+    dropPoint(),
 
     // Перенос по умолчанию выключен — так ведёт себя Notepad++, и для кода это
     // верное умолчание. Значение приходит из настроек, переключается на лету.
