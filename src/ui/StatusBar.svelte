@@ -25,6 +25,9 @@
   import { goToLineDialog, goToPageDialog } from '../actions/navigate';
   import type { EncodingId, LineEnding } from '../ipc/files';
   import { convertTo, reinterpretAs, setBom, setLineEnding } from '../actions/encoding';
+  import { countAll, countSelection, type Counts } from '../editor/word-count';
+  import type { Text } from '@codemirror/state';
+  import { untrack } from 'svelte';
 
   const look = $derived(appearance.current);
   const tab = $derived(activeTab());
@@ -71,6 +74,88 @@
   /** Строка, столбец и размер выделения. Считается там же и по той же причине. */
   const position = $derived(shown ? positionOf(shown) : null);
   const lines = $derived(shown?.doc.lines ?? 0);
+
+  /**
+   * Счётчик слов (задача 149): у заметки и у простого текста — в коде
+   * слова не считают, как и Obsidian. Правила подсчёта — `editor/word-count.ts`.
+   */
+  const countable = $derived.by(() => {
+    if (!tab || !ed || tab.meta.large) return false;
+    const language = languageOf(tab);
+    return language === null || language.id === 'markdown';
+  });
+
+  /**
+   * Сколько знаков считается само, после паузы в наборе. Мегабайт
+   * считается за 26 мс (замер задачи 149); больше — по щелчку: пауза
+   * в наборе не должна оборачиваться задержкой следующей буквы (инвариант 6).
+   */
+  const WORD_COUNT_LIMIT = 1024 * 1024;
+  /** Пауза в наборе перед подсчётом — как у счётчика совпадений. */
+  const WORD_COUNT_DELAY = 150;
+
+  interface WordCounts {
+    /** Чей счёт: при смене вкладки чужие числа не показываются. */
+    tab: number;
+    /** Какой текст посчитан — у большого файла счёт живёт до правки. */
+    doc: Text;
+    all: Counts;
+    selected: Counts | null;
+  }
+
+  let counted = $state<WordCounts | null>(null);
+  const tooBig = $derived(countable && (shown?.doc.length ?? 0) > WORD_COUNT_LIMIT);
+
+  function countNow(): void {
+    const state = shown;
+    if (!tab || !state) return;
+    const markdown = languageOf(tab)?.id === 'markdown';
+    counted = {
+      tab: tab.meta.id,
+      doc: state.doc,
+      all: countAll(state, markdown),
+      selected: countSelection(state),
+    };
+  }
+
+  $effect(() => {
+    const state = shown;
+    if (!countable || !state) return;
+    if (state.doc.length > WORD_COUNT_LIMIT) {
+      // Большой файл: счёт по щелчку, и после правки он уже неправда.
+      if (untrack(() => counted)?.doc !== state.doc) counted = null;
+      return;
+    }
+    const timer = setTimeout(countNow, WORD_COUNT_DELAY);
+    return () => clearTimeout(timer);
+  });
+
+  const words = $derived(counted !== null && counted.tab === tab?.meta.id ? counted : null);
+
+  /** Число с разрядами, как пишут по-русски: `12 345`. */
+  function grouped(n: number): string {
+    return n.toLocaleString('ru-RU');
+  }
+
+  function wordLabel(value: WordCounts): string {
+    const all = value.all.words;
+    if (value.selected) {
+      return `${grouped(value.selected.words)} из ${grouped(all)} ${plural(all, 'слова', 'слов', 'слов')}`;
+    }
+    return `${grouped(all)} ${plural(all, 'слово', 'слова', 'слов')}`;
+  }
+
+  function wordTitle(value: WordCounts): string {
+    const markdown = tab ? languageOf(tab)?.id === 'markdown' : false;
+    const tail = markdown ? ' Свойства в начале заметки не считаются.' : '';
+    if (value.selected) {
+      return (
+        `Выделено слов: ${grouped(value.selected.words)} из ${grouped(value.all.words)}, ` +
+        `знаков: ${grouped(value.selected.chars)} из ${grouped(value.all.chars)}.${tail}`
+      );
+    }
+    return `Слов: ${grouped(value.all.words)}, знаков: ${grouped(value.all.chars)}.${tail}`;
+  }
 
   /**
    * Сочетание берётся из раскладки, а не пишется в разметку: его могли
@@ -334,6 +419,21 @@
   {/if}
 
   <span class="spacer"></span>
+
+  {#if countable}
+    {#if words}
+      <span class="item" title={wordTitle(words)}>{wordLabel(words)}</span>
+    {:else if tooBig}
+      <button
+        class="item action"
+        type="button"
+        onclick={countNow}
+        title="Файл больше мегабайта: слова считаются по щелчку, чтобы не задерживать ввод"
+      >
+        посчитать слова
+      </button>
+    {/if}
+  {/if}
 
   {#if position}
     <button
