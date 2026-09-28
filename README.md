@@ -1,17 +1,45 @@
+<div align="center">
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="icons/zeronote-dark-128.png">
+  <img src="icons/zeronote-light-128.png" width="112" alt="Знак ZeroNote">
+</picture>
+
 # ZeroNote
 
-[![Проверки](https://github.com/Mark-Karte/ZeroNote/actions/workflows/ci.yml/badge.svg)](https://github.com/Mark-Karte/ZeroNote/actions/workflows/ci.yml)
+**Редактор текста и заметок для Windows**<br>
+открывается мгновенно, как Notepad++, а с папкой работает как с проектом
 
-Редактор текста и заметок для Windows. Открывается мгновенно, как Notepad++,
-а с папкой работает как с проектом — деревом файлов, поиском по содержимому
-и связями между заметками.
+<a href="README.md"><img src="https://img.shields.io/badge/-%D0%A0%D1%83%D1%81%D1%81%D0%BA%D0%B8%D0%B9-3b9cf6?style=for-the-badge" alt="Русский"></a>
+<a href="README.en.md"><img src="https://img.shields.io/badge/-English-2a2d36?style=for-the-badge" alt="English"></a>
 
-Хранилище Obsidian открывается обычной папкой: `[[ссылки]]`, теги и frontmatter
-ZeroNote понимает как свойство markdown, а не как «режим совместимости».
-Свой формат проекта — один файл `zeronote.toml`, и тот появляется только
-по вашей команде.
+<a href="https://github.com/Mark-Karte/ZeroNote/releases/latest"><img src="https://img.shields.io/github/v/release/Mark-Karte/ZeroNote?style=for-the-badge&label=%D0%B2%D0%B5%D1%80%D1%81%D0%B8%D1%8F&labelColor=1c1e25&color=8cc3fc" alt="Версия"></a>
+<img src="https://img.shields.io/badge/Windows-10%20%C2%B7%2011-b7b5fc?style=for-the-badge&labelColor=1c1e25" alt="Windows 10 и 11">
+<a href="LICENSE"><img src="https://img.shields.io/github/license/Mark-Karte/ZeroNote?style=for-the-badge&label=%D0%BB%D0%B8%D1%86%D0%B5%D0%BD%D0%B7%D0%B8%D1%8F&labelColor=1c1e25&color=e4b572" alt="Лицензия"></a>
+<a href="https://github.com/Mark-Karte/ZeroNote/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/Mark-Karte/ZeroNote/ci.yml?branch=main&style=for-the-badge&label=%D0%BF%D1%80%D0%BE%D0%B2%D0%B5%D1%80%D0%BA%D0%B8&labelColor=1c1e25&color=8ed09c" alt="Проверки"></a>
+<a href="https://github.com/Mark-Karte/ZeroNote/commits/main"><img src="https://img.shields.io/github/last-commit/Mark-Karte/ZeroNote?style=for-the-badge&label=%D0%BA%D0%BE%D0%BC%D0%BC%D0%B8%D1%82&labelColor=1c1e25&color=69cee6" alt="Последний коммит"></a>
+<a href="https://github.com/Mark-Karte/ZeroNote/stargazers"><img src="https://img.shields.io/github/stars/Mark-Karte/ZeroNote?style=for-the-badge&label=%D0%B7%D0%B2%D1%91%D0%B7%D0%B4%D1%8B&labelColor=1c1e25&color=f8a49d" alt="Звёзды"></a>
 
-![Окно ZeroNote с открытым проектом](docs/screenshots/window-dark.png)
+<br>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/window-dark.png">
+  <img src="docs/screenshots/window-light.png" alt="Окно ZeroNote с открытым проектом">
+</picture>
+
+<br>
+
+<a href="https://github.com/Mark-Karte/ZeroNote/releases/latest"><img src="https://img.shields.io/badge/%D0%A1%D0%BA%D0%B0%D1%87%D0%B0%D1%82%D1%8C%20%D0%B4%D0%BB%D1%8F%20Windows-3b9cf6?style=for-the-badge" height="36" alt="Скачать для Windows"></a>
+
+<sub>Windows 10 и 11, 64 бита · около 7 МБ · без прав администратора</sub>
+
+</div>
+
+С папкой ZeroNote работает как с проектом — деревом файлов, поиском
+по содержимому и связями между заметками. Хранилище Obsidian открывается
+обычной папкой: `[[ссылки]]`, теги и frontmatter ZeroNote понимает как
+свойство markdown, а не как «режим совместимости». Свой формат проекта —
+один файл `zeronote.toml`, и тот появляется только по вашей команде.
 
 ## Установка
 
@@ -64,9 +92,13 @@ Light, Catppuccin Latte, «Контраст» и пара Obsidian Dark и Obsid
 Шесть первых — адаптации популярных тем под наш слой оформления, все под
 лицензией MIT, ссылки на источники — в заголовках файлов тем. Пара Obsidian
 повторяет вид стандартной темы Obsidian: цвета, шрифты и меры заметки.
-Светлая и тёмная пара следуют настройке Windows.
+Светлая и тёмная пара следуют настройке Windows — как этот README: вверху
+окно в теме вашего GitHub, здесь — в другой.
 
-![Светлая тема](docs/screenshots/window-light.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/window-light.png">
+  <img src="docs/screenshots/window-dark.png" alt="Окно ZeroNote в другой теме">
+</picture>
 
 ## Что умеет
 
@@ -93,8 +125,16 @@ Light, Catppuccin Latte, «Контраст» и пара Obsidian Dark и Obsid
 - Связи между заметками: `[[ссылки]]`, теги, frontmatter, переход по `F12`
   и `Ctrl`+щелчку, панель обратных ссылок. Висячая ссылка видна, и `Ctrl`+щелчок
   по ней создаёт заметку там, куда ссылка и указывает.
+- Ссылка ведёт и к разделу: `[[заметка#Раздел]]`, `[[#Раздел]]` — в этой же
+  заметке, `[[заметка#^метка]]` — к метке блока; после `#` подсказка
+  предлагает заголовки. Правила — те же, что у Obsidian.
 - Вложения записью Obsidian: `![[рисунок.png]]` показывается картинкой,
   `[[рисунок.png]]` открывает её вкладкой.
+- Снимок экрана из буфера (`Ctrl+V`) ложится файлом в папку вложений,
+  а в текст — ссылка на него. Файл, брошенный из проводника на текст
+  заметки, становится ссылкой в месте броска; файл не из проекта сначала
+  копируется во вложения. Где папка вложений — настройкой, теми же
+  значениями, что у Obsidian. Существующий файл не перезаписывается никогда.
 - Хранилище Obsidian опознаётся, фильтры исключения переносятся в наш формат.
   В `.obsidian` не записывается ничего и никогда.
 
@@ -124,6 +164,8 @@ Light, Catppuccin Latte, «Контраст» и пара Obsidian Dark и Obsid
 - Дом для заметок — хранилище, которое открыто всегда, рядом с проектами
   и независимо от них: календарь ежедневных заметок, «Заметка на сегодня»,
   шаблоны с подстановкой `{{date}}`, `{{time}}`, `{{title}}`.
+- Счётчик слов в строке состояния — у заметки и у выделения, знаки —
+  в подсказке. Свойства в начале заметки не считаются.
 
 ### Наружу
 
@@ -227,7 +269,7 @@ cd src-tauri && cargo test
 
 Те же три проверки идут на каждое изменение в `main` и на каждый запрос
 слияния — [.github/workflows/ci.yml](.github/workflows/ci.yml), на Windows.
-Значок вверху показывает состояние последнего прогона.
+Значок «проверки» вверху показывает состояние последнего прогона.
 
 Замеры производительности — стенд встроен в приложение и включается
 аргументами командной строки; цели и результаты в [DESIGN.md](DESIGN.md),
@@ -253,6 +295,8 @@ powershell -File bench\perf.ps1
 Если приложение ведёт себя странно после обновления, посмотрите на полосу
 предупреждений вверху окна: туда попадают ошибки в `settings.toml`,
 `keymap.toml` и файлах тем.
+
+Как предложить правку в код или в перевод — в [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Авторство
 
@@ -301,7 +345,7 @@ ISC, BSD-3-Clause и Apache-2.0, движок раскладки **elkjs** по�
 (исходники — [eclipse/elk](https://github.com/eclipse/elk) и
 [kieler/elkjs](https://github.com/kieler/elkjs)), **DOMPurify** под MPL-2.0
 или Apache-2.0 на выбор. **Все сторонние компоненты — шрифты, палитры тем,
-91 библиотека окна и 209 крейтов ядра — с текстами их лицензий перечислены
+91 библиотека окна и 210 крейтов ядра — с текстами их лицензий перечислены
 в [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).** Этот же файл
 установщик кладёт рядом с программой; в самом ZeroNote он открывается
 из «Параметры → Сведения → Лицензии».

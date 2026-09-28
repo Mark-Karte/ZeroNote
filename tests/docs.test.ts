@@ -28,7 +28,7 @@ import { describe, expect, it } from 'vitest';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 /** Документы, которые правятся вставками и потому рвутся. */
-const DOCS = ['DESIGN.md', 'CLAUDE.md', 'README.md'];
+const DOCS = ['DESIGN.md', 'CLAUDE.md', 'README.md', 'README.en.md', 'CONTRIBUTING.md'];
 
 /**
  * Слова, которыми абзацу начинаться можно.
