@@ -1,5 +1,5 @@
 import type { EditorState } from '@codemirror/state';
-import { plural } from './plural';
+import { t, tn } from '../l10n';
 
 /**
  * Позиция курсора для строки состояния.
@@ -63,17 +63,15 @@ export function positionOf(state: EditorState): Position {
 
 /** Короткая подпись для строки состояния. */
 export function positionLabel(position: Position): string {
-  const base = `стр ${position.line}, кол ${position.column}`;
+  const base = t('status.position', { line: position.line, column: position.column });
   if (position.selected === 0) {
     return base;
   }
 
   const lines = position.selectedLines;
   // Про одну строку не пишем: это и так видно, а строка состояния узкая.
-  const tail =
-    lines !== null && lines > 1
-      ? ` в ${lines} ${plural(lines, 'строке', 'строках', 'строках')}`
-      : '';
-
-  return `${base} · выделено ${position.selected}${tail}`;
+  if (lines !== null && lines > 1) {
+    return tn('status.position.selected.lines', lines, { position: base, selected: position.selected });
+  }
+  return t('status.position.selected', { position: base, selected: position.selected });
 }

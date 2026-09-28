@@ -7,6 +7,8 @@
  * ради которого масштаб и трогают.
  */
 
+import { t } from '../l10n';
+
 /** `fit` — вписать в окно, но не растягивать сверх настоящего размера. */
 export type Scale = number | 'fit';
 
@@ -65,6 +67,8 @@ export function effectiveScale(scale: Scale, natural: Size, available: Size): nu
  * при каждом перетаскивании края — читать такую подпись невозможно, и это
  * ровно тот довод, по которому не измеряется ширина панели поиска (Р-164).
  */
-export function scaleLabel(scale: Scale, fit = 'по окну'): string {
-  return scale === 'fit' ? fit : `${Math.round(scale * 100)} %`;
+export function scaleLabel(scale: Scale, fitWidth = false): string {
+  if (scale !== 'fit') return t('zoom.percent', { percent: Math.round(scale * 100) });
+  // PDF вписывается по ширине, картинка — целиком в окно.
+  return fitWidth ? t('zoom.fit.width') : t('zoom.fit');
 }

@@ -11,6 +11,8 @@
  * диктует, настройка подсказывает.
  */
 
+import { t } from '../l10n';
+
 export type IndentStyle = 'tabs' | 'spaces';
 
 export interface Indent {
@@ -159,17 +161,19 @@ export function tabInsertion(indent: Indent, column: number): string {
 
 /** Подпись для строки состояния. */
 export function indentLabel(indent: Indent): string {
-  return indent.style === 'tabs' ? `Табы: ${indent.width}` : `Пробелы: ${indent.width}`;
+  return indent.style === 'tabs'
+    ? t('indent.tabs', { width: indent.width })
+    : t('indent.spaces', { width: indent.width });
 }
 
 /** Откуда взялся отступ — словами, для подсказки. */
 export function indentSource(indent: Indent): string {
   switch (indent.source) {
     case 'detected':
-      return 'Определён по содержимому файла';
+      return t('indent.source.detected');
     case 'manual':
-      return 'Выбран вручную для этой вкладки';
+      return t('indent.source.manual');
     case 'settings':
-      return 'Из настроек: в файле отступов не нашлось';
+      return t('indent.source.settings');
   }
 }

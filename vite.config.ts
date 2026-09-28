@@ -24,6 +24,8 @@ export default defineConfig({
   test: {
     include: ['tests/**/*.test.ts', 'src/**/*.test.ts'],
     environment: 'node',
+    // Таблица строк интерфейса — до импорта любого модуля теста (задача 152).
+    setupFiles: ['tests/setup-l10n.ts'],
     // Стиль документа приезжает в печать строкой (`?inline`), и тест
     // печати проверяет, что он там есть. Без этого vitest отдаёт вместо
     // любого CSS пустую строку. Таблица Temml — туда же: экспорт в HTML

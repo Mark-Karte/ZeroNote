@@ -21,6 +21,8 @@ export interface Settings {
     light_theme: string;
     dark_theme: string;
     density: 'normal' | 'compact';
+    /** Язык интерфейса (задача 152); действует после перезапуска. */
+    language: 'auto' | 'ru' | 'en';
   };
   font: {
     ui: FontChoice;

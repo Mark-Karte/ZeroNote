@@ -15,7 +15,7 @@
   import { LANGUAGES, languageForFile } from '../editor/langs';
   import { indexing, cancel as cancelIndexing } from '../state/index.svelte';
   import { wrapEnabled, toggleWrap, toggleLivePreview } from '../state/settings.svelte';
-  import { plural } from './plural';
+  import { formatNumber, t, tn } from '../l10n';
   import { positionOf, positionLabel } from './position';
   import { indentLabel, indentSource } from '../editor/indent';
   import { fileSize } from './size';
@@ -132,29 +132,32 @@
 
   const words = $derived(counted !== null && counted.tab === tab?.meta.id ? counted : null);
 
-  /** Число с разрядами, как пишут по-русски: `12 345`. */
-  function grouped(n: number): string {
-    return n.toLocaleString('ru-RU');
-  }
-
+  /**
+   * «12 из 1 234 слов»: форма слова — по общему числу, выделенное
+   * подставляется в неё с разрядами, как и общее.
+   */
   function wordLabel(value: WordCounts): string {
     const all = value.all.words;
     if (value.selected) {
-      return `${grouped(value.selected.words)} из ${grouped(all)} ${plural(all, 'слова', 'слов', 'слов')}`;
+      return tn('status.words.selected', all, { selected: formatNumber(value.selected.words) });
     }
-    return `${grouped(all)} ${plural(all, 'слово', 'слова', 'слов')}`;
+    return tn('status.words', all);
   }
 
   function wordTitle(value: WordCounts): string {
     const markdown = tab ? languageOf(tab)?.id === 'markdown' : false;
-    const tail = markdown ? ' Свойства в начале заметки не считаются.' : '';
-    if (value.selected) {
-      return (
-        `Выделено слов: ${grouped(value.selected.words)} из ${grouped(value.all.words)}, ` +
-        `знаков: ${grouped(value.selected.chars)} из ${grouped(value.all.chars)}.${tail}`
-      );
-    }
-    return `Слов: ${grouped(value.all.words)}, знаков: ${grouped(value.all.chars)}.${tail}`;
+    const text = value.selected
+      ? t('status.words.hint.selected', {
+          words: formatNumber(value.selected.words),
+          allWords: formatNumber(value.all.words),
+          chars: formatNumber(value.selected.chars),
+          allChars: formatNumber(value.all.chars),
+        })
+      : t('status.words.hint', {
+          words: formatNumber(value.all.words),
+          chars: formatNumber(value.all.chars),
+        });
+    return markdown ? `${text} ${t('status.words.properties')}` : text;
   }
 
   /**
@@ -172,11 +175,17 @@
     cr: 'CR',
   };
 
-  const EOL_FULL: Record<LineEnding, string> = {
-    'cr-lf': 'CRLF — Windows',
-    lf: 'LF — Unix',
-    cr: 'CR — классический Mac',
-  };
+  /** Полное имя переноса строк для меню; у CR имя системы — словами. */
+  function eolFull(eol: LineEnding): string {
+    switch (eol) {
+      case 'cr-lf':
+        return 'CRLF — Windows';
+      case 'lf':
+        return 'LF — Unix';
+      case 'cr':
+        return t('status.eol.cr');
+    }
+  }
 
   const ENCODINGS: { id: EncodingId; label: string; bom: boolean }[] = [
     { id: 'utf8', label: 'UTF-8', bom: true },
@@ -214,29 +223,27 @@
       ...ENCODINGS.map((e, index) => ({
         id: `reinterpret:${e.id}`,
         label: e.label,
-        section: index === 0 ? 'Интерпретировать как' : undefined,
+        section: index === 0 ? t('status.encoding.reinterpret') : undefined,
         checked: e.id === current,
         disabled: !hasFile,
         hint: hasFile
-          ? 'Перечитать те же байты этой кодировкой. Лечит крякозябры, файл не меняется.'
-          : 'Буфер не привязан к файлу: перечитывать нечего.',
+          ? t('status.encoding.reinterpret.hint')
+          : t('status.encoding.reinterpret.no-file'),
       })),
       ...ENCODINGS.map((e, index) => ({
         id: `convert:${e.id}`,
         label: e.label,
-        section: index === 0 ? 'Преобразовать в' : undefined,
+        section: index === 0 ? t('status.encoding.convert') : undefined,
         checked: e.id === current,
-        hint: 'Оставить текст, сменить кодировку записи. Файл изменится при сохранении.',
+        hint: t('status.encoding.convert.hint'),
       })),
       {
         id: 'bom',
-        label: 'Метка порядка байтов (BOM)',
-        section: 'Запись',
+        label: t('status.encoding.bom'),
+        section: t('status.encoding.saving'),
         checked: tab.meta.bom,
         disabled: !supportsBom,
-        hint: supportsBom
-          ? 'Добавить или убрать метку в начале файла.'
-          : 'У этой кодировки метки не бывает.',
+        hint: supportsBom ? t('status.encoding.bom.hint') : t('status.encoding.bom.none'),
       },
     ];
   });
@@ -245,7 +252,7 @@
     if (!tab) return [];
     return (['cr-lf', 'lf', 'cr'] as LineEnding[]).map((eol) => ({
       id: eol,
-      label: EOL_FULL[eol],
+      label: eolFull(eol),
       checked: eol === tab.meta.eol,
     }));
   });
@@ -287,15 +294,15 @@
     return [
       {
         id: 'style:spaces',
-        label: 'Пробелы',
-        section: 'Набирать отступ',
+        label: t('status.indent.spaces'),
+        section: t('status.indent.style'),
         checked: current.style === 'spaces',
       },
-      { id: 'style:tabs', label: 'Табы', checked: current.style === 'tabs' },
+      { id: 'style:tabs', label: t('status.indent.tabs'), checked: current.style === 'tabs' },
       ...WIDTHS.map((width, index) => ({
         id: `width:${width}`,
         label: String(width),
-        section: index === 0 ? 'Ширина' : undefined,
+        section: index === 0 ? t('status.indent.width') : undefined,
         checked: current.width === width,
       })),
     ];
@@ -332,16 +339,14 @@
     return [
       {
         id: 'fit',
-        label: doc ? 'По ширине окна' : 'Вписать в окно',
-        section: 'Масштаб',
+        label: doc ? t('status.scale.fit.pdf') : t('status.scale.fit.image'),
+        section: t('status.scale'),
         checked: viewed.scale === 'fit',
-        hint: doc
-          ? 'Растянуть страницу на всю ширину области показа.'
-          : 'Уменьшить до размеров окна. Маленькая картинка не растягивается.',
+        hint: doc ? t('status.scale.fit.pdf.hint') : t('status.scale.fit.image.hint'),
       },
       ...ZOOM_STEPS.map((step) => ({
         id: String(step),
-        label: `${Math.round(step * 100)} %`,
+        label: scaleLabel(step),
         checked: viewed.scale === step,
       })),
     ];
@@ -365,20 +370,22 @@
     return [
       {
         id: 'auto',
-        label: autoLanguage ? `По имени файла (${autoLanguage.label})` : 'По имени файла',
-        section: 'Подсветка',
+        label: autoLanguage
+          ? t('status.language.auto.named', { language: autoLanguage.label })
+          : t('status.language.auto'),
+        section: t('status.language.section'),
         checked: ed.language === null,
-        hint: 'Определять язык по расширению. Незнакомое — обычный текст.',
+        hint: t('status.language.auto.hint'),
       },
       {
         id: 'none',
-        label: 'Без подсветки',
+        label: t('status.language.none'),
         checked: ed.language === 'none',
       },
       ...LANGUAGES.map((lang, index) => ({
         id: lang.id,
         label: lang.label,
-        section: index === 0 ? 'Выбрать язык' : undefined,
+        section: index === 0 ? t('status.language.pick') : undefined,
         checked: ed.language === lang.id,
       })),
     ];
@@ -395,24 +402,24 @@
   {#if look}
     <span class="item" title={look.dataDir}>
       <Icon name={look.portable ? 'status.folder' : 'status.folder-alert'} />
-      {look.portable ? 'данные рядом с приложением' : 'данные в запасной папке'}
+      {look.portable ? t('status.data.portable') : t('status.data.fallback')}
     </span>
   {/if}
 
   {#if indexing.progress.running}
-    <span class="item" title="Идёт индексация проекта. Поиск уже работает, но находит не всё.">
+    <span class="item" title={t('status.index.hint')}>
       {#if indexing.progress.total > 0}
-        индексация: {indexing.progress.done} из {indexing.progress.total}
+        {t('status.index.progress', { done: indexing.progress.done, total: indexing.progress.total })}
       {:else}
-        индексация: обход папок
+        {t('status.index.walking')}
       {/if}
     </span>
     <button
       class="item action"
       type="button"
       onclick={cancelIndexing}
-      title="Остановить индексацию"
-      aria-label="Остановить индексацию"
+      title={t('status.index.stop')}
+      aria-label={t('status.index.stop')}
     >
       <Icon name="action.remove" />
     </button>
@@ -428,9 +435,9 @@
         class="item action"
         type="button"
         onclick={countNow}
-        title="Файл больше мегабайта: слова считаются по щелчку, чтобы не задерживать ввод"
+        title={t('status.words.count.hint')}
       >
-        посчитать слова
+        {t('status.words.count')}
       </button>
     {/if}
   {/if}
@@ -440,17 +447,22 @@
       class="item action"
       type="button"
       onclick={() => void goToLineDialog()}
-      title="Строка {position.line} из {lines}, столбец {position.column}. Нажмите, чтобы перейти к строке{goToLineKey
-        ? ` (${labelOf(goToLineKey)})`
-        : ''}."
+      title={goToLineKey
+        ? t('status.position.hint.key', {
+            line: position.line,
+            lines,
+            column: position.column,
+            key: labelOf(goToLineKey),
+          })
+        : t('status.position.hint', { line: position.line, lines, column: position.column })}
     >
       {positionLabel(position)}
     </button>
   {/if}
 
   {#if cursors > 1}
-    <span class="item accent" title="Escape — вернуться к одному курсору">
-      {cursors} {plural(cursors, 'курсор', 'курсора', 'курсоров')}
+    <span class="item accent" title={t('status.cursors.hint')}>
+      {tn('status.cursors', cursors)}
     </span>
   {/if}
 
@@ -460,19 +472,19 @@
   -->
   {#if tab && img}
     {#if img.width > 0}
-      <span class="item" title="Настоящий размер картинки в точках">
+      <span class="item" title={t('status.image.size.hint')}>
         {img.width} × {img.height}
       </span>
     {/if}
 
     {#if tab.meta.disk}
-      <span class="item" title="Вес файла на диске">{fileSize(tab.meta.disk.size)}</span>
+      <span class="item" title={t('status.file.size.hint')}>{fileSize(tab.meta.disk.size)}</span>
     {/if}
 
     <button
       class="item action"
       type="button"
-      title="Масштаб показа. Щелчок по картинке переключает «по окну» и настоящий размер, Ctrl с колесом меняет ступенями."
+      title={t('status.image.scale.hint')}
       onclick={(e) => toggle('scale', e)}
     >
       {scaleLabel(img.scale)}
@@ -487,23 +499,27 @@
     <button
       class="item action"
       type="button"
-      title="Перейти к странице{goToLineKey ? ` (${labelOf(goToLineKey)})` : ''}"
+      title={goToLineKey
+        ? t('status.pdf.go-to.key', { key: labelOf(goToLineKey) })
+        : t('status.pdf.go-to')}
       onclick={() => void goToPageDialog(doc)}
     >
-      {doc.pages > 0 ? `стр ${doc.page} из ${doc.pages}` : 'открываю…'}
+      {doc.pages > 0
+        ? t('status.pdf.page', { page: doc.page, pages: doc.pages })
+        : t('status.pdf.opening')}
     </button>
 
     {#if tab.meta.disk}
-      <span class="item" title="Вес файла на диске">{fileSize(tab.meta.disk.size)}</span>
+      <span class="item" title={t('status.file.size.hint')}>{fileSize(tab.meta.disk.size)}</span>
     {/if}
 
     <button
       class="item action"
       type="button"
-      title="Масштаб показа"
+      title={t('status.pdf.scale.hint')}
       onclick={(e) => toggle('scale', e)}
     >
-      {scaleLabel(doc.scale, 'по ширине')}
+      {scaleLabel(doc.scale, true)}
     </button>
   {/if}
 
@@ -523,13 +539,13 @@
       class="item action"
       type="button"
       title={wrapOf(tab) && !wrapEnabled()
-        ? 'Перенос включён читаемой шириной markdown. Нажатие меняет общую настройку для остальных файлов'
+        ? t('status.wrap.hint.readable')
         : wrapEnabled()
-          ? 'Длинные строки переносятся по ширине окна — нажмите, чтобы выключить'
-          : 'Длинные строки не переносятся — нажмите, чтобы включить'}
+          ? t('status.wrap.hint.on')
+          : t('status.wrap.hint.off')}
       onclick={() => void toggleWrap()}
     >
-      {wrapOf(tab) ? 'перенос' : 'без переноса'}
+      {wrapOf(tab) ? t('status.wrap.on') : t('status.wrap.off')}
     </button>
 
     <!--
@@ -542,35 +558,30 @@
       <button
         class="item action"
         type="button"
-        title={livePreviewOf(tab)
-          ? 'Знаки разметки не показываются; строка под курсором — всегда исходник. Нажмите, чтобы показать разметку'
-          : 'Показывается исходник со знаками разметки — нажмите, чтобы включить живое превью'}
+        title={livePreviewOf(tab) ? t('status.preview.hint.on') : t('status.preview.hint.off')}
         onclick={() => void toggleLivePreview()}
       >
-        {livePreviewOf(tab) ? 'превью' : 'исходник'}
+        {livePreviewOf(tab) ? t('status.preview.on') : t('status.preview.off')}
       </button>
     {/if}
 
     {#if tab.meta.readOnly}
-      <span class="item warn" title="Правка запрещена">
-        {tab.meta.large ? 'большой файл, только чтение' : 'только чтение'}
+      <span class="item warn" title={t('status.read-only.hint')}>
+        {tab.meta.large ? t('status.read-only.large') : t('status.read-only')}
       </span>
     {/if}
 
     {#if tab.meta.lossy}
-      <span
-        class="item warn"
-        title="При чтении встретились байты, недопустимые в этой кодировке. Сохранение изменит файл."
-      >
+      <span class="item warn" title={t('status.lossy.hint')}>
         <Icon name="status.warning" />
-        потери при чтении
+        {t('status.lossy')}
       </span>
     {/if}
 
     <button
       class="item action"
       type="button"
-      title="{indentSource(ed.indent)}. Смена меняет только то, чем набирается новый отступ; уже набранное в файле остаётся как есть."
+      title={t('status.indent.hint', { source: indentSource(ed.indent) })}
       onclick={(e) => toggle('indent', e)}
     >
       {indentLabel(ed.indent)}
@@ -580,23 +591,23 @@
       class="item action"
       type="button"
       title={ed.language === null
-        ? 'Язык подсветки определён по имени файла — нажмите, чтобы сменить'
-        : 'Язык подсветки выбран вручную — нажмите, чтобы сменить'}
+        ? t('status.language.hint.auto')
+        : t('status.language.hint.manual')}
       onclick={(e) => toggle('language', e)}
     >
-      {language ? language.label : 'обычный текст'}
+      {language ? language.label : t('status.language.plain')}
     </button>
 
     <button
       class="item action"
       class:warn={tab.meta.eolMixed}
       type="button"
-      title={tab.meta.eolMixed
-        ? 'В файле разные типы переносов. При сохранении будет предложено привести к одному.'
-        : 'Тип переноса строк — нажмите, чтобы сменить'}
+      title={tab.meta.eolMixed ? t('status.eol.hint.mixed') : t('status.eol.hint')}
       onclick={(e) => toggle('eol', e)}
     >
-      {EOL_LABEL[tab.meta.eol]}{tab.meta.eolMixed ? ' (смешанные)' : ''}
+      {tab.meta.eolMixed
+        ? t('status.eol.mixed', { eol: EOL_LABEL[tab.meta.eol] })
+        : EOL_LABEL[tab.meta.eol]}
     </button>
 
     <button
@@ -604,8 +615,8 @@
       class:uncertain={!tab.meta.encodingConfident}
       type="button"
       title={tab.meta.encodingConfident
-        ? 'Кодировка файла — нажмите, чтобы сменить'
-        : 'Кодировка определена эвристикой и может быть неверной. Нажмите, чтобы сменить.'}
+        ? t('status.encoding.hint')
+        : t('status.encoding.hint.uncertain')}
       onclick={(e) => toggle('encoding', e)}
     >
       {ENCODING_LABEL[tab.meta.encoding] ?? tab.meta.encoding}{tab.meta.bom ? ' + BOM' : ''}

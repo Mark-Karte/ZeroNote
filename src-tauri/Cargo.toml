@@ -99,6 +99,10 @@ windows-sys = { version = "0.61", features = [
     "Win32_System_Threading",
     "Win32_Security",
     "Win32_UI_WindowsAndMessaging",
+    # Язык интерфейса (задача 152, Р-314): список языков Windows —
+    # RegGetValueW, запасной путь — GetUserDefaultUILanguage.
+    "Win32_System_Registry",
+    "Win32_Globalization",
 ] }
 # «Экспорт в PDF» одной командой (задача 111, Р-271): печать WebView2 в файл
 # со своими колонтитулами. WebView2 говорит только через COM, привязки к нему

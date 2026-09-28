@@ -79,6 +79,10 @@ pub struct AppearanceSettings {
     pub light_theme: String,
     pub dark_theme: String,
     pub density: Density,
+    /// Язык интерфейса (задача 152): `auto` — русский, если русский есть
+    /// в списке языков Windows, иначе английский. Действует после
+    /// перезапуска — язык выбирается один раз при старте (`l10n`).
+    pub language: crate::l10n::LanguageSetting,
 }
 
 /// Поведение редактора. Не оформление: перенос строк меняет то, как текст
@@ -363,6 +367,7 @@ impl Default for AppearanceSettings {
             light_theme: "light".to_owned(),
             dark_theme: "dark".to_owned(),
             density: Density::Normal,
+            language: crate::l10n::LanguageSetting::Auto,
         }
     }
 }
@@ -678,6 +683,11 @@ dark_theme = "dark"
 
 # Плотность интерфейса: "normal" или "compact".
 density = "normal"
+
+# Язык интерфейса: "auto" — русский, если русский есть в списке языков
+# Windows, иначе английский; "ru" или "en" — всегда этот. В отличие
+# от остального, действует после перезапуска.
+# language = "auto"
 
 [font.ui]
 # Шрифт интерфейса. Если ключа нет — берётся из темы. Не нашёлся в системе —
@@ -1094,6 +1104,28 @@ mod tests {
             "{:?}",
             bad.problems
         );
+    }
+
+    /// Язык интерфейса (задача 152): годное значение применяется, негодное —
+    /// называется, и язык выбирается сам (`auto`). Соседи применяются.
+    #[test]
+    fn language_is_read_tolerantly() {
+        use crate::l10n::LanguageSetting;
+
+        let good = read("schema = 1\n[appearance]\nlanguage = \"en\"\n");
+        assert_eq!(good.settings.appearance.language, LanguageSetting::En);
+        assert!(good.problems.is_empty(), "{:?}", good.problems);
+
+        let bad = read("schema = 1\n[appearance]\nlanguage = \"de\"\ndensity = \"compact\"\n");
+        assert_eq!(bad.settings.appearance.language, LanguageSetting::Auto);
+        assert_eq!(bad.settings.appearance.density, Density::Compact);
+        assert!(named(&bad.problems, &["language", "de", "auto"]), "{:?}", bad.problems);
+
+        // В образце ключ закомментирован: 0.20.0 прочитает свежий образец
+        // без жалобы, а явно заданный назовёт строкой (раздел «Откат»).
+        let sample = read(DEFAULT_TEMPLATE);
+        assert_eq!(sample.settings.appearance.language, LanguageSetting::Auto);
+        assert!(DEFAULT_TEMPLATE.contains("# language = \"auto\""));
     }
 
     /// Значение не того рода — строка вместо числа — то же самое.

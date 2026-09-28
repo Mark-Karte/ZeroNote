@@ -12,6 +12,7 @@ import {
 } from './ipc/bench';
 import { benchReport } from './bench/report-state.svelte';
 import { startAppearance } from './theme/store.svelte';
+import { startLanguage } from './l10n/start';
 
 // Шрифты объявляются первыми: к моменту первой отрисовки браузер уже знает,
 // откуда их брать, и кадра системным шрифтом не бывает.
@@ -35,8 +36,10 @@ async function main(): Promise<void> {
   const config = await benchConfig();
 
   // Оформление применяется до монтирования: так интерфейс сразу рисуется
-  // в нужной теме и не мигает светлой заготовкой из tokens.css.
-  await startAppearance();
+  // в нужной теме и не мигает светлой заготовкой из tokens.css. Язык —
+  // тоже до монтирования и одновременно с оформлением: строки интерфейса
+  // собираются при первой отрисовке, и таблица к ней должна быть на месте.
+  await Promise.all([startAppearance(), startLanguage()]);
 
   mount(App, { target: document.getElementById('app')! });
 

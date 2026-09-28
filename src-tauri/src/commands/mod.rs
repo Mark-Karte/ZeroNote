@@ -13,6 +13,7 @@ pub mod export;
 pub mod files;
 pub mod index;
 pub mod keymap;
+pub mod l10n;
 pub mod layout;
 pub mod notes;
 pub mod roots;

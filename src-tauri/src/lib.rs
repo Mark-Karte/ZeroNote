@@ -11,6 +11,7 @@ pub mod commands;
 pub mod fsx;
 pub mod index;
 pub mod keymap;
+pub mod l10n;
 pub mod markdown;
 pub mod model;
 pub mod pdf;
@@ -125,6 +126,11 @@ pub fn run() {
         }
     };
 
+    // Язык — после замка, но до окна и до всего, что пишет человеку
+    // (задача 152): жалобы на конфиги и ошибки ядро пишет само. Один раз
+    // на процесс — смена языка перезапуском.
+    l10n::init(l10n::decide(&watched_dir));
+
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         // Обновление из GitHub. Подключение плагина само по себе в сеть
@@ -174,6 +180,7 @@ pub fn run() {
             commands::about::webview_version,
             commands::about::third_party_notices,
             commands::appearance::appearance_state,
+            commands::l10n::language,
             commands::appearance::print_appearance,
             commands::export::write_html_export,
             commands::export::export_pdf,

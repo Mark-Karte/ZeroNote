@@ -230,8 +230,8 @@ shows the other.
   `keymap.toml`, themes. The settings window is a layer on top of them,
   not the other way round: it edits the file, keeping comments and key
   order.
-- Keyboard shortcuts are reassigned on the “Keys” («Клавиши») tab of the
-  settings window or right in the file. The keymap grew out of
+- Keyboard shortcuts are reassigned on the “Hotkeys” («Клавиши») tab
+  of the settings window or right in the file. The keymap grew out of
   Notepad++; new shortcuts come from VS Code.
 - The theme is chosen on the “Appearance” («Оформление») tab of the
   settings window — as a card with a sample in the real colours. There,
