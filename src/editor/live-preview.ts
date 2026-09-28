@@ -121,8 +121,15 @@ class CalloutIcon extends WidgetType {
   }
 }
 
-/** Задевает ли строку курсор или выделение. */
-export function touched(state: EditorState, line: Line): boolean {
+/**
+ * Задевает ли строку курсор или выделение.
+ *
+ * Годится и для ряда строк целиком — от начала первой до конца последней:
+ * задеть ряд значит задеть хоть одну его строку. Блок бывает длиной в файл,
+ * и спрашивать о каждой его строке — значит обходить файл на каждое
+ * нажатие (Р8 ревизии).
+ */
+export function touched(state: EditorState, line: { from: number; to: number }): boolean {
   // Перебором по выделениям, а не набором номеров строк: `Ctrl+A` в файле
   // на десять мегабайт дал бы набор в миллион чисел на каждое нажатие.
   // Выделений обычно одно, курсоров — единицы.
@@ -409,11 +416,9 @@ export function decorateLivePreview(
         // (`code-blocks.ts`). Единица раскрытия — блок (Р-184): курсор
         // на любой его строке возвращает оба ограждения, как у Obsidian.
         if (node.name === 'FencedCode') {
-          const first = doc.lineAt(node.from).number;
-          const last = doc.lineAt(Math.max(node.from, node.to - 1)).number;
-          for (let number = first; number <= last; number += 1) {
-            if (touched(state, doc.line(number))) return;
-          }
+          const first = doc.lineAt(node.from);
+          const last = doc.lineAt(Math.max(node.from, node.to - 1));
+          if (touched(state, { from: first.from, to: last.to })) return;
           for (const child of [...node.node.getChildren('CodeMark'), ...node.node.getChildren('CodeInfo')]) {
             // Сведения о языке тянутся до конца строки ограждения — вместе
             // с тем, что за языком написано.

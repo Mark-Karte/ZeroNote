@@ -1,5 +1,6 @@
 import { syntaxTree, LanguageDescription } from '@codemirror/language';
 import { RangeSetBuilder, type EditorState } from '@codemirror/state';
+import type { SyntaxNode } from '@lezer/common';
 import {
   Decoration,
   EditorView,
@@ -67,21 +68,20 @@ class HeaderWidget extends WidgetType {
     readonly label: string | null,
     /** Что написано в ограждении первым словом; пусто — ничего. */
     readonly named: string,
-    /** Что кладём в буфер обмена по нажатию. */
-    readonly body: string,
   ) {
     super();
   }
 
+  /**
+   * Текста блока в виджете нет — он читается в момент щелчка
+   * (`blockTextAt`), поэтому и сравнивать его не нужно: кнопка всегда
+   * копирует то, что в блоке сейчас.
+   */
   override eq(other: HeaderWidget): boolean {
-    // Тело сравнивается тоже: иначе кнопка осталась бы с текстом,
-    // который был в блоке до правки.
-    return (
-      this.label === other.label && this.named === other.named && this.body === other.body
-    );
+    return this.label === other.label && this.named === other.named;
   }
 
-  toDOM(): HTMLElement {
+  toDOM(view: EditorView): HTMLElement {
     const host = document.createElement('span');
     host.className = 'zn-code-head';
     // Виджет лежит внутри редактируемой области, и без этого браузер считал бы
@@ -109,16 +109,25 @@ class HeaderWidget extends WidgetType {
     copy.innerHTML = icon('action.copy');
     copy.addEventListener('click', (event) => {
       event.preventDefault();
-      void this.copyTo(copy);
+      void this.copyTo(view, host, copy);
     });
     host.append(copy);
 
     return host;
   }
 
-  private async copyTo(button: HTMLButtonElement): Promise<void> {
+  private async copyTo(view: EditorView, host: HTMLElement, button: HTMLButtonElement): Promise<void> {
+    // Где стоит подпись — у представления: между сборкой и щелчком правки
+    // могли сдвинуть блок, а виджет при этом остаться прежним.
+    const body = blockTextAt(view.state, view.posAtDOM(host));
+    if (body === null) {
+      button.classList.add('zn-code-copy-failed');
+      button.title = 'Не удалось найти блок под подписью';
+      return;
+    }
+
     try {
-      await navigator.clipboard.writeText(this.body);
+      await navigator.clipboard.writeText(body);
     } catch {
       // Молчать нельзя: человек нажал и ждёт, что текст в буфере.
       button.classList.add('zn-code-copy-failed');
@@ -146,13 +155,6 @@ class HeaderWidget extends WidgetType {
 }
 
 /**
- * Разметить блоки кода в заданных отрезках документа.
- *
- * Принимает состояние и отрезки, а не представление, чтобы проверяться тестом
- * без окна: сборка украшений — чистая работа над состоянием, а `toDOM` виджета
- * зовётся уже при отрисовке.
- */
-/**
  * Текст блока для буфера обмена: строки с `from` по `to` без того, что стоит
  * перед ограждением, — `> ` цитаты или отступа пункта. Строка, у которой
  * такого начала нет (пустая `>` в коллауте), теряет то, что от него есть.
@@ -169,6 +171,53 @@ export function blockBody(state: EditorState, from: number, to: number, prefix: 
   return out.join('\n');
 }
 
+/**
+ * Текст блока кода, на строке открывающего ограждения которого стоит `pos`, —
+ * то, что кнопка копирования кладёт в буфер обмена. `null` — блока там нет.
+ *
+ * Читается в момент щелчка, а не при сборке подписи (Р8 ревизии, задача
+ * 145): подпись пересобирается на каждое нажатие, а блок бывает длиной
+ * в файл — склеивать его ради кнопки, которую нажмут раз в день, значит
+ * обходить файл на каждое нажатие (инвариант 6).
+ */
+export function blockTextAt(state: EditorState, pos: number): string | null {
+  const { doc } = state;
+  let node: SyntaxNode | null = syntaxTree(state).resolveInner(pos, -1);
+  while (node !== null && node.name !== 'FencedCode') node = node.parent;
+  if (node === null) return null;
+
+  const opening = doc.lineAt(node.from);
+  const closing = doc.lineAt(Math.max(node.from, node.to - 1));
+
+  // Закрывающее ограждение может отсутствовать: блок пишут сверху вниз,
+  // и половину времени он не дописан. Узнаётся по разбору, а не по
+  // виду строки: у блока в цитате или коллауте строка начинается
+  // с `> `, и проверка «строка начинается с кавычек» его не видела —
+  // закрывающее ограждение уезжало в копируемый текст (найдено
+  // сравнением, задача 125).
+  const marks = node.getChildren('CodeMark');
+  const fenced =
+    closing.number > opening.number &&
+    marks.length > 1 &&
+    doc.lineAt(marks[marks.length - 1]!.from).number === closing.number;
+  const bodyFrom = opening.number + 1;
+  const bodyTo = fenced ? closing.number - 1 : closing.number;
+  if (bodyTo < bodyFrom) return '';
+
+  // Всё, что стоит перед ограждением, — угловые скобки цитаты или
+  // отступ пункта — повторяется у каждой строки блока и в буфер
+  // обмена не идёт.
+  const prefix = marks[0] ? doc.sliceString(opening.from, marks[0].from) : '';
+  return blockBody(state, bodyFrom, bodyTo, prefix);
+}
+
+/**
+ * Разметить блоки кода в заданных отрезках документа.
+ *
+ * Принимает состояние и отрезки, а не представление, чтобы проверяться тестом
+ * без окна: сборка украшений — чистая работа над состоянием, а `toDOM` виджета
+ * зовётся уже при отрисовке.
+ */
 export function decorateBlocks(
   state: EditorState,
   ranges: readonly { from: number; to: number }[],
@@ -192,32 +241,13 @@ export function decorateBlocks(
         // и заведён.
         const closing = doc.lineAt(Math.max(node.from, node.to - 1));
 
-        // Закрывающее ограждение может отсутствовать: блок пишут сверху вниз,
-        // и половину времени он не дописан. Узнаётся по разбору, а не по
-        // виду строки: у блока в цитате или коллауте строка начинается
-        // с `> `, и проверка «строка начинается с кавычек» его не видела —
-        // закрывающее ограждение уезжало в копируемый текст, а блок без
-        // языка подписывался «нет подсветки» (найдено сравнением, задача 125).
-        const marks = node.node.getChildren('CodeMark');
-        const fenced =
-          closing.number > opening.number &&
-          marks.length > 1 &&
-          doc.lineAt(marks[marks.length - 1]!.from).number === closing.number;
-        const bodyFrom = opening.number + 1;
-        const bodyTo = fenced ? closing.number - 1 : closing.number;
-
         // Подпись и кнопка — на строке открывающего ограждения. Если она
         // уехала за верхний край, показывать нечего: виджет живёт в строке,
-        // а не в углу блока.
+        // а не в углу блока. Текст для кнопки здесь не собирается — его
+        // читает щелчок (`blockTextAt`).
         if (opening.from >= range.from && opening.from <= range.to) {
           const infoNode = node.node.getChild('CodeInfo');
           const info = infoNode ? doc.sliceString(infoNode.from, infoNode.to) : '';
-          // Всё, что стоит перед ограждением, — угловые скобки цитаты или
-          // отступ пункта — повторяется у каждой строки блока и в буфер
-          // обмена не идёт.
-          const prefix = marks[0] ? doc.sliceString(opening.from, marks[0].from) : '';
-          const body =
-            bodyTo >= bodyFrom ? blockBody(state, bodyFrom, bodyTo, prefix) : '';
 
           builder.add(
             opening.from,
@@ -228,11 +258,7 @@ export function decorateBlocks(
             opening.to,
             opening.to,
             Decoration.widget({
-              widget: new HeaderWidget(
-                languageLabel(info),
-                info.trim().split(/\s+/)[0] ?? '',
-                body,
-              ),
+              widget: new HeaderWidget(languageLabel(info), info.trim().split(/\s+/)[0] ?? ''),
               side: 1,
             }),
           );

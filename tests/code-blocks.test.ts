@@ -1,9 +1,9 @@
-import { describe, expect, it } from 'vitest';
-import { EditorState } from '@codemirror/state';
+import { describe, expect, it, vi } from 'vitest';
+import { EditorState, Text } from '@codemirror/state';
 import { ensureSyntaxTree } from '@codemirror/language';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 
-import { blockBody, decorateBlocks, languageLabel } from '../src/editor/code-blocks';
+import { blockBody, blockTextAt, decorateBlocks, languageLabel } from '../src/editor/code-blocks';
 import { languages } from '../src/editor/markdown-code';
 
 /**
@@ -116,7 +116,7 @@ describe('подпись и кнопка', () => {
     const doc = ['> [!note] Т', '> ```', '> ls -la', '>', '> echo', '> ```', ''].join('\n');
     const editor = state(doc);
     const set = decorateBlocks(editor, [{ from: 0, to: editor.doc.length }]);
-    let head: { label: string | null; named: string; body: string } | undefined;
+    let head: { label: string | null; named: string } | undefined;
     const cursor = set.iter();
     while (cursor.value !== null) {
       const widget = (cursor.value.spec as { widget?: typeof head }).widget;
@@ -125,11 +125,37 @@ describe('подпись и кнопка', () => {
     }
     expect(head?.label).toBe(null);
     expect(head?.named).toBe('');
-    expect(head?.body).toBe('ls -la\n\necho');
+    // Подпись стоит в конце строки ограждения — оттуда щелчок и читает.
+    expect(blockTextAt(editor, editor.doc.line(2).to)).toBe('ls -la\n\necho');
   });
 });
 
 describe('текст для буфера', () => {
+  /** Щелчок читает блок по месту подписи (Р8 ревизии, задача 145). */
+  it('по месту подписи — тело блока без ограждений', () => {
+    const editor = state(DOC);
+    expect(blockTextAt(editor, editor.doc.line(2).to)).toBe('fn main() {}');
+  });
+
+  it('недописанный блок — до конца документа', () => {
+    const editor = state(['```sh', 'ls', 'pwd'].join('\n'));
+    expect(blockTextAt(editor, editor.doc.line(1).to)).toBe('ls\npwd');
+  });
+
+  it('пустой блок — пусто, вне блока — ничего', () => {
+    const editor = state(['Текст', '```', '```', ''].join('\n'));
+    expect(blockTextAt(editor, editor.doc.line(2).to)).toBe('');
+    expect(blockTextAt(editor, editor.doc.line(1).to)).toBe(null);
+  });
+
+  /** Виджет после правки остаётся прежним, а щелчок видит новый текст. */
+  it('после правки — новый текст', () => {
+    const before = state(['```sh', 'ls', '```', ''].join('\n'));
+    const after = before.update({ changes: { from: before.doc.line(2).to, insert: ' -la' } }).state;
+    ensureSyntaxTree(after, after.doc.length, 5000);
+    expect(blockTextAt(after, after.doc.line(1).to)).toBe('ls -la');
+  });
+
   it('без отступа пункта, пустые строки — пустыми', () => {
     const doc = ['- пункт', '  ```sh', '  ls', '', '  pwd', '  ```', ''].join('\n');
     expect(blockBody(state(doc), 3, 5, '  ')).toBe('ls\n\npwd');
@@ -154,5 +180,26 @@ describe('имя языка', () => {
 
   it('незнакомый язык — не подпись, а признак отсутствия подсветки', () => {
     expect(languageLabel('брейнфак')).toBe(null);
+  });
+});
+
+/**
+ * Р8 ревизии (задача 145): подпись блока, пока видна его первая строка,
+ * на каждую правку склеивала весь текст блока строкой — для кнопки
+ * копирования, — а виджет сравнивал эти строки целиком. На блоке в сто
+ * тысяч строк — 15 мс на нажатие. Текст теперь читается в момент щелчка.
+ */
+describe('длинный блок кода (Р8)', () => {
+  it('подпись не читает строк за экраном', () => {
+    const body = Array.from({ length: 20000 }, (_, i) => `let x${i} = ${i};`).join('\n');
+    const editor = state(`Абзац.\n\n\`\`\`rust\n${body}\n\`\`\`\n`);
+    const visible = [{ from: 0, to: editor.doc.line(40).to }];
+    const read = vi.spyOn(Text.prototype, 'line');
+    try {
+      decorateBlocks(editor, visible);
+      expect(read.mock.calls.length).toBeLessThan(200);
+    } finally {
+      read.mockRestore();
+    }
   });
 });

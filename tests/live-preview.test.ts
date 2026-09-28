@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { EditorSelection, EditorState } from '@codemirror/state';
+import { describe, expect, it, vi } from 'vitest';
+import { EditorSelection, EditorState, Text } from '@codemirror/state';
 import { ensureSyntaxTree } from '@codemirror/language';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 
@@ -496,5 +496,45 @@ describe('строчный HTML (задача 107)', () => {
       ['zn-html-u', 'а'],
       ['zn-html-u', '**б**'],
     ]);
+  });
+});
+
+/**
+ * Р8 ревизии (задача 145): блок кода длиной в файл — вставленный лог или
+ * дамп. Превью пересобирается на каждое нажатие и каждое движение курсора,
+ * и работа обязана расти с видимой частью, а не с длиной блока
+ * (инвариант 6). До исправления превью спрашивало о курсоре каждую строку
+ * блока: на ста тысячах строк — 12 мс на нажатие.
+ *
+ * Мерится не временем, а числом обращений к строкам документа: время
+ * на машине непрерывной сборки пляшет, а число — нет.
+ */
+describe('длинный блок кода (Р8)', () => {
+  const body = Array.from({ length: 20000 }, (_, i) => `let x${i} = ${i};`).join('\n');
+  const doc = `Абзац.\n\n\`\`\`rust\n${body}\n\`\`\`\n\nПосле.\n`;
+
+  function linesRead(cursor: number): number {
+    const editor = state(doc, cursor);
+    const visible = [{ from: 0, to: editor.doc.line(40).to }];
+    const read = vi.spyOn(Text.prototype, 'line');
+    try {
+      decorateLivePreview(editor, visible);
+      return read.mock.calls.length;
+    } finally {
+      read.mockRestore();
+    }
+  }
+
+  it('курсор вне блока — строки за экраном не читаются', () => {
+    expect(linesRead(0)).toBeLessThan(200);
+  });
+
+  it('курсор в конце блока — тоже', () => {
+    expect(linesRead(doc.indexOf('let x19999'))).toBeLessThan(200);
+  });
+
+  it('курсор в конце блока раскрывает ограждения, вне блока — прячет', () => {
+    expect(hiddenParts(doc, 0)).toEqual(['```', 'rust', '```']);
+    expect(hiddenParts(doc, doc.indexOf('let x19999'))).toEqual([]);
   });
 });

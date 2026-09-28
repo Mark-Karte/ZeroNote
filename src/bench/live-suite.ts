@@ -405,6 +405,39 @@ async function measureMarkdown(): Promise<{ plain: Samples; searched: Samples }>
 /** Сколько раз повторить образец markdown: около мегабайта, как у кода. */
 const MARKDOWN_REPEAT = 4000;
 
+/** Строк в длинном блоке кода: вставленный лог или дамп. */
+const BIG_BLOCK_LINES = 100_000;
+
+/**
+ * Ввод рядом с длинным блоком кода (Р8 ревизии, задача 145).
+ *
+ * Заметка, где под абзацем — блок ` ```rust ` на сто тысяч строк, около
+ * двух мегабайт; ограда блока на экране, печать — в абзац над ним. До
+ * задачи 145 превью на каждое нажатие спрашивало о курсоре каждую строку
+ * блока, а подпись склеивала весь блок для кнопки копирования: работа
+ * росла с длиной блока, а не с видимой частью (инвариант 6).
+ */
+async function measureBigBlock(): Promise<Samples> {
+  const body = Array.from({ length: BIG_BLOCK_LINES }, (_, i) => `let x${i} = ${i};`).join('\n');
+  const doc = `Абзац над блоком.\n\n\`\`\`rust\n${body}\n\`\`\`\n`;
+  let id: number | null = null;
+  try {
+    const real = await openRealTab(
+      doc,
+      (born) => {
+        id = born;
+      },
+      'markdown',
+    );
+    // Конец первой строки: ограда двумя строками ниже, на экране.
+    real.view.dispatch({ selection: { anchor: doc.indexOf('\n') } });
+    await nextFrame();
+    return await typeInto(real.view);
+  } finally {
+    if (id !== null) await close(id);
+  }
+}
+
 export async function runLiveSuite(): Promise<Result> {
   const language = languageById('cpp');
   if (!language) throw new Error('в реестре нет языка cpp');
@@ -426,6 +459,7 @@ export async function runLiveSuite(): Promise<Result> {
     const markdown = await measureMarkdown();
     rows.push(row('markdown с превью, через вкладку', markdown.plain));
     rows.push(row('markdown с превью и запросом поиска', markdown.searched));
+    rows.push(row('markdown, над блоком кода в 100 000 строк', await measureBigBlock()));
 
     const real = await openRealTab(doc, (id) => {
       tabId = id;
@@ -512,7 +546,9 @@ export function formatMarkdown(result: Result): string {
   lines.push('тот же ввод мимо приложения; разница с ней и есть цена обвязки.');
   lines.push('Строки markdown — около мегабайта заметок с таблицей и коллаутом:');
   lines.push('превью, подсветка строки курсора, панель над текстом; во второй —');
-  lines.push('ещё и запрос поиска по файлу, найденный в каждом абзаце.');
+  lines.push('ещё и запрос поиска по файлу, найденный в каждом абзаце. Третья —');
+  lines.push('ввод в абзац над блоком кода в сто тысяч строк, ограда на экране:');
+  lines.push('работа превью обязана расти с видимой частью, а не с длиной блока.');
   lines.push('Меньше времени кадра «до кадра» быть не может — свойство экрана.');
   return lines.join('\n');
 }
