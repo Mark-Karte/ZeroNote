@@ -8,6 +8,7 @@ import {
   unfoldEffect,
 } from '@codemirror/language';
 import { icon } from '../icons/registry';
+import { t } from '../l10n';
 
 /**
  * Свёртка блоков.
@@ -27,21 +28,24 @@ import { icon } from '../icons/registry';
  */
 
 /**
- * Названия на русском.
+ * Названия на языке окна.
  *
  * CodeMirror пропускает свои подписи через `state.phrase`, и без словаря
  * пользователь увидел бы «unfold» во всплывающей подсказке посреди русского
- * интерфейса. Ключи — английские строки из исходников библиотеки.
+ * интерфейса. Ключи — английские строки из исходников библиотеки. Функцией:
+ * таблица языка ставится после загрузки модуля.
  */
-const PHRASES = EditorState.phrases.of({
-  'Fold line': 'Свернуть блок',
-  'Unfold line': 'Развернуть блок',
-  unfold: 'Развернуть',
-  'folded code': 'свёрнутый блок',
-  'Folded lines': 'Свёрнуты строки',
-  'Unfolded lines': 'Развёрнуты строки',
-  to: 'по',
-});
+function phrases(): Extension {
+  return EditorState.phrases.of({
+    'Fold line': t('fold.line'),
+    'Unfold line': t('fold.unfold-line'),
+    unfold: t('fold.unfold'),
+    'folded code': t('fold.folded-code'),
+    'Folded lines': t('fold.folded'),
+    'Unfolded lines': t('fold.unfolded'),
+    to: t('fold.to'),
+  });
+}
 
 /**
  * Значок в поле свёртки.
@@ -172,7 +176,7 @@ const hoverTracker = ViewPlugin.fromClass(
 export function folding(): Extension {
   // `foldGutter` тянет за собой и саму свёртку (`codeFolding`), поэтому
   // отдельно её включать не надо.
-  return [foldGutter({ markerDOM }), PHRASES, hoveredLine, hoverLineClass, hoverTracker];
+  return [foldGutter({ markerDOM }), phrases(), hoveredLine, hoverLineClass, hoverTracker];
 }
 
 /** Диапазон, который свернётся, если сворачивать на строке курсора. */

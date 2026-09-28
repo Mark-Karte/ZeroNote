@@ -2,7 +2,7 @@
   import Icon from '../Icon.svelte';
   import { tags, refresh, showFiles } from '../../state/tags.svelte';
   import { indexing } from '../../state/index.svelte';
-  import { plural } from '../plural';
+  import { t, tn } from '../../l10n';
 
   /**
    * Панель тегов: какие теги есть в проекте и чем сколько помечено.
@@ -23,7 +23,7 @@
 
 <div class="panel">
   <header class="head">
-    <span class="title">Теги</span>
+    <span class="title">{t('sidebar.tags')}</span>
   </header>
 
   <input
@@ -31,8 +31,8 @@
     type="text"
     bind:value={tags.filter}
     oninput={() => void refresh()}
-    placeholder="Сузить список"
-    aria-label="Сузить список тегов"
+    placeholder={t('sidebar.tags.filter')}
+    aria-label={t('sidebar.tags.filter.label')}
     spellcheck="false"
   />
 
@@ -40,7 +40,7 @@
     <p class="note">…</p>
   {:else if tags.items.length === 0}
     <p class="note">
-      {tags.filter === '' ? 'В проекте нет тегов' : 'Нет такого тега'}
+      {tags.filter === '' ? t('tags.none') : t('tags.no-match')}
     </p>
   {:else}
     <ul class="list">
@@ -50,7 +50,7 @@
             class="row"
             type="button"
             onclick={() => void showFiles(item.tag)}
-            title={`Показать заметки с тегом #${item.tag}`}
+            title={t('sidebar.tags.show', { tag: item.tag })}
           >
             <span class="glyph"><Icon name="palette.tag" /></span>
             <span class="name">{item.tag}</span>
@@ -58,7 +58,7 @@
                  в заметке дважды, считается один раз — так же, как в ядре. -->
             <span
               class="count"
-              title={`${item.count} ${plural(item.count, 'заметка', 'заметки', 'заметок')}`}
+              title={tn('sidebar.tags.notes', item.count)}
             >
               {item.count}
             </span>

@@ -50,7 +50,8 @@ async function legacy(name: string): Promise<LanguageSupport> {
       case 'lua':
         return (await import('@codemirror/legacy-modes/mode/lua')).lua;
       default:
-        throw new Error(`неизвестный язык из legacy-modes: ${name}`);
+        // Ошибка разработчика: список языков сверяет тест.
+        throw new Error(`unknown legacy-modes language: ${name}`);
     }
   };
 

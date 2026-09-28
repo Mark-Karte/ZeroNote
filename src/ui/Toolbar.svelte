@@ -13,6 +13,7 @@
   import { calloutById } from '../state/callouts.svelte';
   import { cssColorOf, iconOf } from '../editor/callouts';
   import { insertCalloutOf } from '../actions/callouts';
+  import { t } from '../l10n';
 
   /**
    * Панель инструментов (задача 102).
@@ -79,7 +80,7 @@
 </script>
 
 <div class="bar panel">
-  <div class="keys {size}" class:column role="toolbar" aria-label="Панель инструментов">
+  <div class="keys {size}" class:column role="toolbar" aria-label={t('toolbar.bar')}>
     {#each entries as entry, index (index)}
       {#if entry.kind === 'command'}
         {@const label = textLabelOf(entry.id)}
@@ -108,8 +109,8 @@
           <button
             class="key"
             type="button"
-            title={`Коллаут: ${callout.title || callout.id}`}
-            aria-label={`Коллаут: ${callout.title || callout.id}`}
+            title={t('toolbar.callout.button', { name: callout.title || callout.id })}
+            aria-label={t('toolbar.callout.button', { name: callout.title || callout.id })}
             style:color={cssColorOf(callout.color)}
             onmousedown={keepFocus}
             onclick={() => insertCalloutOf(callout.id)}

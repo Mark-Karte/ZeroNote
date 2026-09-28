@@ -1,4 +1,5 @@
 import { version } from './version';
+import { t } from './l10n';
 
 /**
  * Сведения о программе.
@@ -32,7 +33,7 @@ export function nameAndVersion(): string {
 export function aboutLines(shell: string | null): string[] {
   return [
     nameAndVersion(),
-    shell === null ? 'WebView2: версия неизвестна' : `WebView2 ${shell}`,
+    shell === null ? t('about.webview.unknown') : `WebView2 ${shell}`,
   ];
 }
 

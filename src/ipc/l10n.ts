@@ -10,6 +10,8 @@ export interface WindowLanguage {
   code: string;
   builtin: string | null;
   table: Table | null;
+  /** Первый день недели по региону Windows: 0 — понедельник, 6 — воскресенье. */
+  weekStart: number;
 }
 
 export function windowLanguage(): Promise<WindowLanguage> {

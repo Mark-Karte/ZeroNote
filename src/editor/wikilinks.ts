@@ -6,6 +6,7 @@ import type { SyntaxNode, Tree } from '@lezer/common';
 import { resolveLinks } from '../ipc/index';
 import { localTarget } from './images';
 import { splitSubpath } from './subpath';
+import { t } from '../l10n';
 
 /**
  * Ссылки и теги в тексте: подсветка и переход.
@@ -62,12 +63,15 @@ export interface Target {
 const TAG = /(^|[^\p{L}\p{N}_/#-])#([\p{L}_][\p{L}\p{N}_/-]*)/gu;
 
 const linkMark = Decoration.mark({ class: 'zn-wikilink' });
-const danglingMark = Decoration.mark({
-  class: 'zn-wikilink zn-wikilink-dangling',
-  attributes: {
-    title: 'Заметки с таким именем нет. Ctrl+щелчок создаст её рядом с этой.',
-  },
-});
+/** Отметка висячей ссылки — при первой нужде: подсказка на языке окна. */
+let dangling: Decoration | null = null;
+function danglingMark(): Decoration {
+  dangling ??= Decoration.mark({
+    class: 'zn-wikilink zn-wikilink-dangling',
+    attributes: { title: t('link.dangling') },
+  });
+  return dangling;
+}
 const tagMark = Decoration.mark({ class: 'zn-tag' });
 
 /**
@@ -249,7 +253,7 @@ function decorate(view: EditorView, source: string | null, unknown: Set<string>)
       if (source !== null && target !== '') {
         const known = resolved.get(cacheKey(source, target));
         if (known === false) {
-          mark = danglingMark;
+          mark = danglingMark();
         } else if (known === undefined) {
           // Ответа ещё нет. До него ссылка выглядит обычной: помечать
           // висячей то, чего мы не проверяли, значит врать.

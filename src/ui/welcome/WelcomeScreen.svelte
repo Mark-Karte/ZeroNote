@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from '../Icon.svelte';
+  import { t } from '../../l10n';
   import { iconForFile, kindOf } from '../../icons/files';
   import { ago } from './ago';
   import { recentFiles, type RecentEntry } from '../../ipc/recent';
@@ -17,10 +18,10 @@
    */
 
   const START: { id: string; fallback: string }[] = [
-    { id: 'file.new', fallback: 'Создать файл' },
-    { id: 'file.open', fallback: 'Открыть файл' },
-    { id: 'project.add-root', fallback: 'Открыть папку' },
-    { id: 'project.quick-open', fallback: 'Быстрое открытие' },
+    { id: 'file.new', fallback: t('welcome.new-file') },
+    { id: 'file.open', fallback: t('welcome.open-file') },
+    { id: 'project.add-root', fallback: t('sidebar.files.open') },
+    { id: 'project.quick-open', fallback: t('welcome.quick-open') },
   ];
 
   const commands = $derived.by(() => {
@@ -62,7 +63,7 @@
       <span class="mark"><Icon name="app.mark" /></span>
       <h1 class="name">ZeroNote</h1>
       <p class="tagline">
-        Быстрый редактор файлов и связанных заметок в одном окне.
+        {t('welcome.tagline')}
       </p>
 
       <ul class="keys">
@@ -78,14 +79,14 @@
         {/each}
       </ul>
 
-      <p class="drop">Либо перетащите файл или папку в окно.</p>
+      <p class="drop">{t('welcome.drop')}</p>
     </section>
 
     <section class="recent">
-      <h2 class="caption">Недавнее</h2>
+      <h2 class="caption">{t('welcome.recent')}</h2>
 
       {#if recent.length === 0}
-        <p class="nothing">Здесь появятся файлы, которые вы открывали.</p>
+        <p class="nothing">{t('welcome.recent.none')}</p>
       {:else}
         <ul class="list">
           {#each recent.slice(0, 6) as entry (entry.path)}
@@ -112,7 +113,7 @@
       {/if}
     </section>
 
-    <p class="version">Версия {version}</p>
+    <p class="version">{t('welcome.version', { version })}</p>
   </div>
 </div>
 

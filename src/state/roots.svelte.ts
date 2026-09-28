@@ -1,5 +1,6 @@
 import * as ipc from '../ipc/roots';
 import type { Root } from '../ipc/roots';
+import { t } from '../l10n';
 // Взаимный импорт с tree: там только функции, и зовутся они в рантайме,
 // поэтому порядок загрузки модулей роли не играет. Тот же приём, что
 // у tabs и persist.
@@ -55,7 +56,7 @@ export function vaultRoot(): Root | null {
  * и в параметрах.
  */
 export function rootLabel(root: Root): string {
-  return root.isVault ? 'Заметки' : root.name;
+  return root.isVault ? t('sidebar.notes') : root.name;
 }
 
 /** Открытые проекты — всё, кроме папки заметок. */

@@ -5,6 +5,7 @@
   import { activeTab, tryOpenPath } from '../../state/tabs.svelte';
   import { roots } from '../../state/roots.svelte';
   import { indexing } from '../../state/index.svelte';
+  import { t, tn } from '../../l10n';
 
   /**
    * Панель обратных ссылок: кто ссылается на открытую заметку.
@@ -35,19 +36,19 @@
 
 <div class="panel">
   <header class="head">
-    <span class="title">Обратные ссылки</span>
+    <span class="title">{t('sidebar.backlinks')}</span>
   </header>
 
   {#if !tab}
-    <p class="note">Нет открытой заметки</p>
+    <p class="note">{t('sidebar.no-note')}</p>
   {:else if tab.meta.path === null}
-    <p class="note">Файл ещё не сохранён на диск</p>
+    <p class="note">{t('sidebar.backlinks.unsaved')}</p>
   {:else if links.loading && links.items.length === 0}
     <p class="note">…</p>
   {:else if links.items.length === 0}
-    <p class="note">На эту заметку никто не ссылается</p>
+    <p class="note">{t('sidebar.backlinks.none')}</p>
   {:else}
-    <p class="note">Ссылается файлов: {links.items.length}</p>
+    <p class="note">{tn('sidebar.backlinks.count', links.items.length)}</p>
     <ul class="list">
       {#each links.items as item (item.path + item.text)}
         <li>

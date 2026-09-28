@@ -1,6 +1,6 @@
 import type { ReplaceFile, ReplacePlan } from '../ipc/edits';
 import type { SplitPlan } from './rename-plan';
-import { plural } from '../ui/plural';
+import { formatNumber, t, tn } from '../l10n';
 
 /**
  * Что показать человеку до замены по проекту (задача 88).
@@ -38,16 +38,17 @@ export function replaceTitle(query: string, replacement: string): string {
   // Замена на пустоту — это удаление, и называть её заменой значит просить
   // согласия не на то, что произойдёт.
   return replacement === ''
-    ? `Удалить «${query}»?`
-    : `Заменить «${query}» на «${replacement}»?`;
+    ? t('replace.title.delete', { query })
+    : t('replace.title', { query, replacement });
 }
 
 function matches(count: number): string {
-  return `${count} ${plural(count, 'совпадение', 'совпадения', 'совпадений')}`;
+  return tn('replace.matches', count);
 }
 
+/** «в 3 файлах»: предлог вместе с числом — в других языках он бывает после. */
 function files(count: number): string {
-  return `${count} ${plural(count, 'файле', 'файлах', 'файлах')}`;
+  return tn('plan.in-files', count);
 }
 
 function counted(list: ReplaceFile[]): string {
@@ -59,7 +60,7 @@ function counted(list: ReplaceFile[]): string {
 
   const rest = list.length - shown.length;
   if (rest > 0) {
-    shown.push(`…и ещё ${rest} ${plural(rest, 'файл', 'файла', 'файлов')}`);
+    shown.push(tn('replace.more-files', rest));
   }
 
   return shown.join('\n');
@@ -102,21 +103,27 @@ export function describeReplace(
 
   // Область названа первой строкой: «во всех открытых папках» и «только
   // в этой» — разные обещания, и подтверждают их по-разному.
-  const where = scope === null ? 'Во всех открытых папках' : `В папке «${scope}»`;
+  const where =
+    scope === null ? t('replace.all-folders') : t('replace.folder', { folder: scope });
 
   const parts = [
-    `${where}: ${matches(total)} в ${files(split.editable.length)}. ` +
-      `Просмотрено файлов: ${plan.scanned}.`,
+    t('replace.summary', {
+      where,
+      matches: matches(total),
+      files: files(split.editable.length),
+      scanned: formatNumber(plan.scanned),
+    }),
   ];
 
   if (split.editable.length > 0) {
-    parts.push(`Будут изменены:\n${counted(split.editable)}`);
+    parts.push(t('replace.editable', { list: counted(split.editable) }));
   }
 
   const lines = previewLines(split.editable);
   if (lines.length > 0) {
     const all = split.editable.reduce((sum, file) => sum + file.preview.length, 0);
-    const title = all > lines.length ? `Строки (первые ${lines.length}):` : 'Строки:';
+    const title =
+      all > lines.length ? t('replace.lines.first', { count: lines.length }) : t('replace.lines');
     parts.push(`${title}\n${lines.join('\n')}`);
   }
 
@@ -125,17 +132,11 @@ export function describeReplace(
     // дальше, — сохранить эти вкладки и повторить. Числа совпадений здесь
     // нет намеренно: они посчитаны по файлу на диске, а в такой вкладке
     // на экране другой текст (Р-138).
-    parts.push(
-      'Не будут тронуты, потому что открыты с несохранёнными правками:\n' +
-        split.blocked.map((file) => file.inside).join('\n'),
-    );
+    parts.push(t('plan.blocked', { list: split.blocked.map((file) => file.inside).join('\n') }));
   }
 
   if (plan.lossy.length > 0) {
-    parts.push(
-      'Не читаются своей кодировкой без потерь и потому не тронуты:\n' +
-        plan.lossy.join('\n'),
-    );
+    parts.push(t('replace.lossy', { list: plan.lossy.join('\n') }));
   }
 
   return parts.join('\n\n');
@@ -143,12 +144,12 @@ export function describeReplace(
 
 /** Что сказать после замены — строкой в панели. */
 export function describeDone(count: number, changed: number): string {
-  return `Заменено: ${matches(count)} в ${files(changed)}`;
+  return t('replace.done', { matches: matches(count), files: files(changed) });
 }
 
 /** Что сказать после отмены. */
 export function describeUndone(count: number, changed: number): string {
-  return `Замена отменена: ${matches(count)} в ${files(changed)}`;
+  return t('replace.undone', { matches: matches(count), files: files(changed) });
 }
 
 /**
@@ -166,10 +167,10 @@ export function describeUndo(
   expression = false,
 ): string {
   const what = expression
-    ? `Замена по выражению «${query}» → «${replacement}» будет отменена`
+    ? t('replace.undo.expression', { query, replacement })
     : replacement === ''
-      ? `«${query}» вернётся`
-      : `«${replacement}» станет «${query}»`;
+      ? t('replace.undo.deleted', { query })
+      : t('replace.undo.plain', { query, replacement });
 
-  return `${what}: ${matches(count)} в ${files(changed)}. Файлы, изменённые после замены, останутся как есть.`;
+  return t('replace.undo.text', { what, matches: matches(count), files: files(changed) });
 }

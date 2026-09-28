@@ -3,6 +3,7 @@ import * as ipc from '../ipc/files';
 import type { EncodingId, LineEnding } from '../ipc/files';
 import { markChanged, replaceContent, tabById, contentOf } from '../state/tabs.svelte';
 import { askChoice } from '../state/modal.svelte';
+import { t } from '../l10n';
 
 /**
  * Две разные операции со сменой кодировки.
@@ -27,14 +28,14 @@ export async function reinterpretAs(id: number, encoding: EncodingId): Promise<v
   // Спрашиваем прямо, а не «на всякий случай сохраняем».
   if (tab.meta.modified) {
     const answer = await askChoice(
-      'Перечитать файл другой кодировкой?',
-      'В буфере есть несохранённые изменения. Перечитывание возьмёт байты с диска, и правки пропадут.',
+      t('encoding.reread.title'),
+      t('encoding.reread.text'),
       [
         // По умолчанию — отмена, а не перечитывание: Enter, нажатый не глядя,
         // не должен стирать набранное. Раньше здесь по умолчанию стояло
         // именно перечитывание.
-        { id: 'cancel', label: 'Отмена', cancel: true, primary: true },
-        { id: 'discard', label: 'Перечитать и потерять правки', danger: true },
+        { id: 'cancel', label: t('common.cancel'), cancel: true, primary: true },
+        { id: 'discard', label: t('encoding.reread.discard'), danger: true },
       ],
     );
     if (answer !== 'discard') return;
@@ -78,11 +79,16 @@ export async function setLineEnding(id: number, eol: LineEnding): Promise<void> 
   }
 }
 
-const EOL_NAMES: Record<LineEnding, string> = {
-  'cr-lf': 'CRLF (Windows)',
-  lf: 'LF (Unix)',
-  cr: 'CR (классический Mac)',
-};
+function eolName(eol: LineEnding): string {
+  switch (eol) {
+    case 'cr-lf':
+      return 'CRLF (Windows)';
+    case 'lf':
+      return 'LF (Unix)';
+    default:
+      return t('eol.cr');
+  }
+}
 
 /**
  * Вопрос перед первым сохранением файла со смешанными переносами.
@@ -102,14 +108,12 @@ export async function resolveMixedLineEndings(id: number): Promise<boolean> {
   const others = (['cr-lf', 'lf', 'cr'] as LineEnding[]).filter((e) => e !== dominant);
 
   const answer = await askChoice(
-    'В файле разные переносы строк',
-    `Файл «${tab.meta.title}» содержит переносы нескольких типов. ` +
-      'Сохранить его без изменений уже нельзя: внутри редактора все переносы одинаковы.\n\n' +
-      'Выберите, к какому типу привести файл целиком.',
+    t('eol.mixed.title'),
+    t('eol.mixed.text', { file: tab.meta.title }),
     [
-      { id: 'cancel', label: 'Не сохранять', cancel: true },
-      ...others.map((eol) => ({ id: eol, label: EOL_NAMES[eol] })),
-      { id: dominant, label: `${EOL_NAMES[dominant]} — преобладает`, primary: true },
+      { id: 'cancel', label: t('files.unsaved.discard'), cancel: true },
+      ...others.map((eol) => ({ id: eol, label: eolName(eol) })),
+      { id: dominant, label: t('eol.dominant', { eol: eolName(dominant) }), primary: true },
     ],
   );
 

@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from './Icon.svelte';
+  import { t } from '../l10n';
   import { modal } from '../state/modal.svelte';
 
   const request = $derived(modal.request);
@@ -92,7 +93,7 @@
   <div class="layer">
     <!-- Затемнение отдельным слоем, чтобы прозрачность не досталась
          содержимому диалога. -->
-    <button class="backdrop" type="button" aria-label="Закрыть" onclick={cancel}
+    <button class="backdrop" type="button" aria-label={t('common.close')} onclick={cancel}
     ></button>
 
     <div
@@ -169,7 +170,7 @@
              снимать загрузку, которую ждали. -->
         {#if progress.cancel}
           <div class="buttons">
-            <button class="button" type="button" onclick={progress.cancel}>Отмена</button>
+            <button class="button" type="button" onclick={progress.cancel}>{t('common.cancel')}</button>
           </div>
         {/if}
       {/if}

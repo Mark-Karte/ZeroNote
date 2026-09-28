@@ -1,6 +1,7 @@
 import type { Text } from '@codemirror/state';
 
 import { outlineOf, type Heading } from './outline';
+import { t } from '../l10n';
 
 /**
  * Раздел в ссылке (задача 148): `[[заметка#Раздел]]`, `[[#Раздел]]`,
@@ -141,6 +142,6 @@ export function matchHeadings(headings: readonly Heading[], query: string, limit
 export function missingSubpath(subpath: string): string {
   const text = subpath.replace(/^#+/, '');
   return text.startsWith('^')
-    ? `Метки «${text}» в заметке нет`
-    : `Заголовка «${text}» в заметке нет`;
+    ? t('link.no-block', { name: text })
+    : t('link.no-heading', { name: text });
 }

@@ -8,6 +8,7 @@ import {
   replaceTitle,
 } from '../src/actions/replace-plan';
 import { splitPlan } from '../src/actions/rename-plan';
+import { formatNumber } from '../src/l10n';
 import type { ReplaceFile, ReplacePlan } from '../src/ipc/edits';
 
 /**
@@ -108,10 +109,11 @@ describe('список до записи', () => {
     const files = Array.from({ length: 5000 }, (_, i) => file(`файл-${i}.md`, 2));
     const text = describeReplace(plan(files), splitPlan(files, []));
 
-    expect(text).toContain('10000 совпадений в 5000 файлах');
+    // Числа — с разрядами по правилам языка (задача 154): «10 000».
+    expect(text).toContain(`${formatNumber(10000)} совпадений в ${formatNumber(5000)} файлах`);
     expect(text).toContain('файл-0.md — 2');
     expect(text).not.toContain('файл-4999.md');
-    expect(text).toContain('и ещё 4800 файлов');
+    expect(text).toContain(`и ещё ${formatNumber(4800)} файлов`);
   });
 
   /** А строк показывает первые двадцать: их бывают тысячи. */

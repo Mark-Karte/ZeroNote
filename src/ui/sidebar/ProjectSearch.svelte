@@ -19,6 +19,7 @@
     stopReplace,
     undoReplace,
   } from '../../actions/replace';
+  import { t, tn } from '../../l10n';
 
   /**
    * Панель результатов поиска по проекту.
@@ -74,12 +75,12 @@
 
 <div class="panel">
   <header class="head">
-    <span class="title">Поиск в проекте</span>
+    <span class="title">{t('search.project')}</span>
     <button
       class="toggle"
       class:on={replace.open}
       type="button"
-      title="Замена по проекту"
+      title={t('search.project.replace')}
       aria-pressed={replace.open}
       onclick={() => (replace.open = !replace.open)}
     >
@@ -92,7 +93,7 @@
          «во всех папках» при единственной папке — это выбор без выбора. -->
     <select
       class="scope"
-      aria-label="Где искать"
+      aria-label={t('search.project.scope')}
       value={projectSearch.rootId === null ? '' : String(projectSearch.rootId)}
       onchange={(event) => {
         const picked = event.currentTarget.value;
@@ -100,14 +101,14 @@
         void runNow();
       }}
     >
-      <option value="">Во всех папках</option>
+      <option value="">{t('search.project.scope.all')}</option>
       {#each projectRoots() as root (root.id)}
         <option value={String(root.id)}>{root.name}</option>
       {/each}
       <!-- Дом для заметок идёт последним и под своим именем: он не проект,
            но искать в нём можно так же (ответ владельца по задаче 96). -->
       {#if vaultRoot()}
-        <option value={String(vaultRoot()?.id)}>Заметки</option>
+        <option value={String(vaultRoot()?.id)}>{t('sidebar.notes')}</option>
       {/if}
     </select>
   {/if}
@@ -127,9 +128,9 @@
         }
       }}
       placeholder={projectSearch.regexp
-        ? 'Выражение; Enter — искать'
-        : 'Найти в файлах проекта'}
-      aria-label="Найти в проекте"
+        ? t('search.project.placeholder.regexp')
+        : t('search.project.placeholder')}
+      aria-label={t('search.project.field')}
       spellcheck="false"
     />
 
@@ -138,7 +139,7 @@
         class="flag"
         class:on={projectSearch.matchCase}
         type="button"
-        title="Учитывать регистр"
+        title={t('search.case')}
         onclick={() => {
           projectSearch.matchCase = !projectSearch.matchCase;
           void runNow();
@@ -148,7 +149,7 @@
         class="flag"
         class:on={projectSearch.wholeWord}
         type="button"
-        title="Слово целиком"
+        title={t('search.word')}
         onclick={() => {
           projectSearch.wholeWord = !projectSearch.wholeWord;
           void runNow();
@@ -158,7 +159,7 @@
         class="flag"
         class:on={projectSearch.regexp}
         type="button"
-        title="Регулярное выражение"
+        title={t('search.regexp')}
         onclick={() => {
           projectSearch.regexp = !projectSearch.regexp;
           void runNow();
@@ -180,8 +181,8 @@
             void replaceEverything();
           }
         }}
-        placeholder={projectSearch.regexp ? 'Заменить на; $1 — группа' : 'Заменить на'}
-        aria-label="Заменить на"
+        placeholder={projectSearch.regexp ? t('search.replace-with.regexp') : t('search.replace-with')}
+        aria-label={t('search.replace-with')}
         spellcheck="false"
       />
     </div>
@@ -189,13 +190,13 @@
     <div class="bar">
       {#if replace.running}
         <button class="action" type="button" onclick={() => void stopReplace()}>
-          Прервать
+          {t('search.project.stop')}
         </button>
-        <span class="note inline">идёт обход файлов…</span>
+        <span class="note inline">{t('search.project.walking')}</span>
       {:else if replace.writing}
         <!-- Запись не прерывается: файлы независимы, но остановка на середине
              оставила бы половину проекта в одном виде, половину в другом. -->
-        <span class="note inline">идёт запись…</span>
+        <span class="note inline">{t('search.project.writing')}</span>
       {:else}
         <button
           class="action"
@@ -203,11 +204,11 @@
           disabled={projectSearch.query === ''}
           onclick={() => void replaceEverything()}
         >
-          Заменить всё
+          {t('search.project.replace-all')}
         </button>
         {#if canUndoReplace()}
           <button class="action" type="button" onclick={() => void undoReplace()}>
-            Отменить замену
+            {t('search.project.undo')}
           </button>
         {/if}
       {/if}
@@ -221,14 +222,14 @@
   {#if projectSearch.error !== ''}
     <p class="note warn">{projectSearch.error}</p>
   {:else if projectSearch.running}
-    <p class="note">идёт поиск…</p>
+    <p class="note">{t('search.project.searching')}</p>
   {:else if projectSearch.searched && projectSearch.hits.length === 0}
-    <p class="note">Ничего не найдено</p>
+    <p class="note">{t('search.nothing')}</p>
   {:else if projectSearch.hits.length > 0}
     <p class="note">
-      Найдено файлов: {projectSearch.hits.length}{projectSearch.limited
-        ? ' — показаны первые'
-        : ''}
+      {projectSearch.limited
+        ? tn('search.project.found.limited', projectSearch.hits.length)
+        : tn('search.project.found', projectSearch.hits.length)}
     </p>
   {/if}
 

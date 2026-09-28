@@ -9,6 +9,7 @@ import {
   type DecorationSet,
   type ViewUpdate,
 } from '@codemirror/view';
+import { t } from '../l10n';
 
 import { icon } from '../icons/registry';
 import { DIAGRAM_LANGUAGE } from './diagram';
@@ -52,7 +53,7 @@ export function languageLabel(info: string): string | null {
 
   // Схема (задача 117): раскраски у неё нет, но и «нет подсветки» —
   // неправда: язык узнан, блок рисуется схемой, когда курсор уйдёт.
-  if (trimmed.split(/\s+/)[0]!.toLowerCase() === DIAGRAM_LANGUAGE) return 'схема mermaid';
+  if (trimmed.split(/\s+/)[0]!.toLowerCase() === DIAGRAM_LANGUAGE) return t('code.diagram');
 
   // Тем же способом, что и сам разбор markdown, иначе подпись рассказывала бы
   // про один язык, а подсветка приезжала бы от другого.
@@ -97,15 +98,15 @@ class HeaderWidget extends WidgetType {
       const unknown = document.createElement('span');
       unknown.className = 'zn-code-lang zn-code-lang-unknown';
       unknown.textContent = this.named;
-      unknown.title = 'Такого языка нет в наборе — блок останется без цвета';
+      unknown.title = t('code.unknown');
       host.append(unknown);
     }
 
     const copy = document.createElement('button');
     copy.type = 'button';
     copy.className = 'zn-code-copy';
-    copy.title = 'Скопировать содержимое блока';
-    copy.setAttribute('aria-label', 'Скопировать содержимое блока');
+    copy.title = t('code.copy');
+    copy.setAttribute('aria-label', t('code.copy'));
     copy.innerHTML = icon('action.copy');
     copy.addEventListener('click', (event) => {
       event.preventDefault();
@@ -122,7 +123,7 @@ class HeaderWidget extends WidgetType {
     const body = blockTextAt(view.state, view.posAtDOM(host));
     if (body === null) {
       button.classList.add('zn-code-copy-failed');
-      button.title = 'Не удалось найти блок под подписью';
+      button.title = t('code.copy.lost');
       return;
     }
 
@@ -131,20 +132,20 @@ class HeaderWidget extends WidgetType {
     } catch {
       // Молчать нельзя: человек нажал и ждёт, что текст в буфере.
       button.classList.add('zn-code-copy-failed');
-      button.title = 'Не удалось обратиться к буферу обмена';
+      button.title = t('code.copy.failed');
       return;
     }
 
     button.classList.add('zn-code-copied');
     button.innerHTML = icon('action.check');
-    button.title = 'Скопировано';
+    button.title = t('code.copied');
     window.setTimeout(() => {
       // Виджет мог быть пересоздан правкой — тогда этой кнопки уже нет
       // в документе, и возвращать ей вид некому и незачем.
       if (!button.isConnected) return;
       button.classList.remove('zn-code-copied');
       button.innerHTML = icon('action.copy');
-      button.title = 'Скопировать содержимое блока';
+      button.title = t('code.copy');
     }, COPIED_MS);
   }
 

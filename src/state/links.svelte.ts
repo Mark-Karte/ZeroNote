@@ -11,6 +11,7 @@ import { activeTab, goToPlace, tabById, tryOpenPath, visibleState } from './tabs
 import { notify } from './notices.svelte';
 import { showPanel } from './roots.svelte';
 import { projectSearch, searchByTag } from './project-search.svelte';
+import { t } from '../l10n';
 
 /**
  * Связи между заметками: обратные ссылки и переход по ссылке.
@@ -91,7 +92,7 @@ export async function follow(target: Target): Promise<void> {
   // Отказ здесь не молчит (С9 ревизии): переход зовут `void`-ом
   // по щелчку и F12, и пойманной ошибки никто бы не увидел.
   const failed = (error: unknown): void =>
-    notify(`Ссылка не разрешилась: ${error instanceof Error ? error.message : String(error)}`);
+    notify(t('links.failed', { error: error instanceof Error ? error.message : String(error) }));
 
   // Ссылка markdown на файл (задача 148): путь от папки заметки, как
   // у картинки. Висячую не создаём: адрес мог быть чем угодно — это
@@ -105,7 +106,7 @@ export async function follow(target: Target): Promise<void> {
       return;
     }
     if (path === null) {
-      notify(`Файла «${target.value}» нет`);
+      notify(t('links.no-file', { name: target.value }));
       return;
     }
     if (await tryOpenPath(path)) await revealOpened(path, target.subpath);

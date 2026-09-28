@@ -19,6 +19,7 @@
   import { treeMenu, MENU } from '../menus';
   import { commandList } from '../../keymap/global.svelte';
   import { runCommand } from '../../keymap/registry';
+  import { t } from '../../l10n';
 
   /**
    * Дерево файлов — виртуализованный список.
@@ -243,7 +244,7 @@
             type="button"
             style:padding-left={`calc(var(--zn-space-2) + ${row.depth} * var(--zn-control-tree-indent))`}
             onclick={() => activate(row)}
-            title={row.isLink ? `${row.path} — ссылка, внутрь не заходим` : row.path}
+            title={row.isLink ? t('sidebar.files.link', { path: row.path }) : row.path}
           >
             <span class="twist" class:open={row.expanded} class:hidden={!row.isDir || row.isLink}>
               <Icon name="tree.chevron" />
@@ -274,8 +275,8 @@
                 class="action"
                 type="button"
                 onclick={() => importFromObsidian(root.id)}
-                title="Хранилище Obsidian: перенести настройки в zeronote.toml"
-                aria-label="Перенести настройки Obsidian"
+                title={t('sidebar.files.obsidian')}
+                aria-label={t('project.obsidian')}
               >
                 <Icon name="action.obsidian" />
               </button>
@@ -285,8 +286,8 @@
                 class="action"
                 type="button"
                 onclick={() => createProject(root.id)}
-                title="Создать zeronote.toml"
-                aria-label="Создать файл проекта"
+                title={t('project.file.create')}
+                aria-label={t('project.file.create.title')}
               >
                 <Icon name="action.project-file" />
               </button>
@@ -295,8 +296,8 @@
               class="action"
               type="button"
               onclick={() => removeRoot(root.id)}
-              title="Убрать папку из рабочего пространства"
-              aria-label="Убрать папку"
+              title={t('sidebar.files.remove')}
+              aria-label={t('project.remove')}
             >
               <Icon name="action.remove" />
             </button>

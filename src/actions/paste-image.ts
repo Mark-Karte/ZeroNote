@@ -3,6 +3,7 @@ import type { EditorView } from '@codemirror/view';
 import { clipboardImage } from '../ipc/clipboard';
 import { savePastedImage } from '../ipc/notes';
 import { notify } from '../state/notices.svelte';
+import { t } from '../l10n';
 import { languageOf, tabById } from '../state/tabs.svelte';
 
 /**
@@ -48,7 +49,8 @@ async function toPng(bytes: Uint8Array, type: string): Promise<Uint8Array> {
   try {
     const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
     const context = canvas.getContext('2d');
-    if (!context) throw new Error('холст не рисует');
+    // Не для глаз: ошибку ловит `pasteImage` и говорит своими словами.
+    if (!context) throw new Error('canvas has no 2d context');
     context.drawImage(bitmap, 0, 0);
     const blob = await canvas.convertToBlob({ type: 'image/png' });
     return new Uint8Array(await blob.arrayBuffer());
@@ -63,7 +65,7 @@ async function fromClipboard(): Promise<Uint8Array | null> {
     const bytes = new Uint8Array(await clipboardImage());
     return bytes.length > 0 ? bytes : null;
   } catch (error) {
-    notify(`Буфер обмена не прочитался: ${error instanceof Error ? error.message : String(error)}`);
+    notify(t('image-paste.clipboard.failed', { error: error instanceof Error ? error.message : String(error) }));
     return null;
   }
 }
@@ -83,12 +85,12 @@ export async function pasteImage(tabId: number, view: EditorView, file: File | n
   const tab = tabById(tabId);
   if (!tab) return;
   if (languageOf(tab)?.id !== 'markdown') {
-    notify('Картинку можно вставить только в заметку markdown');
+    notify(t('image-paste.not-markdown'));
     return;
   }
   const note = tab.meta.path;
   if (note === null) {
-    notify('Сохраните заметку: картинке нужна папка, куда лечь');
+    notify(t('image-paste.unsaved'));
     return;
   }
 
@@ -96,7 +98,7 @@ export async function pasteImage(tabId: number, view: EditorView, file: File | n
   try {
     png = await toPng(bytes, type);
   } catch {
-    notify('Картинка из буфера обмена не читается');
+    notify(t('image-paste.unreadable'));
     return;
   }
 
@@ -104,14 +106,14 @@ export async function pasteImage(tabId: number, view: EditorView, file: File | n
   try {
     ({ link } = await savePastedImage(note, stamp(new Date()), png));
   } catch (error) {
-    notify(`Картинка не вставилась: ${error instanceof Error ? error.message : String(error)}`);
+    notify(t('image-paste.failed', { error: error instanceof Error ? error.message : String(error) }));
     return;
   }
 
   // Пока файл писался, вкладку могли закрыть: файл уже лежит в папке,
   // а вписать ссылку некуда — сказать, где он.
   if (!view.dom.isConnected || view.state.readOnly) {
-    notify(`Картинка сохранена, но заметка уже закрыта: ${link}`);
+    notify(t('image-paste.closed', { link }));
     return;
   }
   view.dispatch({

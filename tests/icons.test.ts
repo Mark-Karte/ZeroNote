@@ -53,6 +53,6 @@ describe('реестр иконок', () => {
   });
 
   it('неизвестное имя — громкая ошибка, а не пустота', () => {
-    expect(() => icon('нет.такой' as IconName)).toThrow(/не зарегистрирована/);
+    expect(() => icon('нет.такой' as IconName)).toThrow(/not registered: нет\.такой/);
   });
 });

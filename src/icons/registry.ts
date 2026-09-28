@@ -627,7 +627,8 @@ const ICONS: Record<IconName, string> = {
 export function icon(name: IconName): string {
   const markup = ICONS[name];
   if (!markup) {
-    throw new Error(`иконка не зарегистрирована: ${name}`);
+    // Ошибка разработчика, а не человека: имя значка проверяет компилятор.
+    throw new Error(`icon is not registered: ${name}`);
   }
   return markup;
 }

@@ -15,6 +15,7 @@ import { openDropped } from './files';
 import { checkExternalChanges } from './external';
 import { describePlan, movedPath, splitPlan } from './rename-plan';
 import type { FileEdits } from '../ipc/tree';
+import { t } from '../l10n';
 
 /**
  * Создание, переименование и удаление в дереве.
@@ -39,10 +40,12 @@ function parentOf(path: string): string {
 
 export async function createEntry(parent: string, folder: boolean): Promise<void> {
   const name = await askInput(
-    folder ? 'Новая папка' : 'Новый файл',
-    `Имя ${folder ? 'папки' : 'файла'} внутри «${parent}».`,
+    folder ? t('entries.new-folder') : t('entries.new-file'),
+    folder
+      ? t('entries.new-folder.prompt', { parent })
+      : t('entries.new-file.prompt', { parent }),
     '',
-    'Создать',
+    t('common.create'),
   );
   if (name === null || name.trim() === '') return;
 
@@ -66,10 +69,10 @@ export async function createEntry(parent: string, folder: boolean): Promise<void
  */
 export async function renameEntry(path: string, oldName: string): Promise<void> {
   const name = await askInput(
-    'Переименовать',
-    `Новое имя для «${oldName}».`,
+    t('common.rename'),
+    t('entries.rename.prompt', { name: oldName }),
     oldName,
-    'Переименовать',
+    t('common.rename'),
   );
   if (name === null || name.trim() === '' || name === oldName) return;
   await renameTo(path, oldName, name);
@@ -95,10 +98,10 @@ export async function renameTo(path: string, oldName: string, name: string): Pro
 
     let fixLinks = false;
     if (plan.files.length > 0) {
-      const answer = await askChoice('Обновить ссылки?', describePlan(oldName, split), [
-        { id: 'fix', label: 'Переименовать и обновить', primary: true },
-        { id: 'rename', label: 'Только переименовать' },
-        { id: 'cancel', label: 'Отмена', cancel: true },
+      const answer = await askChoice(t('entries.links.title'), describePlan(oldName, split), [
+        { id: 'fix', label: t('entries.links.fix'), primary: true },
+        { id: 'rename', label: t('entries.links.rename-only') },
+        { id: 'cancel', label: t('common.cancel'), cancel: true },
       ]);
       if (answer === null || answer === 'cancel') return;
       fixLinks = answer === 'fix';
@@ -131,7 +134,7 @@ async function fixLinksOnDisk(files: FileEdits[]): Promise<void> {
 
   if (problems.length > 0) {
     await message(
-      `Ссылки поправлены не везде:\n\n${problems.join('\n')}`,
+      t('entries.links.problems', { problems: problems.join('\n') }),
       { title: 'ZeroNote', kind: 'warning' },
     );
   }
@@ -167,12 +170,11 @@ async function movedTabs(from: string, to: string): Promise<void> {
  */
 export async function deleteEntry(path: string, name: string, folder: boolean): Promise<void> {
   const answer = await askChoice(
-    folder ? 'Удалить папку' : 'Удалить файл',
-    `«${name}» ${folder ? 'и всё, что внутри, отправится' : 'отправится'} в корзину.` +
-      '\n\nОттуда его можно вернуть.',
+    folder ? t('entries.delete.folder') : t('entries.delete.file'),
+    folder ? t('entries.delete.folder.text', { name }) : t('entries.delete.file.text', { name }),
     [
-      { id: 'cancel', label: 'Отмена', cancel: true, primary: true },
-      { id: 'delete', label: 'В корзину', danger: true },
+      { id: 'cancel', label: t('common.cancel'), cancel: true, primary: true },
+      { id: 'delete', label: t('entries.delete.confirm'), danger: true },
     ],
   );
   if (answer !== 'delete') return;

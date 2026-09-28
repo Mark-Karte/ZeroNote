@@ -1,5 +1,5 @@
 import type { FileEdits } from '../ipc/tree';
-import { plural } from '../ui/plural';
+import { t, tn } from '../l10n';
 
 /**
  * Что показать человеку до правки чужих файлов (Р-136).
@@ -57,9 +57,6 @@ export function splitPlan<T extends FileEdits>(
   };
 }
 
-function links(count: number): string {
-  return `${count} ${plural(count, 'ссылка', 'ссылки', 'ссылок')}`;
-}
 
 function list(files: FileEdits[]): string {
   // Без отступа: диалог показывает текст с переносами, но начальные пробелы
@@ -82,22 +79,21 @@ export function describePlan(name: string, plan: SplitPlan): string {
   );
 
   const parts = [
-    `На «${name}» ссылаются другие заметки: ${links(total)} ` +
-      `в ${plan.editable.length + plan.blocked.length} ` +
-      `${plural(plan.editable.length + plan.blocked.length, 'файле', 'файлах', 'файлах')}.`,
+    t('rename.summary', {
+      name,
+      links: tn('rename.links', total),
+      files: tn('plan.in-files', plan.editable.length + plan.blocked.length),
+    }),
   ];
 
   if (plan.editable.length > 0) {
-    parts.push(`Будут исправлены:\n${list(plan.editable)}`);
+    parts.push(t('rename.editable', { list: list(plan.editable) }));
   }
 
   if (plan.blocked.length > 0) {
     // Названо причиной, а не запретом: пользователь должен понять, что
     // делать дальше, — сохранить эти вкладки и повторить.
-    parts.push(
-      'Не будут тронуты, потому что открыты с несохранёнными правками:\n' +
-        `${list(plan.blocked)}`,
-    );
+    parts.push(t('plan.blocked', { list: list(plan.blocked) }));
   }
 
   return parts.join('\n\n');

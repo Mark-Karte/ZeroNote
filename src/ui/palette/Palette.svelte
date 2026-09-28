@@ -7,6 +7,7 @@
   import { roots, rootLabel } from '../../state/roots.svelte';
   import { matchRange, placeholderFor, parse } from './query';
   import { labelOf } from '../../keymap/binding';
+  import { t } from '../../l10n';
 
   /**
    * Палитра: одно поле, три режима по префиксу (Р-076).
@@ -97,15 +98,15 @@
   }
 
   const EMPTY: Record<string, string> = {
-    files: 'Ничего не найдено',
-    commands: 'Нет такой команды',
-    tags: 'Нет такого тега',
+    files: t('search.nothing'),
+    commands: t('palette.commands.no-match'),
+    tags: t('tags.no-match'),
   };
 
   const NOTHING_YET: Record<string, string> = {
-    files: 'В индексе пока нет файлов',
-    commands: 'Команд нет',
-    tags: 'В проекте нет тегов',
+    files: t('palette.files.none'),
+    commands: t('palette.commands.none'),
+    tags: t('tags.none'),
   };
 
   function onKeyDown(event: KeyboardEvent): void {
@@ -147,7 +148,7 @@
         <!-- Подпись режима, а не тот же знак ещё раз: знак пользователь
              и так видит в поле — он его только что набрал. -->
         {#if current !== 'files'}
-          <span class="mode">{current === 'commands' ? 'Команды' : 'Теги'}</span>
+          <span class="mode">{current === 'commands' ? t('palette.mode.commands') : t('palette.mode.tags')}</span>
         {/if}
         <input
           class="field"
@@ -157,7 +158,7 @@
           oninput={() => void refresh()}
           onkeydown={onKeyDown}
           placeholder={placeholderFor(current)}
-          aria-label="Палитра: файл, команда или тег"
+          aria-label={t('palette.field')}
           spellcheck="false"
         />
         <kbd class="hint">esc</kbd>

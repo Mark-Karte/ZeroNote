@@ -11,8 +11,10 @@
     monthLabel,
     shiftMonth,
     touchesFolder,
+    weekdayNames,
     type Cell,
   } from '../calendar';
+  import { t, weekStart } from '../../l10n';
 
   /**
    * Календарь ежедневных заметок (задача 97).
@@ -34,7 +36,7 @@
    *  на неё смотрит только слушатель события, а рисовать по ней нечего. */
   let folder = '';
 
-  const weeks = $derived(monthGrid(year, month));
+  const weeks = $derived(monthGrid(year, month, weekStart()));
 
   /**
    * Список записанных дней перечитывается при смене месяца, после того как
@@ -108,25 +110,25 @@
     await openDaily(cell.date);
   }
 
-  const DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+  const DAYS = weekdayNames(weekStart());
 </script>
 
 <section class="calendar">
   <header class="head">
-    <button class="nav" type="button" onclick={() => step(-1)} aria-label="Прошлый месяц">
+    <button class="nav" type="button" onclick={() => step(-1)} aria-label={t('calendar.previous')}>
       <Icon name="tree.chevron" />
     </button>
     <!-- Подпись месяца — кнопка: щелчок возвращает к текущему месяцу. Так
          не нужна отдельная кнопка «сегодня», а место в панели дорого. -->
-    <button class="label" type="button" onclick={toToday} title="К текущему месяцу">
+    <button class="label" type="button" onclick={toToday} title={t('calendar.today')}>
       {monthLabel(year, month)}
     </button>
-    <button class="nav next" type="button" onclick={() => step(1)} aria-label="Следующий месяц">
+    <button class="nav next" type="button" onclick={() => step(1)} aria-label={t('calendar.next')}>
       <Icon name="tree.chevron" />
     </button>
   </header>
 
-  <div class="grid" role="grid" aria-label="Календарь заметок">
+  <div class="grid" role="grid" aria-label={t('calendar.grid')}>
     <div class="week names" role="row">
       {#each DAYS as name (name)}
         <span class="name" role="columnheader">{name}</span>
@@ -143,7 +145,9 @@
             class:today={cell.date === today}
             type="button"
             role="gridcell"
-            title={has(cell) ? `Заметка за ${cell.date}` : `Создать заметку за ${cell.date}`}
+            title={has(cell)
+              ? t('calendar.day.open', { date: cell.date })
+              : t('calendar.day.create', { date: cell.date })}
             onclick={() => void open(cell)}
           >
             {cell.day}

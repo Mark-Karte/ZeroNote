@@ -10,6 +10,7 @@ import {
 } from '../state/history.svelte';
 import { pdfView } from '../pdf/current';
 import { notify } from '../state/notices.svelte';
+import { formatNumber, t } from '../l10n';
 import { openSearch } from '../state/search.svelte';
 
 /**
@@ -33,10 +34,10 @@ export async function goToLineDialog(): Promise<void> {
   const current = view.state.doc.lineAt(view.state.selection.main.head).number;
 
   const answer = await askInput(
-    'Перейти к строке',
-    `Всего строк: ${total}`,
+    t('navigate.line'),
+    t('navigate.line.total', { total: formatNumber(total) }),
     String(current),
-    'Перейти',
+    t('navigate.go'),
   );
   if (answer === null) return;
 
@@ -52,10 +53,10 @@ export async function goToPageDialog(pdf: PdfState): Promise<void> {
   if (pdf.pages === 0) return;
 
   const answer = await askInput(
-    'Перейти к странице',
-    `Всего страниц: ${pdf.pages}`,
+    t('status.pdf.go-to'),
+    t('navigate.page.total', { total: formatNumber(pdf.pages) }),
     String(pdf.page),
-    'Перейти',
+    t('navigate.go'),
   );
   if (answer === null) return;
 
@@ -80,8 +81,8 @@ export function findInTab(mode: 'find' | 'replace'): void {
   if (tab && tab.editor === null) {
     notify(
       tab.pdf
-        ? 'Поиска по PDF нет: ZeroNote его показывает, но не читает.'
-        : 'Поиск работает по тексту — на этой вкладке искать нечего.',
+        ? t('navigate.find.pdf')
+        : t('navigate.find.no-text'),
     );
     return;
   }

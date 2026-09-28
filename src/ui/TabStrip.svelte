@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from './Icon.svelte';
+  import { t } from '../l10n';
   import { kindOf, iconForKind } from '../icons/files';
   import type { IconName } from '../icons/registry';
   import type { Buffer } from '../ipc/files';
@@ -380,7 +381,7 @@
           class="close"
           class:modified={tab.meta.modified}
           type="button"
-          title={tab.meta.modified ? 'Закрыть (есть несохранённые правки)' : 'Закрыть'}
+          title={tab.meta.modified ? t('tabs.close.modified') : t('common.close')}
           onpointerdown={(e) => e.stopPropagation()}
           onclick={() => closeTab(tab.meta.id, pane.id)}
         >

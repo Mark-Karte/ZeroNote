@@ -5,6 +5,7 @@
   import { activeTab } from '../state/tabs.svelte';
   import { roots } from '../state/roots.svelte';
   import { quickOpen } from '../actions/project';
+  import { t } from '../l10n';
 
   const tab = $derived(activeTab());
 
@@ -67,10 +68,10 @@
     class="find"
     type="button"
     onclick={quickOpen}
-    title="Быстрое открытие файла по имени (Ctrl+P)"
+    title={t('window.quick-open')}
   >
     <span class="find-icon"><Icon name="panel.search" /></span>
-    <span class="find-text">Найти файл или команду</span>
+    <span class="find-text">{t('window.find')}</span>
     <kbd class="find-key">Ctrl P</kbd>
   </button>
 

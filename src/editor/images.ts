@@ -2,6 +2,7 @@ import { WidgetType } from '@codemirror/view';
 
 import { previewImage, previewEmbed } from '../ipc/files';
 import { IMAGE_EXTENSIONS } from '../actions/file-types';
+import { t } from '../l10n';
 
 /**
  * Картинки в живом превью markdown: `![подпись](рисунок.png)` показывается
@@ -237,7 +238,7 @@ export class EmbedWidget extends WidgetType implements Shown {
   override toDOM(): HTMLElement {
     return paint(this, this.target, imageKey(this.target, this.from), this.alt, async () => {
       if (this.from === null) {
-        throw new Error('заметка ещё не сохранена: ссылку не по чему разрешать');
+        throw new Error(t('image.unsaved'));
       }
       return previewEmbed(this.target, this.from);
     });
@@ -317,7 +318,7 @@ async function fillWith(
 function missing(link: string, problem: string): HTMLElement {
   const note = document.createElement('span');
   note.className = 'zn-image-missing';
-  note.textContent = `картинки нет: ${link}`;
+  note.textContent = t('image.missing', { link });
   note.title = problem;
   return note;
 }

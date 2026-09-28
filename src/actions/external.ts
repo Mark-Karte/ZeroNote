@@ -1,6 +1,7 @@
 import * as ipc from '../ipc/files';
 import { markChanged, replaceContent, tabById, close } from '../state/tabs.svelte';
 import { askChoice } from '../state/modal.svelte';
+import { t } from '../l10n';
 import { forgetDraft } from '../state/persist.svelte';
 
 /**
@@ -52,12 +53,11 @@ async function onModified(id: number): Promise<void> {
   }
 
   const answer = await askChoice(
-    'Файл изменён снаружи',
-    `Файл «${tab.meta.title}» изменила другая программа, а в редакторе есть ` +
-      'несохранённые правки.\n\nЧто оставить?',
+    t('external.changed.title'),
+    t('external.changed.text', { file: tab.meta.title }),
     [
-      { id: 'mine', label: 'Мои правки', primary: true },
-      { id: 'disk', label: 'Версию с диска', danger: true },
+      { id: 'mine', label: t('external.changed.mine'), primary: true },
+      { id: 'disk', label: t('external.changed.disk'), danger: true },
     ],
   );
 
@@ -79,12 +79,11 @@ async function onRemoved(id: number): Promise<void> {
   if (!tab) return;
 
   const answer = await askChoice(
-    'Файл исчез',
-    `Файла «${tab.meta.title}» больше нет на диске: удалён, переименован ` +
-      'или стал недоступен.\n\nСодержимое пока цело в редакторе.',
+    t('external.removed.title'),
+    t('external.removed.text', { file: tab.meta.title }),
     [
-      { id: 'close', label: 'Закрыть вкладку' },
-      { id: 'keep', label: 'Оставить в редакторе', primary: true },
+      { id: 'close', label: t('external.removed.close') },
+      { id: 'keep', label: t('external.removed.keep'), primary: true },
     ],
   );
 
@@ -136,12 +135,11 @@ export async function confirmOverwrite(id: number): Promise<boolean> {
   if (!tab) return false;
 
   const answer = await askChoice(
-    'Файл изменился на диске',
-    `Файл «${tab.meta.title}» изменила другая программа уже после того, как ` +
-      'редактор его прочитал.\n\nСохранение затрёт эти изменения.',
+    t('external.overwrite.title'),
+    t('external.overwrite.text', { file: tab.meta.title }),
     [
-      { id: 'cancel', label: 'Не сохранять', cancel: true },
-      { id: 'overwrite', label: 'Перезаписать' },
+      { id: 'cancel', label: t('files.unsaved.discard'), cancel: true },
+      { id: 'overwrite', label: t('external.overwrite.confirm') },
     ],
   );
 

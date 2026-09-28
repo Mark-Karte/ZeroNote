@@ -5,6 +5,7 @@
   import workerSource from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
   import Icon from './Icon.svelte';
+  import { t } from '../l10n';
   import * as ipc from '../ipc/files';
   import { tabById, type PdfState } from '../state/tabs.svelte';
   import { paneById } from '../state/panes.svelte';
@@ -337,7 +338,7 @@
       <p class="why">{shown.problem}</p>
       {#if tab?.meta.path}
         <button class="reveal" type="button" onclick={() => void revealInExplorer(tab.meta.path!)}>
-          Показать в проводнике
+          {t('common.reveal')}
         </button>
       {/if}
     </div>

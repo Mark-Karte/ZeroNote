@@ -8,6 +8,7 @@
   import { bookmarkGroups, bookmarkCount } from '../../editor/bookmark-list';
   import { labelOf } from '../../keymap/binding';
   import { commandList } from '../../keymap/global.svelte';
+  import { t } from '../../l10n';
 
   /**
    * Панель закладок: строки, помеченные `Ctrl+F2`, списком.
@@ -64,7 +65,7 @@
 
 <div class="panel">
   <header class="head">
-    <span class="title">Закладки</span>
+    <span class="title">{t('sidebar.bookmarks')}</span>
     {#if total > 0}
       <span class="count">{total}</span>
     {/if}
@@ -72,7 +73,7 @@
 
   {#if total === 0}
     <p class="note">
-      Закладок нет. {labelOf(toggleKey ?? 'ctrl+f2')} — поставить или снять на строке курсора.
+      {t('sidebar.bookmarks.empty', { key: labelOf(toggleKey ?? 'ctrl+f2') })}
     </p>
   {:else}
     <div class="list">
@@ -91,11 +92,11 @@
             class:current={activeTabId() === row.tabId}
             type="button"
             onclick={() => go(row.tabId, row.line)}
-            title={`${group.title}, строка ${row.line}`}
+            title={t('sidebar.bookmarks.row', { file: group.title, line: row.line })}
           >
             <span class="line">{row.line}</span>
             <span class="text" class:empty={row.text === ''}>
-              {row.text === '' ? 'пустая строка' : row.text}
+              {row.text === '' ? t('sidebar.bookmarks.blank') : row.text}
             </span>
           </button>
         {/each}

@@ -200,7 +200,8 @@ describe('картинки', () => {
       loadImage: async () => huge,
     }));
     expect(out.html.match(/<img/g)?.length).toBe(1);
-    expect(out.problems.join()).toContain('1 вышли подписью');
+    // Форма числа — по правилам языка (задача 154): одна картинка «вышла».
+    expect(out.problems.join()).toContain('1 вышла подписью');
   });
 });
 

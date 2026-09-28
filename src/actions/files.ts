@@ -44,7 +44,8 @@ export async function openToSide(path: string): Promise<void> {
     await closePane(fresh);
   }
 }
-import { FILE_FILTERS } from './file-types';
+import { fileFilters } from './file-types';
+import { t } from '../l10n';
 import { askChoice } from '../state/modal.svelte';
 import { notify } from '../state/notices.svelte';
 import { forgetDraft, noteStructureChange } from '../state/persist.svelte';
@@ -62,7 +63,6 @@ import { confirmOverwrite } from './external';
  * откуда его позвали.
  */
 
-const FILTERS = FILE_FILTERS;
 
 async function report(error: unknown): Promise<void> {
   await message(String(error), { title: 'ZeroNote', kind: 'error' });
@@ -77,7 +77,7 @@ export async function newFile(): Promise<void> {
 }
 
 export async function openFiles(): Promise<void> {
-  const selected = await openDialog({ multiple: true, filters: FILTERS });
+  const selected = await openDialog({ multiple: true, filters: fileFilters() });
   if (!selected) return;
 
   const paths = Array.isArray(selected) ? selected : [selected];
@@ -190,7 +190,7 @@ export async function autosaveAll(): Promise<string[]> {
       if (markSaved(result.buffer, written)) await forgetDraft(tab.meta.id);
       saved = true;
     } catch (error) {
-      complaints.push(`не удалось сохранить «${tab.meta.title}»: ${String(error)}`);
+      complaints.push(t('files.save.failed', { file: tab.meta.title, error: String(error) }));
     }
   }
 
@@ -218,7 +218,7 @@ export async function saveAs(id: number): Promise<boolean> {
   if (!tab?.editor) return false;
 
   const path = await saveDialog({
-    filters: FILTERS,
+    filters: fileFilters(),
     defaultPath: tab.meta.path ?? tab.meta.title,
   });
   if (!path) return false;
@@ -295,12 +295,12 @@ async function settleUnsaved(id: number): Promise<boolean> {
   // Три варианта, а не два: у системного диалога Tauri их только два, и
   // «отмена» в нём означала бы «не сохранять», то есть тихую потерю правок.
   const answer = await askChoice(
-    'Есть несохранённые изменения',
-    `Сохранить изменения в «${tab.meta.title}» перед закрытием?`,
+    t('files.unsaved.title'),
+    t('files.unsaved.text', { file: tab.meta.title }),
     [
-      { id: 'cancel', label: 'Отмена', cancel: true },
-      { id: 'discard', label: 'Не сохранять', danger: true },
-      { id: 'save', label: 'Сохранить', primary: true },
+      { id: 'cancel', label: t('common.cancel'), cancel: true },
+      { id: 'discard', label: t('files.unsaved.discard'), danger: true },
+      { id: 'save', label: t('common.save'), primary: true },
     ],
   );
 
@@ -394,6 +394,6 @@ export async function reopenTab(): Promise<void> {
   try {
     await reopenClosed();
   } catch (error) {
-    notify(`Не удалось вернуть вкладку: ${String(error)}`);
+    notify(t('files.reopen.failed', { error: String(error) }));
   }
 }

@@ -3,6 +3,7 @@
   import { activeTab, languageOf, visibleState } from '../../state/tabs.svelte';
   import { editorView } from '../../editor/current';
   import { goToLine } from '../../editor/commands';
+  import { t } from '../../l10n';
 
   /**
    * Оглавление документа: заголовки markdown списком.
@@ -41,15 +42,15 @@
 
 <div class="panel">
   <header class="head">
-    <span class="title">Оглавление</span>
+    <span class="title">{t('sidebar.outline')}</span>
   </header>
 
   {#if !tab}
-    <p class="note">Нет открытой заметки</p>
+    <p class="note">{t('sidebar.no-note')}</p>
   {:else if !outline.available}
-    <p class="note">Оглавление есть только у markdown</p>
+    <p class="note">{t('sidebar.outline.markdown-only')}</p>
   {:else if outline.items.length === 0}
-    <p class="note">В заметке нет заголовков</p>
+    <p class="note">{t('sidebar.outline.empty')}</p>
   {:else}
     <ul class="list">
       {#each outline.items as item, i (item.line)}
@@ -60,7 +61,7 @@
             type="button"
             style:padding-left={`calc(var(--zn-space-4) + ${item.level - 1} * var(--zn-control-tree-indent))`}
             onclick={() => go(item.line)}
-            title={`Строка ${item.line}`}
+            title={t('sidebar.outline.line', { line: item.line })}
           >
             <span class="text">{item.text}</span>
           </button>

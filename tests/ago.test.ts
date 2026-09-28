@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ago } from '../src/ui/welcome/ago';
+import { tn } from '../src/l10n';
 
 /** Опорная точка: 15 марта 2026 года, 14:30. */
 const NOW = new Date(2026, 2, 15, 14, 30).getTime();
@@ -60,9 +61,10 @@ describe('давность', () => {
 });
 
 describe('русское числительное', () => {
-  it('склоняет по остатку, но одиннадцать особое', async () => {
-    const { plural } = await import('../src/ui/plural');
-    const форма = (n: number) => `${n} ${plural(n, 'курсор', 'курсора', 'курсоров')}`;
+  // До задачи 154 склонял свой `ui/plural.ts`; теперь формы выбирает
+  // `Intl.PluralRules` через `tn`, а проверка осталась прежней.
+  it('склоняет по остатку, но одиннадцать особое', () => {
+    const форма = (n: number) => tn('status.cursors', n);
 
     expect(форма(1)).toBe('1 курсор');
     expect(форма(2)).toBe('2 курсора');

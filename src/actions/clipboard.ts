@@ -4,6 +4,7 @@ import { copiedText, pasteSpec } from '../editor/clipboard';
 import { clipboardText } from '../ipc/clipboard';
 import { editorView } from '../editor/current';
 import { notify } from '../state/notices.svelte';
+import { t } from '../l10n';
 import { activeTab } from '../state/tabs.svelte';
 
 /**
@@ -41,23 +42,23 @@ export async function copyRichActive(): Promise<void> {
   const tab = activeTab();
   const view = editorView();
   if (!tab?.editor || !view) {
-    notify('Копировать с оформлением можно текст — заметку или код');
+    notify(t('clipboard.rich.no-text'));
     return;
   }
   if (tab.meta.large) {
-    notify('Файл открыт в упрощённом режиме — с оформлением он не копируется');
+    notify(t('clipboard.rich.large'));
     return;
   }
 
   try {
     const { copyRich } = await import('../export/copy');
     const done = await copyRich(tab, view.state.selection.ranges);
-    const what = done.whole ? 'Весь файл скопирован с оформлением' : 'Скопировано с оформлением';
+    const what = done.whole ? t('clipboard.rich.whole') : t('clipboard.rich.done');
     const tail = done.problems.length > 0 ? `. ${done.problems.join('; ')}` : '';
     notify(`${what}${tail}`);
   } catch (error) {
     // Слишком большой файл (`TooLarge`) говорит о себе сам.
-    notify(`Не скопировалось: ${error instanceof Error ? error.message : String(error)}`);
+    notify(t('clipboard.rich.failed', { error: error instanceof Error ? error.message : String(error) }));
   }
 }
 
@@ -67,7 +68,7 @@ export async function copyText(text: string): Promise<boolean> {
     await navigator.clipboard.writeText(text);
     return true;
   } catch (error) {
-    await message(`Не удалось записать в буфер обмена.\n\n${String(error)}`, {
+    await message(t('clipboard.write.failed', { error: String(error) }), {
       title: 'ZeroNote',
       kind: 'error',
     });
@@ -91,7 +92,7 @@ export async function readText(): Promise<string | null> {
   try {
     return await clipboardText();
   } catch (error) {
-    await message(`Не удалось прочитать буфер обмена.\n\n${String(error)}`, {
+    await message(t('clipboard.read.failed', { error: String(error) }), {
       title: 'ZeroNote',
       kind: 'error',
     });

@@ -5,6 +5,7 @@ import { Decoration, WidgetType, type EditorView } from '@codemirror/view';
 import { fencedBody } from '../html/code';
 import { Source } from '../html/source';
 import type { DiagramTheme } from './diagram-render';
+import { formatNumber, t } from '../l10n';
 
 /**
  * Схемы mermaid в превью (задача 117).
@@ -176,7 +177,7 @@ export function withUniqueIds(svg: string): string {
 export function drawDiagram(source: string, theme: DiagramTheme): Promise<Drawn> {
   if (source.length > DIAGRAM_LIMIT) {
     return Promise.resolve({
-      error: `Схема не рисуется: она длиннее ${DIAGRAM_LIMIT.toLocaleString('ru-RU')} знаков, и окно рисовало бы её секундами.`,
+      error: t('diagram.too-long', { limit: formatNumber(DIAGRAM_LIMIT) }),
     });
   }
 
@@ -189,7 +190,7 @@ export function drawDiagram(source: string, theme: DiagramTheme): Promise<Drawn>
     .then(
       (svg): Drawn => ({ svg }),
       (error: unknown): Drawn => ({
-        error: `Схема не разобрана: ${error instanceof Error ? error.message : String(error)}`,
+        error: t('diagram.failed', { error: error instanceof Error ? error.message : String(error) }),
       }),
     );
   if (drawn.size >= DRAWN_LIMIT) drawn.clear();

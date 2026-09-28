@@ -5,6 +5,7 @@ import { cssColorOf, iconOf } from '../editor/callouts';
 import { asCommand, insertCallout } from '../editor/markdown-format';
 import { calloutById, calloutList } from '../state/callouts.svelte';
 import { showMenuAt } from '../state/menu.svelte';
+import { t } from '../l10n';
 
 /**
  * Вставка коллаута (задача 103).
@@ -29,16 +30,13 @@ export function insertCalloutOf(id: string): void {
  */
 export async function pickCallout(): Promise<void> {
   if (!editorView()) {
-    await message('Вставлять коллаут некуда: откройте заметку.', { title: 'ZeroNote' });
+    await message(t('callouts.insert.no-note'), { title: 'ZeroNote' });
     return;
   }
 
   const list = calloutList();
   if (list.length === 0) {
-    await message(
-      'Список коллаутов пуст. Добавьте их во вкладке «Коллауты» окна параметров.',
-      { title: 'ZeroNote' },
-    );
+    await message(t('callouts.insert.empty'), { title: 'ZeroNote' });
     return;
   }
 

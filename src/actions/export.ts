@@ -1,4 +1,5 @@
 import { notify } from '../state/notices.svelte';
+import { t } from '../l10n';
 import { activeTab, type Tab } from '../state/tabs.svelte';
 import { cannotPrint } from './print';
 
@@ -17,15 +18,15 @@ import { cannotPrint } from './print';
  * сделать пересылку тяжелее, а не проще.
  */
 export function cannotExport(tab: Tab | null): string | null {
-  if (!tab) return 'Нет открытой вкладки';
+  if (!tab) return t('output.no-tab');
   switch (tab.meta.kind) {
     case 'text':
-      return tab.meta.large ? 'Файл открыт в упрощённом режиме — экспорт для него не собирается' : null;
+      return tab.meta.large ? t('export.large') : null;
     case 'image':
     case 'pdf':
-      return 'Картинку и PDF отдают самим файлом — страница вокруг них ничего не добавит';
+      return t('export.binary');
     case 'settings':
-      return 'Параметры — страница приложения, а не документ';
+      return t('output.settings');
   }
 }
 
@@ -42,15 +43,15 @@ export function cannotExportPdf(tab: Tab | null): string | null {
 type Exported = { path: string; problems: string[] } | null;
 
 /** Общий ответ обоих экспортов: где файл и что не вошло. */
-async function run(label: string, work: () => Promise<Exported>): Promise<void> {
+async function run(failed: (error: string) => string, work: () => Promise<Exported>): Promise<void> {
   try {
     const done = await work();
     if (done === null) return;
     const tail = done.problems.length > 0 ? ` ${done.problems.join('; ')}` : '';
-    notify(`Сохранено: ${done.path}.${tail}`);
+    notify(t('export.saved', { path: done.path }) + tail);
   } catch (error) {
     // Слишком большой файл (`TooLarge`) говорит о себе сам.
-    notify(`${label} не удался: ${error instanceof Error ? error.message : String(error)}`);
+    notify(failed(error instanceof Error ? error.message : String(error)));
   }
 }
 
@@ -62,7 +63,10 @@ export async function exportHtmlActive(): Promise<void> {
     return;
   }
 
-  await run('Экспорт', async () => (await import('../export/html')).exportTabAsHtml(tab));
+  await run(
+    (error) => t('export.failed.html', { error }),
+    async () => (await import('../export/html')).exportTabAsHtml(tab),
+  );
 }
 
 export async function exportPdfActive(): Promise<void> {
@@ -73,5 +77,8 @@ export async function exportPdfActive(): Promise<void> {
     return;
   }
 
-  await run('Экспорт в PDF', async () => (await import('../export/pdf')).exportTabAsPdf(tab));
+  await run(
+    (error) => t('export.failed.pdf', { error }),
+    async () => (await import('../export/pdf')).exportTabAsPdf(tab),
+  );
 }

@@ -11,6 +11,7 @@
   import { showSettings } from '../../actions/project';
   import { labelOf } from '../../keymap/binding';
   import { commandList } from '../../keymap/global.svelte';
+  import { slots, t } from '../../l10n';
 
   /**
    * Панель «Заметки» — дом для записей (задача 94).
@@ -68,13 +69,15 @@
 
 <div class="panel">
   <header class="head">
-    <span class="title">Заметки</span>
+    <span class="title">{t('sidebar.notes')}</span>
     <button
       class="action"
       type="button"
       onclick={() => void openDaily()}
-      title={dailyKey ? `Заметка на сегодня (${labelOf(dailyKey)})` : 'Заметка на сегодня'}
-      aria-label="Заметка на сегодня"
+      title={dailyKey
+        ? t('sidebar.notes.daily.key', { key: labelOf(dailyKey) })
+        : t('sidebar.notes.daily')}
+      aria-label={t('sidebar.notes.daily')}
     >
       <Icon name="cmd.daily-note" />
     </button>
@@ -83,8 +86,8 @@
       type="button"
       disabled={!vault?.available}
       onclick={() => vault && void createEntry(vault.path, false)}
-      title="Новая заметка в папке заметок"
-      aria-label="Новая заметка"
+      title={t('sidebar.notes.new.hint')}
+      aria-label={t('sidebar.notes.new')}
     >
       <Icon name="cmd.file-new" />
     </button>
@@ -95,14 +98,14 @@
   <Calendar />
 
   {#if !vault}
-    <p class="empty">Папка заметок не готова</p>
-    <p class="hint">Проверьте [notes] vault в настройках</p>
+    <p class="empty">{t('sidebar.notes.not-ready')}</p>
+    <p class="hint">{t('sidebar.notes.not-ready.hint')}</p>
   {:else if !vault.available}
-    <p class="empty">Папка недоступна</p>
+    <p class="empty">{t('sidebar.notes.unavailable')}</p>
     <p class="hint">{vault.path}</p>
     <p class="hint">
       <button class="link" type="button" onclick={() => void showSettings()}>
-        Открыть параметры
+        {t('sidebar.notes.open-settings')}
       </button>
     </p>
   {:else}
@@ -114,15 +117,18 @@
        кнопки сказали бы неправду о том, чем пользуются. -->
   <section class="templates">
     <header class="head">
-      <span class="title">Шаблоны</span>
+      <span class="title">{t('sidebar.templates')}</span>
     </header>
 
     {#if templates.length === 0}
       <p class="hint">
-        Папка шаблонов не задана —
-        <button class="link" type="button" onclick={() => void showSettings()}>
-          в параметрах
-        </button>
+        {#each slots(t('sidebar.templates.none')) as part, index (index)}
+          {#if 'slot' in part}
+            <button class="link" type="button" onclick={() => void showSettings()}>
+              {t('sidebar.templates.none.link')}
+            </button>
+          {:else}{part.text}{/if}
+        {/each}
       </p>
     {:else}
       <ul class="list">
@@ -134,7 +140,7 @@
             <button
               class="name"
               type="button"
-              title="Вставить «{template.name}» в открытую заметку"
+              title={t('sidebar.templates.insert', { name: template.name })}
               onclick={() => void insertOne(template)}
             >
               <Icon name="cmd.template-insert" />
@@ -143,8 +149,8 @@
             <button
               class="action"
               type="button"
-              title="Новая заметка из «{template.name}»"
-              aria-label="Новая заметка из «{template.name}»"
+              title={t('sidebar.templates.new', { name: template.name })}
+              aria-label={t('sidebar.templates.new', { name: template.name })}
               onclick={() => void newOne(template)}
             >
               <Icon name="cmd.template-new" />

@@ -1,4 +1,5 @@
 import { notify } from '../state/notices.svelte';
+import { t } from '../l10n';
 import { activeTab, type Tab } from '../state/tabs.svelte';
 
 /**
@@ -18,16 +19,16 @@ import { activeTab, type Tab } from '../state/tabs.svelte';
  * режиме (свыше 50 МиБ) — не для бумаги.
  */
 export function cannotPrint(tab: Tab | null): string | null {
-  if (!tab) return 'Нет открытой вкладки';
+  if (!tab) return t('output.no-tab');
   switch (tab.meta.kind) {
     case 'pdf':
-      return 'PDF печатается своей программой: «Показать в проводнике», открыть и напечатать там';
+      return t('print.pdf');
     case 'settings':
-      return 'Параметры — страница приложения, а не документ';
+      return t('output.settings');
     case 'image':
       return null;
     case 'text':
-      return tab.meta.large ? 'Файл открыт в упрощённом режиме — печать для него не собирается' : null;
+      return tab.meta.large ? t('print.large') : null;
   }
 }
 
@@ -43,9 +44,9 @@ export async function printActive(): Promise<void> {
   try {
     const { printTab } = await import('../print/print');
     const problems = await printTab(tab);
-    if (problems.length > 0) notify(`Печать: ${problems.join('; ')}`);
+    if (problems.length > 0) notify(t('print.problems', { problems: problems.join('; ') }));
   } catch (error) {
     // Слишком большой файл (`TooLarge`) говорит о себе сам.
-    notify(`Печать не собралась: ${error instanceof Error ? error.message : String(error)}`);
+    notify(t('print.failed', { error: error instanceof Error ? error.message : String(error) }));
   }
 }

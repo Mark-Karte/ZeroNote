@@ -13,6 +13,7 @@ import {
 import { createEmpty } from '../state/tabs.svelte';
 import { noteStructureChange } from '../state/persist.svelte';
 import { askChoice } from '../state/modal.svelte';
+import { t, tn } from '../l10n';
 import { open as openPalette } from '../state/palette.svelte';
 import { refresh as refreshSettings } from '../state/settings.svelte';
 import { openSettings } from '../state/tabs.svelte';
@@ -63,11 +64,11 @@ export async function createProject(id: number): Promise<void> {
   if (!root) return;
 
   const answer = await askChoice(
-    'Создать файл проекта',
-    `В папке «${root.name}» будет создан файл zeronote.toml с настройками по умолчанию. Его можно править руками и класть в git.`,
+    t('project.file.create.title'),
+    t('project.file.create.text', { folder: root.name }),
     [
-      { id: 'cancel', label: 'Отмена', cancel: true },
-      { id: 'create', label: 'Создать', primary: true },
+      { id: 'cancel', label: t('common.cancel'), cancel: true },
+      { id: 'create', label: t('common.create'), primary: true },
     ],
   );
   if (answer !== 'create') return;
@@ -141,17 +142,17 @@ export async function importFromObsidian(id: number): Promise<void> {
 
   const lines = [
     preview.rules.length > 0
-      ? `Правил исключения найдено: ${preview.rules.length}.`
-      : 'Настроек, которые ZeroNote умеет переносить, в хранилище нет.',
+      ? tn('project.obsidian.rules', preview.rules.length)
+      : t('project.obsidian.none'),
     preview.skipped.length > 0
-      ? `Не переносится (регулярные выражения): ${preview.skipped.join(', ')}.`
+      ? t('project.obsidian.skipped', { list: preview.skipped.join(', ') })
       : '',
-    `В папке «${root.name}» будет создан zeronote.toml. В .obsidian ничего не записывается.`,
+    t('project.obsidian.target', { folder: root.name }),
   ].filter((line) => line !== '');
 
-  const answer = await askChoice('Перенести настройки Obsidian', lines.join('\n'), [
-    { id: 'cancel', label: 'Отмена', cancel: true },
-    { id: 'import', label: 'Перенести', primary: true },
+  const answer = await askChoice(t('project.obsidian'), lines.join('\n'), [
+    { id: 'cancel', label: t('common.cancel'), cancel: true },
+    { id: 'import', label: t('project.obsidian.confirm'), primary: true },
   ]);
   if (answer !== 'import') return;
 
@@ -168,18 +169,12 @@ async function showRulesToPaste(
   preview: ipcRoots.ObsidianPreview,
 ): Promise<void> {
   if (preview.rules.length === 0 && preview.skipped.length === 0) {
-    await message(
-      `В хранилище «${name}» нет настроек, которые ZeroNote умеет переносить.`,
-      { title: 'ZeroNote' },
-    );
+    await message(t('project.obsidian.nothing', { name }), { title: 'ZeroNote' });
     return;
   }
 
   const text = [
-    `# Настройки из .obsidian хранилища «${name}».`,
-    '# Файл проекта уже существует, поэтому строки не вписаны автоматически:',
-    '# дописать в TOML вторую таблицу [ignore] нельзя, а переписать ваш файл',
-    '# целиком значило бы потерять комментарии. Перенесите руками.',
+    t('project.obsidian.paste.head', { name }),
     '',
     '[ignore]',
     'rules = [',
@@ -188,8 +183,7 @@ async function showRulesToPaste(
     ...(preview.skipped.length > 0
       ? [
           '',
-          '# Эти фильтры Obsidian — регулярные выражения, и в правилах',
-          '# игнорирования их не выразить. Перепишите вручную, если нужны:',
+          t('project.obsidian.paste.skipped'),
           ...preview.skipped.map((filter) => `#   ${filter}`),
         ]
       : []),

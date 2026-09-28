@@ -13,6 +13,8 @@
  * когда пользователь выбрал.
  */
 
+import { t } from '../l10n';
+
 export interface Choice {
   id: string;
   label: string;
@@ -113,7 +115,7 @@ export function askInput(
     text,
     input: { initial },
     choices: [
-      { id: 'cancel', label: 'Отмена', cancel: true },
+      { id: 'cancel', label: t('common.cancel'), cancel: true },
       { id: 'ok', label: confirm, primary: true },
     ],
   });

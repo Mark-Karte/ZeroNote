@@ -1,5 +1,6 @@
 import type { ChangeSpec, EditorState } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
+import { t } from '../l10n';
 
 /**
  * Разметка markdown: обёртки, префиксы строк, ссылки и заготовки.
@@ -17,9 +18,16 @@ import type { EditorView } from '@codemirror/view';
  * и операция, применяющаяся только к первому, выглядела бы поломкой.
  */
 
-/** Что вставляет заготовка. Блоками, потому что таблицу в строку не написать. */
+/**
+ * Что вставляет заготовка. Блоками, потому что таблицу в строку не написать.
+ * Подпись столбца — текст заметки на языке окна, поэтому читается при
+ * вставке, а не при загрузке модуля.
+ */
 export const SNIPPETS: Record<string, string> = {
-  table: '| Столбец | Столбец |\n| --- | --- |\n|  |  |',
+  get table(): string {
+    const column = t('markdown.table.column');
+    return `| ${column} | ${column} |\n| --- | --- |\n|  |  |`;
+  },
   'code-block': '```\n\n```',
   divider: '---',
   // Схема рисуется в Obsidian, у нас — блоком кода с подписью языка.

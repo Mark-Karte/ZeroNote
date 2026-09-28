@@ -1,6 +1,7 @@
 import { WidgetType, type EditorView } from '@codemirror/view';
 
 import { icon } from '../icons/registry';
+import { t } from '../l10n';
 
 /**
  * Задачи `- [ ]` щелчком (задача 91).
@@ -70,7 +71,7 @@ export class TaskBox extends WidgetType {
     box.className = done ? 'zn-task zn-task-done' : 'zn-task';
     box.setAttribute('role', 'checkbox');
     box.setAttribute('aria-checked', String(done));
-    box.title = done ? 'Снять отметку' : 'Отметить сделанным';
+    box.title = done ? t('task.uncheck') : t('task.check');
     // Разметка из собственного реестра значков, а не из файла пользователя.
     // Флажок видом Obsidian (задача 126): рамку и заливку рисует стиль,
     // внутри — только галочка у сделанной задачи.

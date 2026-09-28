@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { TEXT_EXTENSIONS, IMAGE_EXTENSIONS, FILE_FILTERS } from '../src/actions/file-types';
+import { TEXT_EXTENSIONS, IMAGE_EXTENSIONS, fileFilters } from '../src/actions/file-types';
 
 /**
  * Один список типов файлов на два места.
@@ -63,6 +63,6 @@ describe('типы файлов', () => {
 
   /** «Все файлы» обязаны остаться: открывать мы умеем любой текст. */
   it('диалог не ограничивается известными типами', () => {
-    expect(FILE_FILTERS.at(-1)?.extensions).toEqual(['*']);
+    expect(fileFilters().at(-1)?.extensions).toEqual(['*']);
   });
 });

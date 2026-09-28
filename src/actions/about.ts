@@ -2,6 +2,7 @@ import { aboutText } from '../about';
 import { thirdPartyNotices, webviewVersion } from '../ipc/about';
 import { askChoice } from '../state/modal.svelte';
 import { notify } from '../state/notices.svelte';
+import { t } from '../l10n';
 import { openPath } from '../state/tabs.svelte';
 import { copyText } from './clipboard';
 
@@ -35,10 +36,10 @@ export async function aboutSummary(): Promise<string> {
 export async function showAbout(): Promise<void> {
   const text = await aboutSummary();
 
-  const answer = await askChoice('О программе', text, [
-    { id: 'copy', label: 'Скопировать' },
-    { id: 'licenses', label: 'Лицензии' },
-    { id: 'close', label: 'Закрыть', primary: true, cancel: true },
+  const answer = await askChoice(t('about.title'), text, [
+    { id: 'copy', label: t('about.copy') },
+    { id: 'licenses', label: t('about.licenses') },
+    { id: 'close', label: t('common.close'), primary: true, cancel: true },
   ]);
 
   if (answer === 'copy') await copyText(text);
@@ -54,11 +55,11 @@ async function showLicenses(): Promise<void> {
   try {
     const path = await thirdPartyNotices();
     if (path === null) {
-      notify('Файла с лицензиями рядом с программой нет — он есть в репозитории: THIRD-PARTY-NOTICES.md');
+      notify(t('about.licenses.missing'));
       return;
     }
     await openPath(path);
   } catch (error) {
-    notify(`Лицензии не открылись: ${error instanceof Error ? error.message : String(error)}`);
+    notify(t('about.licenses.failed', { error: error instanceof Error ? error.message : String(error) }));
   }
 }

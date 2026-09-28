@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from './Icon.svelte';
+  import { t } from '../l10n';
   import { iconForFile, kindOf } from '../icons/files';
   import type { IconName } from '../icons/registry';
   import { suggest, move, accept, close, dismiss } from '../state/suggest.svelte';
@@ -147,7 +148,7 @@
     class:placing={placed === null}
     bind:this={element}
     role="listbox"
-    aria-label={suggest.mode === 'headings' ? 'Заголовки заметки' : 'Заметки проекта'}
+    aria-label={suggest.mode === 'headings' ? t('suggest.headings') : t('suggest.notes')}
     tabindex="-1"
     style:left={placed ? `${placed.left}px` : null}
     style:top={placed ? `${placed.top}px` : null}

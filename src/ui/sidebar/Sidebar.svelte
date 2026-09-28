@@ -10,6 +10,7 @@
   import { roots, setSidebarWidth, projectRoots } from '../../state/roots.svelte';
   import { addRootDialog } from '../../actions/project';
   import { noteStructureChange } from '../../state/persist.svelte';
+  import { t } from '../../l10n';
 
   /**
    * Боковая панель. Что в ней показано, решает полоса значков рядом (Р-044).
@@ -129,21 +130,21 @@
     <Notes />
   {:else}
     <header class="head">
-      <span class="title">Папки</span>
+      <span class="title">{t('sidebar.files')}</span>
       <button
         class="action"
         type="button"
         onclick={addRootDialog}
-        title="Открыть папку (Ctrl+Shift+O)"
-        aria-label="Открыть папку"
+        title={t('sidebar.files.open.key')}
+        aria-label={t('sidebar.files.open')}
       >
         <Icon name="action.add-folder" />
       </button>
     </header>
 
     {#if projectRoots().length === 0}
-      <p class="empty">Папок нет</p>
-      <p class="hint">Ctrl+Shift+O — открыть папку как проект</p>
+      <p class="empty">{t('sidebar.files.empty')}</p>
+      <p class="hint">{t('sidebar.files.empty.hint')}</p>
     {:else}
       <FileTree />
     {/if}
@@ -167,7 +168,7 @@
   class:dragging
   role="separator"
   aria-orientation="vertical"
-  aria-label="Ширина боковой панели"
+  aria-label={t('sidebar.width')}
   aria-valuenow={width}
   aria-valuemin={bounds.min}
   aria-valuemax={bounds.max}

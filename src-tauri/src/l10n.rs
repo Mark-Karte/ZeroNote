@@ -509,16 +509,21 @@ pub struct WindowLanguage {
     pub builtin: Option<&'static str>,
     /// Свой перевод — уже проверенный: только годные строки.
     pub table: Option<Table>,
+    /// Первый день недели для календаря: 0 — понедельник, 6 — воскресенье.
+    #[serde(rename = "weekStart")]
+    pub week_start: u8,
 }
 
 pub fn window_language() -> WindowLanguage {
+    let week_start = windows_week_start();
     match CURRENT.get() {
         Some(current) => WindowLanguage {
             code: current.code.clone(),
             builtin: current.builtin.map(Builtin::code),
             table: current.user.clone(),
+            week_start,
         },
-        None => WindowLanguage { code: "ru".to_owned(), builtin: Some("ru"), table: None },
+        None => WindowLanguage { code: "ru".to_owned(), builtin: Some("ru"), table: None, week_start },
     }
 }
 
@@ -756,6 +761,31 @@ pub fn windows_ui_is_russian() -> bool {
     let id = unsafe { GetUserDefaultUILanguage() };
     // Младшие десять бит — основной язык; русский — 0x19 (`LANG_RUSSIAN`).
     id & 0x3FF == 0x19
+}
+
+/// Первый день недели по региональным настройкам Windows («Формат региона»):
+/// 0 — понедельник, 6 — воскресенье. Решает регион, а не язык окна
+/// (план этапа 21): человек с английским окном и русским регионом ждёт
+/// неделю с понедельника. Не прочиталось — понедельник, как до задачи 154.
+pub fn windows_week_start() -> u8 {
+    use windows_sys::Win32::Globalization::{GetLocaleInfoEx, LOCALE_IFIRSTDAYOFWEEK};
+
+    let mut buffer = [0u16; 4];
+    // unsafe — вызов Win32 (Р-314): имя региона — пустой указатель, то есть
+    // «регион человека»; буфер — живой массив, его длина названа в знаках.
+    let written = unsafe {
+        GetLocaleInfoEx(
+            std::ptr::null(),
+            LOCALE_IFIRSTDAYOFWEEK,
+            buffer.as_mut_ptr(),
+            buffer.len() as i32,
+        )
+    };
+    // Ответ — одна цифра строкой, «0»…«6», и ноль на конце: два знака.
+    match buffer[0] {
+        digit @ 0x30..=0x36 if written == 2 => (digit - 0x30) as u8,
+        _ => 0,
+    }
 }
 
 /// Строка для Win32: UTF-16 с нулём на конце.

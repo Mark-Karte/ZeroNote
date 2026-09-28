@@ -10,6 +10,7 @@ import { printAppearance } from '../ipc/appearance';
 import { writeHtmlExport } from '../ipc/export';
 import type { Tab } from '../state/tabs.svelte';
 import { version } from '../version';
+import { t } from '../l10n';
 
 /**
  * Экспорт в HTML (задача 110): один файл, который открывается в любом
@@ -110,7 +111,7 @@ export async function exportTabAsHtml(
 
   const target = await saveDialog({
     defaultPath: exportPath(tab.meta.path, tab.meta.title, markdown),
-    filters: [{ name: 'Страница HTML', extensions: ['html', 'htm'] }],
+    filters: [{ name: t('export.filter.html'), extensions: ['html', 'htm'] }],
   });
   if (!target) return null;
 

@@ -1,4 +1,5 @@
 import type { PopupItem } from './popup-item';
+import { t } from '../l10n';
 
 /**
  * Из чего состоят контекстные меню.
@@ -118,7 +119,7 @@ export function editorMenu(ctx: EditorMenuContext, commands: Command[]): PopupIt
     // когда она снимает, — врать в меню, где всё видно заранее.
     fromCommand(commands, 'view.bookmark', {
       divider: true,
-      label: ctx.bookmarked ? 'Снять закладку' : 'Поставить закладку',
+      label: ctx.bookmarked ? t('menu.bookmark.remove') : t('menu.bookmark.add'),
     }),
 
     fromCommand(commands, 'view.invisibles', {
@@ -167,16 +168,16 @@ export function tabMenu(ctx: TabMenuContext, commands: Command[]): PopupItem[] {
   // Сохранение показывается недоступным, а не исчезает: пункт, пропавший
   // из середины знакомого меню, читается как поломка, а недоступный с
   // подсказкой отвечает на вопрос «почему нельзя» (Р-180).
-  const nothingToSave = ctx.text ? undefined : 'У этой вкладки нет файла: сохранять нечего';
+  const nothingToSave = ctx.text ? undefined : t('menu.save.no-file');
 
   return tidy([
     // Зеркало в новой области справа (Р-209). Гаснет, а не исчезает, когда
     // области не поместятся (Р-212, Р-189).
     {
       id: MENU.openToSide,
-      label: 'Открыть сбоку',
+      label: t('menu.open-to-side'),
       disabled: !ctx.canSplit,
-      hint: ctx.canSplit ? undefined : 'Область слишком узкая, чтобы делить её надвое',
+      hint: ctx.canSplit ? undefined : t('menu.open-to-side.narrow'),
     },
 
     fromCommand(commands, 'file.save', {
@@ -201,7 +202,7 @@ export function tabMenu(ctx: TabMenuContext, commands: Command[]): PopupItem[] {
     fromCommand(commands, 'file.close-tab', { divider: true }),
     {
       id: MENU.closeOthers,
-      label: 'Закрыть другие',
+      label: t('menu.close-others'),
       disabled: ctx.others === 0,
     },
     fromCommand(commands, 'file.close-all'),
@@ -210,21 +211,21 @@ export function tabMenu(ctx: TabMenuContext, commands: Command[]): PopupItem[] {
     // его человек будет там же. Гаснет, когда возвращать нечего (Р-189).
     fromCommand(commands, 'file.reopen-tab', {
       disabled: !ctx.hasClosed,
-      hint: ctx.hasClosed ? undefined : 'В этом сеансе ничего не закрывали',
+      hint: ctx.hasClosed ? undefined : t('menu.reopen.none'),
     }),
 
     {
       id: MENU.copyPath,
-      label: 'Копировать путь',
+      label: t('menu.copy-path'),
       divider: true,
       disabled: !ctx.hasFile,
     },
-    { id: MENU.copyName, label: 'Копировать имя' },
+    { id: MENU.copyName, label: t('menu.copy-name') },
     {
       id: MENU.reveal,
-      label: 'Показать в проводнике',
+      label: t('common.reveal'),
       disabled: !ctx.hasFile,
-      hint: ctx.hasFile ? 'Открыть папку с файлом и выделить его' : 'Файла на диске ещё нет',
+      hint: ctx.hasFile ? t('menu.reveal.file') : t('menu.reveal.no-file'),
     },
   ]);
 }
@@ -255,16 +256,16 @@ export function treeMenu(ctx: TreeMenuContext, commands: Command[]): PopupItem[]
   // внутрь ссылки не заходим никогда, поэтому у неё нет ни того, ни другого.
   const head: PopupItem[] = [];
   if (!row.isDir) {
-    head.push({ id: MENU.open, label: 'Открыть' });
+    head.push({ id: MENU.open, label: t('menu.open') });
     // В новой области справа от активной — как «Open to the Side» в VS Code.
-    head.push({ id: MENU.openToSide, label: 'Открыть сбоку' });
+    head.push({ id: MENU.openToSide, label: t('menu.open-to-side') });
   } else if (!row.isLink) {
-    head.push({ id: MENU.toggle, label: row.expanded ? 'Свернуть' : 'Раскрыть' });
+    head.push({ id: MENU.toggle, label: row.expanded ? t('menu.collapse') : t('menu.expand') });
     if (row.expanded) {
       head.push({
         id: MENU.refresh,
-        label: 'Обновить',
-        hint: 'Перечитать содержимое папки с диска',
+        label: t('menu.refresh'),
+        hint: t('menu.refresh.hint'),
       });
     }
   }
@@ -273,19 +274,19 @@ export function treeMenu(ctx: TreeMenuContext, commands: Command[]): PopupItem[]
   const root: PopupItem[] = [];
   if (ctx.root) {
     if (!ctx.root.hasProjectFile) {
-      root.push({ id: MENU.projectFile, label: 'Создать zeronote.toml' });
+      root.push({ id: MENU.projectFile, label: t('project.file.create') });
     }
     if (ctx.root.hasObsidianConfig) {
-      root.push({ id: MENU.obsidian, label: 'Перенести настройки Obsidian' });
+      root.push({ id: MENU.obsidian, label: t('project.obsidian') });
     }
     // У папки заметок «Убрать папку» нет: её роль задана настройкой, и корень
     // вернулся бы на место при следующем запуске. Меняют её в параметрах.
     if (!ctx.root.isVault) {
       root.push({
         id: MENU.removeRoot,
-        label: 'Убрать папку',
+        label: t('project.remove'),
         danger: true,
-        hint: 'Убрать из рабочего пространства. Файлы на диске остаются на месте.',
+        hint: t('menu.remove-root.hint'),
       });
     }
     if (root[0]) root[0] = { ...root[0], divider: true };
@@ -295,19 +296,19 @@ export function treeMenu(ctx: TreeMenuContext, commands: Command[]): PopupItem[]
   // только по явной команде (Р-049) — пункт меню ею и является. Удаление
   // только в корзину (Р-110), и подпись об этом говорит прямо.
   const edits: PopupItem[] = [
-    { id: MENU.newFile, label: 'Создать файл', divider: true },
-    { id: MENU.newFolder, label: 'Создать папку' },
+    { id: MENU.newFile, label: t('menu.new-file'), divider: true },
+    { id: MENU.newFolder, label: t('menu.new-folder') },
   ];
 
   // У корня переименования и удаления нет: за ним тянутся запись в сессии,
   // наблюдатель и содержимое индекса. Для него есть «Убрать папку».
   if (!row.isRoot) {
-    edits.push({ id: MENU.rename, label: 'Переименовать', divider: true, key: 'f2' });
+    edits.push({ id: MENU.rename, label: t('common.rename'), divider: true, key: 'f2' });
     edits.push({
       id: MENU.delete,
-      label: 'Удалить в корзину',
+      label: t('menu.delete'),
       danger: true,
-      hint: 'Мимо корзины ZeroNote не удаляет',
+      hint: t('menu.delete.hint'),
     });
   }
 
@@ -315,12 +316,12 @@ export function treeMenu(ctx: TreeMenuContext, commands: Command[]): PopupItem[]
     ...head,
     ...edits,
 
-    { id: MENU.copyPath, label: 'Копировать путь', divider: true },
-    { id: MENU.copyName, label: 'Копировать имя' },
+    { id: MENU.copyPath, label: t('menu.copy-path'), divider: true },
+    { id: MENU.copyName, label: t('menu.copy-name') },
     {
       id: MENU.reveal,
-      label: 'Показать в проводнике',
-      hint: row.isDir ? 'Открыть эту папку в проводнике' : 'Открыть папку с файлом и выделить его',
+      label: t('common.reveal'),
+      hint: row.isDir ? t('menu.reveal.folder') : t('menu.reveal.file'),
     },
 
     ...root,

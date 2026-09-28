@@ -149,6 +149,58 @@ export function slots(text: string): Part[] {
   return parts;
 }
 
+/**
+ * Дата по правилам языка окна (задача 154): `{ day: 'numeric', month: 'long' }`
+ * даёт «7 ноября» и «November 7». Названия месяцев и дней недели берутся
+ * у `Intl`, а не из таблицы: так их знает и свой перевод, в котором их нет.
+ */
+export function formatDate(date: Date, options: Intl.DateTimeFormatOptions): string {
+  try {
+    return new Intl.DateTimeFormat(language(), options).format(date);
+  } catch {
+    return new Intl.DateTimeFormat('en', options).format(date);
+  }
+}
+
+/**
+ * Давность по правилам языка: «5 минут назад», «5 minutes ago». `auto` —
+ * словом, где язык его знает: «вчера», «yesterday».
+ */
+export function formatRelative(
+  value: number,
+  unit: Intl.RelativeTimeFormatUnit,
+  numeric: 'always' | 'auto' = 'always',
+): string {
+  try {
+    return new Intl.RelativeTimeFormat(language(), { numeric }).format(value, unit);
+  } catch {
+    return new Intl.RelativeTimeFormat('en', { numeric }).format(value, unit);
+  }
+}
+
+/** Первая буква заглавной по правилам языка: «сентябрь» → «Сентябрь». */
+export function capitalize(text: string): string {
+  try {
+    return text.charAt(0).toLocaleUpperCase(language()) + text.slice(1);
+  } catch {
+    return text.charAt(0).toUpperCase() + text.slice(1);
+  }
+}
+
+let firstDay = 0;
+
+/**
+ * Первый день недели — по региональным настройкам Windows, а не по языку
+ * (план этапа 21): его читает ядро. 0 — понедельник, 6 — воскресенье.
+ */
+export function useWeekStart(day: number): void {
+  firstDay = day;
+}
+
+export function weekStart(): number {
+  return firstDay;
+}
+
 /** Число с разрядами и дробной частью по правилам языка: `12 345`, `1,4`. */
 export function formatNumber(value: number, options?: Intl.NumberFormatOptions): string {
   if (!current) return String(value);

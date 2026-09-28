@@ -1,5 +1,6 @@
 import { StateEffect, StateField, type Extension } from '@codemirror/state';
 import { Decoration, EditorView, WidgetType } from '@codemirror/view';
+import { t } from '../l10n';
 
 /**
  * Имя файла заголовком над заметкой (задача 129), как у Obsidian.
@@ -102,7 +103,7 @@ class TitleWidget extends WidgetType {
     const sync = (): void => {
       const allowed = this.rename.allowed();
       field.readOnly = !allowed;
-      field.title = allowed ? '' : 'Файл вне открытых папок: переименовать можно, открыв его папку';
+      field.title = allowed ? '' : t('note-title.outside');
     };
     sync();
     field.addEventListener('pointerenter', sync);

@@ -1,6 +1,7 @@
 import * as ipc from '../ipc/files';
 import { tabs, contentOf, viewStateOf, paneViewsOf } from './tabs.svelte';
 import { roots } from './roots.svelte';
+import { t } from '../l10n';
 
 /**
  * Сохранение сессии и черновиков — инвариант 4.
@@ -91,7 +92,7 @@ async function writeDrafts(): Promise<void> {
       // незаписанное уходит снова через ту же паузу, а человек знает,
       // что его правки пока только в памяти.
       for (const entry of entries) seen.delete(entry.id);
-      draftTrouble.problem = `Черновики не записаны: ${String(error)}. Правки пока только в памяти — повтор через две секунды.`;
+      draftTrouble.problem = t('drafts.failed', { error: String(error) });
       noteEdit();
     }
   }

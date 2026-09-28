@@ -4,6 +4,7 @@ import { documentFor, isMarkdownTab, pageTitle } from '../html/tab';
 import { exportPdf } from '../ipc/export';
 import { mountDocument } from '../print/print';
 import type { Tab } from '../state/tabs.svelte';
+import { t } from '../l10n';
 
 /**
  * «Экспорт в PDF» одной командой (задача 111).
@@ -41,7 +42,7 @@ export async function exportTabAsPdf(
 
   const target = await saveDialog({
     defaultPath: pdfPath(tab.meta.path, tab.meta.title, markdown),
-    filters: [{ name: 'Документ PDF', extensions: ['pdf'] }],
+    filters: [{ name: t('export.filter.pdf'), extensions: ['pdf'] }],
   });
   if (!target) return null;
 

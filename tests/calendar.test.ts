@@ -8,7 +8,11 @@ import {
   monthLabel,
   shiftMonth,
   touchesFolder,
+  weekdayNames,
 } from '../src/ui/calendar';
+import { useLanguage } from '../src/l10n';
+import en from '../l10n/en.json';
+import ru from '../l10n/ru.json';
 
 /**
  * Календарь заметок (задача 97).
@@ -27,6 +31,29 @@ describe('раскладка месяца', () => {
   it('подписывает месяц по-русски', () => {
     expect(monthLabel(2026, 9)).toBe('Сентябрь 2026');
     expect(monthLabel(2027, 1)).toBe('Январь 2027');
+  });
+
+  it('месяц и дни недели — на языке окна (задача 154)', () => {
+    expect(weekdayNames(0)).toEqual(['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']);
+    useLanguage('en', en);
+    try {
+      expect(monthLabel(2026, 9)).toBe('September 2026');
+      expect(weekdayNames(6)).toEqual(['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']);
+    } finally {
+      useLanguage('ru', ru);
+    }
+  });
+
+  it('неделя начинается с дня из региона Windows', () => {
+    // 1 сентября 2026 года — вторник: с понедельника перед ним один день
+    // августа, с воскресенья — два.
+    expect(monthGrid(2026, 9)[0]![0]!.date).toBe('2026-08-31');
+    const fromSunday = monthGrid(2026, 9, 6);
+    expect(fromSunday[0]![0]!.date).toBe('2026-08-30');
+    expect(fromSunday.every((week) => week.length === 7)).toBe(true);
+    // Месяц, начавшийся в первый день недели, хвоста спереди не имеет:
+    // 1 ноября 2026 года — воскресенье.
+    expect(monthGrid(2026, 11, 6)[0]![0]!.date).toBe('2026-11-01');
   });
 
   it('считает февраль по правилам високосного года', () => {

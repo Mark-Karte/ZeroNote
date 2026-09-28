@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon from './Icon.svelte';
+  import { t } from '../l10n';
   import { appearance } from '../theme/store.svelte';
 
   interface Props {
@@ -49,8 +50,8 @@
       class="hide"
       type="button"
       onclick={() => (dismissed = key)}
-      title="Скрыть до следующего изменения"
-      aria-label="Скрыть предупреждения"
+      title={t('notices.hide')}
+      aria-label={t('notices.hide.label')}
     >
       <Icon name="action.remove" />
     </button>

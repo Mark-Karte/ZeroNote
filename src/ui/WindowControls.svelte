@@ -3,6 +3,7 @@
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import type { UnlistenFn } from '@tauri-apps/api/event';
   import Icon from './Icon.svelte';
+  import { t } from '../l10n';
 
   const appWindow = getCurrentWindow();
 
@@ -29,13 +30,13 @@
 </script>
 
 <div class="controls">
-  <button class="button" type="button" title="Свернуть" onclick={() => appWindow.minimize()}>
+  <button class="button" type="button" title={t('window.minimize')} onclick={() => appWindow.minimize()}>
     <Icon name="window.minimize" />
   </button>
   <button
     class="button"
     type="button"
-    title={maximized ? 'Восстановить' : 'Развернуть'}
+    title={maximized ? t('window.restore') : t('window.maximize')}
     onclick={() => appWindow.toggleMaximize()}
   >
     <Icon name={maximized ? 'window.restore' : 'window.maximize'} />
@@ -43,7 +44,7 @@
   <button
     class="button close"
     type="button"
-    title="Закрыть"
+    title={t('common.close')}
     onclick={() => appWindow.close()}
   >
     <Icon name="window.close" />

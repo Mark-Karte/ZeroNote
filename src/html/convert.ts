@@ -12,6 +12,7 @@ import { linkTarget, wikilinkSpans } from '../editor/wikilinks';
 import { codeBlock, highlightedLines } from './code';
 import { Renderer, blockBody, blockInfo, imageKey } from './markdown';
 import { Source } from './source';
+import { formatNumber, t, tn } from '../l10n';
 
 /**
  * Вывод HTML целиком: разбор, ресурсы, пределы (задача 108).
@@ -73,7 +74,7 @@ export class TooLarge extends Error {}
 
 /** Размер по-человечески: «2 МиБ». */
 function mib(size: number): string {
-  return `${Math.round((size / 1024 / 1024) * 10) / 10} МиБ`.replace('.', ',');
+  return `${formatNumber(Math.round((size / 1024 / 1024) * 10) / 10)} ${t('size.mib')}`;
 }
 
 /**
@@ -89,7 +90,7 @@ export async function markdownToHtml(
   { fragment = false }: { fragment?: boolean } = {},
 ): Promise<Converted> {
   if (text.length > MARKDOWN_LIMIT) {
-    throw new TooLarge(`заметка больше ${mib(MARKDOWN_LIMIT)} — такой объём вывод не собирает`);
+    throw new TooLarge(t('output.too-large.note', { size: mib(MARKDOWN_LIMIT) }));
   }
 
   // Frontmatter — узел того же разбора, что у превью (задача 114): рендер
@@ -162,7 +163,7 @@ export async function codeToHtml(
   numbered = false,
 ): Promise<Converted> {
   if (text.length > CODE_LIMIT) {
-    throw new TooLarge(`файл больше ${mib(CODE_LIMIT)} — такой объём вывод не собирает`);
+    throw new TooLarge(t('output.too-large.file', { size: mib(CODE_LIMIT) }));
   }
   const language = languageById(languageId);
   const parser = language ? (await language.load()).language.parser : null;
@@ -226,7 +227,7 @@ async function renderFormulas(
     const result = renderMath(math.tex, math.display);
     if (result === null) continue;
     if ('html' in result) out.set(node.from, result.html);
-    else problems.push(`формула «${read(node.from, node.to)}» не разобрана — вышла как написана: ${result.error}`);
+    else problems.push(t('output.formula', { formula: read(node.from, node.to), error: result.error }));
   }
   return out;
 }
@@ -264,7 +265,12 @@ async function drawDiagrams(
     }
     const line = source.slice(0, block.from).split('\n').length;
     const reason = (result.error.split('\n')[0] ?? '').replace(/:$/, '');
-    problems.push(`блок mermaid на строке ${line} вышел кодом — ${reason.charAt(0).toLowerCase()}${reason.slice(1)}`);
+    problems.push(
+      t('output.diagram', {
+        line: formatNumber(line),
+        reason: `${reason.charAt(0).toLowerCase()}${reason.slice(1)}`,
+      }),
+    );
   }
   return out;
 }
@@ -298,7 +304,7 @@ async function loadImages(
       total += data.length;
       out.set(key, data);
     } catch (error) {
-      problems.push(`картинка «${name}» не показана: ${String(error)}`);
+      problems.push(t('output.image', { name, error: String(error) }));
     }
   };
 
@@ -308,16 +314,14 @@ async function loadImages(
   for (const target of embeds) {
     const from = context.sourcePath;
     if (from === null) {
-      problems.push(`картинка «${target}» не показана: заметка не сохранена, имя не по чему разрешать`);
+      problems.push(t('output.image.unsaved', { name: target }));
       continue;
     }
     await take(imageKey('embed', target), target, () => context.loadEmbed(target, from));
   }
 
   if (skipped > 0) {
-    problems.push(
-      `картинок больше ${mib(IMAGES_LIMIT)} — ${skipped} вышли подписью вместо изображения`,
-    );
+    problems.push(tn('output.images.limit', skipped, { size: mib(IMAGES_LIMIT) }));
   }
   return out;
 }

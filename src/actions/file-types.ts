@@ -14,6 +14,9 @@
  * и данными (`icons/files.ts`), — у каждого типа свой значок в проводнике
  * (`icons/files/make-file-icons.mjs`). Картинок и PDF здесь нет: см. ниже.
  */
+
+import { t } from '../l10n';
+
 export const TEXT_EXTENSIONS = [
   // Заметки и простой текст.
   'md',
@@ -97,10 +100,15 @@ export const IMAGE_EXTENSIONS = [
   'avif',
 ];
 
-/** Фильтры системного диалога открытия и сохранения. */
-export const FILE_FILTERS = [
-  { name: 'Текст, заметки и код', extensions: TEXT_EXTENSIONS },
-  { name: 'Картинки', extensions: IMAGE_EXTENSIONS },
-  { name: 'PDF', extensions: ['pdf'] },
-  { name: 'Все файлы', extensions: ['*'] },
-];
+/**
+ * Фильтры системного диалога открытия и сохранения. Функцией, а не
+ * постоянной: подписи — на языке окна, а он ставится после загрузки модуля.
+ */
+export function fileFilters(): { name: string; extensions: string[] }[] {
+  return [
+    { name: t('files.filter.text'), extensions: TEXT_EXTENSIONS },
+    { name: t('files.filter.images'), extensions: IMAGE_EXTENSIONS },
+    { name: 'PDF', extensions: ['pdf'] },
+    { name: t('files.filter.all'), extensions: ['*'] },
+  ];
+}

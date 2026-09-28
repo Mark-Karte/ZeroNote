@@ -1,5 +1,5 @@
 import { windowLanguage } from '../ipc/l10n';
-import { useLanguage, type Table } from './index';
+import { useLanguage, useWeekStart, type Table } from './index';
 
 /**
  * Таблицы встроенных языков — каждая своим куском сборки: окно грузит
@@ -38,6 +38,7 @@ export async function startLanguage(): Promise<void> {
   }
 
   useLanguage(language.code, tables);
+  useWeekStart(language.weekStart);
   // Язык страницы — для переносов, озвучки и шрифтов системы.
   document.documentElement.lang = language.code;
 }

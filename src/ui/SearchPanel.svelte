@@ -10,6 +10,7 @@
     replaceCurrent,
     replaceEverything,
   } from '../state/search.svelte';
+  import { formatNumber, t } from '../l10n';
 
   let field = $state<HTMLInputElement | null>(null);
   let lastFocusRequest = 0;
@@ -52,9 +53,12 @@
 
   const status = $derived.by(() => {
     if (search.term === '') return '';
-    if (search.matches.invalid) return 'выражение не разобрано';
-    if (search.matches.total === 0) return 'нет совпадений';
-    return `${search.matches.current || 1} из ${search.matches.total}`;
+    if (search.matches.invalid) return t('search.invalid');
+    if (search.matches.total === 0) return t('search.none');
+    return t('search.position', {
+      current: formatNumber(search.matches.current || 1),
+      total: formatNumber(search.matches.total),
+    });
   });
 </script>
 
@@ -65,8 +69,8 @@
         class="field"
         class:invalid={search.matches.invalid}
         type="text"
-        placeholder="Найти"
-        aria-label="Найти"
+        placeholder={t('search.find')}
+        aria-label={t('search.find')}
         bind:this={field}
         bind:value={search.term}
         oninput={syncQuery}
@@ -78,33 +82,33 @@
           class="flag"
           class:on={search.caseSensitive}
           type="button"
-          title="Учитывать регистр"
+          title={t('search.case')}
           onclick={() => toggle('caseSensitive')}>Aa</button
         >
         <button
           class="flag"
           class:on={search.wholeWord}
           type="button"
-          title="Слово целиком"
+          title={t('search.word')}
           onclick={() => toggle('wholeWord')}>|ab|</button
         >
         <button
           class="flag"
           class:on={search.regexp}
           type="button"
-          title="Регулярное выражение"
+          title={t('search.regexp')}
           onclick={() => toggle('regexp')}>.*</button
         >
       </div>
 
       <span class="status" class:warn={search.matches.invalid}>{status}</span>
 
-      <button class="action" type="button" title="Назад (Shift+F3)" onclick={findPrevious}
+      <button class="action" type="button" title={t('search.previous')} onclick={findPrevious}
         >↑</button
       >
-      <button class="action" type="button" title="Вперёд (F3)" onclick={findNext}>↓</button>
+      <button class="action" type="button" title={t('search.next')} onclick={findNext}>↓</button>
 
-      <button class="action" type="button" title="Закрыть (Esc)" onclick={closeSearch}>
+      <button class="action" type="button" title={t('search.close')} onclick={closeSearch}>
         <Icon name="tab.close" />
       </button>
     </div>
@@ -114,13 +118,13 @@
         <input
           class="field"
           type="text"
-          placeholder="Заменить на"
-          aria-label="Заменить на"
+          placeholder={t('search.replace-with')}
+          aria-label={t('search.replace-with')}
           bind:value={search.replacement}
           onkeydown={onFieldKeyDown}
         />
-        <button class="action wide" type="button" onclick={replaceCurrent}>Заменить</button>
-        <button class="action wide" type="button" onclick={replaceEverything}>Все</button>
+        <button class="action wide" type="button" onclick={replaceCurrent}>{t('search.replace')}</button>
+        <button class="action wide" type="button" onclick={replaceEverything}>{t('search.replace.all')}</button>
       </div>
     {/if}
   </div>

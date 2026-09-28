@@ -5,6 +5,7 @@
   import { noteStructureChange } from '../../state/persist.svelte';
   import { activeTab } from '../../state/tabs.svelte';
   import { showSettings } from '../../actions/project';
+  import { t } from '../../l10n';
 
   /**
    * Полоса значков слева (Р-044).
@@ -17,20 +18,20 @@
    */
 
   const PANELS: { id: PanelId; icon: IconName; title: string }[] = [
-    { id: 'tree', icon: 'panel.tree', title: 'Папки (Ctrl+B)' },
-    { id: 'search', icon: 'panel.search', title: 'Поиск в проекте (Ctrl+Shift+F)' },
-    { id: 'links', icon: 'panel.links', title: 'Обратные ссылки' },
-    { id: 'outline', icon: 'panel.outline', title: 'Оглавление документа' },
+    { id: 'tree', icon: 'panel.tree', title: t('sidebar.files.key') },
+    { id: 'search', icon: 'panel.search', title: t('sidebar.search.key') },
+    { id: 'links', icon: 'panel.links', title: t('sidebar.backlinks') },
+    { id: 'outline', icon: 'panel.outline', title: t('sidebar.outline.button') },
     // Значок общий с палитрой: это одна и та же решётка, и вторая копия
     // того же рисунка ради имени с приставкой `panel.` разошлась бы
     // с первой при первой же правке.
-    { id: 'tags', icon: 'palette.tag', title: 'Теги проекта' },
+    { id: 'tags', icon: 'palette.tag', title: t('sidebar.tags.button') },
     // Значок тот же, что у команды «поставить закладку»: панель
     // и команда — про одно и то же (Р-148).
-    { id: 'bookmarks', icon: 'cmd.bookmark', title: 'Закладки' },
+    { id: 'bookmarks', icon: 'cmd.bookmark', title: t('sidebar.bookmarks') },
     // Заметки — не взгляд на открытый файл, как четыре панели выше, а второе
     // место с содержимым (задача 94). Оттого и седьмой значок.
-    { id: 'notes', icon: 'panel.notes', title: 'Заметки' },
+    { id: 'notes', icon: 'panel.notes', title: t('sidebar.notes') },
   ];
 
   /**
@@ -51,7 +52,7 @@
   }
 </script>
 
-<nav class="strip panel" aria-label="Панели">
+<nav class="strip panel" aria-label={t('sidebar.panels')}>
   {#each PANELS as panel (panel.id)}
     <button
       class="tab"
@@ -77,8 +78,8 @@
     class:active={settingsShown}
     type="button"
     onclick={() => void showSettings()}
-    title="Параметры (Ctrl+,)"
-    aria-label="Параметры"
+    title={t('sidebar.settings.key')}
+    aria-label={t('sidebar.settings')}
     aria-current={settingsShown ? 'page' : undefined}
   >
     <Icon name="panel.settings" />

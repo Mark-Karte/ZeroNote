@@ -1,4 +1,5 @@
 import { fileSize } from './size';
+import { formatNumber, t } from '../l10n';
 
 /**
  * Ход загрузки обновления словами (задача 104).
@@ -90,30 +91,34 @@ export function downloadView(download: Download, now: number, limitMs: number): 
   let amount: string;
 
   if (lastChunkAt === null) {
-    amount = 'Соединяюсь с GitHub…';
+    amount = t('download.connecting');
   } else if (total !== null) {
     fraction = Math.min(1, received / total);
     // Вниз, а не к ближайшему: 99,6% — это ещё не «100%».
     const percent = Math.floor(fraction * 100);
-    amount = `${fileSize(received)} из ${fileSize(total)} · ${percent}%`;
+    amount = t('download.progress', {
+      received: fileSize(received),
+      total: fileSize(total),
+      percent: formatNumber(percent),
+    });
   } else {
-    amount = `Скачано ${fileSize(received)}`;
+    amount = t('download.received', { size: fileSize(received) });
   }
 
   // Средняя скорость с нажатия: мгновенная скачет от куска к куску,
   // а вопрос «долго ли ещё» задают про среднюю.
   const seconds = (now - startedAt) / 1000;
   if (received > 0 && seconds >= 1) {
-    amount += ` · ${fileSize(received / seconds)}/с`;
+    amount += ` · ${t('download.speed', { size: fileSize(received / seconds) })}`;
   }
 
   const quietSince = lastChunkAt ?? startedAt;
   const quiet = now - quietSince;
   let stall = '';
   if (quiet >= STALL_AFTER_MS) {
-    const what = lastChunkAt === null ? 'GitHub не отвечает' : 'Данные не приходят';
+    const what = lastChunkAt === null ? t('download.silent.github') : t('download.silent.data');
     const left = Math.max(0, limitMs - (now - startedAt));
-    stall = `${what} ${duration(quiet)}. Если сеть не вернётся, загрузка прервётся через ${duration(left)}.`;
+    stall = t('download.stall', { what, quiet: duration(quiet), left: duration(left) });
   }
 
   return { fraction, amount, stall };
@@ -121,12 +126,15 @@ export function downloadView(download: Download, now: number, limitMs: number): 
 
 /** Итог загрузки: «Скачано 5,5 МиБ за 42 с». */
 export function finishedText(download: Download, now: number): string {
-  return `Скачано ${fileSize(download.received)} за ${duration(now - download.startedAt)}.`;
+  return t('download.finished', {
+    size: fileSize(download.received),
+    time: duration(now - download.startedAt),
+  });
 }
 
 /** Ожидание ответа на проверку: «Жду ответа 3 с — не дольше 30 с». */
 export function waitingText(elapsedMs: number, limitMs: number): string {
-  return `Жду ответа ${duration(elapsedMs)} — не дольше ${duration(limitMs)}.`;
+  return t('download.waiting', { elapsed: duration(elapsedMs), limit: duration(limitMs) });
 }
 
 /**
@@ -144,9 +152,19 @@ const NB = '\u00a0';
  */
 export function duration(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
-  if (total < 60) return `${total}${NB}с`;
+  if (total < 60) return unit(total, 'second');
 
   const minutes = Math.floor(total / 60);
   const seconds = total % 60;
-  return seconds === 0 ? `${minutes}${NB}мин` : `${minutes}${NB}мин${NB}${seconds}${NB}с`;
+  return seconds === 0
+    ? unit(minutes, 'minute')
+    : `${unit(minutes, 'minute')}${NB}${unit(seconds, 'second')}`;
+}
+
+/**
+ * Число с единицей времени на языке окна — «12 с», «12 sec»: единицы знает
+ * `Intl`. Пробел в его ответе обычный — меняется на неразрывный.
+ */
+function unit(value: number, name: 'second' | 'minute'): string {
+  return formatNumber(value, { style: 'unit', unit: name, unitDisplay: 'short' }).replace(/ /g, NB);
 }

@@ -3,6 +3,7 @@ import { bindingOf } from './binding';
 import { COMMANDS } from './registry';
 import * as ipc from '../ipc/keymap';
 import type { CommandInfo, KeymapState } from '../ipc/keymap';
+import { t } from '../l10n';
 
 /**
  * Оконный диспетчер горячих клавиш.
@@ -178,10 +179,10 @@ export async function loadKeymap(): Promise<string[]> {
   // например, недособранный реестр из-за порядка загрузки модулей.
   const orphans = [...new Set(Object.values(keymap.bindings))].filter((id) => !COMMANDS[id]);
   if (orphans.length > 0) {
-    problems.push(`команды без обработчика: ${orphans.join(', ')}`);
+    problems.push(t('keymap.orphans', { list: orphans.join(', ') }));
   }
   if (Object.keys(keymap.bindings).length === 0) {
-    problems.push('раскладка пуста: горячие клавиши не работают');
+    problems.push(t('keymap.empty'));
   }
 
   return problems;

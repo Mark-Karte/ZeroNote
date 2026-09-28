@@ -2,6 +2,7 @@ import { message } from '@tauri-apps/plugin-dialog';
 
 import { applyEdits, cancelReplace, planReplace } from '../ipc/edits';
 import type { FileEdits, ReplaceFile, ReplacePlan } from '../ipc/edits';
+import { formatNumber, t, tn } from '../l10n';
 import { askChoice } from '../state/modal.svelte';
 import { noteStructureChange } from '../state/persist.svelte';
 import { projectSearch, runNow } from '../state/project-search.svelte';
@@ -105,7 +106,7 @@ export async function replaceEverything(): Promise<void> {
   }
 
   if (plan.stopped) {
-    replace.done = 'Обход прерван';
+    replace.done = t('replace.stopped');
     return;
   }
 
@@ -113,12 +114,10 @@ export async function replaceEverything(): Promise<void> {
     // Число берётся из плана, а не пишется здесь: предел живёт в ядре
     // (`replace::MAX_MATCHES`), и вторая его запись во фронтенде однажды
     // разошлась бы с первой.
-    await message(
-      `Совпадений слишком много: найдено ${plan.total}, и обход не закончен. ` +
-        'Список такой длины не просмотреть, а замена без просмотра — не то, ' +
-        'что мы делаем. Уточните запрос или включите «слово целиком».',
-      { title: 'ZeroNote', kind: 'warning' },
-    );
+    await message(t('replace.overflow', { total: formatNumber(plan.total) }), {
+      title: 'ZeroNote',
+      kind: 'warning',
+    });
     return;
   }
 
@@ -135,8 +134,8 @@ export async function replaceEverything(): Promise<void> {
     replaceTitle(query, replacement),
     describeReplace(plan, withRootNames(split), scopeName()),
     [
-      { id: 'replace', label: 'Заменить', primary: true },
-      { id: 'cancel', label: 'Отмена', cancel: true },
+      { id: 'replace', label: t('search.replace'), primary: true },
+      { id: 'cancel', label: t('common.cancel'), cancel: true },
     ],
   );
   if (answer !== 'replace') return;
@@ -171,7 +170,7 @@ export async function replaceEverything(): Promise<void> {
   refreshHits();
 
   if (outcome.problems.length > 0) {
-    await message(`Изменены не все файлы:\n\n${outcome.problems.join('\n')}`, {
+    await message(t('replace.problems', { problems: outcome.problems.join('\n') }), {
       title: 'ZeroNote',
       kind: 'warning',
     });
@@ -188,7 +187,7 @@ export async function replaceEverything(): Promise<void> {
 export async function undoReplace(): Promise<void> {
   const last = lastReplace();
   if (last === null) {
-    await message('Отменять нечего: замен по проекту в этом сеансе не было.', {
+    await message(t('replace.undo.nothing'), {
       title: 'ZeroNote',
     });
     return;
@@ -200,22 +199,18 @@ export async function undoReplace(): Promise<void> {
   // и для такого файла тихо не состоялась.
   const split = splitPlan(last.undo, unsavedPaths());
   if (split.editable.length === 0) {
-    await message(
-      'Отменить замену сейчас нельзя: все её файлы открыты с несохранёнными ' +
-        'правками. Сохраните или закройте их и повторите отмену.',
-      { title: 'ZeroNote' },
-    );
+    await message(t('replace.undo.all-blocked'), { title: 'ZeroNote' });
     return;
   }
 
   const blocked =
     split.blocked.length === 0
       ? ''
-      : `\n\nОткрыты с несохранёнными правками — их отмена подождёт, пока ` +
-        `их не сохранят или не закроют:\n${split.blocked.map((f) => f.inside).join('\n')}`;
+      : '\n\n' +
+        t('replace.undo.blocked', { list: split.blocked.map((f) => f.inside).join('\n') });
 
   const answer = await askChoice(
-    'Отменить замену по проекту?',
+    t('replace.undo.title'),
     describeUndo(
       last.query,
       last.replacement,
@@ -224,8 +219,8 @@ export async function undoReplace(): Promise<void> {
       last.expression,
     ) + blocked,
     [
-      { id: 'undo', label: 'Отменить замену', primary: true },
-      { id: 'keep', label: 'Оставить как есть', cancel: true },
+      { id: 'undo', label: t('search.project.undo'), primary: true },
+      { id: 'keep', label: t('replace.undo.keep'), cancel: true },
     ],
   );
   if (answer !== 'undo') return;
@@ -254,10 +249,10 @@ export async function undoReplace(): Promise<void> {
   refreshHits();
 
   if (outcome.problems.length > 0) {
-    await message(
-      `Отмена дошла не до всех файлов — их изменили после замены:\n\n${outcome.problems.join('\n')}`,
-      { title: 'ZeroNote', kind: 'warning' },
-    );
+    await message(t('replace.undo.problems', { problems: outcome.problems.join('\n') }), {
+      title: 'ZeroNote',
+      kind: 'warning',
+    });
   }
 }
 
@@ -316,10 +311,10 @@ function matchesIn(files: FileEdits[]): number {
 /** Почему заменять оказалось нечего. */
 function describeNothing(plan: ReplacePlan, blocked: number): string {
   if (blocked > 0) {
-    return 'Найденное лежит только в файлах с несохранёнными правками — сохраните их и повторите';
+    return t('replace.nothing.blocked');
   }
   if (plan.lossy.length > 0) {
-    return 'Найденное лежит только в файлах, которые не читаются без потерь';
+    return t('replace.nothing.lossy');
   }
-  return `Ничего не найдено (просмотрено файлов: ${plan.scanned})`;
+  return tn('replace.nothing', plan.scanned);
 }

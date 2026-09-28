@@ -5,9 +5,12 @@
  * значило бы проверять её один раз в месяц. Всё, что здесь есть, закрыто
  * тестами; компонент рисует то, что эти функции посчитали.
  *
- * Неделя начинается с понедельника: у нас так пишут календари, и первый
- * столбец «воскресенье» читался бы как чужой.
+ * Неделя начинается с того дня, который назначен в региональных настройках
+ * Windows (задача 154), — у русского региона с понедельника. Названия
+ * месяцев и дней — у `Intl`, на языке окна.
  */
+
+import { capitalize, formatDate } from '../l10n';
 
 /** Ячейка сетки: число месяца и принадлежит ли оно показанному месяцу. */
 export interface Cell {
@@ -34,24 +37,30 @@ export function dateKey(year: number, month: number, day: number): string {
   return `${monthKey(year, month)}-${pad(day)}`;
 }
 
-const MONTHS = [
-  'Январь',
-  'Февраль',
-  'Март',
-  'Апрель',
-  'Май',
-  'Июнь',
-  'Июль',
-  'Август',
-  'Сентябрь',
-  'Октябрь',
-  'Ноябрь',
-  'Декабрь',
-];
-
-/** Подпись месяца — «Сентябрь 2026». */
+/**
+ * Подпись месяца — «Сентябрь 2026», «September 2026». Название — у `Intl`
+ * на языке окна: месяц без числа он называет так, как пишут в заголовке
+ * (у русского — именительный падеж, а не «сентября»).
+ */
 export function monthLabel(year: number, month: number): string {
-  return `${MONTHS[month - 1] ?? ''} ${year}`;
+  const name = formatDate(new Date(Date.UTC(year, month - 1, 1)), { month: 'long', timeZone: 'UTC' });
+  return `${capitalize(name)} ${year}`;
+}
+
+/**
+ * Короткие имена дней недели по порядку столбцов: «Пн … Вс» или,
+ * с воскресенья, «Sun … Sat». `first` — первый день: 0 — понедельник.
+ */
+export function weekdayNames(first: number): string[] {
+  // 1 января 2024 года — понедельник: от него отсчитываются остальные.
+  return Array.from({ length: 7 }, (_, i) =>
+    capitalize(
+      formatDate(new Date(Date.UTC(2024, 0, 1 + ((first + i) % 7))), {
+        weekday: 'short',
+        timeZone: 'UTC',
+      }),
+    ),
+  );
 }
 
 /** Сколько дней в месяце. Февраль считается по правилам високосного года. */
@@ -82,11 +91,14 @@ export function shiftMonth(
  * Хвосты нужны, чтобы недели были целыми: сетка с дырами по краям читается
  * как ошибка отрисовки. Принадлежность месяцу видна по `inMonth` — рисуются
  * такие дни тише.
+ *
+ * `weekStart` — первый день недели: 0 — понедельник, 6 — воскресенье.
  */
-export function monthGrid(year: number, month: number): Cell[][] {
+export function monthGrid(year: number, month: number, weekStart = 0): Cell[][] {
   const first = new Date(Date.UTC(year, month - 1, 1));
-  // `getUTCDay` считает от воскресенья, а неделя у нас с понедельника.
-  const lead = (first.getUTCDay() + 6) % 7;
+  // `getUTCDay` считает от воскресенья: сначала — к счёту от понедельника,
+  // потом — от первого дня недели.
+  const lead = ((first.getUTCDay() + 6) % 7 - weekStart + 7) % 7;
 
   const total = daysIn(year, month);
   const weeks: Cell[][] = [];

@@ -6,6 +6,8 @@
  * а одно с префиксами подсказывает само.
  */
 
+import { t } from '../../l10n';
+
 export type PaletteMode = 'files' | 'commands' | 'tags';
 
 export interface Parsed {
@@ -53,11 +55,11 @@ export function withMode(raw: string, mode: PaletteMode): string {
 export function placeholderFor(mode: PaletteMode): string {
   switch (mode) {
     case 'commands':
-      return 'Команда';
+      return t('palette.placeholder.commands');
     case 'tags':
-      return 'Тег';
+      return t('palette.placeholder.tags');
     default:
-      return 'Имя файла, > команда, # тег';
+      return t('palette.placeholder.files');
   }
 }
 

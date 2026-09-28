@@ -193,16 +193,41 @@ interface Scan {
   dynamic: string[];
   /** Строки с кириллицей — первые, для сообщения. */
   cyrillic: string[];
+  /**
+   * Вызовы `t()`/`tn()` вне функций, на уровне модуля (задача 154): такая
+   * строка собирается при загрузке модуля, до выбора языка, и навсегда
+   * остаётся ключом.
+   */
+  loadTime: string[];
 }
+
+/** Узлы, тело которых исполняется при вызове, а не при загрузке модуля. */
+const DEFERRED = new Set([
+  ts.SyntaxKind.FunctionDeclaration,
+  ts.SyntaxKind.FunctionExpression,
+  ts.SyntaxKind.ArrowFunction,
+  ts.SyntaxKind.MethodDeclaration,
+  ts.SyntaxKind.GetAccessor,
+  ts.SyntaxKind.SetAccessor,
+  ts.SyntaxKind.Constructor,
+  ts.SyntaxKind.PropertyDeclaration,
+]);
 
 function lineOf(code: string, offset: number): number {
   return code.slice(0, offset).split('\n').length;
 }
 
-/** TypeScript — его же разборщиком: строки, шаблоны и вызовы. */
-function scanTs(file: string, code: string, scan: Scan, offset = 0, whole = code): void {
+/**
+ * TypeScript — его же разборщиком: строки, шаблоны и вызовы.
+ *
+ * `atLoad` — верхний уровень кода исполняется при загрузке модуля: так у
+ * файла `.ts` и у `<script module>`. Скрипт компонента исполняется при его
+ * создании — это уже после выбора языка.
+ */
+function scanTs(file: string, code: string, scan: Scan, offset = 0, whole = code, atLoad = true): void {
   const source = ts.createSourceFile(file, code, ts.ScriptTarget.Latest, true);
-  const visit = (node: ts.Node): void => {
+  const visit = (node: ts.Node, deferred = !atLoad): void => {
+    deferred ||= DEFERRED.has(node.kind);
     if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
       if (CYRILLIC.test(node.text)) scan.cyrillic.push(node.text);
     } else if (ts.isTemplateExpression(node)) {
@@ -215,9 +240,10 @@ function scanTs(file: string, code: string, scan: Scan, offset = 0, whole = code
         const first = node.arguments[0];
         if (first && ts.isStringLiteral(first)) scan.keys.push({ key: first.text, where });
         else scan.dynamic.push(where);
+        if (!deferred) scan.loadTime.push(where);
       }
     }
-    ts.forEachChild(node, visit);
+    ts.forEachChild(node, (child) => visit(child, deferred));
   };
   visit(source);
 }
@@ -227,8 +253,9 @@ function scanTs(file: string, code: string, scan: Scan, offset = 0, whole = code
  * и выражения в `{…}`. Скрипт берётся отдельно и идёт через TypeScript.
  */
 function scanSvelte(file: string, code: string, scan: Scan): void {
-  for (const match of code.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)) {
-    scanTs(file, match[1]!, scan, match.index! + match[0].indexOf(match[1]!), code);
+  for (const match of code.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)) {
+    const atLoad = /\bmodule\b/.test(match[1]!);
+    scanTs(file, match[2]!, scan, match.index! + match[0].indexOf(match[2]!), code, atLoad);
   }
   const ast = parse(code, { modern: true });
   const visit = (node: unknown): void => {
@@ -269,7 +296,7 @@ function scanFrontend(): Map<string, Scan> {
     const file = rel(path);
     if (file.endsWith('.test.ts')) continue;
     const code = readFileSync(path, 'utf8');
-    const scan: Scan = { keys: [], dynamic: [], cyrillic: [] };
+    const scan: Scan = { keys: [], dynamic: [], cyrillic: [], loadTime: [] };
     if (file.endsWith('.svelte')) scanSvelte(file, code, scan);
     else scanTs(file, code, scan);
     scans.set(file, scan);
@@ -343,7 +370,12 @@ function scanCore(): Map<string, Scan> {
     const file = rel(path);
     const code = readFileSync(path, 'utf8');
     const { stripped, literals } = scanRustSource(code);
-    const scan: Scan = { keys: [], dynamic: [], cyrillic: literals.filter((text) => CYRILLIC.test(text)) };
+    const scan: Scan = {
+      keys: [],
+      dynamic: [],
+      cyrillic: literals.filter((text) => CYRILLIC.test(text)),
+      loadTime: [],
+    };
     // Сам модуль перевода зовёт свои функции и с переменной — это их
     // устройство; буквальные ключи у него сверяются, как у всех.
     const own = file.endsWith('src/l10n.rs');
@@ -378,7 +410,7 @@ describe('ключи в коде', () => {
 
   it('сторож видит вызов с переменной и строку в скрипте Svelte', () => {
     // Проверка, которая не может провалиться, выглядит как проходящая.
-    const scan: Scan = { keys: [], dynamic: [], cyrillic: [] };
+    const scan: Scan = { keys: [], dynamic: [], cyrillic: [], loadTime: [] };
     scanSvelte(
       'x.svelte',
       '<script lang="ts">\n  const k = "a";\n  const s = t(k) + "привет";\n</script>\n<p title={t(\'b\')}>текст</p>',
@@ -393,6 +425,31 @@ describe('ключи в коде', () => {
         'const S: &str = r#"сырая"#;\n#[cfg(test)]\nmod tests { const T: &str = "тест"; }',
     );
     expect(rust.literals).toEqual(['x.y', 'сырая']);
+  });
+
+  it('строка собирается при показе, а не при загрузке модуля (задача 154)', () => {
+    // Таблица языка ставится после загрузки модулей: `t()` на уровне модуля
+    // навсегда вернула бы ключ. Такие места — выбором в функции.
+    expect(all.flatMap((scan) => scan.loadTime)).toEqual([]);
+  });
+
+  it('сторож видит вызов на уровне модуля и не путает его с отложенным', () => {
+    const module: Scan = { keys: [], dynamic: [], cyrillic: [], loadTime: [] };
+    scanTs(
+      'y.ts',
+      "const A = t('a');\nfunction f() { return t('b'); }\nconst g = () => t('c');\n" +
+        "const O = { get x() { return t('d'); }, y: t('e') };",
+      module,
+    );
+    expect(module.loadTime).toEqual(['y.ts:1', 'y.ts:4']);
+
+    const svelte: Scan = { keys: [], dynamic: [], cyrillic: [], loadTime: [] };
+    scanSvelte(
+      'z.svelte',
+      "<script module>\n  const M = t('m');\n</script>\n<script>\n  const C = t('c');\n</script>\n<p>{t('p')}</p>",
+      svelte,
+    );
+    expect(svelte.loadTime).toEqual(['z.svelte:2']);
   });
 });
 
@@ -424,75 +481,8 @@ const SKIPPED_FRONT = ['src/bench/'];
  * к приёмке этапа он пуст. Файл, в котором русских строк не осталось,
  * тест требует отсюда убрать: иначе список перестал бы значить что-либо.
  */
-const PENDING_FRONT: string[] = [
-  'src/about.ts',
-  'src/actions/about.ts',
-  'src/actions/callouts.ts',
-  'src/actions/clipboard.ts',
-  'src/actions/drop-files.ts',
-  'src/actions/encoding.ts',
-  'src/actions/entries.ts',
-  'src/actions/export.ts',
-  'src/actions/external.ts',
-  'src/actions/file-types.ts',
-  'src/actions/files.ts',
-  'src/actions/navigate.ts',
-  'src/actions/paste-image.ts',
-  'src/actions/print.ts',
-  'src/actions/project.ts',
-  'src/actions/rename-plan.ts',
-  'src/actions/replace-plan.ts',
-  'src/actions/replace.ts',
-  'src/actions/templates.ts',
-  'src/editor/code-blocks.ts',
-  'src/editor/diagram.ts',
-  'src/editor/folding.ts',
-  'src/editor/images.ts',
-  'src/editor/langs.ts',
-  'src/editor/markdown-format.ts',
-  'src/editor/note-title.ts',
-  'src/editor/subpath.ts',
-  'src/editor/tasks.ts',
-  'src/editor/wikilinks.ts',
-  'src/export/copy.ts',
-  'src/export/html.ts',
-  'src/export/pdf.ts',
-  'src/html/convert.ts',
-  'src/icons/registry.ts',
-  'src/keymap/global.svelte.ts',
-  'src/state/links.svelte.ts',
-  'src/state/modal.svelte.ts',
-  'src/state/persist.svelte.ts',
-  'src/state/roots.svelte.ts',
-  'src/state/updates.svelte.ts',
-  'src/ui/ImageView.svelte',
-  'src/ui/Modal.svelte',
-  'src/ui/NoticeStrip.svelte',
-  'src/ui/PdfView.svelte',
-  'src/ui/SearchPanel.svelte',
-  'src/ui/Suggest.svelte',
-  'src/ui/TabStrip.svelte',
-  'src/ui/TitleBar.svelte',
-  'src/ui/Toolbar.svelte',
-  'src/ui/WindowControls.svelte',
-  'src/ui/calendar.ts',
-  'src/ui/download.ts',
-  'src/ui/menus.ts',
-  'src/ui/palette/Palette.svelte',
-  'src/ui/palette/query.ts',
-  'src/ui/sidebar/Backlinks.svelte',
-  'src/ui/sidebar/Bookmarks.svelte',
-  'src/ui/sidebar/Calendar.svelte',
-  'src/ui/sidebar/FileTree.svelte',
-  'src/ui/sidebar/IconStrip.svelte',
-  'src/ui/sidebar/Notes.svelte',
-  'src/ui/sidebar/Outline.svelte',
-  'src/ui/sidebar/ProjectSearch.svelte',
-  'src/ui/sidebar/Sidebar.svelte',
-  'src/ui/sidebar/Tags.svelte',
-  'src/ui/welcome/WelcomeScreen.svelte',
-  'src/ui/welcome/ago.ts',
-];
+// Окно переведено целиком задачами 153 и 154.
+const PENDING_FRONT: string[] = [];
 
 const PENDING_CORE: string[] = [
   'src-tauri/src/callouts/edit.rs',

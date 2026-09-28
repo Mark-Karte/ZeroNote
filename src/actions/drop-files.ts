@@ -7,7 +7,7 @@ import { linkDropped } from '../ipc/notes';
 import { notify } from '../state/notices.svelte';
 import { paneById } from '../state/panes.svelte';
 import { languageOf, tabById } from '../state/tabs.svelte';
-import { plural } from '../ui/plural';
+import { t, tn } from '../l10n';
 import { openDropped } from './files';
 
 /**
@@ -92,7 +92,7 @@ export async function dropFiles(paths: string[], point: Point): Promise<void> {
 
   const note = tabById(target.tabId)?.meta.path ?? null;
   if (note === null) {
-    notify('Сохраните заметку: файлам, брошенным в неё, нужна её папка');
+    notify(t('drop.unsaved'));
     return;
   }
 
@@ -105,7 +105,7 @@ export async function dropFiles(paths: string[], point: Point): Promise<void> {
     dropped = await linkDropped(note, files);
   } catch (error) {
     takeDropPoint(target.view, id);
-    notify(`Файлы не вставились: ${error instanceof Error ? error.message : String(error)}`);
+    notify(t('drop.failed', { error: error instanceof Error ? error.message : String(error) }));
     return;
   }
   const at = target.view.dom.isConnected ? takeDropPoint(target.view, id) : null;
@@ -115,7 +115,7 @@ export async function dropFiles(paths: string[], point: Point): Promise<void> {
 
   if (links.length > 0) {
     if (at === null) {
-      notify('Заметку закрыли, пока файлы копировались: ссылки вписать некуда');
+      notify(t('drop.closed'));
     } else {
       // Через пустую строку, как у Obsidian: картинки встают каждая
       // своим абзацем.
@@ -131,9 +131,8 @@ export async function dropFiles(paths: string[], point: Point): Promise<void> {
   }
 
   if (errors.length === 1) {
-    notify(`Файл не вставился: ${errors[0]}`);
+    notify(t('drop.file.failed', { error: errors[0]! }));
   } else if (errors.length > 1) {
-    const files = plural(errors.length, 'файл', 'файла', 'файлов');
-    notify(`Не вставились ${errors.length} ${files}: ${errors[0]}; …`);
+    notify(tn('drop.files.failed', errors.length, { error: errors[0]! }));
   }
 }

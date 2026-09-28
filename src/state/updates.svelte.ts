@@ -15,6 +15,7 @@ import {
   type DownloadEvent,
 } from '../ui/download';
 import { version } from '../version';
+import { t } from '../l10n';
 
 /**
  * Обновление из GitHub.
@@ -61,36 +62,39 @@ const CHECK_QUIET_MS = 400;
 /** Как часто обновлять секунды на экране. */
 const TICK_MS = 1_000;
 
-export const STEPS = ['Скачиваю', 'Проверяю подпись', 'Устанавливаю'];
-
-const DOWNLOAD_FAILED = {
-  title: 'Не удалось скачать обновление',
-  advice: 'Проверьте подключение к сети. Ничего не установлено.',
-};
+/** Шаги установки на экране — функцией: подписи на языке окна. */
+function steps(): string[] {
+  return [t('updates.step.download'), t('updates.step.verify'), t('updates.step.install')];
+}
 
 /**
- * Что сказать об отказе на каждом шаге, по порядку `STEPS`.
+ * Что сказать об отказе на каждом шаге, по порядку `steps()`.
  * «Ничего не установлено» верно на всех трёх: установщик запускается
  * последним действием, и отказ на нём значит, что он не запустился.
  */
-const FAILURES = [
-  DOWNLOAD_FAILED,
-  {
-    title: 'Обновление не прошло проверку подписи',
-    advice:
-      'Пакет подписан не нашим ключом или испорчен по дороге. Ничего не установлено.',
-  },
-  {
-    title: 'Не удалось запустить установщик',
-    advice:
-      'Ничего не установлено. Установщик можно скачать со страницы выпусков: ' +
-      'github.com/Mark-Karte/ZeroNote/releases',
-  },
-];
+function failure(step: number): { title: string; advice: string } {
+  switch (step) {
+    case 1:
+      return {
+        title: t('updates.signature.failed'),
+        advice: t('updates.signature.failed.advice'),
+      };
+    case 2:
+      return {
+        title: t('updates.installer.failed'),
+        advice: t('updates.installer.failed.advice'),
+      };
+    default:
+      return {
+        title: t('updates.download.failed'),
+        advice: t('updates.download.failed.advice'),
+      };
+  }
+}
 
 async function report(title: string, error: unknown, advice: string): Promise<void> {
   await askChoice(title, `${advice}\n\n${String(error)}`, [
-    { id: 'ok', label: 'Хорошо', primary: true, cancel: true },
+    { id: 'ok', label: t('common.ok'), primary: true, cancel: true },
   ]);
 }
 
@@ -110,7 +114,7 @@ export async function checkForUpdates(): Promise<void> {
     try {
       found = await whileChecking(checkUpdate(CHECK_TIMEOUT_MS));
     } catch (error) {
-      await report('Не удалось проверить обновления', error, 'Проверьте подключение к сети.');
+      await report(t('updates.check.failed'), error, t('updates.check.failed.advice'));
       return;
     }
 
@@ -118,22 +122,21 @@ export async function checkForUpdates(): Promise<void> {
     if (found.kind === 'cancelled') return;
 
     if (found.kind === 'upToDate') {
-      await askChoice('Обновлений нет', `У вас последняя версия — ${version}.`, [
-        { id: 'ok', label: 'Хорошо', primary: true, cancel: true },
+      await askChoice(t('updates.none'), t('updates.none.text', { version }), [
+        { id: 'ok', label: t('common.ok'), primary: true, cancel: true },
       ]);
       return;
     }
 
     const notes = found.notes?.trim();
     const answer = await askChoice(
-      'Есть новая версия',
-      `Вышла ${found.version}, у вас ${version}.` +
+      t('updates.found'),
+      t('updates.found.versions', { found: found.version, current: version }) +
         (notes ? `\n\n${notes}` : '') +
-        '\n\nПриложение скачает обновление, закроется, поставит его ' +
-        'и откроется снова.',
+        `\n\n${t('updates.found.how')}`,
       [
-        { id: 'later', label: 'Не сейчас', cancel: true, primary: true },
-        { id: 'install', label: 'Установить' },
+        { id: 'later', label: t('updates.later'), cancel: true, primary: true },
+        { id: 'install', label: t('updates.install') },
       ],
     );
 
@@ -158,8 +161,8 @@ async function whileChecking<T>(request: Promise<T>): Promise<T> {
 
   const delay = setTimeout(() => {
     const shown = showProgress({
-      title: 'Проверяю обновления',
-      text: 'Спрашиваю GitHub, вышла ли новая версия.',
+      title: t('updates.checking'),
+      text: t('updates.checking.text'),
       steps: [],
       step: 0,
       fraction: null,
@@ -197,11 +200,9 @@ async function whileChecking<T>(request: Promise<T>): Promise<T> {
  */
 async function install(target: string): Promise<void> {
   const { view, close } = showProgress({
-    title: `Обновление до ${target}`,
-    text:
-      'Когда всё скачается, окно закроется, установщик покажет свой ход, ' +
-      'и ZeroNote откроется снова. Отменить можно, пока идёт загрузка.',
-    steps: [...STEPS],
+    title: t('updates.installing.title', { version: target }),
+    text: t('updates.installing.text'),
+    steps: steps(),
     step: 0,
     fraction: null,
     detail: '',
@@ -217,7 +218,7 @@ async function install(target: string): Promise<void> {
     cancelling = true;
     view.cancel = null;
     view.warning = '';
-    view.detail = 'Отменяю загрузку…';
+    view.detail = t('updates.cancelling');
     void cancelUpdate();
   };
 
@@ -264,13 +265,13 @@ async function install(target: string): Promise<void> {
     view.fraction = 1;
     view.warning = '';
     view.cancel = null;
-    view.detail = 'Подпись сошлась. Запускаю установщик — окно сейчас закроется.';
+    view.detail = t('updates.launching');
 
     await installUpdate();
   } catch (error) {
     clearInterval(tick);
-    const failure = FAILURES[view.step] ?? DOWNLOAD_FAILED;
+    const failed = failure(view.step);
     close();
-    await report(failure.title, error, failure.advice);
+    await report(failed.title, error, failed.advice);
   }
 }

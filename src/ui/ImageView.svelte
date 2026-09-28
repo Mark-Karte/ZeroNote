@@ -1,6 +1,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import Icon from './Icon.svelte';
+  import { t } from '../l10n';
   import * as ipc from '../ipc/files';
   import { tabById, type ImageState } from '../state/tabs.svelte';
   import { paneById } from '../state/panes.svelte';
@@ -98,7 +99,7 @@
   function onError(): void {
     if (!image) return;
     image.source = null;
-    image.problem = 'файл не открылся как картинка: он повреждён или это не картинка вовсе';
+    image.problem = t('image.broken');
   }
 
   /** Щелчок переключает «по окну» и настоящий размер — как во всех просмотрщиках. */
@@ -136,7 +137,7 @@
       <p class="why">{image.problem}</p>
       {#if tab?.meta.path}
         <button class="reveal" type="button" onclick={() => void revealInExplorer(tab.meta.path!)}>
-          Показать в проводнике
+          {t('common.reveal')}
         </button>
       {/if}
     </div>
@@ -165,7 +166,7 @@
         onload={onLoad}
         onerror={onError}
         onclick={toggle}
-        title={image.scale === 'fit' ? 'Настоящий размер' : 'Вписать в окно'}
+        title={image.scale === 'fit' ? t('image.actual-size') : t('status.scale.fit.image')}
       />
     {/if}
   </div>

@@ -3,6 +3,7 @@ import { message } from '@tauri-apps/plugin-dialog';
 import * as ipc from '../ipc/notes';
 import type { Template } from '../ipc/notes';
 import { askInput } from '../state/modal.svelte';
+import { t } from '../l10n';
 import { showMenuAt } from '../state/menu.svelte';
 import { vaultRoot } from '../state/roots.svelte';
 import { caretPoint, editorView } from '../editor/current';
@@ -54,10 +55,7 @@ async function pickTemplate(use: (template: Template) => Promise<void>): Promise
   }
 
   if (items.length === 0) {
-    await message(
-      'Папка шаблонов не задана или пуста. Укажите её в параметрах: «Папка шаблонов».',
-      { title: 'ZeroNote' },
-    );
+    await message(t('templates.none'), { title: 'ZeroNote' });
     return;
   }
 
@@ -91,7 +89,7 @@ async function textOf(template: Template, title: string): Promise<string | null>
  */
 export async function insertTemplate(): Promise<void> {
   if (!editorView()) {
-    await message('Вставлять шаблон некуда: откройте заметку.', { title: 'ZeroNote' });
+    await message(t('templates.no-note'), { title: 'ZeroNote' });
     return;
   }
 
@@ -101,7 +99,7 @@ export async function insertTemplate(): Promise<void> {
 /** Вставить названную заготовку — для списка в панели, где выбор уже сделан. */
 export async function insertOne(template: Template): Promise<void> {
   if (!editorView()) {
-    await message('Вставлять шаблон некуда: откройте заметку.', { title: 'ZeroNote' });
+    await message(t('templates.no-note'), { title: 'ZeroNote' });
     return;
   }
 
@@ -134,7 +132,7 @@ export async function insertOne(template: Template): Promise<void> {
 export async function newNoteFromTemplate(): Promise<void> {
   const vault = vaultRoot();
   if (!vault) {
-    await message('Папка заметок недоступна.', { title: 'ZeroNote', kind: 'error' });
+    await message(t('templates.no-vault'), { title: 'ZeroNote', kind: 'error' });
     return;
   }
 
@@ -145,15 +143,15 @@ export async function newNoteFromTemplate(): Promise<void> {
 export async function newOne(template: Template): Promise<void> {
   const vault = vaultRoot();
   if (!vault) {
-    await message('Папка заметок недоступна.', { title: 'ZeroNote', kind: 'error' });
+    await message(t('templates.no-vault'), { title: 'ZeroNote', kind: 'error' });
     return;
   }
 
   const name = await askInput(
-    'Новая заметка',
-    `Имя заметки в папке «${vault.path}». Расширение .md добавится само.`,
+    t('sidebar.notes.new'),
+    t('templates.new.prompt', { folder: vault.path }),
     '',
-    'Создать',
+    t('common.create'),
   );
   if (name === null || name.trim() === '') return;
 

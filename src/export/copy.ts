@@ -2,6 +2,7 @@ import { markdownToHtml, codeToHtml } from '../html/convert';
 import { convertContext, isMarkdownTab } from '../html/tab';
 import { mountDocument } from '../print/print';
 import { languageOf, type Tab } from '../state/tabs.svelte';
+import { t } from '../l10n';
 
 /**
  * Копировать с оформлением (задача 112): в буфер уходят два формата —
@@ -194,7 +195,7 @@ export function diagramSize(viewBox: string | null): { width: number; height: nu
  */
 async function diagramPicture(svg: SVGSVGElement, background: string): Promise<HTMLImageElement> {
   const size = diagramSize(svg.getAttribute('viewBox'));
-  if (size === null) throw new Error('у схемы нет размера');
+  if (size === null) throw new Error(t('copy.diagram.no-size'));
 
   const copy = svg.cloneNode(true) as SVGSVGElement;
   copy.setAttribute('width', String(size.width));
@@ -211,7 +212,7 @@ async function diagramPicture(svg: SVGSVGElement, background: string): Promise<H
   canvas.width = Math.ceil(size.width * PICTURE_SCALE);
   canvas.height = Math.ceil(size.height * PICTURE_SCALE);
   const context = canvas.getContext('2d');
-  if (context === null) throw new Error('окно не дало холст');
+  if (context === null) throw new Error(t('copy.diagram.no-canvas'));
   context.fillStyle = background;
   context.fillRect(0, 0, canvas.width, canvas.height);
   context.drawImage(image, 0, 0, canvas.width, canvas.height);
@@ -220,7 +221,7 @@ async function diagramPicture(svg: SVGSVGElement, background: string): Promise<H
   picture.src = canvas.toDataURL('image/png');
   picture.width = Math.round(size.width);
   picture.height = Math.round(size.height);
-  picture.alt = 'схема';
+  picture.alt = t('copy.diagram.alt');
   return picture;
 }
 
@@ -251,7 +252,7 @@ async function diagramsToPictures(root: HTMLElement): Promise<string[]> {
     } catch (error) {
       svg.closest('.zn-diagram')?.remove();
       const reason = error instanceof Error ? error.message : String(error);
-      problems.push(`схема ${index + 1} не скопирована картинкой: ${reason}`);
+      problems.push(t('copy.diagram.failed', { index: index + 1, reason }));
     }
   }
   return problems;
