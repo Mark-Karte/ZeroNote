@@ -8,6 +8,8 @@
  * покажет жалобой, как любую другую.
  */
 
+import { t } from '../../l10n';
+
 export type PlaceKind = 'note' | 'beside' | 'root' | 'folder';
 
 export interface Place {
@@ -17,10 +19,13 @@ export interface Place {
 }
 
 /**
- * Имя папки, когда его выбирают впервые. По-русски, решение владельца:
- * `attachments`, как у Obsidian, — когда дойдёт до перевода интерфейса.
+ * Имя папки, когда его выбирают впервые, — на языке окна: «Вложения»
+ * по-русски (решение владельца на задаче 146), `attachments` по-английски,
+ * как у Obsidian (задача 153).
  */
-export const DEFAULT_FOLDER = 'Вложения';
+export function defaultFolder(): string {
+  return t('settings.attachments.default');
+}
 
 export function placeOf(value: string): Place {
   const text = value.trim().replace(/\\/g, '/');
@@ -31,7 +36,7 @@ export function placeOf(value: string): Place {
 }
 
 export function valueOf(place: Place): string {
-  const name = place.name.trim() || DEFAULT_FOLDER;
+  const name = place.name.trim() || defaultFolder();
   switch (place.kind) {
     case 'note':
       return './';

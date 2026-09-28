@@ -8,6 +8,8 @@
  * Занятость бывает трёх видов, и все три надо назвать вслух.
  */
 
+import { t } from '../l10n';
+
 export type ConflictKind = 'command' | 'editor' | 'webview';
 
 export interface Conflict {
@@ -27,22 +29,42 @@ export interface Conflict {
  * Список ведётся руками и повторяет таблицу из `DESIGN.md`, раздел 8.
  * Автоматически его не собрать: он живёт внутри чужой библиотеки.
  */
-const EDITOR_CHORDS: Record<string, string> = {
-  'alt+up': 'переместить строку вверх',
-  'alt+down': 'переместить строку вниз',
-  'shift+alt+up': 'продублировать строку вверх',
-  'shift+alt+down': 'продублировать строку вниз',
-  'ctrl+alt+up': 'курсор строкой выше',
-  'ctrl+alt+down': 'курсор строкой ниже',
-  'ctrl+bracketleft': 'снять отступ',
-  'ctrl+bracketright': 'добавить отступ',
-  'ctrl+enter': 'пустая строка под текущей',
-  'ctrl+i': 'расширить выделение по разбору',
-  'ctrl+m': 'переключить действие Tab',
-  'alt+l': 'выделить строку',
-  'alt+a': 'закомментировать блоком',
-  escape: 'свести курсоры к одному',
-};
+function editorAction(binding: string): string | null {
+  // Выбором, а не таблицей модуля: строка берётся на языке окна при показе,
+  // а ключ пишется буквально — иначе тест не сверит его с таблицей (Р-314).
+  switch (binding) {
+    case 'alt+up':
+      return t('conflict.editor.move-up');
+    case 'alt+down':
+      return t('conflict.editor.move-down');
+    case 'shift+alt+up':
+      return t('conflict.editor.copy-up');
+    case 'shift+alt+down':
+      return t('conflict.editor.copy-down');
+    case 'ctrl+alt+up':
+      return t('conflict.editor.cursor-up');
+    case 'ctrl+alt+down':
+      return t('conflict.editor.cursor-down');
+    case 'ctrl+bracketleft':
+      return t('conflict.editor.outdent');
+    case 'ctrl+bracketright':
+      return t('conflict.editor.indent');
+    case 'ctrl+enter':
+      return t('conflict.editor.line-below');
+    case 'ctrl+i':
+      return t('conflict.editor.expand');
+    case 'ctrl+m':
+      return t('conflict.editor.tab-focus');
+    case 'alt+l':
+      return t('conflict.editor.select-line');
+    case 'alt+a':
+      return t('conflict.editor.block-comment');
+    case 'escape':
+      return t('conflict.editor.single-cursor');
+    default:
+      return null;
+  }
+}
 
 /**
  * Сочетания, которые выполняет сам вебвью (Р-108).
@@ -52,11 +74,18 @@ const EDITOR_CHORDS: Record<string, string> = {
  * сочетание занимает **другая** команда, — и тогда копирование перестаёт
  * работать вовсе.
  */
-const WEBVIEW_CHORDS: Record<string, string> = {
-  'ctrl+x': 'вырезать',
-  'ctrl+c': 'копировать',
-  'ctrl+v': 'вставить',
-};
+function webviewAction(binding: string): string | null {
+  switch (binding) {
+    case 'ctrl+x':
+      return t('conflict.webview.cut');
+    case 'ctrl+c':
+      return t('conflict.webview.copy');
+    case 'ctrl+v':
+      return t('conflict.webview.paste');
+    default:
+      return null;
+  }
+}
 
 /**
  * Кто держит это сочетание сейчас, если держит.
@@ -77,12 +106,14 @@ export function conflictFor(
   }
 
   // Своё же сочетание вебвью выполняет мимо нас, и столкновения нет.
-  if (WEBVIEW_CHORDS[binding] && owner !== command) {
-    return { kind: 'webview', what: WEBVIEW_CHORDS[binding] };
+  const webview = webviewAction(binding);
+  if (webview && owner !== command) {
+    return { kind: 'webview', what: webview };
   }
 
-  if (EDITOR_CHORDS[binding]) {
-    return { kind: 'editor', what: EDITOR_CHORDS[binding] };
+  const editor = editorAction(binding);
+  if (editor) {
+    return { kind: 'editor', what: editor };
   }
 
   return null;
@@ -92,23 +123,11 @@ export function conflictFor(
 export function conflictQuestion(conflict: Conflict, chord: string): string {
   switch (conflict.kind) {
     case 'command':
-      return (
-        `Сейчас ${chord} — это «${conflict.what}».\n\n` +
-        'Назначить сюда новую команду — значит отнять сочетание у неё: ' +
-        'нажимать её будет нечем, но она останется в палитре и в меню.'
-      );
+      return t('conflict.question.command', { chord, what: conflict.what });
     case 'webview':
-      return (
-        `Сейчас ${chord} — это «${conflict.what}», и делает это сам вебвью.\n\n` +
-        'Заняв это сочетание, вы отключите его совсем — включая работу ' +
-        'в полях ввода.'
-      );
+      return t('conflict.question.webview', { chord, what: conflict.what });
     case 'editor':
-      return (
-        `Сейчас ${chord} — это «${conflict.what}» в редакторе текста.\n\n` +
-        'Этого сочетания нет в списке команд: его приносит сам редактор. ' +
-        'Заняв его, вы отберёте у редактора это действие.'
-      );
+      return t('conflict.question.editor', { chord, what: conflict.what });
   }
 }
 

@@ -7,6 +7,7 @@
   import { askChoice } from '../../state/modal.svelte';
   import { appearance } from '../../theme/store.svelte';
   import { contrast, parseHex, TEXT_CONTRAST } from '../../theme/contrast';
+  import { formatNumber, slots, t } from '../../l10n';
 
   /**
    * Вкладка «Коллауты» (задача 103).
@@ -23,16 +24,16 @@
 
   /** Роли темы по-человечески. Порядок — как в образце: от частых к редким. */
   const ROLES: { id: string; name: string }[] = [
-    { id: 'accent', name: 'Акцент' },
-    { id: 'success', name: 'Успех' },
-    { id: 'warning', name: 'Внимание' },
-    { id: 'danger', name: 'Опасность' },
-    { id: 'function', name: 'Цвет функций' },
-    { id: 'keyword', name: 'Цвет ключевых слов' },
-    { id: 'string', name: 'Цвет строк' },
-    { id: 'number', name: 'Цвет чисел' },
-    { id: 'type', name: 'Цвет типов' },
-    { id: 'muted', name: 'Приглушённый' },
+    { id: 'accent', name: t('callouts.role.accent') },
+    { id: 'success', name: t('callouts.role.success') },
+    { id: 'warning', name: t('callouts.role.warning') },
+    { id: 'danger', name: t('callouts.role.danger') },
+    { id: 'function', name: t('callouts.role.function') },
+    { id: 'keyword', name: t('callouts.role.keyword') },
+    { id: 'string', name: t('callouts.role.string') },
+    { id: 'number', name: t('callouts.role.number') },
+    { id: 'type', name: t('callouts.role.type') },
+    { id: 'muted', name: t('callouts.role.muted') },
   ];
 
   function colorName(color: string): string {
@@ -72,12 +73,11 @@
 
   async function remove(callout: CalloutDef): Promise<void> {
     const answer = await askChoice(
-      'Удалить коллаут?',
-      `«${callout.title || callout.id}» уйдёт из списка. Заметки с [!${callout.id}] ` +
-        'не изменятся — они будут рисоваться как [!note].',
+      t('callouts.remove.title'),
+      t('callouts.remove.text', { title: callout.title || callout.id, id: callout.id }),
       [
-        { id: 'keep', label: 'Оставить', cancel: true, primary: true },
-        { id: 'remove', label: 'Удалить', danger: true },
+        { id: 'keep', label: t('common.keep'), cancel: true, primary: true },
+        { id: 'remove', label: t('common.delete'), danger: true },
       ],
     );
     if (answer === 'remove') await removeCallout(callout.id);
@@ -127,7 +127,7 @@
     <div class="broken problems">
       <Icon name="status.warning" />
       <div>
-        <p class="lead">Из callouts.toml применилось не всё, остальное работает:</p>
+        <p class="lead">{t('callouts.problems')}</p>
         <ul>
           {#each file.problems as problem (problem)}
             <li>{problem}</li>
@@ -145,9 +145,15 @@
 {/if}
 
 <p class="note intro">
-  Коллаут — цитата, первая строка которой написана так: <code>&gt; [!тип] Подпись</code>.
-  Obsidian рисует её карточкой, ZeroNote тоже. Подпись — текст заметки: её пишет вставка,
-  и её увидит Obsidian. Тип, которого нет в списке, рисуется как <code>note</code>.
+  {#each slots(t('callouts.intro')) as part, index (index)}
+    {#if 'slot' in part}
+      {#if part.slot === 'example'}
+        <code>&gt; [!{t('callouts.example.type')}] {t('callouts.example.title')}</code>
+      {:else}
+        <code>note</code>
+      {/if}
+    {:else}{part.text}{/if}
+  {/each}
 </p>
 
 {#if editing}
@@ -157,11 +163,11 @@
          на экране. Своему цвету другого судьи нет. -->
     <div class="sample" style:--callout-color={cssColorOf(draft.color)}>
       <span class="sample-icon"><Icon name={iconOf(draft.icon)} /></span>
-      <span class="sample-title">{draft.title || draft.id || 'Коллаут'}</span>
+      <span class="sample-title">{draft.title || draft.id || t('callouts.sample')}</span>
     </div>
 
     <div class="field">
-      <label class="name" for="callout-id">Тип</label>
+      <label class="name" for="callout-id">{t('callouts.type')}</label>
       <input
         id="callout-id"
         class="control"
@@ -170,23 +176,27 @@
         placeholder="tip"
         spellcheck="false"
       />
-      <span class="note">Как пишется в заметке: <code>[!{draft.id || 'тип'}]</code>. Без пробелов.</span>
+      <span class="note">
+        {#each slots(t('callouts.type.note')) as part, index (index)}
+          {#if 'slot' in part}<code>[!{draft.id || t('callouts.example.type')}]</code>{:else}{part.text}{/if}
+        {/each}
+      </span>
     </div>
 
     <div class="field">
-      <label class="name" for="callout-title">Подпись</label>
+      <label class="name" for="callout-title">{t('callouts.title')}</label>
       <input
         id="callout-title"
         class="control"
         type="text"
         bind:value={draft.title}
-        placeholder="Совет"
+        placeholder={t('callouts.title.placeholder')}
       />
-      <span class="note">Вставка пишет её после типа. Пусто — только тип.</span>
+      <span class="note">{t('callouts.title.note')}</span>
     </div>
 
     <div class="field">
-      <span class="name">Цвет</span>
+      <span class="name">{t('callouts.color')}</span>
       <div class="swatches">
         {#each ROLES as role (role.id)}
           <button
@@ -199,32 +209,36 @@
             onclick={() => (draft.color = role.id)}
           ></button>
         {/each}
-        <label class="own" class:current={customColor} title="Свой цвет">
+        <label class="own" class:current={customColor} title={t('callouts.color.own')}>
           <input
             type="color"
             value={parseHex(draft.color) ? draft.color : '#888888'}
             oninput={(e) => (draft.color = e.currentTarget.value)}
           />
-          Свой
+          {t('callouts.color.own.short')}
         </label>
       </div>
       <span class="note">
         {#if customColor}
-          {draft.color} — свой цвет не меняется вместе с темой.
+          {t('callouts.color.custom.note', { color: draft.color })}
           {#if readability !== null}
-            Контраст с фоном карточки {readability.toFixed(1).replace('.', ',')}:1{readability <
-            TEXT_CONTRAST
-              ? ' — ниже 4,5:1, подпись будет читаться плохо'
-              : ''}.
+            {readability < TEXT_CONTRAST
+              ? t('callouts.contrast.low', {
+                  ratio: formatNumber(readability, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+                  min: formatNumber(TEXT_CONTRAST, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+                })
+              : t('callouts.contrast', {
+                  ratio: formatNumber(readability, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+                })}
           {/if}
         {:else}
-          {colorName(draft.color)} — цвет темы: меняется вместе с ней, читаемость проверена.
+          {t('callouts.color.theme.note', { color: colorName(draft.color) })}
         {/if}
       </span>
     </div>
 
     <div class="field">
-      <span class="name">Значок</span>
+      <span class="name">{t('callouts.icon')}</span>
       <div class="icons">
         {#each ICONS as name (name)}
           <button
@@ -242,17 +256,17 @@
     </div>
 
     <div class="actions">
-      <button class="button" type="button" onclick={() => (editing = null)}>Отмена</button>
+      <button class="button" type="button" onclick={() => (editing = null)}>{t('common.cancel')}</button>
       <button class="button primary" type="button" disabled={broken !== null} onclick={() => void save()}>
-        Сохранить
+        {t('common.save')}
       </button>
     </div>
   </div>
 {:else}
   <div class="section">
-    <h3 class="heading">Коллауты · {list.length}</h3>
+    <h3 class="heading">{t('callouts.heading', { count: list.length })}</h3>
     <button class="button" type="button" disabled={broken !== null} onclick={startNew}>
-      Добавить коллаут
+      {t('callouts.add')}
     </button>
   </div>
 {/if}
@@ -266,17 +280,17 @@
         <span class="note">[!{callout.id}] · {colorName(callout.color)}</span>
       </div>
       <button class="button" type="button" onclick={() => toggleToolbar(callout.id)}>
-        {onToolbar(callout.id) ? 'Убрать с панели' : 'На панель'}
+        {onToolbar(callout.id) ? t('toolbar.remove') : t('callouts.toolbar.add')}
       </button>
       <button class="button" type="button" disabled={broken !== null} onclick={() => startEdit(callout)}>
-        Изменить
+        {t('callouts.edit')}
       </button>
       <button
         class="step"
         type="button"
         disabled={broken !== null}
-        title="Удалить"
-        aria-label="Удалить"
+        title={t('common.delete')}
+        aria-label={t('common.delete')}
         onclick={() => void remove(callout)}
       >
         <Icon name="action.remove" />

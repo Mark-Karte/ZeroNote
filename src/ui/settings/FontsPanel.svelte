@@ -13,6 +13,7 @@
     type ShownFont,
   } from '../../theme/fonts';
   import { installed } from '../font-check';
+  import { t } from '../../l10n';
 
   /**
    * Шрифты интерфейса, редактора (задача 105) и заметки (задача 122).
@@ -32,17 +33,17 @@
   const PLACES = [
     {
       id: 'ui',
-      title: 'Шрифт интерфейса',
+      title: t('fonts.ui'),
       familyToken: 'font-family-ui',
       sizeToken: 'font-size-ui',
       min: 8,
       max: 32,
       suggestions: UI_SUGGESTIONS,
-      sample: 'Параметры · Оформление · Съешь же ещё этих мягких булок',
+      sample: t('fonts.sample.ui'),
     },
     {
       id: 'editor',
-      title: 'Шрифт редактора',
+      title: t('fonts.editor'),
       familyToken: 'font-family-editor',
       sizeToken: 'font-size-editor',
       min: 8,
@@ -52,23 +53,28 @@
     },
     {
       id: 'note',
-      title: 'Шрифт заметок',
+      title: t('fonts.note-font'),
       familyToken: 'font-family-note',
       sizeToken: 'font-size-note',
       min: 8,
       max: 48,
       suggestions: NOTE_SUGGESTIONS,
-      sample: 'Заметка с превью: текст этим шрифтом, код — шрифтом редактора.',
+      sample: t('fonts.sample.note'),
     },
   ] as const;
 
   type Place = (typeof PLACES)[number];
 
-  const SOURCE: Record<ShownFont['source'], string> = {
-    bundled: 'вшит в приложение',
-    system: 'есть в системе',
-    generic: 'шрифт Windows по умолчанию',
-  };
+  function sourceOf(source: ShownFont['source']): string {
+    switch (source) {
+      case 'bundled':
+        return t('fonts.source.bundled');
+      case 'system':
+        return t('fonts.source.system');
+      case 'generic':
+        return t('fonts.source.generic');
+    }
+  }
 
   /** Есть ли шрифт: вшитый и общее семейство есть всегда, прочее — меряем. */
   const present = (name: string): boolean =>
@@ -107,7 +113,7 @@
 
 {#if values}
   <section class="fonts">
-    <h2 class="part-title">Шрифты</h2>
+    <h2 class="part-title">{t('fonts.title')}</h2>
 
     {#each PLACES as place (place.id)}
       {@const now = status(place)}
@@ -116,9 +122,7 @@
         <div class="row">
           <div class="what">
             <span class="name">{place.title}</span>
-            <span class="note">
-              Пусто — из темы. Размер от {place.min} до {place.max} пикселей.
-            </span>
+            <span class="note">{t('fonts.note', { min: place.min, max: place.max })}</span>
           </div>
           <input
             class="field family"
@@ -126,7 +130,7 @@
             list="zn-fonts-{place.id}"
             disabled={broken !== null}
             value={own.family ?? ''}
-            placeholder={now.shown ? `${now.shown.name} — из темы` : 'как в теме'}
+            placeholder={now.shown ? t('fonts.placeholder.theme', { font: now.shown.name }) : t('fonts.placeholder.none')}
             spellcheck="false"
             onchange={(e) => setFamily(place, e.currentTarget.value)}
           />
@@ -149,12 +153,22 @@
 
         {#if now.missing}
           <p class="state warning">
-            «{now.missing}» в системе не нашёлся — на экране {now.shown?.name ?? 'шрифт по умолчанию'}.
+            {t('fonts.missing', { font: now.missing, shown: now.shown?.name ?? t('fonts.missing.default') })}
           </p>
         {:else if now.shown}
           <p class="state">
-            На экране: {now.shown.name}{now.size !== null ? `, ${now.size} px` : ''} — {SOURCE[now.shown.source]},
-            {own.family || own.size ? 'выбран здесь' : 'из темы'}.
+            {now.size !== null
+              ? t('fonts.shown.size', {
+                  font: now.shown.name,
+                  size: now.size,
+                  source: sourceOf(now.shown.source),
+                  origin: own.family || own.size ? t('fonts.origin.here') : t('fonts.origin.theme'),
+                })
+              : t('fonts.shown', {
+                  font: now.shown.name,
+                  source: sourceOf(now.shown.source),
+                  origin: own.family || own.size ? t('fonts.origin.here') : t('fonts.origin.theme'),
+                })}
           </p>
         {/if}
         <p class="sample {place.id}">{place.sample}</p>

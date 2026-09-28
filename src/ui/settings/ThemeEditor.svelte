@@ -9,12 +9,14 @@
     expandPalette,
     findingText,
     kindOf,
-    PALETTE_LABELS,
-    SECTIONS,
+    paletteLabel,
+    SECTION_IDS,
+    sectionTitle,
     splitLength,
     tokenNote,
   } from '../../theme/editor';
   import { appearance, refresh } from '../../theme/store.svelte';
+  import { slots, t } from '../../l10n';
 
   /**
    * Редактор темы (задача 105).
@@ -107,8 +109,8 @@
     if (!understood(section, key, value)) {
       problem =
         cssPropertyOf(section, key) === 'color'
-          ? `«${value}» — не цвет. Годится #rrggbb, rgba(…) или ссылка {palette.ключ}. Файл темы не изменён.`
-          : `«${value}» оформление не поймёт. Файл темы не изменён.`;
+          ? t('theme-editor.not-color', { value })
+          : t('theme-editor.not-understood', { value });
       field.value = was;
       return;
     }
@@ -143,22 +145,19 @@
 {#if editor}
   <section class="editor">
     <div class="head">
-      <h2 class="part-title">Редактор темы «{editor.name}»</h2>
+      <h2 class="part-title">{t('theme-editor.title', { theme: editor.name })}</h2>
       {#if !editor.builtin && editor.path}
         <button class="action" type="button" onclick={() => void openDropped([editor!.path!])}>
-          Открыть файл темы
+          {t('theme-editor.open')}
         </button>
       {/if}
     </div>
 
     {#if editor.builtin}
       <div class="locked">
-        <p class="note">
-          Встроенная тема живёт внутри приложения и не правится. Сделайте свою на её основе:
-          копия сразу станет текущей и откроется здесь для правки.
-        </p>
+        <p class="note">{t('theme-editor.locked')}</p>
         <button class="action primary" type="button" onclick={oncopy}>
-          Создать свою на основе «{editor.name}»
+          {t('appearance.create', { theme: editor.name })}
         </button>
       </div>
     {/if}
@@ -170,15 +169,14 @@
     <!-- Читаемость — над палитрой: правят цвет и тут же смотрят, что вышло. -->
     <div class="check" class:bad={findings.length > 0 || editor.problem}>
       {#if editor.problem}
-        <p class="check-title"><Icon name="status.warning" /> Тема не собирается: {editor.problem}</p>
+        <p class="check-title"><Icon name="status.warning" /> {t('theme-editor.broken', { problem: editor.problem })}</p>
       {:else if findings.length === 0}
         <p class="check-title">
-          <Icon name="action.check" /> Читаемость: текст, акцент и подсветка проходят те же пороги,
-          что встроенные темы.
+          <Icon name="action.check" /> {t('theme-editor.readable')}
         </p>
       {:else}
         <p class="check-title">
-          <Icon name="status.warning" /> Читаемость — не проходит {findings.length}:
+          <Icon name="status.warning" /> {t('theme-editor.unreadable', { count: findings.length })}
         </p>
         <ul class="findings">
           {#each findings as finding, index (index)}
@@ -188,16 +186,20 @@
       {/if}
     </div>
 
-    <h3 class="group-title">Палитра</h3>
+    <h3 class="group-title">{t('theme-editor.palette')}</h3>
     <div class="rows">
       {#each editor.palette as entry (entry.key)}
         {@const color = parseColor(entry.value)}
         <div class="row">
           <span class="swatch" style:--swatch={entry.value}></span>
           <div class="what">
-            <span class="name">{PALETTE_LABELS[entry.key] ?? entry.key}</span>
+            <span class="name">{paletteLabel(entry.key) ?? entry.key}</span>
             <span class="key">
-              {entry.key}{entry.derived ? ' · выведен из фонов' : entry.own ? '' : ' · из встроенной'}
+              {entry.derived
+                ? t('theme-editor.derived', { key: entry.key })
+                : entry.own
+                  ? entry.key
+                  : t('theme-editor.inherited', { key: entry.key })}
             </span>
           </div>
           <input
@@ -214,7 +216,7 @@
               type="color"
               disabled={locked}
               value={toHex(color)}
-              title="Выбрать цвет"
+              title={t('theme-editor.pick')}
               onchange={(e) => pick('palette', entry.key, e.currentTarget.value, color)}
             />
           {:else}
@@ -232,7 +234,7 @@
               max="100"
               disabled={locked}
               value={Math.round(color.a * 100)}
-              title="Плотность {Math.round(color.a * 100)}%"
+              title={t('theme-editor.alpha', { percent: Math.round(color.a * 100) })}
               onchange={(e) => setAlpha(entry.key, e.currentTarget.value, color)}
             />
           {:else}
@@ -242,8 +244,8 @@
             <button
               class="reset"
               type="button"
-              title="Убрать из файла: значение возьмётся из встроенной темы"
-              onclick={() => void write('palette', entry.key, null)}>вернуть</button
+              title={t('theme-editor.reset.palette')}
+              onclick={() => void write('palette', entry.key, null)}>{t('theme-editor.reset')}</button
             >
           {:else}
             <span class="reset-gap"></span>
@@ -258,13 +260,15 @@
       {/each}
     </datalist>
 
-    <h3 class="group-title">Остальные разделы</h3>
+    <h3 class="group-title">{t('theme-editor.sections')}</h3>
     <p class="note">
-      Любой токен оформления по имени. Цвета ролей ссылаются на палитру — запись
-      <code>{'{palette.accent}'}</code> берёт цвет оттуда и меняется вместе с ней.
+      {#each slots(t('theme-editor.sections.note')) as part, index (index)}
+        {#if 'slot' in part}<code>{'{palette.accent}'}</code>{:else}{part.text}{/if}
+      {/each}
     </p>
 
-    {#each SECTIONS as section (section.id)}
+    {#each SECTION_IDS as id (id)}
+      {@const section = { id, title: sectionTitle(id) }}
       {@const list = tokensOf(section.id)}
       {@const own = list.filter((token) => token.own !== null).length}
       <div class="section">
@@ -276,7 +280,9 @@
         >
           <span class="chevron" class:expanded={open[section.id]}><Icon name="tree.chevron" /></span>
           <span class="section-title">{section.title}</span>
-          <span class="count">[{section.id}] · {list.length}{own > 0 ? ` · своих ${own}` : ''}</span>
+          <span class="count">{own > 0
+            ? t('theme-editor.count.own', { id: section.id, count: list.length, own })
+            : t('theme-editor.count', { id: section.id, count: list.length })}</span>
         </button>
 
         {#if open[section.id]}
@@ -297,7 +303,7 @@
                   <span class="key">
                     {[
                       token.own !== null
-                        ? `по умолчанию ${token.default}`
+                        ? t('theme-editor.default', { value: token.default })
                         : token.resolved !== current
                           ? token.resolved
                           : '',
@@ -335,7 +341,7 @@
                     type="color"
                     disabled={locked}
                     value={toHex(color)}
-                    title="Выбрать цвет — вместо ссылки на палитру запишется сам цвет"
+                    title={t('theme-editor.pick.token')}
                     onchange={(e) => pick(token.section, token.key, e.currentTarget.value, color)}
                   />
                 {/if}
@@ -343,8 +349,8 @@
                   <button
                     class="reset"
                     type="button"
-                    title="Убрать из файла: вернётся умолчание"
-                    onclick={() => void write(token.section, token.key, null)}>вернуть</button
+                    title={t('theme-editor.reset.token')}
+                    onclick={() => void write(token.section, token.key, null)}>{t('theme-editor.reset')}</button
                   >
                 {:else}
                   <span class="reset-gap"></span>

@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import en from '../l10n/en.json';
 import ru from '../l10n/ru.json';
-import { formatNumber, language, t, tn, useLanguage, type Message } from '../src/l10n';
+import { formatNumber, language, languageName, slots, t, tn, useLanguage, type Message } from '../src/l10n';
 
 /**
  * Перевод интерфейса (задача 152, Р-314): таблицы, ключи и сторож.
@@ -48,6 +48,39 @@ describe('t и tn', () => {
     expect(tn('нет.такого', 2)).toBe('нет.такого');
     useLanguage('en', { k: 'Use {{date}} and {name}' });
     expect(t('k', { name: 'X' })).toBe('Use {{date}} and X');
+  });
+
+  it('свой перевод: чего в нём нет, берётся у следующей таблицы (задача 153)', () => {
+    useLanguage('de', [{ 'status.wrap.on': 'Umbruch', 'status.words': { one: '{count} Wort', other: '{count} Wörter' } }, en]);
+    expect(t('status.wrap.on')).toBe('Umbruch');
+    expect(t('status.wrap.off')).toBe('no wrap');
+    expect(tn('status.words', 2)).toBe('2 Wörter');
+    // Формы и числа — по правилам своего языка, даже у строки из английской.
+    expect(tn('status.cursors', 1234)).toBe('1.234 cursors');
+    expect(formatNumber(1.5, { minimumFractionDigits: 1 })).toBe('1,5');
+  });
+
+  it('код, которого Intl не знает, не роняет окно', () => {
+    useLanguage('zz-Bad-Code-Here', en);
+    expect(t('status.wrap.on')).toBe('wrap');
+    expect(tn('status.words', 2)).toBe('2 words');
+  });
+
+  it('место вставки — отдельным куском, окно заполняет его само', () => {
+    expect(slots('Пишется так: {code}. Без пробелов.')).toEqual([
+      { text: 'Пишется так: ' },
+      { slot: 'code' },
+      { text: '. Без пробелов.' },
+    ]);
+    expect(slots('{example}')).toEqual([{ slot: 'example' }]);
+    expect(slots('без вставок')).toEqual([{ text: 'без вставок' }]);
+  });
+
+  it('язык назван на самом себе, с заглавной', () => {
+    expect(languageName('ru')).toBe('Русский');
+    expect(languageName('en')).toBe('English');
+    expect(languageName('de')).toBe('Deutsch');
+    expect(languageName('pt-BR')).toBe('Português (Brasil)');
   });
 });
 
@@ -311,13 +344,13 @@ function scanCore(): Map<string, Scan> {
     const code = readFileSync(path, 'utf8');
     const { stripped, literals } = scanRustSource(code);
     const scan: Scan = { keys: [], dynamic: [], cyrillic: literals.filter((text) => CYRILLIC.test(text)) };
-    // Сам модуль перевода зовёт свои функции с переменной — это их устройство.
-    if (!file.endsWith('src/l10n.rs')) {
-      for (const match of stripped.matchAll(/(?<![\w:]fn\s|\bfn\s)\b(?:l10n::)?(tr|tr_with|tr_n)\(\s*("?)([^"),\s]*)/g)) {
-        const where = `${file}:${lineOf(stripped, match.index!)}`;
-        if (match[2] === '"') scan.keys.push({ key: match[3]!, where });
-        else scan.dynamic.push(where);
-      }
+    // Сам модуль перевода зовёт свои функции и с переменной — это их
+    // устройство; буквальные ключи у него сверяются, как у всех.
+    const own = file.endsWith('src/l10n.rs');
+    for (const match of stripped.matchAll(/(?<![\w:]fn\s|\bfn\s)\b(?:l10n::)?(tr|tr_with|tr_n)\(\s*("?)([^"),\s]*)/g)) {
+      const where = `${file}:${lineOf(stripped, match.index!)}`;
+      if (match[2] === '"') scan.keys.push({ key: match[3]!, where });
+      else if (!own) scan.dynamic.push(where);
     }
     scans.set(file, scan);
   }
@@ -376,6 +409,7 @@ const ALLOWED_FRONT: Record<string, string> = {
   'src/l10n/index.ts': 'сообщение разработчику в консоль: строку попросили до выбора языка',
   'src/l10n/start.ts': 'сообщение разработчику: в сборке нет русской таблицы',
   'src/main.ts': 'отчёт стенда замеров и время готовности в консоли — для разработчика',
+  'src/ui/font-check.ts': 'строка-проба для замера ширины шрифта: кириллица в ней отличает шрифты с кириллицей от шрифтов без неё',
 };
 
 const ALLOWED_CORE: Record<string, string> = {
@@ -425,14 +459,12 @@ const PENDING_FRONT: string[] = [
   'src/export/pdf.ts',
   'src/html/convert.ts',
   'src/icons/registry.ts',
-  'src/keymap/conflicts.ts',
   'src/keymap/global.svelte.ts',
   'src/state/links.svelte.ts',
   'src/state/modal.svelte.ts',
   'src/state/persist.svelte.ts',
   'src/state/roots.svelte.ts',
   'src/state/updates.svelte.ts',
-  'src/theme/editor.ts',
   'src/ui/ImageView.svelte',
   'src/ui/Modal.svelte',
   'src/ui/NoticeStrip.svelte',
@@ -445,18 +477,9 @@ const PENDING_FRONT: string[] = [
   'src/ui/WindowControls.svelte',
   'src/ui/calendar.ts',
   'src/ui/download.ts',
-  'src/ui/font-check.ts',
   'src/ui/menus.ts',
   'src/ui/palette/Palette.svelte',
   'src/ui/palette/query.ts',
-  'src/ui/settings/AppearanceScreen.svelte',
-  'src/ui/settings/CalloutsScreen.svelte',
-  'src/ui/settings/FontsPanel.svelte',
-  'src/ui/settings/KeysScreen.svelte',
-  'src/ui/settings/SettingsScreen.svelte',
-  'src/ui/settings/ThemeEditor.svelte',
-  'src/ui/settings/ToolbarScreen.svelte',
-  'src/ui/settings/attachments.ts',
   'src/ui/sidebar/Backlinks.svelte',
   'src/ui/sidebar/Bookmarks.svelte',
   'src/ui/sidebar/Calendar.svelte',

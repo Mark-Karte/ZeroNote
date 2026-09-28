@@ -80,8 +80,9 @@ pub struct AppearanceSettings {
     pub dark_theme: String,
     pub density: Density,
     /// Язык интерфейса (задача 152): `auto` — русский, если русский есть
-    /// в списке языков Windows, иначе английский. Действует после
-    /// перезапуска — язык выбирается один раз при старте (`l10n`).
+    /// в списке языков Windows, иначе английский; или код языка —
+    /// встроенного либо своего перевода в `data/l10n` (задача 153).
+    /// Действует после перезапуска — язык выбирается один раз при старте.
     pub language: crate::l10n::LanguageSetting,
 }
 
@@ -685,7 +686,8 @@ dark_theme = "dark"
 density = "normal"
 
 # Язык интерфейса: "auto" — русский, если русский есть в списке языков
-# Windows, иначе английский; "ru" или "en" — всегда этот. В отличие
+# Windows, иначе английский; "ru" или "en" — всегда этот. Свой перевод —
+# файл data/l10n/<код>.json, и здесь его код, например "de". В отличие
 # от остального, действует после перезапуска.
 # language = "auto"
 
@@ -1113,13 +1115,18 @@ mod tests {
         use crate::l10n::LanguageSetting;
 
         let good = read("schema = 1\n[appearance]\nlanguage = \"en\"\n");
-        assert_eq!(good.settings.appearance.language, LanguageSetting::En);
+        assert_eq!(good.settings.appearance.language, LanguageSetting::Code("en".into()));
         assert!(good.problems.is_empty(), "{:?}", good.problems);
 
-        let bad = read("schema = 1\n[appearance]\nlanguage = \"de\"\ndensity = \"compact\"\n");
+        // Код своего перевода — тоже годен (задача 153): есть ли файл,
+        // проверяет запуск, а не разбор.
+        let own = read("schema = 1\n[appearance]\nlanguage = \"pt_br\"\n");
+        assert_eq!(own.settings.appearance.language, LanguageSetting::Code("pt-BR".into()));
+
+        let bad = read("schema = 1\n[appearance]\nlanguage = \"немецкий\"\ndensity = \"compact\"\n");
         assert_eq!(bad.settings.appearance.language, LanguageSetting::Auto);
         assert_eq!(bad.settings.appearance.density, Density::Compact);
-        assert!(named(&bad.problems, &["language", "de", "auto"]), "{:?}", bad.problems);
+        assert!(named(&bad.problems, &["language", "немецкий", "pt-BR"]), "{:?}", bad.problems);
 
         // В образце ключ закомментирован: 0.20.0 прочитает свежий образец
         // без жалобы, а явно заданный назовёт строкой (раздел «Откат»).

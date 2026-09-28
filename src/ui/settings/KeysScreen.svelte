@@ -13,6 +13,7 @@
   } from '../../keymap/global.svelte';
   import * as ipc from '../../ipc/keymap';
   import { askChoice } from '../../state/modal.svelte';
+  import { t } from '../../l10n';
 
   /**
    * Редактор горячих клавиш — отдельной вкладкой окна параметров.
@@ -135,11 +136,11 @@
 
     if (conflict) {
       const answer = await askChoice(
-        'Сочетание занято',
+        t('keys.conflict.title'),
         conflictQuestion(conflict, labelOf(binding)),
         [
-          { id: 'cancel', label: 'Отмена', cancel: true, primary: true },
-          { id: 'take', label: 'Назначить', danger: true },
+          { id: 'cancel', label: t('common.cancel'), cancel: true, primary: true },
+          { id: 'take', label: t('keys.conflict.take'), danger: true },
         ],
       );
       if (answer !== 'take') return;
@@ -161,12 +162,11 @@
   async function resetAll(): Promise<void> {
     stopCapture();
     const answer = await askChoice(
-      'Сбросить все клавиши',
-      'Все переназначения будут убраны, раскладка вернётся к исходной.' +
-        '\n\nПравки в keymap.toml, сделанные руками, тоже пропадут.',
+      t('keys.reset-all.title'),
+      t('keys.reset-all.text'),
       [
-        { id: 'cancel', label: 'Отмена', cancel: true, primary: true },
-        { id: 'reset', label: 'Сбросить', danger: true },
+        { id: 'cancel', label: t('common.cancel'), cancel: true, primary: true },
+        { id: 'reset', label: t('keys.reset'), danger: true },
       ],
     );
     if (answer !== 'reset') return;
@@ -180,12 +180,12 @@
     class="control text"
     type="text"
     bind:value={filter}
-    placeholder="Найти команду или сочетание"
-    aria-label="Поиск по командам"
+    placeholder={t('keys.search')}
+    aria-label={t('keys.search.label')}
     spellcheck="false"
   />
   <button class="button quiet" type="button" disabled={broken !== null} onclick={resetAll}>
-    Сбросить все
+    {t('keys.reset-all')}
   </button>
 </div>
 
@@ -202,7 +202,7 @@
     <div class="broken problems">
       <Icon name="status.warning" />
       <div>
-        <p class="lead">Из keymap.toml применилось не всё, остальное работает:</p>
+        <p class="lead">{t('keys.problems')}</p>
         <ul>
           {#each skipped as line (line)}
             <li>{line}</li>
@@ -219,13 +219,10 @@
   {/if}
 {/if}
 
-<p class="note lead">
-  Нажмите «Изменить» и наберите сочетание. Оно запишется в keymap.toml —
-  файл можно править и руками.
-</p>
+<p class="note lead">{t('keys.lead')}</p>
 
 {#if shown.length === 0}
-  <p class="note">Ничего не найдено.</p>
+  <p class="note">{t('keys.empty')}</p>
 {:else}
   <div class="rows">
     {#each shown as command (command.id)}
@@ -243,18 +240,18 @@
         {#if capturing === command.id}
           <span class="asking">
             {#if refused}
-              {labelOf(refused)} — клавиша набора, добавьте Ctrl или Alt · Esc — отмена
+              {t('keys.refused', { key: labelOf(refused) })}
             {:else}
-              Нажмите сочетание · Esc — отмена
+              {t('keys.asking')}
             {/if}
           </span>
           <button class="button quiet" type="button" onclick={() => unbind(command.id)}>
-            Снять
+            {t('keys.unbind')}
           </button>
         {:else}
           <span class="keys">
             {#if command.bindings.length === 0}
-              <span class="note">нет</span>
+              <span class="note">{t('keys.none')}</span>
             {:else}
               {#each command.bindings as binding (binding)}
                 <kbd class="key">{labelOf(binding)}</kbd>
@@ -267,7 +264,7 @@
             disabled={broken !== null}
             onclick={() => beginCapture(command.id)}
           >
-            Изменить
+            {t('keys.change')}
           </button>
           {#if changed(command)}
             <button
@@ -276,7 +273,7 @@
               disabled={broken !== null}
               onclick={() => resetOne(command.id)}
             >
-              Сбросить
+              {t('keys.reset')}
             </button>
           {/if}
         {/if}

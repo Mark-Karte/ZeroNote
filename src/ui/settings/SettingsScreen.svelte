@@ -1,18 +1,22 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { open as openDialog } from '@tauri-apps/plugin-dialog';
   import Icon from '../Icon.svelte';
   import { settings, put } from '../../state/settings.svelte';
   import { refreshVault } from '../../state/roots.svelte';
   import * as ipc from '../../ipc/files';
+  import { languages as loadLanguages, type LanguagesState } from '../../ipc/l10n';
   import { openDropped } from '../../actions/files';
   import { showAbout } from '../../actions/about';
+  import { createTranslation, openTranslationsDir, restartApp } from '../../actions/language';
+  import { language, languageName, t } from '../../l10n';
   import { version } from '../../version';
   import KeysScreen from './KeysScreen.svelte';
   import AppearanceScreen from './AppearanceScreen.svelte';
   import ToolbarScreen from './ToolbarScreen.svelte';
   import CalloutsScreen from './CalloutsScreen.svelte';
   import { updates, checkForUpdates } from '../../state/updates.svelte';
-  import { placeOf, valueOf, type PlaceKind } from './attachments';
+  import { placeOf, valueOf, defaultFolder, type PlaceKind } from './attachments';
 
   /**
    * Экран параметров.
@@ -24,7 +28,9 @@
    * и появилось выключенным (Р-133).
    *
    * Изменение применяется сразу и пишется в файл. Кнопок «применить»
-   * и «отменить» нет: файл и есть состояние (Р-077).
+   * и «отменить» нет: файл и есть состояние (Р-077). Исключение одно —
+   * язык (задача 153): он выбирается при старте, и новый действует после
+   * перезапуска, поэтому рядом с выбором встаёт кнопка «Перезапустить».
    */
 
   /**
@@ -39,6 +45,46 @@
   const file = $derived(settings.state);
   const values = $derived(file?.settings);
   const broken = $derived(file?.broken ?? null);
+
+  /**
+   * Языки для выбора (задача 153): встроенные и свои файлы из папки
+   * переводов. Список спрашивается у ядра при показе экрана и после
+   * создания нового перевода — папку могли пополнить и руками.
+   */
+  let langs = $state<LanguagesState | null>(null);
+
+  async function refreshLanguages(): Promise<void> {
+    langs = await loadLanguages();
+  }
+
+  onMount(() => {
+    void refreshLanguages();
+  });
+
+  /** Язык, который выбран в файле, — `auto` раскрыт в тот, что выберет запуск. */
+  const chosen = $derived.by(() => {
+    const setting = values?.appearance.language ?? 'auto';
+    return setting === 'auto' ? (langs?.auto ?? null) : setting;
+  });
+
+  /** Выбран не тот язык, на котором окно говорит сейчас, — нужен перезапуск. */
+  const needsRestart = $derived(chosen !== null && chosen.toLowerCase() !== language().toLowerCase());
+
+  /** Код в файле, которого нет в списке (файл перевода убрали), — всё равно показать. */
+  const unlisted = $derived.by(() => {
+    const setting = values?.appearance.language ?? 'auto';
+    if (setting === 'auto' || !langs) return null;
+    return langs.languages.some((lang) => lang.code.toLowerCase() === setting.toLowerCase()) ? null : setting;
+  });
+
+  function languageLabel(code: string, builtin: boolean, coverage: number): string {
+    const name = languageName(code);
+    return builtin || coverage >= 100 ? name : t('settings.language.coverage', { language: name, percent: coverage });
+  }
+
+  async function newTranslation(): Promise<void> {
+    if (await createTranslation()) await refreshLanguages();
+  }
 
   /**
    * Папка вложений (задача 146): строка файла — выбор из четырёх и имя.
@@ -95,7 +141,7 @@
   async function pickDailyTemplate(): Promise<void> {
     const picked = await openDialog({
       multiple: false,
-      filters: [{ name: 'Заметка', extensions: ['md', 'markdown', 'txt'] }],
+      filters: [{ name: t('settings.daily-template.filter'), extensions: ['md', 'markdown', 'txt'] }],
     });
     if (typeof picked === 'string') void put(['notes', 'daily_template'], picked);
   }
@@ -116,23 +162,28 @@
       settings.problem = String(error);
     }
   }
+
+  function subtitle(which: typeof tab): string {
+    switch (which) {
+      case 'general':
+        return t('settings.subtitle.general');
+      case 'appearance':
+        return t('settings.subtitle.appearance');
+      case 'toolbar':
+        return t('settings.subtitle.toolbar');
+      case 'callouts':
+        return t('settings.subtitle.callouts');
+      case 'keys':
+        return t('settings.subtitle.keys');
+    }
+  }
 </script>
 
 <div class="screen">
   <div class="page">
     <header class="head">
-      <h1 class="title">Параметры</h1>
-      <p class="subtitle">
-        {tab === 'general'
-          ? 'Редактор · Заметки · Файл настроек · О программе'
-          : tab === 'appearance'
-            ? 'Тема · Плотность · Шрифты · Редактор темы'
-            : tab === 'toolbar'
-              ? 'Состав · Показ · Размер · раздел [toolbar] в settings.toml'
-              : tab === 'callouts'
-                ? 'Тип · Подпись · Значок · Цвет · callouts.toml'
-                : 'Горячие клавиши · keymap.toml'}
-      </p>
+      <h1 class="title">{t('settings.title')}</h1>
+      <p class="subtitle">{subtitle(tab)}</p>
     </header>
 
     <div class="tabs">
@@ -142,7 +193,7 @@
         type="button"
         onclick={() => (tab = 'general')}
       >
-        Настройки
+        {t('settings.tab.general')}
       </button>
       <button
         class="tab"
@@ -150,7 +201,7 @@
         type="button"
         onclick={() => (tab = 'appearance')}
       >
-        Оформление
+        {t('settings.tab.appearance')}
       </button>
       <button
         class="tab"
@@ -158,7 +209,7 @@
         type="button"
         onclick={() => (tab = 'keys')}
       >
-        Клавиши
+        {t('settings.tab.keys')}
       </button>
       <!-- Своя вкладка, а не строки в «Настройках» (решение владельца):
            состав панели — список в три десятка строк, и среди настроек
@@ -169,7 +220,7 @@
         type="button"
         onclick={() => (tab = 'toolbar')}
       >
-        Панель инструментов
+        {t('settings.tab.toolbar')}
       </button>
       <button
         class="tab"
@@ -177,7 +228,7 @@
         type="button"
         onclick={() => (tab = 'callouts')}
       >
-        Коллауты
+        {t('settings.tab.callouts')}
       </button>
     </div>
 
@@ -203,7 +254,7 @@
         <div class="broken problems">
           <Icon name="status.warning" />
           <div>
-            <p class="lead">Из settings.toml применилось не всё, остальное работает:</p>
+            <p class="lead">{t('settings.problems')}</p>
             <ul>
               {#each file.problems as problem (problem)}
                 <li>{problem}</li>
@@ -222,12 +273,45 @@
 
     {#if values}
       <div class="rows" class:frozen={broken !== null}>
+        <!-- Язык — первым (задача 153): по-чужому написанное окно читать
+             трудно, и выбор должен найтись без чтения. Поэтому каждый язык
+             назван на самом себе. -->
         <div class="row">
           <div class="what">
-            <span class="name">Перенос длинных строк</span>
-            <span class="note">
-              Переключается и в строке состояния — там же, где кодировка.
-            </span>
+            <span class="name">{t('settings.language')}</span>
+            <span class="note">{t('settings.language.note')}</span>
+          </div>
+          <select
+            class="control"
+            disabled={broken !== null || langs === null}
+            value={values.appearance.language}
+            onchange={(e) => put(['appearance', 'language'], e.currentTarget.value)}
+          >
+            <option value="auto">
+              {t('settings.language.auto', { language: langs ? languageName(langs.auto) : '…' })}
+            </option>
+            {#each langs?.languages ?? [] as lang (lang.code)}
+              <option value={lang.code}>{languageLabel(lang.code, lang.builtin, lang.coverage)}</option>
+            {/each}
+            {#if unlisted}
+              <option value={unlisted}>{unlisted}</option>
+            {/if}
+          </select>
+        </div>
+
+        {#if needsRestart && chosen}
+          <div class="row restart">
+            <span class="note">{t('settings.language.restart.note', { language: languageName(chosen) })}</span>
+            <button class="button" type="button" onclick={() => void restartApp()}>
+              {t('settings.language.restart')}
+            </button>
+          </div>
+        {/if}
+
+        <div class="row">
+          <div class="what">
+            <span class="name">{t('settings.wrap')}</span>
+            <span class="note">{t('settings.wrap.note')}</span>
           </div>
           <select
             class="control"
@@ -235,18 +319,15 @@
             value={values.editor.wrap ? 'yes' : 'no'}
             onchange={(e) => put(['editor', 'wrap'], e.currentTarget.value === 'yes')}
           >
-            <option value="no">Не переносить</option>
-            <option value="yes">Переносить по ширине окна</option>
+            <option value="no">{t('settings.wrap.off')}</option>
+            <option value="yes">{t('settings.wrap.on')}</option>
           </select>
         </div>
 
         <div class="row">
           <div class="what">
-            <span class="name">Закрывать скобки при наборе</span>
-            <span class="note">
-              В прозе — markdown и обычном тексте — кавычки не закрываются
-              и при включённой настройке: там они не парные.
-            </span>
+            <span class="name">{t('settings.auto-close')}</span>
+            <span class="note">{t('settings.auto-close.note')}</span>
           </div>
           <select
             class="control"
@@ -254,18 +335,15 @@
             value={values.editor.auto_close ? 'yes' : 'no'}
             onchange={(e) => put(['editor', 'auto_close'], e.currentTarget.value === 'yes')}
           >
-            <option value="yes">Закрывать</option>
-            <option value="no">Не закрывать</option>
+            <option value="yes">{t('settings.auto-close.on')}</option>
+            <option value="no">{t('settings.auto-close.off')}</option>
           </select>
         </div>
 
         <div class="row">
           <div class="what">
-            <span class="name">Отступ по умолчанию</span>
-            <span class="note">
-              Только для файлов, где отступов нет: в остальных он определяется
-              по содержимому и виден в строке состояния.
-            </span>
+            <span class="name">{t('settings.indent')}</span>
+            <span class="note">{t('settings.indent.note')}</span>
           </div>
           <select
             class="control"
@@ -273,17 +351,15 @@
             value={values.editor.indent_style}
             onchange={(e) => put(['editor', 'indent_style'], e.currentTarget.value)}
           >
-            <option value="spaces">Пробелы</option>
-            <option value="tabs">Табы</option>
+            <option value="spaces">{t('status.indent.spaces')}</option>
+            <option value="tabs">{t('status.indent.tabs')}</option>
           </select>
         </div>
 
         <div class="row">
           <div class="what">
-            <span class="name">Ширина отступа</span>
-            <span class="note">
-              Сколько пробелов в отступе или во сколько столбцов рисуется таб.
-            </span>
+            <span class="name">{t('settings.indent-width')}</span>
+            <span class="note">{t('settings.indent-width.note')}</span>
           </div>
           <select
             class="control"
@@ -299,10 +375,8 @@
 
         <div class="row">
           <div class="what">
-            <span class="name">Невидимые символы</span>
-            <span class="note">
-              Пробелы точкой, табуляции стрелкой, переносы знаком абзаца.
-            </span>
+            <span class="name">{t('settings.invisibles')}</span>
+            <span class="note">{t('settings.invisibles.note')}</span>
           </div>
           <select
             class="control"
@@ -310,18 +384,15 @@
             value={values.editor.invisibles ? 'yes' : 'no'}
             onchange={(e) => put(['editor', 'invisibles'], e.currentTarget.value === 'yes')}
           >
-            <option value="no">Не показывать</option>
-            <option value="yes">Показывать</option>
+            <option value="no">{t('settings.option.hide')}</option>
+            <option value="yes">{t('settings.option.show')}</option>
           </select>
         </div>
 
         <div class="row">
           <div class="what">
-            <span class="name">Номера строк</span>
-            <span class="note">
-              «Только в коде» прячет номера в заметках markdown: там номер
-              строки ничего не сообщает. Закладки и свёртка остаются на месте.
-            </span>
+            <span class="name">{t('settings.line-numbers')}</span>
+            <span class="note">{t('settings.line-numbers.note')}</span>
           </div>
           <select
             class="control"
@@ -329,20 +400,16 @@
             value={values.editor.line_numbers}
             onchange={(e) => put(['editor', 'line_numbers'], e.currentTarget.value)}
           >
-            <option value="always">Всегда</option>
-            <option value="code">Только в коде</option>
-            <option value="never">Никогда</option>
+            <option value="always">{t('settings.line-numbers.always')}</option>
+            <option value="code">{t('settings.line-numbers.code')}</option>
+            <option value="never">{t('settings.line-numbers.never')}</option>
           </select>
         </div>
 
         <div class="row">
           <div class="what">
-            <span class="name">Живое превью markdown</span>
-            <span class="note">
-              Знаки разметки не показываются, а действуют: `**жирный**` виден
-              жирным. Строка под курсором всегда показывается исходником,
-              поэтому править разметку можно не выключая превью.
-            </span>
+            <span class="name">{t('settings.live-preview')}</span>
+            <span class="note">{t('settings.live-preview.note')}</span>
           </div>
           <select
             class="control"
@@ -350,18 +417,15 @@
             value={values.editor.live_preview ? 'yes' : 'no'}
             onchange={(e) => put(['editor', 'live_preview'], e.currentTarget.value === 'yes')}
           >
-            <option value="no">Показывать разметку</option>
-            <option value="yes">Живое превью</option>
+            <option value="no">{t('settings.live-preview.off')}</option>
+            <option value="yes">{t('settings.live-preview.on')}</option>
           </select>
         </div>
 
         <div class="row">
           <div class="what">
-            <span class="name">Имя файла над заметкой</span>
-            <span class="note">
-              Заголовком над текстом заметки с превью, как в Obsidian. Правка
-              заголовка переименовывает файл — со ссылками, как в дереве.
-            </span>
+            <span class="name">{t('settings.note-title')}</span>
+            <span class="note">{t('settings.note-title.note')}</span>
           </div>
           <select
             class="control"
@@ -369,18 +433,15 @@
             value={values.editor.note_title ? 'yes' : 'no'}
             onchange={(e) => put(['editor', 'note_title'], e.currentTarget.value === 'yes')}
           >
-            <option value="no">Не показывать</option>
-            <option value="yes">Показывать</option>
+            <option value="no">{t('settings.option.hide')}</option>
+            <option value="yes">{t('settings.option.show')}</option>
           </select>
         </div>
 
         <div class="row">
           <div class="what">
-            <span class="name">Читаемая ширина markdown</span>
-            <span class="note">
-              Текст заметки стоит колонкой по центру окна и переносится по её
-              краю. Только markdown: в коде длина строки — часть смысла.
-            </span>
+            <span class="name">{t('settings.readable')}</span>
+            <span class="note">{t('settings.readable.note')}</span>
           </div>
           <select
             class="control"
@@ -388,18 +449,15 @@
             value={values.editor.readable_width ? 'yes' : 'no'}
             onchange={(e) => put(['editor', 'readable_width'], e.currentTarget.value === 'yes')}
           >
-            <option value="no">Во всю ширину</option>
-            <option value="yes">Колонкой по центру</option>
+            <option value="no">{t('settings.readable.off')}</option>
+            <option value="yes">{t('settings.readable.on')}</option>
           </select>
         </div>
 
         <div class="row">
           <div class="what">
-            <span class="name">Подсказка имён при [[</span>
-            <span class="note">
-              Список заметок проекта после двух скобок в markdown. Автодополнением
-              кода ZeroNote не занимается.
-            </span>
+            <span class="name">{t('settings.link-suggest')}</span>
+            <span class="note">{t('settings.link-suggest.note')}</span>
           </div>
           <select
             class="control"
@@ -407,19 +465,15 @@
             value={values.editor.link_suggest ? 'yes' : 'no'}
             onchange={(e) => put(['editor', 'link_suggest'], e.currentTarget.value === 'yes')}
           >
-            <option value="no">Не подсказывать</option>
-            <option value="yes">Подсказывать</option>
+            <option value="no">{t('settings.link-suggest.off')}</option>
+            <option value="yes">{t('settings.link-suggest.on')}</option>
           </select>
         </div>
 
         <div class="row">
           <div class="what">
-            <span class="name">Автосохранение</span>
-            <span class="note">
-              Писать правки в файл через две секунды после последней и когда
-              окно теряет фокус. Черновики работают всегда и от этого
-              не зависят.
-            </span>
+            <span class="name">{t('settings.autosave')}</span>
+            <span class="note">{t('settings.autosave.note')}</span>
           </div>
           <select
             class="control"
@@ -427,21 +481,15 @@
             value={values.editor.autosave ? 'yes' : 'no'}
             onchange={(e) => put(['editor', 'autosave'], e.currentTarget.value === 'yes')}
           >
-            <option value="no">Только по команде</option>
-            <option value="yes">Сохранять само</option>
+            <option value="no">{t('settings.autosave.off')}</option>
+            <option value="yes">{t('settings.autosave.on')}</option>
           </select>
         </div>
 
         <div class="row">
           <div class="what">
-            <span class="name">Папка заметок</span>
-            <span class="note">
-              Дом для записей рядом с проектами: панель «Заметки» показывает
-              её дерево, даже когда все папки закрыты. Поиск, [[ссылки]]
-              и теги работают в ней как в проекте. Пусто — data/notes в папке
-              данных приложения. Своё хранилище Obsidian указывать можно:
-              ZeroNote ничего в него не добавляет, а .obsidian не трогает.
-            </span>
+            <span class="name">{t('settings.vault')}</span>
+            <span class="note">{t('settings.vault.note')}</span>
           </div>
           <div class="control path">
             <input
@@ -449,7 +497,7 @@
               type="text"
               disabled={broken !== null}
               value={values.notes.vault}
-              placeholder="папка данных приложения"
+              placeholder={t('settings.vault.empty')}
               spellcheck="false"
               onchange={(e) => void setVault(e.currentTarget.value.trim())}
             />
@@ -457,19 +505,15 @@
               class="pick"
               type="button"
               disabled={broken !== null}
-              onclick={() => void pickVault()}>Выбрать…</button
+              onclick={() => void pickVault()}>{t('settings.pick')}</button
             >
           </div>
         </div>
 
         <div class="row">
           <div class="what">
-            <span class="name">Папка ежедневных заметок</span>
-            <span class="note">
-              Куда ложится «Заметка на сегодня». Путь внутри папки заметок;
-              пусто — прямо в неё. Абсолютный путь означает папку саму
-              по себе, где бы она ни лежала.
-            </span>
+            <span class="name">{t('settings.daily-folder')}</span>
+            <span class="note">{t('settings.daily-folder.note')}</span>
           </div>
           <div class="control path">
             <input
@@ -477,7 +521,7 @@
               type="text"
               disabled={broken !== null}
               value={values.notes.daily_folder}
-              placeholder="корень папки заметок"
+              placeholder={t('settings.daily-folder.empty')}
               spellcheck="false"
               onchange={(e) => put(['notes', 'daily_folder'], e.currentTarget.value.trim())}
             />
@@ -485,19 +529,15 @@
               class="pick"
               type="button"
               disabled={broken !== null}
-              onclick={() => void pickDailyFolder()}>Выбрать…</button
+              onclick={() => void pickDailyFolder()}>{t('settings.pick')}</button
             >
           </div>
         </div>
 
         <div class="row">
           <div class="what">
-            <span class="name">Шаблон ежедневной заметки</span>
-            <span class="note">
-              Файл, с которого начинается новая заметка. Подставляются
-              {'{{date}}'}, {'{{time}}'} и {'{{title}}'}. Пусто — заголовок
-              и пустая строка. Уже написанная заметка шаблоном не переписывается.
-            </span>
+            <span class="name">{t('settings.daily-template')}</span>
+            <span class="note">{t('settings.daily-template.note')}</span>
           </div>
           <div class="control path">
             <input
@@ -505,7 +545,7 @@
               type="text"
               disabled={broken !== null}
               value={values.notes.daily_template}
-              placeholder="без шаблона"
+              placeholder={t('settings.daily-template.empty')}
               spellcheck="false"
               onchange={(e) => put(['notes', 'daily_template'], e.currentTarget.value.trim())}
             />
@@ -513,20 +553,15 @@
               class="pick"
               type="button"
               disabled={broken !== null}
-              onclick={() => void pickDailyTemplate()}>Выбрать…</button
+              onclick={() => void pickDailyTemplate()}>{t('settings.pick')}</button
             >
           </div>
         </div>
 
         <div class="row">
           <div class="what">
-            <span class="name">Папка шаблонов</span>
-            <span class="note">
-              Откуда берут список «Вставить шаблон» и «Новая заметка
-              из шаблона». Путь внутри папки заметок; пусто — шаблонов нет.
-              В заготовке подставляются {'{{date}}'}, {'{{time}}'}
-              и {'{{title}}'}; исполняемого кода в шаблонах нет.
-            </span>
+            <span class="name">{t('settings.templates')}</span>
+            <span class="note">{t('settings.templates.note')}</span>
           </div>
           <div class="control path">
             <input
@@ -534,7 +569,7 @@
               type="text"
               disabled={broken !== null}
               value={values.notes.templates}
-              placeholder="без шаблонов"
+              placeholder={t('settings.templates.empty')}
               spellcheck="false"
               onchange={(e) => put(['notes', 'templates'], e.currentTarget.value.trim())}
             />
@@ -542,19 +577,15 @@
               class="pick"
               type="button"
               disabled={broken !== null}
-              onclick={() => void pickTemplatesFolder()}>Выбрать…</button
+              onclick={() => void pickTemplatesFolder()}>{t('settings.pick')}</button
             >
           </div>
         </div>
 
         <div class="row">
           <div class="what">
-            <span class="name">Папка вложений</span>
-            <span class="note">
-              Куда ложится картинка, вставленная в заметку из буфера обмена.
-              Файл называется, как у Obsidian: Pasted image и время вставки.
-              У заметки вне проектов — всегда рядом с ней.
-            </span>
+            <span class="name">{t('settings.attachments')}</span>
+            <span class="note">{t('settings.attachments.note')}</span>
           </div>
           <select
             class="control"
@@ -562,21 +593,21 @@
             value={place.kind}
             onchange={(e) => setPlaceKind(e.currentTarget.value as PlaceKind)}
           >
-            <option value="note">Рядом с заметкой</option>
-            <option value="beside">В папке рядом с заметкой</option>
-            <option value="root">В корне проекта</option>
-            <option value="folder">В одной папке проекта</option>
+            <option value="note">{t('settings.attachments.note-folder')}</option>
+            <option value="beside">{t('settings.attachments.beside')}</option>
+            <option value="root">{t('settings.attachments.root')}</option>
+            <option value="folder">{t('settings.attachments.folder')}</option>
           </select>
         </div>
 
         {#if place.kind === 'beside' || place.kind === 'folder'}
           <div class="row">
             <div class="what">
-              <span class="name">Имя папки вложений</span>
+              <span class="name">{t('settings.attachments.name')}</span>
               <span class="note">
                 {place.kind === 'beside'
-                  ? 'Папка рядом с каждой заметкой; её нет — создаётся.'
-                  : 'Путь от корня проекта; папки нет — создаётся.'}
+                  ? t('settings.attachments.name.beside')
+                  : t('settings.attachments.name.folder')}
               </span>
             </div>
             <div class="control path">
@@ -585,7 +616,7 @@
                 type="text"
                 disabled={broken !== null}
                 value={place.name}
-                placeholder="Вложения"
+                placeholder={defaultFolder()}
                 spellcheck="false"
                 onchange={(e) => setPlaceName(e.currentTarget.value)}
               />
@@ -604,7 +635,29 @@
           <span class="name">settings.toml</span>
           <span class="note path">{file?.path}</span>
         </div>
-        <button class="button" type="button" onclick={openFile}>Открыть</button>
+        <button class="button" type="button" onclick={openFile}>{t('settings.file.open')}</button>
+      </div>
+
+      <!-- Свой перевод (задача 153, просьба владельца): файл в папке данных,
+           подхватывается перезапуском, без пересборки. «Создать» кладёт
+           копию таблицы строк — переводить есть с чего. -->
+      <div class="card stacked">
+        <span class="card-icon"><Icon name="action.project-file" /></span>
+        <div class="what">
+          <span class="name">{t('translation.card')}</span>
+          <span class="note">{t('translation.card.note')}</span>
+          {#if langs}
+            <span class="note path">{langs.dir}</span>
+          {/if}
+        </div>
+        <div class="buttons">
+          <button class="button quiet" type="button" onclick={() => void openTranslationsDir()}>
+            {t('translation.folder')}
+          </button>
+          <button class="button" type="button" onclick={() => void newTranslation()}>
+            {t('translation.create')}
+          </button>
+        </div>
       </div>
 
       <!-- Умолчание для типа файла назначает человек, и назначает в системе:
@@ -613,19 +666,13 @@
       <div class="card">
         <span class="card-icon"><Icon name="file.markdown" /></span>
         <div class="what">
-          <span class="name">Открывать .md двойным щелчком</span>
-          <span class="note">
-            «Открыть в ZeroNote» в проводнике уже есть. Умолчание для типа файла
-            Windows назначает сама — по вашему выбору в параметрах системы.
-          </span>
+          <span class="name">{t('settings.defaults')}</span>
+          <span class="note">{t('settings.defaults.note')}</span>
         </div>
-        <button class="button" type="button" onclick={chooseDefaults}>Настроить</button>
+        <button class="button" type="button" onclick={chooseDefaults}>{t('settings.defaults.button')}</button>
       </div>
 
-      <p class="footer">
-        Всё, что есть в окне, есть и в файле. Файл можно править руками
-        и класть в git — изменения подхватываются на лету.
-      </p>
+      <p class="footer">{t('settings.footer')}</p>
     {/if}
 
     <!-- Снаружи проверки на разобранный файл: на вопрос «какая у вас версия»
@@ -635,7 +682,7 @@
       <span class="card-icon mark"><Icon name="app.mark" /></span>
       <div class="what">
         <span class="name">ZeroNote {version}</span>
-        <span class="note">Свободная программа под лицензией MIT.</span>
+        <span class="note">{t('settings.about.license')}</span>
       </div>
       <!-- Единственная кнопка в приложении, открывающая сетевое соединение
            (Р-118). Проверка идёт только по нажатию, установка — по второму. -->
@@ -645,9 +692,9 @@
         disabled={updates.busy}
         onclick={checkForUpdates}
       >
-        {updates.busy ? 'Проверяю…' : 'Обновления'}
+        {updates.busy ? t('settings.updates.checking') : t('settings.updates')}
       </button>
-      <button class="button" type="button" onclick={showAbout}>Сведения</button>
+      <button class="button" type="button" onclick={showAbout}>{t('settings.about')}</button>
     </div>
     {/if}
   </div>
@@ -894,6 +941,29 @@
 
   .button:disabled {
     color: var(--zn-color-fg-subtle);
+  }
+
+  /* Карточка своего перевода (задача 153) — кнопки строкой под текстом:
+     их две, и рядом с текстом в узкой области он сжимался до слова
+     в строке. Текст с плиткой значка занимает первую строку целиком. */
+  .card.stacked {
+    flex-wrap: wrap;
+  }
+
+  .card.stacked .what {
+    flex-basis: calc(100% - var(--zn-control-strip-button-size) - var(--zn-space-4));
+  }
+
+  .card.stacked .buttons {
+    display: flex;
+    gap: var(--zn-space-2);
+    margin-left: auto;
+  }
+
+  /* Перезапуск ради языка (задача 153) — строкой сразу под выбором:
+     видно, что выбор ещё не действует и чем его применить. */
+  .row.restart {
+    justify-content: space-between;
   }
 
   .footer {

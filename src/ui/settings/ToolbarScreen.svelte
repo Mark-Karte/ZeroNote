@@ -6,6 +6,7 @@
   import { CALLOUT_PREFIX, textLabelOf } from '../toolbar';
   import { calloutById } from '../../state/callouts.svelte';
   import { cssColorOf, iconOf } from '../../editor/callouts';
+  import { t } from '../../l10n';
 
   /**
    * Вкладка «Панель инструментов» (задача 102).
@@ -29,9 +30,9 @@
 
   /** Служебные слова по-человечески. */
   const WORDS: Record<string, { title: string; note: string }> = {
-    separator: { title: 'Черта', note: 'разделяет группы кнопок' },
-    spacer: { title: 'Распорка', note: 'всё после неё уезжает вправо' },
-    path: { title: 'Путь к файлу', note: 'обрезается слева: имя файла видно всегда' },
+    separator: { title: t('toolbar.separator'), note: t('toolbar.separator.note') },
+    spacer: { title: t('toolbar.spacer'), note: t('toolbar.spacer.note') },
+    path: { title: t('toolbar.path'), note: t('toolbar.path.note') },
   };
 
   /** Коллаут на панели — `callout:тип` (задача 103). */
@@ -42,7 +43,9 @@
   function titleOf(item: string): string {
     if (item.startsWith(CALLOUT_PREFIX)) {
       const callout = calloutOf(item);
-      return callout ? `Коллаут: ${callout.title || callout.id}` : 'Коллаута нет в списке';
+      return callout
+        ? t('toolbar.callout', { callout: callout.title || callout.id })
+        : t('toolbar.callout.missing');
     }
     return WORDS[item]?.title ?? titles.get(item) ?? item;
   }
@@ -51,7 +54,7 @@
     if (item.startsWith(CALLOUT_PREFIX) && !calloutOf(item)) {
       // Кнопку несуществующего коллаута панель не рисует — здесь её видно,
       // чтобы было что убрать.
-      return `${item} — тип удалён из списка коллаутов, кнопка не показывается`;
+      return t('toolbar.callout.removed', { item });
     }
     return WORDS[item]?.note ?? item;
   }
@@ -113,11 +116,8 @@
   <div class="rows">
     <div class="row">
       <div class="what">
-        <span class="name">Показывать</span>
-        <span class="note">
-          Кнопка, которой нечего делать с этой вкладкой, не показывается:
-          разметки нет над кодом, правки — над картинкой.
-        </span>
+        <span class="name">{t('toolbar.show')}</span>
+        <span class="note">{t('toolbar.show.note')}</span>
       </div>
       <select
         class="control"
@@ -125,20 +125,17 @@
         value={values.toolbar.show}
         onchange={(e) => put(['toolbar', 'show'], e.currentTarget.value)}
       >
-        <option value="always">Над всеми вкладками</option>
-        <option value="text">Над текстом и кодом</option>
-        <option value="markdown">Только над заметками</option>
-        <option value="never">Нигде</option>
+        <option value="always">{t('toolbar.show.always')}</option>
+        <option value="text">{t('toolbar.show.text')}</option>
+        <option value="markdown">{t('toolbar.show.markdown')}</option>
+        <option value="never">{t('toolbar.show.never')}</option>
       </select>
     </div>
 
     <div class="row">
       <div class="what">
-        <span class="name">Ширина</span>
-        <span class="note">
-          Над колонкой — кнопки стоят над текстом заметки, а не в левом углу.
-          Действует, только когда включена читаемая ширина.
-        </span>
+        <span class="name">{t('toolbar.width')}</span>
+        <span class="note">{t('toolbar.width.note')}</span>
       </div>
       <select
         class="control"
@@ -146,14 +143,14 @@
         value={values.toolbar.width}
         onchange={(e) => put(['toolbar', 'width'], e.currentTarget.value)}
       >
-        <option value="column">Над колонкой</option>
-        <option value="full">Во всю ширину</option>
+        <option value="column">{t('toolbar.width.column')}</option>
+        <option value="full">{t('toolbar.width.full')}</option>
       </select>
     </div>
 
     <div class="row">
       <div class="what">
-        <span class="name">Размер кнопок</span>
+        <span class="name">{t('toolbar.size')}</span>
       </div>
       <select
         class="control"
@@ -161,22 +158,22 @@
         value={values.toolbar.size}
         onchange={(e) => put(['toolbar', 'size'], e.currentTarget.value)}
       >
-        <option value="small">Мелкие</option>
-        <option value="normal">Обычные</option>
-        <option value="large">Крупные</option>
+        <option value="small">{t('toolbar.size.small')}</option>
+        <option value="normal">{t('toolbar.size.normal')}</option>
+        <option value="large">{t('toolbar.size.large')}</option>
       </select>
     </div>
   </div>
 
   <div class="section">
-    <h3 class="heading">На панели</h3>
+    <h3 class="heading">{t('toolbar.items')}</h3>
     <button class="button" type="button" disabled={broken !== null} onclick={reset}>
-      Вернуть набор по умолчанию
+      {t('toolbar.reset')}
     </button>
   </div>
 
   {#if items.length === 0}
-    <p class="note lead">Панель пуста — добавьте кнопки из списка ниже.</p>
+    <p class="note lead">{t('toolbar.empty')}</p>
   {:else}
     <div class="list">
       {#each items as item, index (index)}
@@ -206,8 +203,8 @@
             class="step"
             type="button"
             disabled={broken !== null || index === 0}
-            title="Выше"
-            aria-label="Выше"
+            title={t('toolbar.up')}
+            aria-label={t('toolbar.up')}
             onclick={() => move(index, -1)}
           >
             <Icon name="cmd.move-line-up" />
@@ -216,8 +213,8 @@
             class="step"
             type="button"
             disabled={broken !== null || index === items.length - 1}
-            title="Ниже"
-            aria-label="Ниже"
+            title={t('toolbar.down')}
+            aria-label={t('toolbar.down')}
             onclick={() => move(index, 1)}
           >
             <Icon name="cmd.move-line-down" />
@@ -226,8 +223,8 @@
             class="step"
             type="button"
             disabled={broken !== null}
-            title="Убрать с панели"
-            aria-label="Убрать с панели"
+            title={t('toolbar.remove')}
+            aria-label={t('toolbar.remove')}
             onclick={() => remove(index)}
           >
             <Icon name="action.remove" />
@@ -238,13 +235,13 @@
   {/if}
 
   <div class="section">
-    <h3 class="heading">Добавить</h3>
+    <h3 class="heading">{t('toolbar.add')}</h3>
     <div class="words">
       <button class="button" type="button" disabled={broken !== null} onclick={() => add('separator')}>
-        Черта
+        {t('toolbar.separator')}
       </button>
       <button class="button" type="button" disabled={broken !== null} onclick={() => add('spacer')}>
-        Распорка
+        {t('toolbar.spacer')}
       </button>
       <button
         class="button"
@@ -252,7 +249,7 @@
         disabled={broken !== null || items.includes('path')}
         onclick={() => add('path')}
       >
-        Путь к файлу
+        {t('toolbar.path')}
       </button>
     </div>
   </div>
@@ -261,8 +258,8 @@
     class="control search"
     type="text"
     bind:value={filter}
-    placeholder="Найти команду"
-    aria-label="Поиск по командам"
+    placeholder={t('toolbar.search')}
+    aria-label={t('keys.search.label')}
     spellcheck="false"
   />
 
@@ -281,7 +278,7 @@
           <span class="note">{command.id}</span>
         </div>
         {#if items.includes(command.id)}
-          <span class="note">уже на панели</span>
+          <span class="note">{t('toolbar.added')}</span>
         {:else}
           <button
             class="button"
@@ -289,7 +286,7 @@
             disabled={broken !== null}
             onclick={() => add(command.id)}
           >
-            Добавить
+            {t('toolbar.add.button')}
           </button>
         {/if}
       </div>

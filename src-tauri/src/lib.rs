@@ -115,7 +115,20 @@ pub fn run() {
     // Момент — до замка: записки братьев, оставленные после него, свои,
     // и уборка в `setup` их не тронет (Я6 ревизии).
     let since = single::stamp();
-    let _lock = match single::claim(&watched_dir) {
+    let mut instance = single::claim(&watched_dir);
+
+    // Перезапуск (задача 153, Р-315): прежний процесс запустил нас и тут же
+    // выходит, но замок ещё может держать. Ждём его до пяти секунд — иначе
+    // мы отдали бы пути уходящему, и приложение просто закрылось бы.
+    if std::env::args().any(|arg| arg == cli::RESTARTED) {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while matches!(instance, single::Instance::Second) && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(50));
+            instance = single::claim(&watched_dir);
+        }
+    }
+
+    let _lock = match instance {
         single::Instance::First(guard) => guard,
         single::Instance::Second => {
             // Пути — полными, от нашей текущей папки: первый экземпляр
@@ -129,7 +142,11 @@ pub fn run() {
     // Язык — после замка, но до окна и до всего, что пишет человеку
     // (задача 152): жалобы на конфиги и ошибки ядро пишет само. Один раз
     // на процесс — смена языка перезапуском.
-    l10n::init(l10n::decide(&watched_dir));
+    // Жалобы на свои переводы — в полосу предупреждений, уже на выбранном
+    // языке (задача 153).
+    for message in l10n::start(&watched_dir) {
+        app_state.notice(message);
+    }
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -181,6 +198,10 @@ pub fn run() {
             commands::about::third_party_notices,
             commands::appearance::appearance_state,
             commands::l10n::language,
+            commands::l10n::languages,
+            commands::l10n::create_translation,
+            commands::l10n::open_translations_dir,
+            commands::l10n::restart,
             commands::appearance::print_appearance,
             commands::export::write_html_export,
             commands::export::export_pdf,

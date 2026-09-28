@@ -9,8 +9,8 @@ import {
   expandPalette,
   findingText,
   kindOf,
-  PALETTE_LABELS,
-  SECTIONS,
+  paletteLabel,
+  SECTION_IDS,
   splitLength,
   tokenNote,
 } from '../src/theme/editor';
@@ -73,7 +73,7 @@ describe('палитра в окне', () => {
   it('у каждого ключа встроенных тем есть подпись', () => {
     for (const file of readdirSync(builtinDir).filter((name) => name.endsWith('.toml'))) {
       for (const key of paletteKeys(readFileSync(join(builtinDir, file), 'utf-8'))) {
-        expect(PALETTE_LABELS[key], `${file}: ${key}`).toBeTruthy();
+        expect(paletteLabel(key), `${file}: ${key}`).toBeTruthy();
       }
     }
   });
@@ -82,7 +82,7 @@ describe('палитра в окне', () => {
     const rust = readFileSync(join(root, 'src-tauri', 'src', 'theme', 'mod.rs'), 'utf-8');
     const declared = /pub const SECTIONS: \[&str; 9\] = \[([^\]]+)\]/.exec(rust)?.[1] ?? '';
     const names = [...declared.matchAll(/"([a-z]+)"/g)].map((m) => m[1]);
-    expect(SECTIONS.map((section) => section.id)).toEqual(names);
+    expect([...SECTION_IDS]).toEqual(names);
   });
 });
 

@@ -33,10 +33,25 @@
 
 ### Перевод
 
-Интерфейс сейчас только на русском; английский появится в версии 0.21.0.
-Перевод новый — если английский звучит неестественно, заведите issue или
-пришлите исправление. После 0.21.0 новый язык будет одним файлом таблицы
-строк; как его добавить, допишем сюда, когда каркас перевода будет готов.
+Английский интерфейс появится в версии 0.21.0. Перевод новый — если
+английский звучит неестественно, заведите issue или пришлите исправление
+в `l10n/en.json`.
+
+**Свой язык — одним файлом, без сборки** (с версии 0.21.0):
+
+1. Параметры → Настройки → «Свой перевод» → «Создать перевод…», код языка —
+   как в Windows: `de`, `uk`, `pt-BR`. В папке переводов появится
+   `<код>.json` — таблица строк.
+2. Переведите значения справа. Ключи слева, подстановки в фигурных
+   скобках (`{count}`, `{file}`) и имена форм числа (`one`, `few`, `many`,
+   `other`) не трогайте: формы выбираются по правилам вашего языка.
+3. Выберите язык в строке «Язык интерфейса» и нажмите «Перезапустить».
+   Чего в файле нет, покажется по-английски; строка с другими
+   подстановками пропускается, и это видно в полосе предупреждений.
+
+Чтобы язык вошёл в сам ZeroNote, пришлите файл запросом на слияние
+в папку `l10n/` — строку в список встроенных языков (`Builtin`
+в `src-tauri/src/l10n.rs`) допишем сами.
 
 ## In English
 
@@ -74,8 +89,23 @@ in English are welcome all the same.
 
 ### Translation
 
-The interface is in Russian only for now; English arrives in version
-0.21.0. The translation is new — if the English reads unnaturally, open
-an issue or send a fix. After 0.21.0 a new language will be a single
-string-table file; how to add one will be written here once the
-translation framework is ready.
+The English interface arrives in version 0.21.0. The translation is new —
+if the English reads unnaturally, open an issue or send a fix
+to `l10n/en.json`.
+
+**Your own language — one file, no build** (from version 0.21.0):
+
+1. Settings → General → “Your own translation” → “New translation…”,
+   with the language code as in Windows: `de`, `uk`, `pt-BR`.
+   `<code>.json` — the string table — appears in the translations folder.
+2. Translate the values on the right. Leave the keys on the left, the
+   placeholders in braces (`{count}`, `{file}`) and the plural form names
+   (`one`, `few`, `many`, `other`) as they are: forms are chosen by your
+   language's rules.
+3. Choose the language in “Interface language” and press “Restart”.
+   Whatever the file lacks is shown in English; an entry with different
+   placeholders is skipped, and the warning bar says so.
+
+To make the language part of ZeroNote itself, send the file as a pull
+request into the `l10n/` folder — we'll add the line to the list of
+built-in languages (`Builtin` in `src-tauri/src/l10n.rs`) ourselves.

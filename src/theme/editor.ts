@@ -1,102 +1,192 @@
 import type { Finding } from '../ipc/appearance';
+import { formatNumber, t } from '../l10n';
 
 /**
  * Слова и виды значений редактора тем (задача 105).
  *
  * Состав палитры и токенов приходит из ядра — здесь только то, как их
- * назвать человеку и каким полем править. Список подписей палитры
- * сверяется тестом с файлами встроенных тем: новый ключ без подписи
- * остался бы в окне голым именем.
+ * назвать человеку и каким полем править. Подписи палитры сверяются
+ * тестом с файлами встроенных тем: новый ключ без подписи остался бы
+ * в окне голым именем.
+ *
+ * Подписи — выбором, а не таблицей модуля (задача 153): строка берётся
+ * на языке окна при показе, а ключ пишется буквально — иначе тест
+ * не сверит его с таблицей строк (Р-314).
  */
 
-/** Подписи ключей палитры — в порядке, в каком они стоят во встроенных темах. */
-export const PALETTE_LABELS: Record<string, string> = {
-  'bg-0': 'Подложка окна',
-  'bg-1': 'Панели',
-  'bg-2': 'Рабочая область',
-  'bg-3': 'Наведение',
-  'bg-4': 'Нажатие',
-  'fg-0': 'Основной текст',
-  'fg-1': 'Приглушённый текст',
-  'fg-2': 'Тихий текст',
-  'fg-on-accent': 'Текст на акценте',
-  accent: 'Акцент',
-  'accent-hover': 'Акцент под указателем',
-  'accent-soft': 'Подсветка строки',
-  'accent-selection': 'Выделение текста',
-  border: 'Граница',
-  'border-subtle': 'Тихая граница',
-  danger: 'Опасность',
-  warning: 'Внимание',
-  success: 'Успех',
-  'syn-keyword': 'Ключевые слова',
-  'syn-string': 'Строки',
-  'syn-comment': 'Комментарии',
-  'syn-number': 'Числа',
-  'syn-type': 'Типы',
-  'syn-function': 'Функции',
-  'shadow-weak': 'Тень слабая',
-  'shadow-strong': 'Тень плотная',
-  overlay: 'Затемнение под диалогом',
-  'bg-block': 'Подложка блока кода',
-};
+/** Подпись ключа палитры; незнакомый ключ — `null`. */
+export function paletteLabel(key: string): string | null {
+  switch (key) {
+    case 'bg-0':
+      return t('theme.palette.bg-0');
+    case 'bg-1':
+      return t('theme.palette.bg-1');
+    case 'bg-2':
+      return t('theme.palette.bg-2');
+    case 'bg-3':
+      return t('theme.palette.bg-3');
+    case 'bg-4':
+      return t('theme.palette.bg-4');
+    case 'fg-0':
+      return t('theme.palette.fg-0');
+    case 'fg-1':
+      return t('theme.palette.fg-1');
+    case 'fg-2':
+      return t('theme.palette.fg-2');
+    case 'fg-on-accent':
+      return t('theme.palette.fg-on-accent');
+    case 'accent':
+      return t('theme.palette.accent');
+    case 'accent-hover':
+      return t('theme.palette.accent-hover');
+    case 'accent-soft':
+      return t('theme.palette.accent-soft');
+    case 'accent-selection':
+      return t('theme.palette.accent-selection');
+    case 'border':
+      return t('theme.palette.border');
+    case 'border-subtle':
+      return t('theme.palette.border-subtle');
+    case 'danger':
+      return t('theme.palette.danger');
+    case 'warning':
+      return t('theme.palette.warning');
+    case 'success':
+      return t('theme.palette.success');
+    case 'syn-keyword':
+      return t('theme.palette.syn-keyword');
+    case 'syn-string':
+      return t('theme.palette.syn-string');
+    case 'syn-comment':
+      return t('theme.palette.syn-comment');
+    case 'syn-number':
+      return t('theme.palette.syn-number');
+    case 'syn-type':
+      return t('theme.palette.syn-type');
+    case 'syn-function':
+      return t('theme.palette.syn-function');
+    case 'shadow-weak':
+      return t('theme.palette.shadow-weak');
+    case 'shadow-strong':
+      return t('theme.palette.shadow-strong');
+    case 'overlay':
+      return t('theme.palette.overlay');
+    case 'bg-block':
+      return t('theme.palette.bg-block');
+    default:
+      return null;
+  }
+}
 
-/** Разделы токенов в порядке файла темы, с подписями. */
-export const SECTIONS: { id: string; title: string }[] = [
-  { id: 'color', title: 'Цвета ролей' },
-  { id: 'font', title: 'Шрифты и кегли' },
-  { id: 'space', title: 'Отступы' },
-  { id: 'radius', title: 'Скругления' },
-  { id: 'border', title: 'Границы' },
-  { id: 'shadow', title: 'Тени' },
-  { id: 'motion', title: 'Движение' },
-  { id: 'z', title: 'Слои' },
-  { id: 'control', title: 'Размеры элементов' },
-];
+/** Разделы токенов в порядке файла темы. */
+export const SECTION_IDS = ['color', 'font', 'space', 'radius', 'border', 'shadow', 'motion', 'z', 'control'] as const;
 
-/** Роли, которые называет проверка читаемости. */
-const ROLE_LABELS: Record<string, string> = {
-  'color-fg-default': 'Основной текст',
-  'color-fg-muted': 'Приглушённый текст',
-  'color-fg-subtle': 'Тихий текст',
-  'color-fg-on-accent': 'Текст на акценте',
-  'color-accent': 'Акцент',
-  'color-danger': 'Опасность',
-  'color-warning': 'Внимание',
-  'color-success': 'Успех',
-  'color-syntax-keyword': 'Ключевые слова',
-  'color-syntax-string': 'Строки',
-  'color-syntax-comment': 'Комментарии',
-  'color-syntax-number': 'Числа',
-  'color-syntax-type': 'Типы',
-  'color-syntax-function': 'Функции',
-  'color-bg-surface': 'панели',
-  'color-bg-raised': 'рабочей области',
-  'color-bg-canvas': 'подложке',
-};
+/** Подпись раздела токенов. */
+export function sectionTitle(id: string): string {
+  switch (id) {
+    case 'color':
+      return t('theme.section.color');
+    case 'font':
+      return t('theme.section.font');
+    case 'space':
+      return t('theme.section.space');
+    case 'radius':
+      return t('theme.section.radius');
+    case 'border':
+      return t('theme.section.border');
+    case 'shadow':
+      return t('theme.section.shadow');
+    case 'motion':
+      return t('theme.section.motion');
+    case 'z':
+      return t('theme.section.z');
+    case 'control':
+      return t('theme.section.control');
+    default:
+      return id;
+  }
+}
 
-const label = (token: string): string => ROLE_LABELS[token] ?? token;
+/** Роль, которую называет проверка читаемости. */
+function label(token: string): string {
+  switch (token) {
+    case 'color-fg-default':
+      return t('theme.palette.fg-0');
+    case 'color-fg-muted':
+      return t('theme.palette.fg-1');
+    case 'color-fg-subtle':
+      return t('theme.palette.fg-2');
+    case 'color-fg-on-accent':
+      return t('theme.palette.fg-on-accent');
+    case 'color-accent':
+      return t('theme.palette.accent');
+    case 'color-danger':
+      return t('theme.palette.danger');
+    case 'color-warning':
+      return t('theme.palette.warning');
+    case 'color-success':
+      return t('theme.palette.success');
+    case 'color-syntax-keyword':
+      return t('theme.palette.syn-keyword');
+    case 'color-syntax-string':
+      return t('theme.palette.syn-string');
+    case 'color-syntax-comment':
+      return t('theme.palette.syn-comment');
+    case 'color-syntax-number':
+      return t('theme.palette.syn-number');
+    case 'color-syntax-type':
+      return t('theme.palette.syn-type');
+    case 'color-syntax-function':
+      return t('theme.palette.syn-function');
+    default:
+      return token;
+  }
+}
 
-/** Число по-русски: запятая, один знак после неё. */
+/**
+ * Фон, на котором проверяли контраст, — в той форме, в какой он стоит
+ * после «на»: «на панели», «на подложке». Своей формой, а не подписью
+ * палитры: по-русски у фона другой падеж.
+ */
+function ground(token: string): string {
+  switch (token) {
+    case 'color-bg-surface':
+      return t('theme.ground.surface');
+    case 'color-bg-raised':
+      return t('theme.ground.raised');
+    case 'color-bg-canvas':
+      return t('theme.ground.canvas');
+    default:
+      return label(token);
+  }
+}
+
+/** Число с одним знаком после запятой — запятая или точка по языку окна. */
 function decimal(value: number): string {
-  return value.toFixed(1).replace('.', ',');
+  return formatNumber(value, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 }
 
 /** Находка проверки читаемости словами. */
 export function findingText(finding: Finding): string {
   switch (finding.kind) {
-    case 'contrast': {
-      const where =
-        finding.token === 'color-fg-on-accent' ? 'Текст на акценте' : `${label(finding.token)} на ${label(finding.against)}`;
-      return `${where}: ${decimal(finding.value)} : 1, нужно ${decimal(finding.need)}`;
-    }
+    case 'contrast':
+      return finding.token === 'color-fg-on-accent'
+        ? t('theme.finding.on-accent', { value: decimal(finding.value), need: decimal(finding.need) })
+        : t('theme.finding.contrast', {
+            what: label(finding.token),
+            ground: ground(finding.against),
+            value: decimal(finding.value),
+            need: decimal(finding.need),
+          });
     case 'distance':
-      return (
-        `${label(finding.token)} и ${label(finding.against).toLowerCase()} почти одного цвета: ` +
-        `различие ${Math.round(finding.value)}, нужно ${Math.round(finding.need)}`
-      );
+      return t('theme.finding.distance', {
+        what: label(finding.token),
+        other: label(finding.against).toLowerCase(),
+        value: Math.round(finding.value),
+        need: Math.round(finding.need),
+      });
     case 'unchecked':
-      return `${label(finding.token)}: цвет задан не как #rrggbb — читаемость не посчитать`;
+      return t('theme.finding.unchecked', { what: label(finding.token) });
   }
 }
 
@@ -110,10 +200,10 @@ export function findingText(finding: Finding): string {
  */
 export function tokenNote(name: string): string | null {
   if (name.startsWith('control-toolbar-button-size')) {
-    return 'ступень выбирается во вкладке «Панель инструментов»';
+    return t('theme.note.toolbar-size');
   }
   if (['font-family-ui', 'font-size-ui', 'font-family-editor', 'font-size-editor'].includes(name)) {
-    return 'выбор в «Шрифтах» выше сильнее темы';
+    return t('theme.note.fonts');
   }
   return null;
 }

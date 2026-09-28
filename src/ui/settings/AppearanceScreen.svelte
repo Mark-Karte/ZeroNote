@@ -7,6 +7,7 @@
   import * as ipc from '../../ipc/appearance';
   import type { ThemeInfo, ThemeSample } from '../../ipc/appearance';
   import { choiceFor, followsSystem, grouped, stateOf, type ThemeSelection } from './themes';
+  import { t } from '../../l10n';
 
   /**
    * Вкладка «Оформление» (до задачи 105 — «Темы»).
@@ -128,11 +129,11 @@
 
   <div class="mode">
     <div class="what">
-      <span class="name">Как выбирается тема</span>
+      <span class="name">{t('appearance.mode')}</span>
       <span class="note">
         {followsSystem(selection)
-          ? 'Щелчок по светлой теме назначает светлую пару, по тёмной — тёмную.'
-          : 'Щелчок по теме применяет её сразу.'}
+          ? t('appearance.mode.note.system')
+          : t('appearance.mode.note.fixed')}
       </span>
     </div>
     <select
@@ -141,15 +142,15 @@
       value={followsSystem(selection) ? 'system' : 'fixed'}
       onchange={(e) => void setMode(e.currentTarget.value)}
     >
-      <option value="fixed">Выбранная ниже</option>
-      <option value="system">Как в Windows</option>
+      <option value="fixed">{t('appearance.mode.fixed')}</option>
+      <option value="system">{t('appearance.mode.system')}</option>
     </select>
   </div>
 
   <div class="mode">
     <div class="what">
-      <span class="name">Плотность интерфейса</span>
-      <span class="note">Компактная уменьшает высоты строк, отступы и размер шрифта.</span>
+      <span class="name">{t('appearance.density')}</span>
+      <span class="note">{t('appearance.density.note')}</span>
     </div>
     <select
       class="control"
@@ -157,12 +158,12 @@
       value={values?.appearance.density ?? 'normal'}
       onchange={(e) => void setDensity(e.currentTarget.value)}
     >
-      <option value="normal">Обычная</option>
-      <option value="compact">Компактная</option>
+      <option value="normal">{t('appearance.density.normal')}</option>
+      <option value="compact">{t('appearance.density.compact')}</option>
     </select>
   </div>
 
-  {#each [{ title: 'Светлые', list: groups.light }, { title: 'Тёмные', list: groups.dark }] as group (group.title)}
+  {#each [{ title: t('appearance.group.light'), list: groups.light }, { title: t('appearance.group.dark'), list: groups.dark }] as group (group.title)}
     {#if group.list.length > 0}
       <section class="group">
         <h2 class="group-title">{group.title}</h2>
@@ -176,7 +177,7 @@
               type="button"
               disabled={broken !== null}
               onclick={() => void select(theme)}
-              title={theme.builtin ? 'Встроенная тема' : 'Своя тема из папки тем'}
+              title={theme.builtin ? t('appearance.theme.builtin') : t('appearance.theme.own')}
             >
               <span
                 class="sample"
@@ -191,13 +192,13 @@
               >
                 <span class="sample-row">
                   <span class="dot"></span>
-                  <span class="heading">Заголовок</span>
+                  <span class="heading">{t('appearance.sample.heading')}</span>
                 </span>
-                <span class="sample-row body">обычный текст</span>
+                <span class="sample-row body">{t('appearance.sample.text')}</span>
                 <span class="sample-row code">
                   <span class="keyword">fn</span>
-                  <span class="string">«код»</span>
-                  <span class="comment">// заметка</span>
+                  <span class="string">{t('appearance.sample.string')}</span>
+                  <span class="comment">{t('appearance.sample.comment')}</span>
                 </span>
               </span>
 
@@ -207,10 +208,10 @@
                 {/if}
                 <span class="theme-name">{theme.name}</span>
                 {#if !theme.builtin}
-                  <span class="badge">своя</span>
+                  <span class="badge">{t('appearance.badge.own')}</span>
                 {/if}
                 {#if mark.pair}
-                  <span class="badge">{mark.pair === 'light' ? 'светлая' : 'тёмная'}</span>
+                  <span class="badge">{mark.pair === 'light' ? t('appearance.badge.light') : t('appearance.badge.dark')}</span>
                 {/if}
               </span>
             </button>
@@ -227,18 +228,14 @@
       disabled={broken !== null || selection.currentId === ''}
       onclick={() => void createFrom()}
     >
-      Создать свою на основе «{look?.themeName ?? ''}»
+      {t('appearance.create', { theme: look?.themeName ?? '' })}
     </button>
     <button class="action" type="button" onclick={() => void openFolder()}>
-      Открыть папку тем
+      {t('appearance.folder')}
     </button>
   </div>
 
-  <p class="hint">
-    Тема — файл TOML в папке тем. Копия сохраняет пояснения к палитре;
-    править её можно ниже или как обычный текст — сохраните файл, и окно
-    перерисуется само.
-  </p>
+  <p class="hint">{t('appearance.hint')}</p>
 
   <hr class="divider" />
   <FontsPanel />
