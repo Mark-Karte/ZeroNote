@@ -23,8 +23,8 @@ opens instantly, like Notepad++, and works with a folder as a project
 <br>
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/window-dark.png">
-  <img src="docs/screenshots/window-light.png" alt="ZeroNote window with a project open">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/en/window-dark.png">
+  <img src="docs/screenshots/en/window-light.png" alt="ZeroNote window with a project open">
 </picture>
 
 <br>
@@ -36,11 +36,8 @@ opens instantly, like Notepad++, and works with a folder as a project
 </div>
 
 > [!NOTE]
-> **The interface is in Russian for now.** An English interface is coming
-> in version 0.21.0 — the work is under way. Until then the screenshots
-> show the Russian interface, and menu names below are given in English
-> with the current Russian label in brackets. This translation of the
-> README is new as well: if something reads wrong, please
+> The English interface and this translation of the README are new:
+> if something reads wrong, please
 > [open an issue](https://github.com/Mark-Karte/ZeroNote/issues).
 
 ZeroNote works with a folder as a project — a file tree, full-text search
@@ -67,12 +64,11 @@ a certificate costs money and isn't planned for the first round. To
 install: “More info” → “Run anyway”. If you'd rather not trust it, build
 from source — it's two commands, see below.
 
-The app checks for updates **only when you ask**: Settings → About →
-Updates («Параметры → Сведения → Обновления»). It never goes online
-on its own; there are no background checks.
+The app checks for updates **only when you ask**: Settings → Updates.
+It never goes online on its own; there are no background checks.
 
-**In File Explorer**, after installation, “Open in ZeroNote” («Открыть
-в ZeroNote») appears on files and on folders, and ZeroNote joins the
+**In File Explorer**, after installation, “Open in ZeroNote” appears
+on files and on folders, and ZeroNote joins the
 “Open with” list for notes, text, data and source code — fifty-odd
 extensions from `.md` and `.json` to `.py` and `.cpp`. The installer
 doesn't take over the defaults: to open `.md` files with a double click,
@@ -91,13 +87,13 @@ themes and the session stays.
 One palette field, three modes: files by fuzzy match, `>` for commands,
 `#` for tags. A few letters are enough — `edtr` finds `EditorHost.svelte`.
 
-![Quick open palette](docs/screenshots/palette.png)
+![Quick open palette](docs/screenshots/en/palette.png)
 
 Search across the whole project — with snippets, so you can see what
 exactly matched. The index is built in the background and doesn't get
 in the way of typing.
 
-![Project search with snippets](docs/screenshots/search.png)
+![Project search with snippets](docs/screenshots/en/search.png)
 
 Nine built-in themes: One Dark, Dracula, Tokyo Night, GitHub Light,
 Solarized Light, Catppuccin Latte, Contrast, and the Obsidian Dark
@@ -110,8 +106,8 @@ README: the window at the top matches your GitHub theme, and this one
 shows the other.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/window-light.png">
-  <img src="docs/screenshots/window-dark.png" alt="ZeroNote window in the other theme">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/en/window-light.png">
+  <img src="docs/screenshots/en/window-dark.png" alt="ZeroNote window in the other theme">
 </picture>
 
 ## Features
@@ -230,17 +226,23 @@ shows the other.
   `keymap.toml`, themes. The settings window is a layer on top of them,
   not the other way round: it edits the file, keeping comments and key
   order.
-- Keyboard shortcuts are reassigned on the “Hotkeys” («Клавиши») tab
-  of the settings window or right in the file. The keymap grew out of
+- Keyboard shortcuts are reassigned on the “Hotkeys” tab of the
+  settings window or right in the file. The keymap grew out of
   Notepad++; new shortcuts come from VS Code.
-- The theme is chosen on the “Appearance” («Оформление») tab of the
-  settings window — as a card with a sample in the real colours. There,
+- The theme is chosen on the “Appearance” tab of the settings
+  window — as a card with a sample in the real colours. There,
   too: “create your own based on this one”, an editor for the theme's
   colours and sizes, and fonts for the interface and the text. Save the
   theme file — the window redraws, no restart needed.
 - A typo in the settings file doesn't switch off the whole file: the
   unknown part is named in a bar at the top of the window, and everything
   else applies.
+- The interface is in English and Russian. The language follows the
+  Windows language list — Russian if it's there, English otherwise — and
+  can be changed in the settings, “Interface language”, with a restart.
+  Your own language is one translation file, no build needed: see
+  [CONTRIBUTING.md](CONTRIBUTING.md). The installer speaks the language
+  of Windows.
 
 ## What isn't there, and won't be in the first round
 
@@ -309,7 +311,7 @@ powershell -File bench\perf.ps1
 
 Open an [issue](https://github.com/Mark-Karte/ZeroNote/issues) — in English
 or in Russian. It helps to include your Windows version, your ZeroNote
-version (Settings → About → Copy, «Параметры → Сведения → Скопировать»),
+version (Settings → About → Copy),
 what you did, what you expected and what happened. For problems opening
 a file — its encoding and line-ending type from the status bar, or better
 the file itself: an encoding can't be guessed from a description.
@@ -375,8 +377,7 @@ MPL-2.0 or Apache-2.0 at your choice. **All third-party components — fonts,
 theme palettes, 91 window libraries and 210 core crates — are listed with
 their license texts in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).**
 The installer puts the same file next to the program; inside ZeroNote
-it opens from Settings → About → Licenses («Параметры → Сведения →
-Лицензии»).
+it opens from Settings → About → Licenses.
 
 **The Temml font does not ship with the app.** The `Temml.woff2` file
 itself states a ban on commercial use, and the project is under MIT.

@@ -63,6 +63,8 @@
     const lang = location.hash === '#ru' ? 'ru' : 'en';
     document.documentElement.lang = lang;
     for (const el of document.querySelectorAll('[data-en]')) el.textContent = el.dataset[lang];
+    // Снимок окна — на языке карточки (приёмка этапа 21).
+    if (lang === 'en') document.querySelector('.shot').src = 'screenshots/en/window-dark.png';
   </script>
 </body>
 </html>
