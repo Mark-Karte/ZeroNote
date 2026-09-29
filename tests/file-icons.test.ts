@@ -90,10 +90,15 @@ describe('значки типов файлов', () => {
     }
   });
 
-  it('у каждого типа в установщике есть название', () => {
-    const lines = [...NSH.matchAll(/!insertmacro \$\{ACTION\} "([^"]+)" "([^"]*)"/g)];
+  it('у каждого типа в установщике есть название на двух языках', () => {
+    // Русское и английское (задача 156): пишется одно — на языке установщика.
+    const lines = [...NSH.matchAll(/!insertmacro \$\{ACTION\} "([^"]+)" "([^"]*)" "([^"]*)"/g)];
     expect(lines.map((m) => m[1]).sort()).toEqual([...TEXT_EXTENSIONS].sort());
-    for (const m of lines) expect(m[2], `.${m[1]}`).not.toBe('');
+    for (const m of lines) {
+      expect(m[2], `.${m[1]}`).not.toBe('');
+      expect(m[3], `.${m[1]}`).not.toBe('');
+      expect(m[3], `.${m[1]}`).not.toMatch(/[\u0400-\u04FF]/);
+    }
   });
 
   /**

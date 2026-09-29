@@ -46,7 +46,9 @@
     "windows": {
       "nsis": {
         "installMode": "currentUser",
-        "installerHooks": "installer/associations.nsh"
+        "installerHooks": "installer/associations.nsh",
+        "languages": ["English", "Russian"],
+        "displayLanguageSelector": false
       }
     }
   },

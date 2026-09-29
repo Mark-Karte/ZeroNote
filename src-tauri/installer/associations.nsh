@@ -30,7 +30,6 @@
 ; он защищён проверочной суммой. В списках «Открыть с помощью» его больше
 ; нет, иначе ZeroNote стоял бы там дважды.
 !define ZN_PROGID "ZeroNote.Document"
-!define ZN_VERB_LABEL "Открыть в ZeroNote"
 ; У шаблона Tauri `MAINBINARYNAME` — имя без расширения: `.exe` он
 ; дописывает сам в каждом месте. Здесь дописываем мы.
 !define ZN_EXE "$INSTDIR\${MAINBINARYNAME}.exe"
@@ -38,76 +37,101 @@
 ; resources` в tauri.conf.json; собирает их `icons/files/make-file-icons.mjs`.
 !define ZN_ICONS "$INSTDIR\file-icons"
 
+; --- Язык ------------------------------------------------------------------
+;
+; Установщик говорит на языке Windows: русский — при русском интерфейсе
+; системы, английский — при любом другом (задача 156, `languages`
+; в tauri.conf.json, английский первым — он и запасной). На том же языке
+; пишутся в реестр названия типов и пункт «Открыть в ZeroNote»: их читает
+; проводник, а не ZeroNote.
+;
+; Выбор — во время установки, по `$LANGUAGE`, а не `LangString`: этот файл
+; шаблон Tauri подключает раньше, чем загружает языки, и `${LANG_RUSSIAN}`
+; здесь ещё не существует. 1049 — код русского языка в Windows.
+!define ZN_LANG_RU 1049
+Var ZnText
+
+; Положить в $ZnText строку на языке установщика.
+!macro ZN_PICK RU EN
+  ${If} $LANGUAGE == ${ZN_LANG_RU}
+    StrCpy $ZnText "${RU}"
+  ${Else}
+    StrCpy $ZnText "${EN}"
+  ${EndIf}
+!macroend
+
 ; --- Типы файлов ------------------------------------------------------------
 ;
 ; Список один и тот же для «Открыть с помощью» и для окна выбора файла
 ; во фронтенде (`src/actions/file-types.ts`). Совпадение сторожит
 ; `tests/file-types.test.ts`: два списка одного и того же разъезжаются молча.
-; Второе в строке — название типа: его проводник пишет в столбце «Тип»,
-; когда ZeroNote выбран для расширения умолчанием.
+; Второе и третье в строке — название типа по-русски и по-английски: его
+; проводник пишет в столбце «Тип», когда ZeroNote выбран для расширения
+; умолчанием. Пишется одно — на языке установщика.
 
 !macro ZN_FOR_EACH_EXT ACTION
-  !insertmacro ${ACTION} "md" "Заметка Markdown"
-  !insertmacro ${ACTION} "markdown" "Заметка Markdown"
-  !insertmacro ${ACTION} "mdx" "Заметка MDX"
-  !insertmacro ${ACTION} "txt" "Текстовый документ"
-  !insertmacro ${ACTION} "log" "Файл журнала"
-  !insertmacro ${ACTION} "toml" "Настройки TOML"
-  !insertmacro ${ACTION} "json" "Данные JSON"
-  !insertmacro ${ACTION} "jsonc" "Данные JSON с комментариями"
-  !insertmacro ${ACTION} "yaml" "Данные YAML"
-  !insertmacro ${ACTION} "yml" "Данные YAML"
-  !insertmacro ${ACTION} "xml" "Документ XML"
-  !insertmacro ${ACTION} "ini" "Настройки INI"
-  !insertmacro ${ACTION} "cfg" "Файл настроек"
-  !insertmacro ${ACTION} "conf" "Файл настроек"
-  !insertmacro ${ACTION} "csv" "Таблица CSV"
-  !insertmacro ${ACTION} "tsv" "Таблица TSV"
-  !insertmacro ${ACTION} "properties" "Файл свойств"
-  !insertmacro ${ACTION} "lock" "Файл блокировки"
-  !insertmacro ${ACTION} "c" "Исходный код C"
-  !insertmacro ${ACTION} "h" "Заголовок C"
-  !insertmacro ${ACTION} "cpp" "Исходный код C++"
-  !insertmacro ${ACTION} "cxx" "Исходный код C++"
-  !insertmacro ${ACTION} "cc" "Исходный код C++"
-  !insertmacro ${ACTION} "hpp" "Заголовок C++"
-  !insertmacro ${ACTION} "hxx" "Заголовок C++"
-  !insertmacro ${ACTION} "cs" "Исходный код C#"
-  !insertmacro ${ACTION} "java" "Исходный код Java"
-  !insertmacro ${ACTION} "kt" "Исходный код Kotlin"
-  !insertmacro ${ACTION} "rs" "Исходный код Rust"
-  !insertmacro ${ACTION} "go" "Исходный код Go"
-  !insertmacro ${ACTION} "swift" "Исходный код Swift"
-  !insertmacro ${ACTION} "py" "Исходный код Python"
-  !insertmacro ${ACTION} "rb" "Исходный код Ruby"
-  !insertmacro ${ACTION} "php" "Исходный код PHP"
-  !insertmacro ${ACTION} "lua" "Исходный код Lua"
-  !insertmacro ${ACTION} "js" "Исходный код JavaScript"
-  !insertmacro ${ACTION} "jsx" "Исходный код JSX"
-  !insertmacro ${ACTION} "mjs" "Модуль JavaScript"
-  !insertmacro ${ACTION} "cjs" "Модуль CommonJS"
-  !insertmacro ${ACTION} "ts" "Исходный код TypeScript"
-  !insertmacro ${ACTION} "tsx" "Исходный код TSX"
-  !insertmacro ${ACTION} "html" "Документ HTML"
-  !insertmacro ${ACTION} "htm" "Документ HTML"
-  !insertmacro ${ACTION} "css" "Таблица стилей CSS"
-  !insertmacro ${ACTION} "scss" "Таблица стилей SCSS"
-  !insertmacro ${ACTION} "less" "Таблица стилей Less"
-  !insertmacro ${ACTION} "svelte" "Компонент Svelte"
-  !insertmacro ${ACTION} "vue" "Компонент Vue"
-  !insertmacro ${ACTION} "sql" "Запрос SQL"
-  !insertmacro ${ACTION} "sh" "Сценарий оболочки"
-  !insertmacro ${ACTION} "bash" "Сценарий Bash"
-  !insertmacro ${ACTION} "ps1" "Сценарий PowerShell"
-  !insertmacro ${ACTION} "psm1" "Модуль PowerShell"
-  !insertmacro ${ACTION} "bat" "Пакетный файл"
-  !insertmacro ${ACTION} "cmd" "Командный сценарий"
+  !insertmacro ${ACTION} "md" "Заметка Markdown" "Markdown note"
+  !insertmacro ${ACTION} "markdown" "Заметка Markdown" "Markdown note"
+  !insertmacro ${ACTION} "mdx" "Заметка MDX" "MDX note"
+  !insertmacro ${ACTION} "txt" "Текстовый документ" "Text document"
+  !insertmacro ${ACTION} "log" "Файл журнала" "Log file"
+  !insertmacro ${ACTION} "toml" "Настройки TOML" "TOML settings"
+  !insertmacro ${ACTION} "json" "Данные JSON" "JSON data"
+  !insertmacro ${ACTION} "jsonc" "Данные JSON с комментариями" "JSON data with comments"
+  !insertmacro ${ACTION} "yaml" "Данные YAML" "YAML data"
+  !insertmacro ${ACTION} "yml" "Данные YAML" "YAML data"
+  !insertmacro ${ACTION} "xml" "Документ XML" "XML document"
+  !insertmacro ${ACTION} "ini" "Настройки INI" "INI settings"
+  !insertmacro ${ACTION} "cfg" "Файл настроек" "Settings file"
+  !insertmacro ${ACTION} "conf" "Файл настроек" "Settings file"
+  !insertmacro ${ACTION} "csv" "Таблица CSV" "CSV table"
+  !insertmacro ${ACTION} "tsv" "Таблица TSV" "TSV table"
+  !insertmacro ${ACTION} "properties" "Файл свойств" "Properties file"
+  !insertmacro ${ACTION} "lock" "Файл блокировки" "Lock file"
+  !insertmacro ${ACTION} "c" "Исходный код C" "C source code"
+  !insertmacro ${ACTION} "h" "Заголовок C" "C header"
+  !insertmacro ${ACTION} "cpp" "Исходный код C++" "C++ source code"
+  !insertmacro ${ACTION} "cxx" "Исходный код C++" "C++ source code"
+  !insertmacro ${ACTION} "cc" "Исходный код C++" "C++ source code"
+  !insertmacro ${ACTION} "hpp" "Заголовок C++" "C++ header"
+  !insertmacro ${ACTION} "hxx" "Заголовок C++" "C++ header"
+  !insertmacro ${ACTION} "cs" "Исходный код C#" "C# source code"
+  !insertmacro ${ACTION} "java" "Исходный код Java" "Java source code"
+  !insertmacro ${ACTION} "kt" "Исходный код Kotlin" "Kotlin source code"
+  !insertmacro ${ACTION} "rs" "Исходный код Rust" "Rust source code"
+  !insertmacro ${ACTION} "go" "Исходный код Go" "Go source code"
+  !insertmacro ${ACTION} "swift" "Исходный код Swift" "Swift source code"
+  !insertmacro ${ACTION} "py" "Исходный код Python" "Python source code"
+  !insertmacro ${ACTION} "rb" "Исходный код Ruby" "Ruby source code"
+  !insertmacro ${ACTION} "php" "Исходный код PHP" "PHP source code"
+  !insertmacro ${ACTION} "lua" "Исходный код Lua" "Lua source code"
+  !insertmacro ${ACTION} "js" "Исходный код JavaScript" "JavaScript source code"
+  !insertmacro ${ACTION} "jsx" "Исходный код JSX" "JSX source code"
+  !insertmacro ${ACTION} "mjs" "Модуль JavaScript" "JavaScript module"
+  !insertmacro ${ACTION} "cjs" "Модуль CommonJS" "CommonJS module"
+  !insertmacro ${ACTION} "ts" "Исходный код TypeScript" "TypeScript source code"
+  !insertmacro ${ACTION} "tsx" "Исходный код TSX" "TSX source code"
+  !insertmacro ${ACTION} "html" "Документ HTML" "HTML document"
+  !insertmacro ${ACTION} "htm" "Документ HTML" "HTML document"
+  !insertmacro ${ACTION} "css" "Таблица стилей CSS" "CSS style sheet"
+  !insertmacro ${ACTION} "scss" "Таблица стилей SCSS" "SCSS style sheet"
+  !insertmacro ${ACTION} "less" "Таблица стилей Less" "Less style sheet"
+  !insertmacro ${ACTION} "svelte" "Компонент Svelte" "Svelte component"
+  !insertmacro ${ACTION} "vue" "Компонент Vue" "Vue component"
+  !insertmacro ${ACTION} "sql" "Запрос SQL" "SQL query"
+  !insertmacro ${ACTION} "sh" "Сценарий оболочки" "Shell script"
+  !insertmacro ${ACTION} "bash" "Сценарий Bash" "Bash script"
+  !insertmacro ${ACTION} "ps1" "Сценарий PowerShell" "PowerShell script"
+  !insertmacro ${ACTION} "psm1" "Модуль PowerShell" "PowerShell module"
+  !insertmacro ${ACTION} "bat" "Пакетный файл" "Batch file"
+  !insertmacro ${ACTION} "cmd" "Командный сценарий" "Command script"
 !macroend
 
-!macro ZN_ADD_EXT EXT NAME
+!macro ZN_ADD_EXT EXT RU EN
   ; Свой тип на каждое расширение (задача 134): название, значок и команда
   ; открытия. Нужен ради значка — у общего типа он был бы один на всех.
-  WriteRegStr HKCU "Software\Classes\ZeroNote.${EXT}" "" "${NAME}"
+  !insertmacro ZN_PICK "${RU}" "${EN}"
+  WriteRegStr HKCU "Software\Classes\ZeroNote.${EXT}" "" "$ZnText"
   WriteRegStr HKCU "Software\Classes\ZeroNote.${EXT}\DefaultIcon" "" "${ZN_ICONS}\${EXT}.ico"
   WriteRegStr HKCU "Software\Classes\ZeroNote.${EXT}\shell\open\command" "" '"${ZN_EXE}" "%1"'
   ; «Открыть с помощью»: добавляемся к тем, кто уже там, и ничего не вытесняем.
@@ -119,7 +143,7 @@
   WriteRegStr HKCU "Software\ZeroNote\Capabilities\FileAssociations" ".${EXT}" "ZeroNote.${EXT}"
 !macroend
 
-!macro ZN_REMOVE_EXT EXT NAME
+!macro ZN_REMOVE_EXT EXT RU EN
   DeleteRegKey HKCU "Software\Classes\ZeroNote.${EXT}"
   DeleteRegValue HKCU "Software\Classes\.${EXT}\OpenWithProgids" "ZeroNote.${EXT}"
   DeleteRegValue HKCU "Software\Classes\.${EXT}\OpenWithProgids" "${ZN_PROGID}"
@@ -137,7 +161,8 @@
 ; --- Глагол «Открыть в ZeroNote» --------------------------------------------
 
 !macro ZN_ADD_VERB TARGET PARAM
-  WriteRegStr HKCU "Software\Classes\${TARGET}\shell\ZeroNote" "" "${ZN_VERB_LABEL}"
+  !insertmacro ZN_PICK "Открыть в ZeroNote" "Open in ZeroNote"
+  WriteRegStr HKCU "Software\Classes\${TARGET}\shell\ZeroNote" "" "$ZnText"
   WriteRegStr HKCU "Software\Classes\${TARGET}\shell\ZeroNote" "Icon" "${ZN_EXE},0"
   ; Проводник запускает по процессу на каждый выделенный файл; `Player`
   ; означает «отдай все выделенные одному». Второй экземпляр у нас всё равно
@@ -153,12 +178,14 @@
 ; --- Хуки -------------------------------------------------------------------
 
 !macro NSIS_HOOK_POSTINSTALL
-  DetailPrint "Регистрация типов файлов и пунктов меню…"
+  !insertmacro ZN_PICK "Регистрация типов файлов и пунктов меню…" "Registering file types and menu items…"
+  DetailPrint "$ZnText"
 
   ; Прежний общий тип: как называется, чем рисуется, чем открывается.
   ; Значок — лист без подписи: тип один на все расширения, и подпись
   ; у него была бы неправдой для всех, кроме одного.
-  WriteRegStr HKCU "Software\Classes\${ZN_PROGID}" "" "Текстовый документ ZeroNote"
+  !insertmacro ZN_PICK "Текстовый документ ZeroNote" "ZeroNote text document"
+  WriteRegStr HKCU "Software\Classes\${ZN_PROGID}" "" "$ZnText"
   WriteRegStr HKCU "Software\Classes\${ZN_PROGID}\DefaultIcon" "" "${ZN_ICONS}\document.ico"
   WriteRegStr HKCU "Software\Classes\${ZN_PROGID}\shell\open\command" "" '"${ZN_EXE}" "%1"'
 
@@ -169,7 +196,8 @@
   ; Заявка в список приложений Windows. Без неё назначить нас умолчанием
   ; из параметров системы нельзя — а это единственный честный способ им стать.
   WriteRegStr HKCU "Software\ZeroNote\Capabilities" "ApplicationName" "ZeroNote"
-  WriteRegStr HKCU "Software\ZeroNote\Capabilities" "ApplicationDescription" "Редактор текста и заметок"
+  !insertmacro ZN_PICK "Редактор текста и заметок" "Text and notes editor"
+  WriteRegStr HKCU "Software\ZeroNote\Capabilities" "ApplicationDescription" "$ZnText"
   WriteRegStr HKCU "Software\RegisteredApplications" "ZeroNote" "Software\ZeroNote\Capabilities"
 
   !insertmacro ZN_FOR_EACH_EXT ZN_ADD_EXT
@@ -186,7 +214,8 @@
 !macroend
 
 !macro NSIS_HOOK_PREUNINSTALL
-  DetailPrint "Снятие типов файлов и пунктов меню…"
+  !insertmacro ZN_PICK "Снятие типов файлов и пунктов меню…" "Removing file types and menu items…"
+  DetailPrint "$ZnText"
 
   DeleteRegKey HKCU "Software\Classes\${ZN_PROGID}"
   DeleteRegKey HKCU "Software\Classes\Applications\${MAINBINARYNAME}.exe"

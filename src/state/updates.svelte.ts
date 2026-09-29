@@ -15,7 +15,8 @@ import {
   type DownloadEvent,
 } from '../ui/download';
 import { version } from '../version';
-import { t } from '../l10n';
+import { language, t } from '../l10n';
+import { notesFor } from '../ui/release-notes';
 
 /**
  * Обновление из GitHub.
@@ -128,7 +129,8 @@ export async function checkForUpdates(): Promise<void> {
       return;
     }
 
-    const notes = found.notes?.trim();
+    // Заметки двуязычные (задача 156) — показывается часть на языке окна.
+    const notes = notesFor(found.notes ?? '', language());
     const answer = await askChoice(
       t('updates.found'),
       t('updates.found.versions', { found: found.version, current: version }) +
