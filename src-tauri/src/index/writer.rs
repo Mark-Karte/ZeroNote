@@ -62,7 +62,10 @@ pub enum IndexError {
 impl std::fmt::Display for IndexError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            IndexError::Db(e) => write!(f, "индекс: {e}"),
+            IndexError::Db(e) => f.write_str(&crate::l10n::tr_with(
+                "error.index",
+                &[("error", &e.to_string())],
+            )),
             IndexError::Io(e) => write!(f, "{e}"),
         }
     }

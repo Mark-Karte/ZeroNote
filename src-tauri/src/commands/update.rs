@@ -20,6 +20,8 @@ use tauri::ipc::Channel;
 use tauri::{AppHandle, State};
 use tauri_plugin_updater::{Update, UpdaterExt};
 
+use crate::l10n::tr;
+
 /// Как снять идущую работу.
 ///
 /// Коробка с замыканием, а не сама ручка отмены: ручка — тип tokio, а tokio
@@ -90,11 +92,11 @@ async fn cancellable<T: Send + 'static>(
 ) -> Result<Option<T>, String> {
     let handle = tauri::async_runtime::spawn(work);
     let abort = handle.inner().abort_handle();
-    *state.abort.lock().expect("состояние обновления повреждено") =
+    *state.abort.lock().expect("update state lock poisoned") =
         Some(Box::new(move || abort.abort()));
 
     let result = handle.await;
-    state.abort.lock().expect("состояние обновления повреждено").take();
+    state.abort.lock().expect("update state lock poisoned").take();
 
     match result {
         Ok(value) => Ok(Some(value)),
@@ -129,8 +131,8 @@ pub async fn check_update(
             notes: update.body.clone(),
         },
     };
-    *state.found.lock().expect("состояние обновления повреждено") = found;
-    *state.bytes.lock().expect("состояние обновления повреждено") = None;
+    *state.found.lock().expect("update state lock poisoned") = found;
+    *state.bytes.lock().expect("update state lock poisoned") = None;
     Ok(outcome)
 }
 
@@ -149,9 +151,9 @@ pub async fn download_update(
     let mut update = state
         .found
         .lock()
-        .expect("состояние обновления повреждено")
+        .expect("update state lock poisoned")
         .clone()
-        .ok_or("Новая версия не найдена: сначала нужна проверка обновлений.")?;
+        .ok_or_else(|| tr("error.update.unchecked"))?;
     update.timeout = Some(Duration::from_millis(timeout_ms));
 
     let work = async move {
@@ -177,7 +179,7 @@ pub async fn download_update(
     match cancellable(&state, work).await? {
         None => Ok(DownloadOutcome::Cancelled),
         Some(Ok(bytes)) => {
-            *state.bytes.lock().expect("состояние обновления повреждено") = Some(bytes);
+            *state.bytes.lock().expect("update state lock poisoned") = Some(bytes);
             Ok(DownloadOutcome::Ready)
         }
         Some(Err(error)) => Err(error.to_string()),
@@ -187,7 +189,7 @@ pub async fn download_update(
 /// Снять идущую проверку или загрузку. Нечего снимать — ничего и не делаем.
 #[tauri::command]
 pub fn cancel_update(state: State<'_, UpdateState>) {
-    let abort = state.abort.lock().expect("состояние обновления повреждено").take();
+    let abort = state.abort.lock().expect("update state lock poisoned").take();
     if let Some(abort) = abort {
         abort();
     }
@@ -200,15 +202,15 @@ pub async fn install_update(state: State<'_, UpdateState>) -> Result<(), String>
     let update = state
         .found
         .lock()
-        .expect("состояние обновления повреждено")
+        .expect("update state lock poisoned")
         .clone()
-        .ok_or("Новая версия не найдена.")?;
+        .ok_or_else(|| tr("error.update.none"))?;
     let bytes = state
         .bytes
         .lock()
-        .expect("состояние обновления повреждено")
+        .expect("update state lock poisoned")
         .take()
-        .ok_or("Пакет не скачан.")?;
+        .ok_or_else(|| tr("error.update.not-downloaded"))?;
 
     update.install(bytes).map_err(|error| error.to_string())
 }

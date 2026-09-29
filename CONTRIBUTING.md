@@ -51,7 +51,10 @@
 
 Чтобы язык вошёл в сам ZeroNote, пришлите файл запросом на слияние
 в папку `l10n/` — строку в список встроенных языков (`Builtin`
-в `src-tauri/src/l10n.rs`) допишем сами.
+в `src-tauri/src/l10n.rs`) допишем сами. Образцы конфигов с пояснениями
+(`settings.toml`, `keymap.toml`, `callouts.toml`, `zeronote.toml`)
+лежат в `l10n/samples/<код>/`; их перевод не обязателен — без него
+новым пользователям кладутся английские.
 
 ## In English
 
@@ -109,3 +112,7 @@ to `l10n/en.json`.
 To make the language part of ZeroNote itself, send the file as a pull
 request into the `l10n/` folder — we'll add the line to the list of
 built-in languages (`Builtin` in `src-tauri/src/l10n.rs`) ourselves.
+The commented config samples (`settings.toml`, `keymap.toml`,
+`callouts.toml`, `zeronote.toml`) live in `l10n/samples/<code>/`;
+translating them is optional — without them, new users get the English
+ones.

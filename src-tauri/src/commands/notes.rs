@@ -19,6 +19,7 @@ use crate::markdown::daily::{self, Fields};
 use crate::model::root::RootId;
 use crate::project::ignore::IgnoreRules;
 use crate::state::AppState;
+use crate::l10n::{tr, tr_with};
 
 type Fallible<T> = Result<T, String>;
 
@@ -47,7 +48,7 @@ pub fn open_daily_note(
     time: String,
 ) -> Fallible<DailyNote> {
     let title = daily::title(&date).map_err(|e| e.to_string())?;
-    let name = daily::file_name(&date).map_err(|e| e.to_string())?;
+    let names = daily::file_names(&date).map_err(|e| e.to_string())?;
 
     // Настройки читаются с диска, как и всюду: файл и есть состояние (Р-077),
     // и его могли поправить руками минуту назад. Испорченный файл не мешает
@@ -63,7 +64,11 @@ pub fn open_daily_note(
     let vault = crate::model::vault::path_of(&settings.notes.vault, &state.data_dir.path);
     let folder = crate::model::vault::daily_folder(&settings.notes.daily_folder, &vault);
 
-    ensure(&folder, &name, &template, &Fields { date, time, title })
+    // Заметка дня, заведённая на другом языке окна, — та же заметка
+    // (задача 155): открывается она, а не создаётся вторая рядом.
+    let name = names.iter().find(|name| folder.join(name).exists()).unwrap_or(&names[0]);
+
+    ensure(&folder, name, &template, &Fields { date, time, title })
 }
 
 /// Найти или создать заметку. Отдельно от настроек — ради проверяемости.
@@ -72,7 +77,7 @@ fn ensure(folder: &Path, name: &str, template: &str, fields: &Fields) -> Fallibl
 
     // Инвариант 2 — до всякой работы с диском.
     if crate::fsx::atomic_save::is_inside_obsidian(&path) {
-        return Err("в .obsidian ничего не пишется (инвариант 2)".to_owned());
+        return Err(tr("error.obsidian.write"));
     }
 
     // Существующая заметка не переписывается никогда: команду за день
@@ -87,7 +92,10 @@ fn ensure(folder: &Path, name: &str, template: &str, fields: &Fields) -> Fallibl
     let text = body(template, fields)?;
 
     std::fs::create_dir_all(folder)
-        .map_err(|e| format!("не удалось создать папку {}: {e}", folder.display()))?;
+        .map_err(|e| tr_with(
+            "error.folder.create.named",
+            &[("folder", &folder.display().to_string()), ("error", &e.to_string())],
+        ))?;
 
     // Через атомарную запись, как и всё остальное (инвариант 3).
     crate::fsx::atomic_save::save(&path, text.as_bytes()).map_err(|e| e.to_string())?;
@@ -258,19 +266,25 @@ pub fn read_template(
 ) -> Fallible<String> {
     let path = std::path::PathBuf::from(path);
     let Some(dir) = templates_dir(&state) else {
-        return Err("папка шаблонов не задана".to_owned());
+        return Err(tr("error.templates.unset"));
     };
 
     if !crate::model::root::same_path(path.parent().unwrap_or(Path::new("")), &dir) {
-        return Err(format!("{} — не заготовка из папки шаблонов", path.display()));
+        return Err(tr_with("error.template.outside", &[("file", &path.display().to_string())]));
     }
 
     let bytes = std::fs::read(&path)
-        .map_err(|e| format!("шаблон {} не прочитан: {e}", path.display()))?;
+        .map_err(|e| tr_with(
+            "error.template.unreadable",
+            &[("file", &path.display().to_string()), ("error", &e.to_string())],
+        ))?;
     // Шаблон только читается, и его текст ложится в новую заметку UTF-8:
     // подсказка проекта здесь ничего не защищает от порчи.
     let raw = crate::text::document::read_raw(&bytes, None)
-        .map_err(|e| format!("шаблон {} не прочитан: {e}", path.display()))?;
+        .map_err(|e| tr_with(
+            "error.template.unreadable",
+            &[("file", &path.display().to_string()), ("error", &e.to_string())],
+        ))?;
 
     Ok(daily::fill(&raw.text, &Fields { date, time, title }))
 }
@@ -289,15 +303,18 @@ pub fn create_note_from_text(folder: String, name: String, text: String) -> Fall
     let path = crate::fsx::entry_ops::child_path(&folder, &name).map_err(|e| e.to_string())?;
 
     if crate::fsx::atomic_save::is_inside_obsidian(&path) {
-        return Err("в .obsidian ничего не пишется (инвариант 2)".to_owned());
+        return Err(tr("error.obsidian.write"));
     }
 
     if path.exists() {
-        return Err(format!("«{}» здесь уже есть", path.display()));
+        return Err(tr_with("error.name.taken", &[("name", &path.display().to_string())]));
     }
 
     std::fs::create_dir_all(&folder)
-        .map_err(|e| format!("не удалось создать папку {}: {e}", folder.display()))?;
+        .map_err(|e| tr_with(
+            "error.folder.create.named",
+            &[("folder", &folder.display().to_string()), ("error", &e.to_string())],
+        ))?;
     crate::fsx::atomic_save::save(&path, text.as_bytes()).map_err(|e| e.to_string())?;
 
     Ok(path.to_string_lossy().into_owned())
@@ -327,15 +344,18 @@ pub fn save_pasted_image(
     request: tauri::ipc::Request<'_>,
 ) -> Fallible<PastedImage> {
     let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
-        return Err("картинка пришла не байтами".to_owned());
+        return Err(tr("error.image.not-bytes"));
     };
     let header = |name: &str| -> Fallible<String> {
         let value = request
             .headers()
             .get(name)
             .and_then(|value| value.to_str().ok())
-            .ok_or_else(|| format!("в запросе нет {name}"))?;
-        unescape(value).ok_or_else(|| format!("{name} не раскодируется"))
+            .ok_or_else(|| tr_with("error.request.missing", &[("name", &name.to_string())]))?;
+        unescape(value).ok_or_else(|| tr_with(
+            "error.request.undecodable",
+            &[("name", &name.to_string())],
+        ))
     };
     let note = PathBuf::from(header("zn-note")?);
     let stamp = header("zn-stamp")?;
@@ -359,7 +379,7 @@ pub fn save_pasted_image(
     let form = link_form(&state, &note, &path, root.as_ref());
     index_now(&state, root.as_ref(), form, std::slice::from_ref(&path));
     let link = attachment::link(&note, &path, form)
-        .ok_or_else(|| format!("на {} не выходит ссылки из заметки", path.display()))?;
+        .ok_or_else(|| tr_with("error.link.impossible", &[("path", &path.display().to_string())]))?;
     Ok(PastedImage {
         path: path.to_string_lossy().into_owned(),
         link,
@@ -378,7 +398,7 @@ struct RootOf {
 /// Корень заметки: замок реестра держится только на копирование
 /// указателей, диск дальше читается без него.
 fn root_of(state: &AppState, note: &Path) -> Option<RootOf> {
-    let roots = state.roots.lock().expect("реестр корней повреждён");
+    let roots = state.roots.lock().expect("root registry lock poisoned");
     roots.for_path(note).map(|root| RootOf {
         path: root.path.clone(),
         rules: Arc::clone(&root.rules),
@@ -396,7 +416,7 @@ fn index_now(state: &AppState, root: Option<&RootOf>, form: LinkForm, paths: &[P
         state
             .index
             .lock()
-            .expect("индекс повреждён")
+            .expect("index lock poisoned")
             .index_now(root.id, paths, root.max_size);
     }
 }
@@ -424,7 +444,7 @@ fn link_form<'a>(state: &AppState, note: &Path, file: &Path, root: Option<&'a Ro
         state
             .index
             .lock()
-            .expect("индекс повреждён")
+            .expect("index lock poisoned")
             .resolve_link(name, &from, &scope)
             .is_some_and(|found| found.path.to_lowercase() != mine)
     });
@@ -476,7 +496,7 @@ pub async fn link_dropped(
                 .collect::<Vec<_>>()
         })
         .await
-        .map_err(|e| format!("копирование прервалось: {e}"))?
+        .map_err(|e| tr_with("error.copy.interrupted", &[("error", &e.to_string())]))?
     };
 
     Ok(placed
@@ -489,7 +509,10 @@ pub async fn link_dropped(
                     Some(link) => DroppedFile { link: Some(link), error: None },
                     None => DroppedFile {
                         link: None,
-                        error: Some(format!("на {} не выходит ссылки из заметки", path.display())),
+                        error: Some(tr_with(
+                            "error.link.impossible",
+                            &[("path", &path.display().to_string())],
+                        )),
                     },
                 }
             }
@@ -502,14 +525,17 @@ pub async fn link_dropped(
 /// (вне проектов — в её папке), иначе — копией в папке вложений.
 fn place_file(attachments: &Attachments, note: &Path, root: Option<&Path>, file: &Path) -> Fallible<PathBuf> {
     if !file.is_absolute() || !note.is_absolute() {
-        return Err(format!("путь неполный: {}", file.display()));
+        return Err(tr_with("error.path.relative", &[("path", &file.display().to_string())]));
     }
     if !file.is_file() {
-        return Err(format!("{} — не файл", file.display()));
+        return Err(tr_with("error.not-file", &[("path", &file.display().to_string())]));
     }
     let area = match root {
         Some(root) => root,
-        None => note.parent().ok_or_else(|| format!("у {} нет папки", note.display()))?,
+        None => note.parent().ok_or_else(|| tr_with(
+            "error.no-parent",
+            &[("path", &note.display().to_string())],
+        ))?,
     };
     if crate::model::root::inside(area, file) {
         return Ok(file.to_path_buf());
@@ -518,7 +544,10 @@ fn place_file(attachments: &Attachments, note: &Path, root: Option<&Path>, file:
     let name = file
         .file_name()
         .and_then(|name| name.to_str())
-        .ok_or_else(|| format!("имя {} не в Юникоде", file.display()))?;
+        .ok_or_else(|| tr_with(
+            "error.name.not-unicode",
+            &[("file", &file.display().to_string())],
+        ))?;
     let folder = attachments_folder(attachments, note, root)?;
     let target = reserve(&folder, |number| Ok(attachment::numbered(name, number)))?;
     // Копия ложится поверх пустого файла, занявшего имя, — он наш.
@@ -526,7 +555,10 @@ fn place_file(attachments: &Attachments, note: &Path, root: Option<&Path>, file:
     // исходник при этом цел. На ошибке копия убирается.
     if let Err(e) = std::fs::copy(file, &target) {
         std::fs::remove_file(&target).ok();
-        return Err(format!("не удалось скопировать {}: {e}", file.display()));
+        return Err(tr_with(
+            "error.copy.failed",
+            &[("file", &file.display().to_string()), ("error", &e.to_string())],
+        ));
     }
     Ok(target)
 }
@@ -537,16 +569,19 @@ fn place_file(attachments: &Attachments, note: &Path, root: Option<&Path>, file:
 /// положить файл туда, где его не ждут.
 fn attachments_folder(attachments: &Attachments, note: &Path, root: Option<&Path>) -> Fallible<PathBuf> {
     if !note.parent().is_some_and(Path::is_dir) {
-        return Err(format!("папки заметки {} нет на диске", note.display()));
+        return Err(tr_with("error.note.folder.gone", &[("note", &note.display().to_string())]));
     }
     let folder = attachments
         .folder(note, root)
-        .ok_or_else(|| format!("у {} нет папки", note.display()))?;
+        .ok_or_else(|| tr_with("error.no-parent", &[("path", &note.display().to_string())]))?;
     if crate::fsx::atomic_save::is_inside_obsidian(&folder) {
-        return Err("папка вложений внутри .obsidian — туда ZeroNote не пишет (инвариант 2)".to_owned());
+        return Err(tr("error.attachments.obsidian"));
     }
     std::fs::create_dir_all(&folder)
-        .map_err(|e| format!("не удалось создать папку {}: {e}", folder.display()))?;
+        .map_err(|e| tr_with(
+            "error.folder.create.named",
+            &[("folder", &folder.display().to_string()), ("error", &e.to_string())],
+        ))?;
     Ok(folder)
 }
 
@@ -558,15 +593,18 @@ fn reserve(folder: &Path, name: impl Fn(u32) -> Fallible<String>) -> Fallible<Pa
     for number in 0..1000 {
         let path = folder.join(name(number)?);
         if crate::fsx::atomic_save::is_inside_obsidian(&path) {
-            return Err("в .obsidian ZeroNote не пишет (инвариант 2)".to_owned());
+            return Err(tr("error.obsidian.write"));
         }
         match std::fs::OpenOptions::new().write(true).create_new(true).open(&path) {
             Ok(_) => return Ok(path),
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
-            Err(e) => return Err(format!("не удалось создать {}: {e}", path.display())),
+            Err(e) => return Err(tr_with(
+                "error.create.failed",
+                &[("file", &path.display().to_string()), ("error", &e.to_string())],
+            )),
         }
     }
-    Err(format!("в папке {} заняты все номера этого имени", folder.display()))
+    Err(tr_with("error.numbers.taken", &[("folder", &folder.display().to_string())]))
 }
 
 /// Записать PNG в папку вложений заметки. Вернуть путь нового файла.
@@ -582,10 +620,10 @@ fn save_image(
     bytes: &[u8],
 ) -> Fallible<PathBuf> {
     if !bytes.starts_with(crate::clipboard::PNG_SIGNATURE) {
-        return Err("вставляется только PNG".to_owned());
+        return Err(tr("error.image.png-only"));
     }
     if !note.is_absolute() {
-        return Err(format!("путь заметки неполный: {}", note.display()));
+        return Err(tr_with("error.note.relative", &[("note", &note.display().to_string())]));
     }
     // Из отметки складывается имя — проверить до того, как создавать папку.
     attachment::image_name(stamp, 0)?;
@@ -596,7 +634,10 @@ fn save_image(
         // Пустой файл, занявший имя, — наш: убрать его, чтобы
         // не оставлять в папке человека пустышку.
         std::fs::remove_file(&path).ok();
-        return Err(format!("не удалось записать {}: {e}", path.display()));
+        return Err(tr_with(
+            "error.write.failed",
+            &[("file", &path.display().to_string()), ("error", &e.to_string())],
+        ));
     }
     Ok(path)
 }
@@ -633,11 +674,17 @@ fn body(template: &str, fields: &Fields) -> Fallible<String> {
 
     let path = Path::new(template);
     let bytes = std::fs::read(path)
-        .map_err(|e| format!("шаблон {} не прочитан: {e}", path.display()))?;
+        .map_err(|e| tr_with(
+            "error.template.unreadable",
+            &[("file", &path.display().to_string()), ("error", &e.to_string())],
+        ))?;
     // Шаблон только читается, и его текст ложится в новую заметку UTF-8:
     // подсказка проекта здесь ничего не защищает от порчи.
     let raw = crate::text::document::read_raw(&bytes, None)
-        .map_err(|e| format!("шаблон {} не прочитан: {e}", path.display()))?;
+        .map_err(|e| tr_with(
+            "error.template.unreadable",
+            &[("file", &path.display().to_string()), ("error", &e.to_string())],
+        ))?;
 
     Ok(daily::fill(&raw.text, fields))
 }

@@ -1,0 +1,151 @@
+# ZeroNote settings.
+#
+# You can edit this file by hand and keep it in git. The app picks up
+# changes on the fly, no restart needed.
+#
+# Commented-out keys show the default values.
+# A key the app doesn't know and an invalid value are named in the warning
+# bar at the top of the window; everything else applies.
+
+schema = 1
+
+[appearance]
+# "system" — follow the Windows appearance setting.
+# Otherwise — a theme id. Built-in:
+#   light — "light" (GitHub Light), "solarized-light" (Solarized Light),
+#           "catppuccin-latte" (Catppuccin Latte)
+#   dark  — "dark" (One Dark), "dracula" (Dracula),
+#           "tokyo-night" (Tokyo Night), "contrast" (Contrast)
+# Put your own theme into data/themes/ and give its id here.
+theme = "system"
+
+# Which themes to use when theme = "system".
+light_theme = "light"
+dark_theme = "dark"
+
+# Interface density: "normal" or "compact".
+density = "normal"
+
+# Interface language: "auto" — Russian if Russian is in the Windows
+# language list, otherwise English; "ru" or "en" — always that one. Your own
+# translation is the file data/l10n/<code>.json, and its code goes here,
+# for example "de". Unlike everything else, it applies after a restart.
+# language = "auto"
+
+[font.ui]
+# Interface font. Without the key — taken from the theme. If the system
+# doesn't have it, the theme's font stays on screen. Also editable on the
+# "Appearance" tab.
+# family = "Segoe UI"
+# size = 13
+
+# Editor font — the same, section [font.editor]:
+# [font.editor]
+# family = "Cascadia Mono"
+# size = 14
+
+# Note font — markdown with preview. If set neither here nor in the theme —
+# Segoe UI, 16 pixels. Code in a note stays in the editor font.
+# [font.note]
+# family = "IBM Plex Sans"
+# size = 16
+
+[editor]
+# Wrap long lines at the window width.
+wrap = false
+# Close brackets and quotes while typing. In prose — markdown and plain
+# text — quotes aren't closed even with the setting on: there they
+# aren't paired.
+auto_close = true
+# What to indent with: "spaces" or "tabs", and how wide. This is only
+# a default: in an existing file the indentation is detected from its
+# content, and the setting doesn't rewrite it. What was detected is shown
+# in the status bar, where it can also be changed for one tab.
+indent_style = "spaces"
+indent_width = 4
+# Show spaces, tabs and line breaks.
+invisibles = false
+# Where to show line numbers: "always", "never" or "code" — only in code.
+# "code" by default: in code a line number is part of the conversation
+# ("the error is on line forty-two"), in a note it tells nothing. Only the
+# number is hidden, the gutter stays: a bookmark is drawn where it was,
+# folding next to it. Only markdown counts as prose; a file with no
+# language keeps its numbers.
+line_numbers = "code"
+
+# Keep markdown text in a column of readable width, centered in the window.
+# Markdown only: in code, line length is part of the meaning.
+readable_width = true
+
+# Markdown live preview: markup characters aren't shown, they take effect.
+# `**bold**` shows as bold without asterisks, `==highlight==` in color.
+# The line the cursor is on always shows as source — so markup can be
+# edited without turning the preview off. The file doesn't change: what is
+# hidden is the display, not the text, and copying gives the source with
+# its characters.
+live_preview = true
+# The file name as a title above a note with preview, as in Obsidian.
+# Editing the title renames the file — with its links, as in the tree.
+# Turn it off if the first heading of your notes repeats the file name anyway.
+# note_title = true
+# Suggest note names after `[[` in markdown. The list comes from the project
+# index — the same one quick open shows. ZeroNote doesn't do code
+# autocompletion and won't.
+link_suggest = true
+# Save changes to the file without a command: two seconds after the last
+# change and when the window loses focus. Off by default — a file editor
+# doesn't write to someone's file without a command. Drafts (invariant 4)
+# always work and don't depend on this setting.
+autosave = false
+
+[notes]
+# The notes folder — a home for notes next to projects. It is always open,
+# and it doesn't need adding to "Files": the "Notes" panel shows its tree
+# even when all projects are closed. Search, [[links]], backlinks and tags
+# work in it just as in a project.
+# Empty — data/notes in the app's data folder. Put your Obsidian vault here
+# if you keep notes in it: ZeroNote adds nothing to it and doesn't touch
+# .obsidian at all (invariant 2).
+vault = ""
+# Where to put the daily note ("Today's daily note" in the command palette).
+# A path inside the notes folder; empty — right in it. An absolute path
+# means the folder by itself, wherever it is.
+daily_folder = ""
+# The template file for a new daily note. Empty — a title and an empty line
+# under it. {{date}}, {{time}} and {{title}} are filled in; everything else
+# is copied as is. An existing note is never rewritten by the template —
+# the command just opens it.
+daily_template = ""
+# The templates folder: "Insert template" and "New note from template" take
+# their list from here. A path inside the notes folder; empty — no templates.
+# {{date}}, {{time}} and {{title}} are filled in; there is no executable code
+# in templates and there won't be — this is substitution, not macros.
+templates = ""
+# Where to put an image pasted into a note from the clipboard. Values are
+# the same as in Obsidian: "./" — into the note's folder, "./name" — into
+# a subfolder next to it, "/" — into the project root, "name" — into one
+# project folder from the root. The file is named as in Obsidian:
+# Pasted image <time>.png. Without the key — into the note's folder.
+# attachments = "./"
+
+[toolbar]
+# The toolbar above the text. It is easiest to put together on the
+# "Toolbar" tab of the settings, but everything is visible here too.
+#
+# Contents — a list: command ids (they are shown on the "Hotkeys" tab)
+# and three service words: "separator" — a line between groups, "spacer" —
+# a gap that pushes everything after it to the right, "path" — the path
+# of the open file. Without the key — the default set: undo and redo, back
+# and forward through cursor places and all markdown markup. Markup buttons
+# aren't shown above code.
+# items = ["edit.undo", "edit.redo", "separator", "md.bold", "md.italic"]
+
+# Which tabs the toolbar stands over: "always" — all, "text" — code and
+# notes, "markdown" — only notes, "never" — none.
+show = "text"
+# What measures the width: "column" — the readable-width column, "full" —
+# the whole pane. Where there is no column, the toolbar is full width with
+# any value.
+width = "column"
+# Button size: "small", "normal" or "large".
+size = "normal"

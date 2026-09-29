@@ -1,0 +1,21 @@
+# ZeroNote hotkeys.
+#
+# The ZeroNote keymap applies by default: it is based on Notepad++, with
+# some hotkeys taken from VS Code. Only the differences go here: anything
+# not mentioned stays as it was. The app picks up changes on the fly,
+# no restart needed.
+#
+# Format: "hotkey" = "command"
+# Order of parts and case don't matter: "Shift+Ctrl+D" and "ctrl+shift+d"
+# are the same. An empty command removes the hotkey.
+#
+# Example:
+#   [bindings]
+#   "ctrl+shift+d" = "edit.duplicate-line"   # add your own
+#   "ctrl+l" = ""                            # remove a default one
+#
+# Command names are listed in DESIGN.md (in Russian), section «Горячие клавиши».
+
+schema = 1
+
+[bindings]

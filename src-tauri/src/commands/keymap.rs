@@ -9,6 +9,7 @@ use std::collections::BTreeMap;
 
 use crate::fsx::atomic_save;
 use crate::keymap::{self, edit};
+use crate::l10n::{self, tr_with};
 use crate::state::AppState;
 
 #[derive(Debug, serde::Serialize)]
@@ -31,7 +32,11 @@ pub struct KeymapState {
 #[serde(rename_all = "camelCase")]
 pub struct CommandInfo {
     pub id: String,
+    /// Название на языке окна.
     pub title: String,
+    /// Английское название — палитра находит команду и по нему (задача 155).
+    /// Нет, когда окно и так английское.
+    pub alias: Option<String>,
     /// Чем команда нажимается сейчас. Обычно одно сочетание, но бывает
     /// и два: «перейти к парной скобке» — `Ctrl+Alt+B` и `Ctrl+Shift+\`.
     /// Пусто — команда доступна только из палитры и меню.
@@ -60,9 +65,10 @@ pub fn build(data_dir: &std::path::Path) -> KeymapState {
 
     let commands = keymap::COMMANDS
         .iter()
-        .map(|(id, title)| CommandInfo {
+        .map(|id| CommandInfo {
             id: (*id).to_owned(),
-            title: (*title).to_owned(),
+            title: l10n::command_title(id),
+            alias: l10n::command_alias(id),
             bindings: bindings
                 .iter()
                 .filter(|(_, command)| command.as_str() == *id)
@@ -101,12 +107,12 @@ fn source_for_edit(state: &AppState) -> Result<String, String> {
     match crate::fsx::config::read(&keymap_path(state)) {
         Ok(Some(source)) => match keymap::parse(&source) {
             Ok(_) => Ok(source),
-            Err(e) => Err(format!("файл раскладки не разбирается, правка отменена: {e}")),
+            Err(e) => Err(tr_with("keymap.edit.unparsable", &[("error", &e.to_string())])),
         },
-        Ok(None) => Ok(keymap::DEFAULT_TEMPLATE.to_owned()),
+        Ok(None) => Ok(keymap::template().to_owned()),
         // Нечитаемый — тоже не правится (задача 137): до неё он правился
         // как отсутствующий, и образец ложился поверх всех переназначений.
-        Err(message) => Err(format!("{message}; правка отменена")),
+        Err(message) => Err(tr_with("config.edit.cancelled", &[("problem", &message)])),
     }
 }
 

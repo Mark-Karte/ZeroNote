@@ -103,9 +103,7 @@ pub fn build(
     let selected = match theme::load_by_id(&themes_dir, &requested) {
         Some(theme) => theme,
         None => {
-            problems.push(format!(
-                "тема «{requested}» не найдена, взята встроенная"
-            ));
+            problems.push(crate::l10n::tr_with("theme.missing", &[("theme", &requested)]));
             theme::builtin(fallback_appearance)
         }
     };
@@ -122,10 +120,13 @@ pub fn build(
                 selected.appearance,
             ),
             Err(e) => {
-                problems.push(format!("тема «{}»: {e}", selected.id));
+                problems.push(crate::l10n::tr_with(
+                    "theme.failed",
+                    &[("theme", &selected.id), ("error", &e.to_string())],
+                ));
                 let safe = theme::builtin(fallback_appearance);
                 let tokens = theme::resolve(&safe, density)
-                    .expect("встроенная тема обязана собираться, это проверено тестом");
+                    .expect("a built-in theme must build; a test checks it");
                 (tokens, safe.id.clone(), safe.name.clone(), safe.appearance)
             }
         };
@@ -209,16 +210,11 @@ pub fn build_print(data_dir: &std::path::Path) -> PrintAppearance {
     let selected = match theme::load_by_id(&data_dir.join("themes"), &requested) {
         Some(found) if found.appearance == Appearance::Light => found,
         Some(found) => {
-            problems.push(format!(
-                "тема «{}» тёмная — для бумаги взята встроенная светлая",
-                found.name
-            ));
+            problems.push(crate::l10n::tr_with("theme.paper.dark", &[("theme", &found.name)]));
             theme::builtin(Appearance::Light)
         }
         None => {
-            problems.push(format!(
-                "светлой темы «{requested}» нет — для бумаги взята встроенная светлая"
-            ));
+            problems.push(crate::l10n::tr_with("theme.paper.missing", &[("theme", &requested)]));
             theme::builtin(Appearance::Light)
         }
     };
@@ -232,10 +228,13 @@ pub fn build_print(data_dir: &std::path::Path) -> PrintAppearance {
             problems,
         },
         Err(e) => {
-            problems.push(format!("тема «{}»: {e} — для бумаги взята встроенная светлая", selected.id));
+            problems.push(crate::l10n::tr_with(
+                "theme.paper.failed",
+                &[("theme", &selected.id), ("error", &e.to_string())],
+            ));
             let safe = theme::builtin(Appearance::Light);
             let tokens = theme::resolve(&safe, density)
-                .expect("встроенная тема обязана собираться, это проверено тестом");
+                .expect("a built-in theme must build; a test checks it");
             PrintAppearance {
                 tokens,
                 theme_name: safe.name.clone(),
@@ -259,7 +258,7 @@ pub fn appearance_state(state: tauri::State<'_, AppState>, system_dark: bool) ->
         &state
             .startup_notices
             .lock()
-            .expect("список предупреждений повреждён"),
+            .expect("notice list lock poisoned"),
     )
 }
 
@@ -329,7 +328,7 @@ pub fn set_theme_value(
     value: Option<String>,
 ) -> Result<(), String> {
     let (path, source) = theme::editor::user_theme(&state.data_dir.themes_dir(), &id)
-        .ok_or_else(|| "Встроенную тему не правим — сделайте свою на основе этой.".to_owned())?;
+        .ok_or_else(|| crate::l10n::tr("theme.builtin.readonly"))?;
     let updated = theme::editor::set_value(&source, &section, &key, value.as_deref())
         .map_err(|e| e.to_string())?;
     crate::fsx::atomic_save::save(&path, updated.as_bytes()).map_err(|e| e.to_string())

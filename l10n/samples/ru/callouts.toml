@@ -1,0 +1,181 @@
+# Коллауты ZeroNote.
+#
+# Коллаут — цитата, первая строка которой написана так: > [!тип] Подпись.
+# Obsidian рисует её карточкой, ZeroNote тоже. Здесь — какие типы бывают,
+# какой у каждого значок и цвет и какую подпись кладёт в заметку вставка.
+# Удобнее править во вкладке «Коллауты» окна параметров, но и здесь всё видно.
+#
+#   id    — тип, как он пишется в заметке: [!tip]. Без пробелов и скобок.
+#   title — подпись, которую вставка пишет после типа. Это текст заметки:
+#           его увидит и Obsidian.
+#   icon  — значок: имя из списка во вкладке «Коллауты».
+#   color — цвет: роль темы — "accent", "success", "warning", "danger",
+#           "muted", "keyword", "string", "number", "type", "function" —
+#           или свой "#rrggbb". Роль меняется вместе с темой и всегда
+#           читается; за свой цвет отвечаете вы.
+#
+# Тип, которого здесь нет, рисуется как "note".
+
+schema = 1
+
+[[callout]]
+id = "note"
+title = "Заметка"
+icon = "md.callout-pencil"
+color = "accent"
+
+[[callout]]
+id = "info"
+title = "Информация"
+icon = "md.callout-note"
+color = "accent"
+
+[[callout]]
+id = "todo"
+title = "Задача"
+icon = "md.callout-todo"
+color = "accent"
+
+[[callout]]
+id = "abstract"
+title = "Аннотация"
+icon = "md.callout-clipboard"
+color = "function"
+
+[[callout]]
+id = "summary"
+title = "Сводка"
+icon = "md.callout-clipboard"
+color = "function"
+
+[[callout]]
+id = "tldr"
+title = "Кратко"
+icon = "md.callout-clipboard"
+color = "function"
+
+[[callout]]
+id = "tip"
+title = "Совет"
+icon = "md.callout-flame"
+color = "function"
+
+[[callout]]
+id = "hint"
+title = "Подсказка"
+icon = "md.callout-flame"
+color = "function"
+
+[[callout]]
+id = "important"
+title = "Важно"
+icon = "md.callout-flame"
+color = "function"
+
+[[callout]]
+id = "success"
+title = "Успех"
+icon = "action.check"
+color = "success"
+
+[[callout]]
+id = "check"
+title = "Проверено"
+icon = "action.check"
+color = "success"
+
+[[callout]]
+id = "done"
+title = "Готово"
+icon = "action.check"
+color = "success"
+
+[[callout]]
+id = "question"
+title = "Вопрос"
+icon = "md.callout-question"
+color = "warning"
+
+[[callout]]
+id = "help"
+title = "Помощь"
+icon = "md.callout-question"
+color = "warning"
+
+[[callout]]
+id = "faq"
+title = "ЧаВо"
+icon = "md.callout-question"
+color = "warning"
+
+[[callout]]
+id = "warning"
+title = "Предупреждение"
+icon = "md.callout-warning"
+color = "warning"
+
+[[callout]]
+id = "caution"
+title = "Осторожно"
+icon = "md.callout-warning"
+color = "warning"
+
+[[callout]]
+id = "attention"
+title = "Внимание"
+icon = "md.callout-warning"
+color = "warning"
+
+[[callout]]
+id = "failure"
+title = "Неудача"
+icon = "md.callout-fail"
+color = "danger"
+
+[[callout]]
+id = "fail"
+title = "Провал"
+icon = "md.callout-fail"
+color = "danger"
+
+[[callout]]
+id = "missing"
+title = "Отсутствует"
+icon = "md.callout-fail"
+color = "danger"
+
+[[callout]]
+id = "danger"
+title = "Опасность"
+icon = "md.callout-danger"
+color = "danger"
+
+[[callout]]
+id = "error"
+title = "Ошибка"
+icon = "md.callout-danger"
+color = "danger"
+
+[[callout]]
+id = "bug"
+title = "Баг"
+icon = "md.callout-bug"
+color = "danger"
+
+[[callout]]
+id = "example"
+title = "Пример"
+icon = "md.bullet-list"
+color = "keyword"
+
+[[callout]]
+id = "quote"
+title = "Цитата"
+icon = "md.callout-quote"
+color = "muted"
+
+[[callout]]
+id = "cite"
+title = "Источник"
+icon = "md.callout-quote"
+color = "muted"

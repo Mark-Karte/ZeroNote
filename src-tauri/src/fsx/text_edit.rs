@@ -33,16 +33,19 @@ pub enum EditError {
 impl std::fmt::Display for EditError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            EditError::Read(e) => write!(f, "не удалось прочитать: {e}"),
-            EditError::Stale { offset, expected } => write!(
-                f,
-                "файл изменился: на месте «{expected}» (смещение {offset}) теперь другое"
-            ),
-            EditError::Lossy => write!(
-                f,
-                "файл не читается этой кодировкой без потерь — правка испортила бы его"
-            ),
-            EditError::Write(e) => write!(f, "не удалось записать: {e}"),
+            EditError::Read(e) => f.write_str(&crate::l10n::tr_with(
+                "edit.read",
+                &[("error", &e.to_string())],
+            )),
+            EditError::Stale { offset, expected } => f.write_str(&crate::l10n::tr_with(
+                "edit.stale",
+                &[("expected", expected), ("offset", &offset.to_string())],
+            )),
+            EditError::Lossy => f.write_str(&crate::l10n::tr("edit.lossy")),
+            EditError::Write(e) => f.write_str(&crate::l10n::tr_with(
+                "edit.write",
+                &[("error", &e.to_string())],
+            )),
         }
     }
 }

@@ -214,7 +214,7 @@ fn reindex(app: &AppHandle, dirs: &BTreeSet<PathBuf>, rules_files: &BTreeSet<Pat
     let mut jobs: HashMap<RootId, Job> = HashMap::new();
     let mut full: BTreeSet<RootId> = BTreeSet::new();
     {
-        let roots = state.roots.lock().expect("реестр корней повреждён");
+        let roots = state.roots.lock().expect("root registry lock poisoned");
         for file in rules_files {
             if let Some(root) = roots.for_path(file) {
                 full.insert(root.id);
@@ -241,7 +241,7 @@ fn reindex(app: &AppHandle, dirs: &BTreeSet<PathBuf>, rules_files: &BTreeSet<Pat
     }
 
     {
-        let index = state.index.lock().expect("индекс повреждён");
+        let index = state.index.lock().expect("index lock poisoned");
         for (root_id, (dirs, rules, max_size)) in jobs {
             index.rescan_dirs(root_id, dirs, rules, max_size);
         }

@@ -115,14 +115,20 @@ describe('список коллаутов', () => {
     }
   });
 
-  /** Образец ядра ссылается только на значки, которые есть в реестре. */
+  /**
+   * Образцы ссылаются только на значки, которые есть в реестре. С задачи 155
+   * образец — файл на язык в `l10n/samples/`, а не строка в ядре.
+   */
   it('значки образца есть в реестре', () => {
     const known = new Set<string>(iconNames());
-    const used = [...RUST.matchAll(/^icon = "([^"]+)"$/gm)].map((m) => m[1]!);
+    for (const code of ['ru', 'en']) {
+      const sample = readFileSync(join(root, 'l10n', 'samples', code, 'callouts.toml'), 'utf8');
+      const used = [...sample.matchAll(/^icon = "([^"]+)"$/gm)].map((m) => m[1]!);
 
-    expect(used.length).toBe(27);
-    for (const name of used) {
-      expect(known.has(name), `значка ${name} нет в реестре`).toBe(true);
+      expect(used.length, code).toBe(27);
+      for (const name of used) {
+        expect(known.has(name), `${code}: значка ${name} нет в реестре`).toBe(true);
+      }
     }
   });
 });

@@ -35,53 +35,66 @@ use tauri::Manager;
 /// путей не превращаем в панику: приложение должно открыться и объяснить, что
 /// не так, а не молча исчезнуть.
 fn prepare_state() -> AppState {
-    let mut notices = Vec::new();
-
-    let data_dir = match fsx::paths::resolve() {
-        Ok(dir) => {
-            if !dir.portable {
-                notices.push(format!(
-                    "Папка рядом с приложением недоступна на запись. \
-                     Настройки и черновики хранятся в {}.",
-                    dir.path.display()
-                ));
-            }
-            dir
-        }
-        Err(e) => {
-            // Крайний случай: писать некуда вообще. Работаем на умолчаниях,
-            // но говорим об этом прямо — иначе пользователь потеряет черновики,
-            // не подозревая об этом.
-            notices.push(format!(
-                "{e}. Настройки не сохраняются, черновики не пишутся."
-            ));
+    let (data_dir, trouble) = match fsx::paths::resolve() {
+        Ok(dir) => (dir, None),
+        // Крайний случай: писать некуда вообще. Работаем на умолчаниях,
+        // но говорим об этом прямо — иначе пользователь потеряет черновики,
+        // не подозревая об этом.
+        Err(e) => (
             fsx::paths::DataDir {
                 path: std::env::temp_dir().join("ZeroNote"),
                 portable: false,
-            }
-        }
+            },
+            Some(e.to_string()),
+        ),
     };
+
+    // Язык — сразу, как известна папка данных (задача 155): его настройка
+    // лежит в ней, а всё ниже — образцы конфигов и сообщения — пишется уже
+    // на нём. До задачи 155 язык выбирался позже, и образцы у человека
+    // с английским окном легли бы русскими. Один раз на процесс — смена
+    // языка перезапуском. Жалобы на свои переводы — в полосу предупреждений,
+    // уже на выбранном языке (задача 153).
+    let mut notices = l10n::start(&data_dir.path);
+
+    match trouble {
+        Some(error) => notices.push(l10n::tr_with("data.none", &[("error", &error)])),
+        None if !data_dir.portable => notices.push(l10n::tr_with(
+            "data.fallback",
+            &[("folder", &data_dir.path.display().to_string())],
+        )),
+        None => {}
+    }
 
     // Образец настроек кладём при первом запуске: пустая папка ничего не
     // объясняет, а файл с комментариями — объясняет.
     if let Err(e) = settings::write_default_if_missing(&data_dir.settings_file()) {
-        notices.push(format!("не удалось создать settings.toml: {e}"));
+        notices.push(l10n::tr_with(
+            "error.create.failed",
+            &[("file", "settings.toml"), ("error", &e.to_string())],
+        ));
     }
     // Тот же приём с образцом: пустая папка ничего не объясняет,
     // а файл с комментариями объясняет.
     let keymap_file = data_dir.path.join("keymap.toml");
     if !keymap_file.exists()
-        && let Err(e) = std::fs::write(&keymap_file, keymap::DEFAULT_TEMPLATE)
+        && let Err(e) = std::fs::write(&keymap_file, keymap::template())
     {
-        notices.push(format!("не удалось создать keymap.toml: {e}"));
+        notices.push(l10n::tr_with(
+            "error.create.failed",
+            &[("file", "keymap.toml"), ("error", &e.to_string())],
+        ));
     }
     // Коллауты — тот же приём: образец с двадцатью семью типами Obsidian
     // (задача 103). Существующий файл не трогаем никогда.
     if let Err(e) = callouts::write_default_if_missing(&data_dir.path.join("callouts.toml")) {
-        notices.push(format!("не удалось создать callouts.toml: {e}"));
+        notices.push(l10n::tr_with(
+            "error.create.failed",
+            &[("file", "callouts.toml"), ("error", &e.to_string())],
+        ));
     }
     if let Err(e) = std::fs::create_dir_all(data_dir.themes_dir()) {
-        notices.push(format!("не удалось создать папку тем: {e}"));
+        notices.push(l10n::tr_with("themes.folder.failed", &[("error", &e.to_string())]));
     }
 
     AppState {
@@ -139,15 +152,6 @@ pub fn run() {
         }
     };
 
-    // Язык — после замка, но до окна и до всего, что пишет человеку
-    // (задача 152): жалобы на конфиги и ошибки ядро пишет само. Один раз
-    // на процесс — смена языка перезапуском.
-    // Жалобы на свои переводы — в полосу предупреждений, уже на выбранном
-    // языке (задача 153).
-    for message in l10n::start(&watched_dir) {
-        app_state.notice(message);
-    }
-
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         // Обновление из GitHub. Подключение плагина само по себе в сеть
@@ -176,7 +180,7 @@ pub fn run() {
             state
                 .watchers
                 .lock()
-                .expect("наблюдатели повреждены")
+                .expect("watchers lock poisoned")
                 .start(app.handle().clone());
 
             // Индекс: база и рабочий поток. Без него приложение работает,
@@ -186,7 +190,7 @@ pub fn run() {
             let opened = state
                 .index
                 .lock()
-                .expect("индекс повреждён")
+                .expect("index lock poisoned")
                 .start(app.handle().clone(), &data_dir);
             if let Err(message) = opened {
                 state.notice(message);
@@ -323,5 +327,5 @@ pub fn run() {
             bench::bench_exit,
         ])
         .run(tauri::generate_context!())
-        .expect("не удалось запустить приложение Tauri");
+        .expect("failed to run the Tauri application");
 }

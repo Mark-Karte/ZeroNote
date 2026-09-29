@@ -22,6 +22,7 @@ use crate::text::encoding::Encoding;
 use crate::index::scope::{Scope, Scopes};
 
 use super::entries::guard;
+use crate::l10n::tr_with;
 
 /// Что вышло из применения правок.
 #[derive(Debug, Clone, Default, serde::Serialize)]
@@ -80,7 +81,7 @@ pub async fn plan_replace(
         })
     })
     .await
-    .map_err(|e| format!("обход файлов прервался: {e}"))?;
+    .map_err(|e| tr_with("error.walk.failed", &[("error", &e.to_string())]))?;
 
     Ok(plan)
 }
@@ -123,7 +124,7 @@ pub async fn search_expression(
         })
     })
     .await
-    .map_err(|e| format!("обход файлов прервался: {e}"))
+    .map_err(|e| tr_with("error.walk.failed", &[("error", &e.to_string())]))
 }
 
 /// Занять номер поколения обхода.
@@ -153,10 +154,10 @@ pub fn cancel_replace(state: tauri::State<'_, AppState>) {
 /// человеку в списке, и считать его каждому потребителю заново незачем.
 /// Файл, чей корень успели убрать, отсеивается — писать в него уже нельзя.
 fn candidates(state: &AppState, only: Option<RootId>) -> Vec<Candidate> {
-    let files = state.index.lock().expect("индекс повреждён").text_files();
+    let files = state.index.lock().expect("index lock poisoned").text_files();
 
     let roots: Vec<(RootId, String, Option<Encoding>)> = {
-        let roots = state.roots.lock().expect("реестр корней повреждён");
+        let roots = state.roots.lock().expect("root registry lock poisoned");
         roots
             .list()
             .iter()
@@ -253,7 +254,7 @@ pub async fn apply_edits(
 
     let written = tauri::async_runtime::spawn_blocking(move || write_all(approved))
         .await
-        .map_err(|e| format!("запись прервалась: {e}"))?;
+        .map_err(|e| tr_with("error.write.interrupted", &[("error", &e.to_string())]))?;
 
     problems.extend(written.problems);
     Ok(ApplyOutcome {

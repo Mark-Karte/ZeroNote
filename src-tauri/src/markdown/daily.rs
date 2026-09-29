@@ -1,6 +1,8 @@
 //! Ежедневная заметка: как её зовут и чем заполняют (задача 90).
 //!
-//! Имя — `Заметка <дата>.md`, решение владельца. Дата в виде `2026-09-08`:
+//! Имя — `Заметка <дата>.md`, решение владельца; по-английски — `Note
+//! <дата>.md` (задача 155), и календарь узнаёт заметки на обоих языках.
+//! Дата в виде `2026-09-08`:
 //! так заметки лежат в дереве по порядку сами, без всякой сортировки, —
 //! любой другой порядок частей ставит январь следующего года между январём
 //! и февралём этого.
@@ -11,6 +13,8 @@
 //! чем принять готовую дату от того, кто её и так знает. Ядро при этом
 //! обязано ей не верить: из даты получается имя файла, и «..\\..\\чужое»
 //! в этом месте создало бы файл где угодно.
+
+use crate::l10n::tr_with;
 
 /// Из чего складывается заметка: подстановки шаблона.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -32,9 +36,7 @@ pub enum DailyError {
 impl std::fmt::Display for DailyError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DailyError::BadDate(got) => {
-                write!(f, "дата «{got}» не похожа на дату вида 2026-09-08")
-            }
+            DailyError::BadDate(got) => f.write_str(&tr_with("daily.bad-date", &[("date", got)])),
         }
     }
 }
@@ -46,32 +48,68 @@ impl std::error::Error for DailyError {}
 /// Дата проверяется по виду, а не по смыслу: 31 февраля здесь пройдёт,
 /// и это правильно — календарь считает окно, а наше дело не пустить в имя
 /// файла то, что именем файла не является.
+///
+/// Слово — на языке окна (задача 155): «Заметка 2026-09-08», «Note
+/// 2026-09-08». Свой перевод, давший не имя файла (косая черта, двоеточие),
+/// не проходит — берётся английское.
 pub fn title(date: &str) -> Result<String, DailyError> {
     if !looks_like_date(date) {
         return Err(DailyError::BadDate(date.to_owned()));
     }
-    Ok(format!("Заметка {date}"))
+    let title = tr_with("daily.title", &[("date", date)]);
+    if is_plain_name(&title) {
+        return Ok(title);
+    }
+    let english = crate::l10n::english("daily.title");
+    Ok(english.map_or_else(|| date.to_owned(), |english| english.replace("{date}", date)))
 }
 
-/// Имя файла заметки.
+/// Имя файла заметки на языке окна.
 pub fn file_name(date: &str) -> Result<String, DailyError> {
     Ok(format!("{}.md", title(date)?))
+}
+
+/// Имена файла заметки этого дня на всех языках: первым — на языке окна.
+///
+/// Заметка, созданная по-русски, остаётся заметкой дня и в английском окне:
+/// «Заметка на сегодня» откроет её, а не заведёт рядом вторую.
+pub fn file_names(date: &str) -> Result<Vec<String>, DailyError> {
+    let mut names = vec![file_name(date)?];
+    for template in templates() {
+        let name = format!("{}.md", template.replace("{date}", date));
+        if is_plain_name(&name) && !names.contains(&name) {
+            names.push(name);
+        }
+    }
+    Ok(names)
 }
 
 /// Дата из имени файла заметки, если это она.
 ///
 /// Обратная сторона `file_name`: календарь спрашивает, за какие дни заметки
 /// уже написаны, а знает об этом только папка. Разбор строгий — ровно то имя,
-/// которое пишем мы: чужой файл `Заметка про отпуск.md` днём календаря
-/// не станет.
+/// которое пишем мы, на любом из языков: чужой файл `Заметка про отпуск.md`
+/// днём календаря не станет.
 pub fn date_of(file_name: &str) -> Option<String> {
     let stem = file_name.strip_suffix(".md")?;
-    let date = stem.strip_prefix("Заметка ")?;
-    if looks_like_date(date) {
-        Some(date.to_owned())
-    } else {
-        None
-    }
+    templates().iter().find_map(|template| {
+        let (prefix, suffix) = template.split_once("{date}")?;
+        let date = stem.strip_prefix(prefix)?.strip_suffix(suffix)?;
+        looks_like_date(date).then(|| date.to_owned())
+    })
+}
+
+/// Вид имени на всех языках — текущем и встроенных.
+fn templates() -> Vec<String> {
+    crate::l10n::every_text("daily.title")
+        .into_iter()
+        .filter(|template| template.contains("{date}"))
+        .collect()
+}
+
+/// Годится ли строка именем одного файла — без папок и запретных знаков.
+fn is_plain_name(name: &str) -> bool {
+    crate::fsx::entry_ops::check_name(name).is_ok_and(|checked| checked == name)
 }
 
 /// Ровно `ГГГГ-ММ-ДД` и ничего больше.
@@ -116,6 +154,18 @@ mod tests {
     #[test]
     fn a_daily_name_gives_its_date() {
         assert_eq!(date_of("Заметка 2026-09-09.md").as_deref(), Some("2026-09-09"));
+    }
+
+    /// Заметка, заведённая в английском окне, — тоже заметка дня, и имена
+    /// на всех языках известны «Заметке на сегодня» (задача 155).
+    #[test]
+    fn daily_names_in_every_language() {
+        assert_eq!(date_of("Note 2026-09-09.md").as_deref(), Some("2026-09-09"));
+        assert_eq!(
+            file_names("2026-09-09").unwrap(),
+            ["Заметка 2026-09-09.md", "Note 2026-09-09.md"]
+        );
+        assert_eq!(date_of("Note about the trip.md"), None);
     }
 
     /// Чужие файлы днями календаря не становятся: разбор строгий, потому что

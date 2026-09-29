@@ -106,7 +106,10 @@ pub fn editor_state(themes_dir: &Path, id: &str, density: Density) -> Result<Edi
     let (theme, path) = match user_theme(themes_dir, id) {
         Some((path, source)) => (parse(&source)?, Some(path)),
         None => (
-            builtin_by_id(id).ok_or_else(|| ThemeError::Io(format!("тема «{id}» не найдена")))?,
+            builtin_by_id(id).ok_or_else(|| ThemeError::Io(crate::l10n::tr_with(
+                "theme.not-found",
+                &[("id", id)],
+            )))?,
             None,
         ),
     };
@@ -193,8 +196,9 @@ pub fn set_value(
         let good = !key.is_empty()
             && key.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
         if !good {
-            return Err(ThemeError::Invalid(format!(
-                "ключ палитры «{key}»: только строчные латинские буквы, цифры и дефис"
+            return Err(ThemeError::Invalid(crate::l10n::tr_with(
+                "theme.palette.key",
+                &[("key", key)],
             )));
         }
     } else if SECTIONS.contains(&section) {
@@ -203,17 +207,18 @@ pub fn set_value(
             return Err(ThemeError::UnknownToken { name });
         }
     } else {
-        return Err(ThemeError::Invalid(format!("раздела [{section}] у темы нет")));
+        return Err(ThemeError::Invalid(crate::l10n::tr_with(
+            "theme.section.missing",
+            &[("section", section)],
+        )));
     }
 
     let value = match value.map(str::trim) {
         Some("") => {
-            return Err(ThemeError::Invalid(
-                "пустое значение: чтобы вернуть умолчание, уберите значение".to_owned(),
-            ));
+            return Err(ThemeError::Invalid(crate::l10n::tr("theme.value.empty")));
         }
         Some(text) if text.contains(['\n', '\r']) => {
-            return Err(ThemeError::Invalid("значение в одну строку".to_owned()));
+            return Err(ThemeError::Invalid(crate::l10n::tr("theme.value.one-line")));
         }
         other => other,
     };
@@ -229,7 +234,10 @@ pub fn set_value(
             }
             let table = document[section]
                 .as_table_mut()
-                .ok_or_else(|| ThemeError::Invalid(format!("[{section}] в файле темы — не раздел")))?;
+                .ok_or_else(|| ThemeError::Invalid(crate::l10n::tr_with(
+                    "theme.section.not-table",
+                    &[("section", section)],
+                )))?;
 
             match table.get_mut(key) {
                 // Значение меняется на месте, а оформление — отступ
@@ -237,13 +245,16 @@ pub fn set_value(
                 // `bg-0 = "#1b1f27"  # подложка окна` так и останется
                 // с пояснением.
                 Some(existing) if existing.is_value() => {
-                    let old = existing.as_value().expect("проверено условием");
+                    let old = existing.as_value().expect("checked by the condition above");
                     let prefix = old.decor().prefix().and_then(|s| s.as_str()).unwrap_or(" ").to_owned();
                     let suffix = old.decor().suffix().and_then(|s| s.as_str()).unwrap_or("").to_owned();
                     *existing = Item::Value(toml_edit::Value::from(text).decorated(prefix, suffix));
                 }
                 Some(_) => {
-                    return Err(ThemeError::Invalid(format!("{section}.{key} в файле — не значение")));
+                    return Err(ThemeError::Invalid(crate::l10n::tr_with(
+                        "theme.value.not-value",
+                        &[("section", section), ("key", key)],
+                    )));
                 }
                 None => {
                     table.insert(key, toml_edit::value(text));

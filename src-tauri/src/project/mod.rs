@@ -10,6 +10,7 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::l10n::{tr, tr_with};
 use crate::text::encoding::Encoding;
 
 pub mod ignore;
@@ -132,12 +133,12 @@ impl std::fmt::Display for ProjectError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ProjectError::Parse(message) => {
-                write!(f, "не удалось разобрать {PROJECT_FILE}: {message}")
+                f.write_str(&tr_with("config.parse", &[("file", PROJECT_FILE), ("error", message)]))
             }
-            ProjectError::UnsupportedSchema { found } => write!(
-                f,
-                "версия формата проекта {found} не поддерживается, ожидается {PROJECT_SCHEMA}"
-            ),
+            ProjectError::UnsupportedSchema { found } => f.write_str(&tr_with(
+                "config.project.schema",
+                &[("found", &found.to_string()), ("expected", &PROJECT_SCHEMA.to_string())],
+            )),
         }
     }
 }
@@ -181,10 +182,9 @@ pub struct Loaded {
 fn index_limit_problem(path: &Path, project: &Project) -> Option<String> {
     let ceiling = crate::fsx::text_file::LARGE_FILE_THRESHOLD;
     (project.index.max_file_size > ceiling).then(|| {
-        format!(
-            "{}: [index] max_file_size больше {} МиБ — содержимое крупнее индекс не читает",
-            path.display(),
-            ceiling / (1024 * 1024)
+        tr_with(
+            "config.project.max-size",
+            &[("file", &path.display().to_string()), ("mib", &(ceiling / (1024 * 1024)).to_string())],
         )
     })
 }
@@ -201,7 +201,7 @@ pub fn load(root: &Path) -> Loaded {
             project: Project::default(),
             present: true,
             problem: Some(
-                "zeronote.toml — ссылка на другой файл; такой файл проекта не читается".to_owned(),
+                tr("config.project.link"),
             ),
         };
     }
@@ -235,44 +235,17 @@ pub fn load(root: &Path) -> Loaded {
 /// Пишется дословно вместе с комментариями: сериализация через serde их
 /// не переживает, а для файла, который правят руками, они и есть половина
 /// пользы. Значения в образце совпадают с умолчаниями — это проверяет тест.
-pub const DEFAULT_TEMPLATE: &str = r#"# Проект ZeroNote.
-#
-# Файл описывает папку как проект: что скрывать из дерева и поиска, чем
-# считать файлы с неочевидной кодировкой. Правится руками, кладётся в git.
-#
-# Закомментированные ключи показывают значения по умолчанию.
+pub const TEMPLATE_RU: &str = include_str!("../../../l10n/samples/ru/zeronote.toml");
+/// Английский образец — для английского и для своих переводов.
+pub const TEMPLATE_EN: &str = include_str!("../../../l10n/samples/en/zeronote.toml");
 
-schema = 1
-
-[project]
-# Как называть папку в боковой панели. Если ключа нет — имя самой папки.
-# name = "Мои заметки"
-
-[ignore]
-# Встроенный список: .git, node_modules, target, dist, .obsidian
-use_defaults = true
-
-# Учитывать .gitignore проекта.
-use_gitignore = true
-
-# Свои правила в семантике .gitignore. Применяются последними, поэтому
-# строка с восклицательным знаком возвращает то, что скрыли умолчания.
-#
-#   rules = ["*.tmp", "черновики/", "!node_modules/"]
-rules = []
-
-[index]
-# Файлы крупнее в поиск по проекту не попадают. Двоичные отсеиваются
-# по содержимому, списка расширений нет.
-max_file_size = 2097152
-
-[editor]
-# Чем считать файл, кодировку которого не удалось определить надёжно.
-# Полезно, когда вся папка в одной однобайтовой кодировке.
-# На файлы с меткой порядка байтов и на годный UTF-8 не влияет.
-#
-#   default_encoding = "windows1251"
-"#;
+/// Образец на языке образцов процесса (`l10n::samples`, задача 155).
+pub fn template() -> &'static str {
+    match crate::l10n::samples() {
+        crate::l10n::Builtin::Ru => TEMPLATE_RU,
+        crate::l10n::Builtin::En => TEMPLATE_EN,
+    }
+}
 
 /// Образец файла проекта с уже вписанными правилами игнорирования.
 ///
@@ -281,7 +254,7 @@ max_file_size = 2097152
 /// не переживает комментарии, а в этом файле они и есть половина пользы.
 pub fn template_with_rules(rules: &[String], source: &str) -> String {
     if rules.is_empty() {
-        return DEFAULT_TEMPLATE.to_owned();
+        return template().to_owned();
     }
 
     let lines: Vec<String> = rules
@@ -294,14 +267,14 @@ pub fn template_with_rules(rules: &[String], source: &str) -> String {
         .map(|rule| format!("    '{}',", rule.replace('\'', "")))
         .collect();
 
+    // Пояснение над правилами — на языке окна, как и образец вокруг них.
     let filled = format!(
-        "# Правила перенесены из {source} при добавлении папки.\n\
-         # Правьте свободно: обратно ничего не синхронизируется.\n\
-         rules = [\n{}\n]",
+        "{}\nrules = [\n{}\n]",
+        tr_with("config.project.rules.imported", &[("source", source)]),
         lines.join("\n")
     );
 
-    DEFAULT_TEMPLATE.replace("rules = []", &filled)
+    template().replace("rules = []", &filled)
 }
 
 #[cfg(test)]
@@ -322,8 +295,13 @@ mod tests {
     /// в файле и поведение кода разъедутся незаметно.
     #[test]
     fn template_matches_defaults() {
-        let parsed = parse(DEFAULT_TEMPLATE).expect("образец должен разбираться");
-        assert_eq!(parsed, Project::default());
+        for sample in [TEMPLATE_RU, TEMPLATE_EN] {
+            let parsed = parse(sample).expect("образец должен разбираться");
+            assert_eq!(parsed, Project::default());
+            // Правила вставляются на место этой строки: без неё перенос
+            // из Obsidian молча дал бы образец без правил.
+            assert!(sample.contains("\nrules = []\n"));
+        }
     }
 
     /// Частичный файл дополняется умолчаниями, а не обнуляет остальное.
@@ -440,7 +418,7 @@ mod tests {
     /// Переносить нечего — образец остаётся обычным.
     #[test]
     fn template_without_rules_is_the_plain_one() {
-        assert_eq!(template_with_rules(&[], "что угодно"), DEFAULT_TEMPLATE);
+        assert_eq!(template_with_rules(&[], "что угодно"), template());
     }
 
     /// Испорченный файл проекта не должен мешать открыть папку: работаем

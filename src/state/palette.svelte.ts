@@ -61,8 +61,10 @@ export async function refresh(): Promise<void> {
 
   if (kind === 'commands') {
     // Синхронно: список команд уже в памяти, и гонять его через IPC незачем.
+    // И по английскому названию (задача 155): `>save` на английской
+    // раскладке находит «Сохранить» в русском окне.
     palette.items = commandList()
-      .filter((command) => matches(command.title, term))
+      .filter((command) => matches(command.title, term) || (command.alias ? matches(command.alias, term) : false))
       .map((command) => ({ kind: 'command' as const, ...command }));
     palette.selected = 0;
     return;

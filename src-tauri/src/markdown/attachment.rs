@@ -101,7 +101,10 @@ fn folder_path(rest: &str, original: &str) -> Result<String, String> {
     let mut parts = Vec::new();
     for part in rest.split('/') {
         check_part(part)
-            .map_err(|why| format!("«{original}» — {why}; можно ./, ./имя, / или имя"))?;
+            .map_err(|why| crate::l10n::tr_with(
+                "attachments.bad",
+                &[("value", original), ("why", &why)],
+            ))?;
         parts.push(part);
     }
     Ok(parts.join("/"))
@@ -109,24 +112,24 @@ fn folder_path(rest: &str, original: &str) -> Result<String, String> {
 
 /// Годится ли часть пути именем папки. Проверяется по тексту, до диска:
 /// из этой строки складывается путь, куда пишется файл.
-fn check_part(part: &str) -> Result<(), &'static str> {
+fn check_part(part: &str) -> Result<(), String> {
     if part.is_empty() {
-        return Err("пустое имя папки — две черты подряд или сетевой путь");
+        return Err(crate::l10n::tr("attachments.empty"));
     }
     if part == "." || part == ".." {
-        return Err("папка вложений не выходит за папку заметки или проекта");
+        return Err(crate::l10n::tr("attachments.outside"));
     }
     // Двоеточие отсекает и диск (`C:`), и альтернативный поток (`a:b`).
     if part.chars().any(|c| c.is_control() || "<>:\"|?*".contains(c)) {
-        return Err("в имени папки знак, которого Windows в именах не допускает");
+        return Err(crate::l10n::tr("attachments.bad-char"));
     }
     // Windows отбрасывает точки и пробелы на конце, и `.obsidian.` — это
     // `.obsidian` (Р-299): такое имя не значит того, что написано.
     if part.ends_with('.') || part.ends_with(' ') {
-        return Err("имя папки кончается точкой или пробелом — Windows их отбрасывает");
+        return Err(crate::l10n::tr("attachments.trailing"));
     }
     if part.eq_ignore_ascii_case(".obsidian") {
-        return Err("в .obsidian ZeroNote не пишет (инвариант 2)");
+        return Err(crate::l10n::tr("error.obsidian.write"));
     }
     Ok(())
 }
@@ -144,7 +147,7 @@ fn join(base: &Path, sub: &str) -> PathBuf {
 /// как у Obsidian.
 pub fn image_name(stamp: &str, number: u32) -> Result<String, String> {
     if stamp.len() != 14 || !stamp.bytes().all(|b| b.is_ascii_digit()) {
-        return Err(format!("отметка времени «{stamp}» не похожа на 20260928143012"));
+        return Err(crate::l10n::tr_with("attachments.bad-stamp", &[("stamp", stamp)]));
     }
     Ok(numbered(&format!("Pasted image {stamp}.png"), number))
 }

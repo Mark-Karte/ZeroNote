@@ -32,18 +32,17 @@ pub enum NoteError {
 impl std::fmt::Display for NoteError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            NoteError::Empty => write!(f, "в ссылке нет имени заметки"),
-            NoteError::BadName { part, bad } => write!(
-                f,
-                "в имени «{part}» есть знак «{bad}», недопустимый в имени файла"
-            ),
-            NoteError::Escapes => {
-                write!(f, "ссылка уводит за пределы проекта")
+            NoteError::Empty => f.write_str(&crate::l10n::tr("new-note.empty")),
+            NoteError::BadName { part, bad } => {
+                f.write_str(&crate::l10n::tr_with(
+                    "new-note.bad-char",
+                    &[("part", part), ("char", &bad.to_string())],
+                ))
             }
-            NoteError::TrailingDot { part } => write!(
-                f,
-                "имя папки «{part}» кончается точкой — Windows такую точку отрезает"
-            ),
+            NoteError::Escapes => f.write_str(&crate::l10n::tr("new-note.escapes")),
+            NoteError::TrailingDot { part } => {
+                f.write_str(&crate::l10n::tr_with("new-note.trailing-dot", &[("part", part)]))
+            }
         }
     }
 }

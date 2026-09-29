@@ -154,8 +154,13 @@ const EXPRESSION_LIMIT: usize = 4 * 1024 * 1024;
 /// с подчёркиванием, которая в однострочном поле выглядит кашей.
 fn describe(error: regex::Error) -> String {
     let text = error.to_string();
-    let first = text.lines().next().unwrap_or("выражение не разобрано");
-    format!("выражение не разобрано: {}", first.trim_end_matches(':'))
+    match text.lines().next() {
+        Some(first) => crate::l10n::tr_with(
+            "search.regexp.invalid",
+            &[("error", first.trim_end_matches(':'))],
+        ),
+        None => crate::l10n::tr("search.invalid"),
+    }
 }
 
 /// Часть слова: буква, цифра или подчёркивание.

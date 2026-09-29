@@ -20,6 +20,7 @@ pub mod edit;
 
 use std::path::Path;
 
+use crate::l10n::tr_with;
 use crate::theme::Density;
 
 /// Настройки целиком.
@@ -395,12 +396,15 @@ impl std::fmt::Display for SettingsError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             SettingsError::Parse(message) => {
-                write!(f, "не удалось разобрать settings.toml: {message}")
+                f.write_str(&tr_with(
+                    "config.parse",
+                    &[("file", "settings.toml"), ("error", message)],
+                ))
             }
-            SettingsError::UnsupportedSchema { found } => write!(
-                f,
-                "версия формата настроек {found} не поддерживается, ожидается {SETTINGS_SCHEMA}"
-            ),
+            SettingsError::UnsupportedSchema { found } => f.write_str(&tr_with(
+                "config.settings.schema",
+                &[("found", &found.to_string()), ("expected", &SETTINGS_SCHEMA.to_string())],
+            )),
             SettingsError::Unreadable(message) => f.write_str(message),
         }
     }
@@ -432,12 +436,12 @@ pub fn parse(source: &str) -> Result<Loaded, SettingsError> {
     let schema = match root.remove("schema") {
         None => SETTINGS_SCHEMA,
         Some(toml::Value::Integer(n)) => u32::try_from(n).map_err(|_| {
-            SettingsError::Parse(format!("schema = {n} — версия формата не бывает такой"))
+            SettingsError::Parse(tr_with("config.schema.impossible", &[("n", &n.to_string())]))
         })?,
         Some(other) => {
-            return Err(SettingsError::Parse(format!(
-                "schema должна быть числом, а в файле {}",
-                other.type_str()
+            return Err(SettingsError::Parse(tr_with(
+                "config.schema.not-number",
+                &[("value", other.type_str())],
             )));
         }
     };
@@ -460,13 +464,9 @@ pub fn parse(source: &str) -> Result<Loaded, SettingsError> {
     // почему не действуют настройки из `[edtor]`.
     for (key, value) in root {
         if value.is_table() {
-            problems.push(format!(
-                "раздел [{key}] незнаком — пропущен"
-            ));
+            problems.push(tr_with("config.section.unknown", &[("key", &key)]));
         } else {
-            problems.push(format!(
-                "ключ «{key}» вне разделов незнаком — пропущен"
-            ));
+            problems.push(tr_with("config.settings.key.top", &[("key", &key)]));
         }
     }
 
@@ -502,11 +502,9 @@ fn known_items(items: Vec<String>, problems: &mut Vec<String>) -> Vec<String> {
                 .is_some_and(crate::callouts::valid_id);
             let known = callout
                 || TOOLBAR_WORDS.contains(&item.as_str())
-                || crate::keymap::COMMANDS.iter().any(|(id, _)| id == item);
+                || crate::keymap::COMMANDS.contains(&item.as_str());
             if !known {
-                problems.push(format!(
-                    "[toolbar] items — команды «{item}» нет, кнопка пропущена"
-                ));
+                problems.push(tr_with("config.settings.toolbar.unknown", &[("item", item)]));
             }
             known
         })
@@ -521,9 +519,9 @@ fn take_table(root: &mut toml::Table, name: &str, problems: &mut Vec<String>) ->
         None => toml::Table::new(),
         Some(toml::Value::Table(table)) => table,
         Some(other) => {
-            problems.push(format!(
-                "[{name}] должен быть разделом, а в файле {} — взяты значения по умолчанию",
-                other.type_str()
+            problems.push(tr_with(
+                "config.settings.not-section",
+                &[("name", name), ("value", other.type_str())],
             ));
             toml::Table::new()
         }
@@ -563,9 +561,9 @@ where
                     single.insert(key.clone(), value.clone());
                 }
                 if let Err(error) = toml::Value::Table(single).try_into::<S>() {
-                    problems.push(format!(
-                        "[{name}] {key} — {}; взято значение по умолчанию",
-                        error.message().trim()
+                    problems.push(tr_with(
+                        "config.settings.bad-value",
+                        &[("name", name), ("key", &key), ("error", error.message().trim())],
                     ));
                     table.remove(&key);
                 }
@@ -577,9 +575,9 @@ where
             match toml::Value::Table(table.clone()).try_into() {
                 Ok(value) => value,
                 Err(error) => {
-                    problems.push(format!(
-                        "[{name}] — {}; раздел взят по умолчанию",
-                        error.message().trim()
+                    problems.push(tr_with(
+                        "config.settings.bad-section",
+                        &[("name", name), ("error", error.message().trim())],
                     ));
                     S::default()
                 }
@@ -593,9 +591,7 @@ where
     };
     for key in table.keys() {
         if !known.contains_key(key) {
-            problems.push(format!(
-                "в разделе [{name}] нет ключа «{key}» — строка пропущена"
-            ));
+            problems.push(tr_with("config.settings.key.unknown", &[("name", name), ("key", key)]));
         }
     }
 
@@ -612,9 +608,9 @@ fn font_section(mut table: toml::Table, problems: &mut Vec<String>) -> FontSetti
             None => FontChoice::default(),
             Some(toml::Value::Table(inner)) => section(inner, &format!("font.{name}"), problems),
             Some(other) => {
-                problems.push(format!(
-                    "[font.{name}] должен быть разделом, а в файле {} — взяты значения по умолчанию",
-                    other.type_str()
+                problems.push(tr_with(
+                    "config.settings.not-section",
+                    &[("name", &format!("font.{name}")), ("value", other.type_str())],
                 ));
                 FontChoice::default()
             }
@@ -657,153 +653,17 @@ pub fn load_full(path: &Path) -> Result<Loaded, SettingsError> {
 /// Записывается дословно, вместе с комментариями: сериализация через serde
 /// комментарии не переживает, а для файла, который правят руками, они и есть
 /// половина пользы.
-pub const DEFAULT_TEMPLATE: &str = r#"# Настройки ZeroNote.
-#
-# Файл можно править руками и класть в git. Приложение подхватывает изменения
-# на лету, перезапуск не нужен.
-#
-# Закомментированные ключи показывают значения по умолчанию.
-# Ключ, которого приложение не знает, и негодное значение называются
-# в полосе предупреждений вверху окна; всё остальное применяется.
+pub const TEMPLATE_RU: &str = include_str!("../../../l10n/samples/ru/settings.toml");
+/// Английский образец — для английского и для своих переводов.
+pub const TEMPLATE_EN: &str = include_str!("../../../l10n/samples/en/settings.toml");
 
-schema = 1
-
-[appearance]
-# "system" — следовать настройке оформления Windows.
-# Иначе — идентификатор темы. Встроенные:
-#   светлые — "light" (GitHub Light), "solarized-light" (Solarized Light),
-#             "catppuccin-latte" (Catppuccin Latte)
-#   тёмные  — "dark" (One Dark), "dracula" (Dracula),
-#             "tokyo-night" (Tokyo Night), "contrast" (Контраст)
-# Свою тему кладите в data/themes/ и указывайте её id.
-theme = "system"
-
-# Какие темы использовать, когда theme = "system".
-light_theme = "light"
-dark_theme = "dark"
-
-# Плотность интерфейса: "normal" или "compact".
-density = "normal"
-
-# Язык интерфейса: "auto" — русский, если русский есть в списке языков
-# Windows, иначе английский; "ru" или "en" — всегда этот. Свой перевод —
-# файл data/l10n/<код>.json, и здесь его код, например "de". В отличие
-# от остального, действует после перезапуска.
-# language = "auto"
-
-[font.ui]
-# Шрифт интерфейса. Если ключа нет — берётся из темы. Не нашёлся в системе —
-# на экране останется шрифт темы. Правится и во вкладке «Оформление».
-# family = "Segoe UI"
-# size = 13
-
-# Шрифт редактора — так же, раздел [font.editor]:
-# [font.editor]
-# family = "Cascadia Mono"
-# size = 14
-
-# Шрифт заметок — markdown с превью. Если не задан ни здесь, ни в теме —
-# Segoe UI, 16 пикселей. Код в заметке остаётся шрифтом редактора.
-# [font.note]
-# family = "IBM Plex Sans"
-# size = 16
-
-[editor]
-# Переносить длинные строки по ширине окна.
-wrap = false
-# Закрывать скобки и кавычки при наборе. В прозе — markdown и обычном
-# тексте — кавычки не закрываются и при включённой настройке: там они
-# не парные.
-auto_close = true
-# Чем набирать отступ: "spaces" или "tabs", и какой ширины. Это только
-# умолчание: в существующем файле отступ определяется по его содержимому,
-# и настройка его не переписывает. Что определилось — видно в строке
-# состояния, там же можно сменить для одной вкладки.
-indent_style = "spaces"
-indent_width = 4
-# Показывать пробелы, табуляции и переносы строк.
-invisibles = false
-# Где показывать номера строк: "always", "never" или "code" — только в коде.
-# По умолчанию "code": в коде номер — часть разговора («ошибка в сорок
-# второй»), в заметке он не сообщает ничего. Прячется само число, а поле
-# остаётся: закладка рисуется там же, где рисовалась, свёртка — рядом.
-# Прозой считается только markdown; файл без языка номера сохраняет.
-line_numbers = "code"
-
-# Держать текст markdown в колонке читаемой ширины и по центру окна.
-# Только markdown: в коде длина строки — часть смысла.
-readable_width = true
-
-# Живое превью markdown: знаки разметки не показываются, а действуют.
-# `**жирный**` виден жирным без звёздочек, `==выделение==` — цветом.
-# Строка, на которой стоит курсор, всегда показывается исходником — поэтому
-# править разметку можно, не выключая превью. Файл не меняется: прячется
-# показ, а не текст, и копирование отдаёт исходник со знаками.
-live_preview = true
-# Имя файла заголовком над заметкой с превью, как в Obsidian. Правка
-# заголовка переименовывает файл — со ссылками, как в дереве. Выключите,
-# если первый заголовок ваших заметок и так повторяет имя файла.
-# note_title = true
-# Подсказывать имена заметок после `[[` в markdown. Список берётся из индекса
-# проекта — тот же, что показывает быстрое открытие. Автодополнением кода
-# ZeroNote не занимается и заниматься не будет.
-link_suggest = true
-# Сохранять правки в файл без команды: через две секунды после последней
-# правки и когда окно теряет фокус. По умолчанию выключено — редактор файлов
-# не пишет в чужой файл без команды. Черновики (инвариант 4) работают всегда
-# и не зависят от этой настройки.
-autosave = false
-
-[notes]
-# Папка заметок — дом для записей рядом с проектами. Она открыта всегда,
-# и её не надо добавлять в «Папки»: панель «Заметки» показывает её дерево,
-# даже когда все проекты закрыты. Поиск, [[ссылки]], обратные ссылки и теги
-# работают в ней так же, как в проекте.
-# Пусто — data/notes в папке данных приложения. Укажите здесь своё хранилище
-# Obsidian, если ведёте заметки в нём: ZeroNote в него ничего не добавляет,
-# а .obsidian не трогает вовсе (инвариант 2).
-vault = ""
-# Куда класть ежедневную заметку («Заметка на сегодня» в палитре команд).
-# Путь внутри папки заметок; пусто — прямо в неё. Абсолютный путь означает
-# папку саму по себе, где бы она ни лежала.
-daily_folder = ""
-# Файл-шаблон новой заметки. Пусто — заголовок и пустая строка под ним.
-# В шаблоне подставляются {{date}}, {{time}} и {{title}}; всё остальное
-# копируется как есть. Существующая заметка шаблоном не переписывается
-# никогда — команда просто открывает её.
-daily_template = ""
-# Папка заготовок: «Вставить шаблон» и «Новая заметка из шаблона» берут
-# список отсюда. Путь внутри папки заметок; пусто — шаблонов нет.
-# В шаблоне подставляются {{date}}, {{time}} и {{title}}; исполняемого кода
-# в шаблонах нет и не будет — это подстановка, а не макросы.
-templates = ""
-# Куда класть картинку, вставленную в заметку из буфера обмена. Значения —
-# как у Obsidian: "./" — в папку заметки, "./имя" — во вложенную папку
-# рядом с ней, "/" — в корень проекта, "имя" — в одну папку проекта
-# от корня. Файл называется, как у Obsidian: Pasted image <время>.png.
-# Ключа нет — в папку заметки.
-# attachments = "./"
-
-[toolbar]
-# Панель инструментов над текстом. Удобнее всего её собирать во вкладке
-# «Панель инструментов» окна параметров, но и здесь всё видно.
-#
-# Состав — список: идентификаторы команд (их видно во вкладке «Клавиши»)
-# и три служебных слова: "separator" — черта между группами, "spacer" —
-# распорка, всё после неё уезжает вправо, "path" — путь к открытому файлу.
-# Ключа нет — набор по умолчанию: отмена и возврат, назад и вперёд по местам
-# курсора и вся разметка markdown. Кнопка разметки над кодом не показывается.
-# items = ["edit.undo", "edit.redo", "separator", "md.bold", "md.italic"]
-
-# Над какими вкладками стоит панель: "always" — над всеми, "text" — над
-# кодом и заметками, "markdown" — только над заметками, "never" — нигде.
-show = "text"
-# Чем меряется ширина: "column" — колонкой читаемой ширины, "full" — всей
-# областью. Там, где колонки нет, панель во всю ширину при любом значении.
-width = "column"
-# Размер кнопок: "small", "normal" или "large".
-size = "normal"
-"#;
+/// Образец на языке образцов процесса (`l10n::samples`, задача 155).
+pub fn template() -> &'static str {
+    match crate::l10n::samples() {
+        crate::l10n::Builtin::Ru => TEMPLATE_RU,
+        crate::l10n::Builtin::En => TEMPLATE_EN,
+    }
+}
 
 /// Создать файл настроек, если его ещё нет.
 ///
@@ -816,7 +676,7 @@ pub fn write_default_if_missing(path: &Path) -> std::io::Result<bool> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    std::fs::write(path, DEFAULT_TEMPLATE)?;
+    std::fs::write(path, template())?;
     Ok(true)
 }
 
@@ -841,9 +701,12 @@ mod tests {
     /// и код разъедутся незаметно.
     #[test]
     fn template_matches_defaults() {
-        let loaded = read(DEFAULT_TEMPLATE);
-        assert_eq!(loaded.settings, Settings::default());
-        assert_eq!(loaded.problems, Vec::<String>::new());
+        // Оба образца (задача 155): английский кладётся всем, кроме русских.
+        for sample in [TEMPLATE_RU, TEMPLATE_EN] {
+            let loaded = read(sample);
+            assert_eq!(loaded.settings, Settings::default());
+            assert_eq!(loaded.problems, Vec::<String>::new());
+        }
     }
 
     /// Раздел из будущей версии не ломает файл (Р-235) — и называется (Р-248).
@@ -1054,9 +917,10 @@ mod tests {
 
         // В образце уже есть `[toolbar]` с ключами — для 0.14.0 это чужой
         // раздел целиком, и она его пропускает.
-        assert!(DEFAULT_TEMPLATE.contains("\n[toolbar]\n"));
-        toml::from_str::<OldSettings>(DEFAULT_TEMPLATE)
-            .expect("0.14.0 обязана прочитать образец 0.15.0");
+        for sample in [TEMPLATE_RU, TEMPLATE_EN] {
+            assert!(sample.contains("\n[toolbar]\n"));
+            toml::from_str::<OldSettings>(sample).expect("0.14.0 обязана прочитать образец 0.15.0");
+        }
 
         let with_editor_font = "schema = 1\n[font.editor]\nfamily = \"Consolas\"\n";
         let error = toml::from_str::<OldSettings>(with_editor_font)
@@ -1130,9 +994,11 @@ mod tests {
 
         // В образце ключ закомментирован: 0.20.0 прочитает свежий образец
         // без жалобы, а явно заданный назовёт строкой (раздел «Откат»).
-        let sample = read(DEFAULT_TEMPLATE);
-        assert_eq!(sample.settings.appearance.language, LanguageSetting::Auto);
-        assert!(DEFAULT_TEMPLATE.contains("# language = \"auto\""));
+        for text in [TEMPLATE_RU, TEMPLATE_EN] {
+            let sample = read(text);
+            assert_eq!(sample.settings.appearance.language, LanguageSetting::Auto);
+            assert!(text.contains("# language = \"auto\""));
+        }
     }
 
     /// Значение не того рода — строка вместо числа — то же самое.

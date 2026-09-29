@@ -44,7 +44,7 @@ impl std::fmt::Display for DetectError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             DetectError::Utf32NotSupported => {
-                write!(f, "кодировка UTF-32 пока не поддерживается")
+                f.write_str(&crate::l10n::tr("encoding.utf32"))
             }
         }
     }

@@ -21,6 +21,7 @@
 use toml_edit::{DocumentMut, Item, Table, value};
 
 use super::{DEFAULTS, normalize};
+use crate::l10n::{tr, tr_with};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EditError {
@@ -42,16 +43,14 @@ impl std::fmt::Display for EditError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             EditError::Parse(message) => {
-                write!(f, "keymap.toml не разбирается, правка отменена: {message}")
+                f.write_str(&tr_with("config.keymap.edit.parse", &[("error", message)]))
             }
-            EditError::NotATable => {
-                write!(f, "в keymap.toml раздел bindings — не таблица, правка отменена")
-            }
+            EditError::NotATable => f.write_str(&tr("config.keymap.edit.not-table")),
             EditError::BadBinding(binding) => {
-                write!(f, "не удалось разобрать сочетание «{binding}»")
+                f.write_str(&tr_with("config.keymap.edit.bad-binding", &[("binding", binding)]))
             }
             EditError::UnknownCommand(command) => {
-                write!(f, "неизвестная команда «{command}»")
+                f.write_str(&tr_with("config.keymap.edit.unknown-command", &[("command", command)]))
             }
         }
     }
@@ -71,14 +70,14 @@ pub fn defaults_for(command: &str) -> Vec<String> {
     let mut found: Vec<String> = DEFAULTS
         .iter()
         .filter(|(_, id)| *id == command)
-        .map(|(binding, _)| normalize(binding).expect("умолчания обязаны разбираться"))
+        .map(|(binding, _)| normalize(binding).expect("defaults must parse"))
         .collect();
     found.sort();
     found
 }
 
 fn known(command: &str) -> bool {
-    super::COMMANDS.iter().any(|(id, _)| *id == command)
+    super::COMMANDS.contains(&command)
 }
 
 fn document(source: &str) -> Result<DocumentMut, EditError> {
@@ -387,7 +386,7 @@ mod tests {
     /// уже есть и схема, и таблица.
     #[test]
     fn the_template_can_be_edited() {
-        let out = assign(keymap::DEFAULT_TEMPLATE, "file.save", Some("ctrl+alt+q")).unwrap();
+        let out = assign(keymap::template(), "file.save", Some("ctrl+alt+q")).unwrap();
 
         assert_eq!(resolved(&out)["ctrl+alt+q"], "file.save");
         assert!(out.contains("# Горячие клавиши ZeroNote."), "{out}");

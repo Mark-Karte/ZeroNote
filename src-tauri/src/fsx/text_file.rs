@@ -108,12 +108,10 @@ impl std::fmt::Display for OpenError {
         match self {
             OpenError::Io { path, source } => write!(f, "{}: {source}", path.display()),
             OpenError::Read { path, source } => write!(f, "{}: {source}", path.display()),
-            OpenError::TooLargeToLoad { path, size } => write!(
-                f,
-                "{}: файл {} МиБ — слишком велик для открытия",
-                path.display(),
-                size / (1024 * 1024)
-            ),
+            OpenError::TooLargeToLoad { path, size } => f.write_str(&crate::l10n::tr_with(
+                "open.too-large",
+                &[("path", &path.display().to_string()), ("mib", &(size / (1024 * 1024)).to_string())],
+            )),
         }
     }
 }

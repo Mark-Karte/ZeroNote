@@ -44,19 +44,17 @@ pub enum NameError {
 impl std::fmt::Display for NameError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            NameError::Empty => write!(f, "имя не может быть пустым"),
-            NameError::Bad { bad } => {
-                write!(f, "знак «{bad}» недопустим в имени файла")
-            }
-            NameError::Reserved { name } => write!(
-                f,
-                "имя «{name}» занято системой Windows и файлом быть не может"
-            ),
-            NameError::Trailing => write!(
-                f,
-                "имя не может оканчиваться точкой или пробелом: Windows их отбрасывает"
-            ),
-            NameError::Dots => write!(f, "«.» и «..» — это части пути, а не имя"),
+            NameError::Empty => f.write_str(&crate::l10n::tr("name.empty")),
+            NameError::Bad { bad } => f.write_str(&crate::l10n::tr_with(
+                "name.bad-char",
+                &[("char", &bad.to_string())],
+            )),
+            NameError::Reserved { name } => f.write_str(&crate::l10n::tr_with(
+                "name.reserved",
+                &[("name", name)],
+            )),
+            NameError::Trailing => f.write_str(&crate::l10n::tr("name.trailing")),
+            NameError::Dots => f.write_str(&crate::l10n::tr("name.dots")),
         }
     }
 }

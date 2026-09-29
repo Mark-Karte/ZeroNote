@@ -83,7 +83,7 @@ fn project_file_is_created_only_on_request() {
     assert!(!path.exists(), "корень не должен создавать файл проекта");
 
     // То же, что делает команда create_project_file.
-    fs::write(&path, project::DEFAULT_TEMPLATE).unwrap();
+    fs::write(&path, project::template()).unwrap();
     let root = roots.get_mut(1).unwrap();
     root.reload();
 

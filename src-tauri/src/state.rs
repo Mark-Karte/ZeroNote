@@ -106,7 +106,7 @@ impl AppState {
     pub fn notice(&self, message: String) {
         self.startup_notices
             .lock()
-            .expect("список предупреждений повреждён")
+            .expect("notice list lock poisoned")
             .push(message);
     }
 }
@@ -118,7 +118,7 @@ impl AppState {
     /// однобайтовой кодировке, эвристика на коротком файле ошибётся, а проект
     /// нет. Файл вне корней подсказки не получает — угадывать за него некому.
     pub fn encoding_hint(&self, path: &std::path::Path) -> Option<Encoding> {
-        let roots = self.roots.lock().expect("реестр корней повреждён");
+        let roots = self.roots.lock().expect("root registry lock poisoned");
         roots
             .for_path(path)
             .and_then(|root| root.project.editor.default_encoding)

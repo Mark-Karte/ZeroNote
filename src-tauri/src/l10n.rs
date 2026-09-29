@@ -162,8 +162,15 @@ impl Problem {
     fn text(&self) -> String {
         match self {
             Problem::Unknown(code) => tr_with("l10n.unknown", &[("code", code)]),
-            Problem::Broken { file, error } => tr_with("l10n.file.broken", &[("file", file), ("error", error)]),
-            Problem::Skipped { file, count } => tr_n("l10n.file.skipped", *count, &[("file", file)]),
+            Problem::Broken { file, error } => tr_with(
+                "l10n.file.broken",
+                &[("file", file), ("error", error)],
+            ),
+            Problem::Skipped { file, count } => tr_n(
+                "l10n.file.skipped",
+                *count,
+                &[("file", file)],
+            ),
         }
     }
 }
@@ -426,7 +433,10 @@ pub fn auto_code(data_dir: &Path) -> String {
 /// `create_new`, и второй создатель получит отказ — даже появившийся
 /// в этот самый миг. Потом содержимое пишется атомарно (инвариант 3).
 pub fn create_translation(data_dir: &Path, code: &str) -> Result<PathBuf, String> {
-    let code = normalize_code(code.trim()).ok_or_else(|| tr_with("l10n.code.invalid", &[("value", code.trim())]))?;
+    let code = normalize_code(code.trim()).ok_or_else(|| tr_with(
+        "l10n.code.invalid",
+        &[("value", code.trim())],
+    ))?;
     let dir = translations_dir(data_dir);
     std::fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
     let path = dir.join(format!("{code}.json"));
@@ -541,6 +551,68 @@ pub fn tr_with(key: &str, params: &[(&str, &str)]) -> String {
 /// подставляется само, с разрядами.
 pub fn tr_n(key: &str, count: u64, params: &[(&str, &str)]) -> String {
     translate_n(CURRENT.get(), key, count, params)
+}
+
+/// Название команды на языке процесса (задача 155). Ключ собирается
+/// из идентификатора — `command.file.save`: команды перечислены в одном
+/// месте (`keymap::COMMANDS`), и название каждой сверяет тест.
+pub fn command_title(id: &str) -> String {
+    translate(CURRENT.get(), &format!("command.{id}"), &[])
+}
+
+/// Английское название команды — палитра находит команду и по нему
+/// (план этапа 21): набравший `>save` на английской раскладке найдёт
+/// «Сохранить». `None`, когда окно и так говорит по-английски.
+pub fn command_alias(id: &str) -> Option<String> {
+    if primary(language_of(CURRENT.get())) == "en" {
+        return None;
+    }
+    match builtin_table(Builtin::En).get(&format!("command.{id}")) {
+        Some(Message::Text(text)) => Some(text.clone()),
+        _ => None,
+    }
+}
+
+/// Строка ключа на всех известных языках — языке процесса и встроенных,
+/// без повторов, первой — на языке процесса (задача 155). Для имён, которые
+/// приложение создаёт само: ежедневная заметка, заведённая по-русски,
+/// остаётся заметкой дня и в английском окне.
+pub fn every_text(key: &str) -> Vec<String> {
+    let current = match lookup(CURRENT.get(), key) {
+        Some(Message::Text(text)) => Some(text.clone()),
+        _ => None,
+    };
+    let builtins = BUILTIN.into_iter().filter_map(|builtin| match builtin_table(builtin).get(key) {
+        Some(Message::Text(text)) => Some(text.clone()),
+        _ => None,
+    });
+    let mut out: Vec<String> = Vec::new();
+    for text in current.into_iter().chain(builtins) {
+        if !out.contains(&text) {
+            out.push(text);
+        }
+    }
+    out
+}
+
+/// Строка ключа из английской таблицы — запасной путь, когда строка своего
+/// перевода не годится для дела (имя файла с косой чертой).
+pub fn english(key: &str) -> Option<String> {
+    match builtin_table(Builtin::En).get(key) {
+        Some(Message::Text(text)) => Some(text.clone()),
+        _ => None,
+    }
+}
+
+/// Встроенный язык, на котором кладутся образцы конфигов (задача 155):
+/// у русского — русские, у всех прочих — английские. Своего перевода
+/// образцов нет: образец — длинный текст с пояснениями, и переводчику
+/// таблицы строк он не нужен.
+pub fn samples() -> Builtin {
+    match CURRENT.get() {
+        Some(current) => current.builtin.unwrap_or(Builtin::En),
+        None => Builtin::Ru,
+    }
 }
 
 /// Разобранная встроенная таблица. Файл вшит в программу и сверен тестом,
@@ -823,6 +895,50 @@ mod tests {
             let parsed: Result<Table, _> = serde_json::from_str(builtin.source());
             assert!(parsed.is_ok(), "{}: {:?}", builtin.code(), parsed.err());
         }
+    }
+
+    /// Название команды ищется ключом, собранным на ходу, — сверить его
+    /// с таблицей может только перебор списка команд (задача 155).
+    #[test]
+    fn every_command_has_a_title_in_every_builtin_table() {
+        for builtin in BUILTIN {
+            let table = builtin_table(builtin);
+            for id in crate::keymap::COMMANDS {
+                assert!(
+                    matches!(table.get(&format!("command.{id}")), Some(Message::Text(_))),
+                    "{}: нет названия команды {id}",
+                    builtin.code()
+                );
+            }
+        }
+    }
+
+    /// Английские образцы конфигов — целиком английские (задача 155): их
+    /// кладут всем, кроме русских, и русская строка в них осталась бы
+    /// непонятной как раз тем, кому образец предназначен.
+    #[test]
+    fn english_samples_have_no_russian() {
+        let samples = [
+            ("settings", crate::settings::TEMPLATE_EN),
+            ("callouts", crate::callouts::TEMPLATE_EN),
+            ("zeronote", crate::project::TEMPLATE_EN),
+            ("keymap", crate::keymap::TEMPLATE_EN),
+        ];
+        for (name, sample) in samples {
+            let cyrillic = |c: char| ('\u{400}'..='\u{4FF}').contains(&c);
+            let russian = sample.lines().find(|line| line.chars().any(cyrillic));
+            // «Горячие клавиши» — название раздела DESIGN.md, куда ведёт
+            // образец раскладки: сам DESIGN.md русский.
+            let russian = russian.filter(|line| !line.contains("DESIGN.md"));
+            assert_eq!(russian, None, "{name}");
+        }
+    }
+
+    #[test]
+    fn command_title_and_alias() {
+        // До выбора языка — русский, как в тестах.
+        assert_eq!(command_title("file.save"), "Сохранить");
+        assert_eq!(command_alias("file.save").as_deref(), Some("Save"));
     }
 
     #[test]

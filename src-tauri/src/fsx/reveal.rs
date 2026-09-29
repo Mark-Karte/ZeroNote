@@ -23,8 +23,11 @@ pub enum RevealError {
 impl std::fmt::Display for RevealError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RevealError::Missing => write!(f, "пути больше нет на диске"),
-            RevealError::Failed(why) => write!(f, "не удалось запустить проводник: {why}"),
+            RevealError::Missing => f.write_str(&crate::l10n::tr("reveal.missing")),
+            RevealError::Failed(why) => f.write_str(&crate::l10n::tr_with(
+                "reveal.failed",
+                &[("error", why)],
+            )),
         }
     }
 }
@@ -69,9 +72,9 @@ pub fn default_apps() -> Result<(), String> {
     if result as isize > 32 {
         Ok(())
     } else {
-        Err(format!(
-            "не удалось открыть параметры Windows (код {})",
-            result as isize
+        Err(crate::l10n::tr_with(
+            "reveal.settings.failed",
+            &[("code", &(result as isize).to_string())],
         ))
     }
 }

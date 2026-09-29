@@ -13,6 +13,8 @@
 use std::io::ErrorKind;
 use std::path::Path;
 
+use crate::l10n::tr_with;
+
 /// Прочитать конфиг. `Ok(None)` — файла нет. `Err` — файл есть, но прочитать
 /// его нельзя; текст ошибки годен для показа человеку.
 pub fn read(path: &Path) -> Result<Option<String>, String> {
@@ -23,11 +25,13 @@ pub fn read(path: &Path) -> Result<Option<String>, String> {
         // всего это запись из Windows PowerShell 5.1 или «Блокнота»
         // в UTF-16 либо в ANSI — и человеку полезнее знать, что именно
         // не так, чем прочитать «stream did not contain valid UTF-8».
-        Err(e) if e.kind() == ErrorKind::InvalidData => Err(format!(
-            "{} не в кодировке UTF-8 — сохраните его в UTF-8",
-            name_of(path)
+        Err(e) if e.kind() == ErrorKind::InvalidData => {
+            Err(tr_with("config.not-utf8", &[("file", &name_of(path))]))
+        }
+        Err(e) => Err(tr_with(
+            "config.read.failed",
+            &[("file", &name_of(path)), ("error", &e.to_string())],
         )),
-        Err(e) => Err(format!("не удалось прочитать {}: {e}", name_of(path))),
     }
 }
 

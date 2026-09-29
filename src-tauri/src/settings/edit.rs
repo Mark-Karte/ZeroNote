@@ -11,6 +11,8 @@
 
 use toml_edit::{DocumentMut, Item, Table, Value};
 
+use crate::l10n::tr_with;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EditError {
     /// Файл не разбирается. Писать в него нельзя: мы не знаем, что именно
@@ -25,12 +27,11 @@ impl std::fmt::Display for EditError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             EditError::Parse(message) => {
-                write!(f, "settings.toml не разбирается, правка отменена: {message}")
+                f.write_str(&tr_with("config.settings.edit.parse", &[("error", message)]))
             }
-            EditError::NotATable(path) => write!(
-                f,
-                "в settings.toml по пути {path} лежит не таблица, правка отменена"
-            ),
+            EditError::NotATable(path) => {
+                f.write_str(&tr_with("config.settings.edit.not-table", &[("path", path)]))
+            }
         }
     }
 }
@@ -90,7 +91,7 @@ pub fn set(source: &str, path: &[&str], value: &Setting) -> Result<String, EditE
         .parse()
         .map_err(|e: toml_edit::TomlError| EditError::Parse(e.to_string()))?;
 
-    let (last, parents) = path.split_last().expect("путь к настройке не бывает пустым");
+    let (last, parents) = path.split_last().expect("a setting path is never empty");
 
     // Новая таблица встаёт в конец файла. Без явного места `toml_edit`
     // ставит её сразу за соседкой — `[font.editor]` за `[font.ui]`, — но
@@ -120,7 +121,7 @@ pub fn set(source: &str, path: &[&str], value: &Setting) -> Result<String, EditE
 
         item = item
             .get_mut(key)
-            .expect("таблица только что создана или уже была");
+            .expect("the table was just created or already existed");
 
         if !item.is_table_like() {
             return Err(EditError::NotATable(path[..=depth].join(".")));
@@ -135,7 +136,7 @@ pub fn set(source: &str, path: &[&str], value: &Setting) -> Result<String, EditE
         // Ключ есть: меняем только значение, не трогая ни ключ, ни то,
         // что написано вокруг него.
         Some(existing) if existing.is_value() => {
-            let old = existing.as_value().expect("проверено условием");
+            let old = existing.as_value().expect("checked by the condition above");
             // Оформление (пробелы и комментарий после значения) переносим
             // со старого значения на новое, иначе `theme = "dark"  # тёмная`
             // превратилось бы в `theme = "dark"`.
@@ -176,7 +177,7 @@ pub fn unset(source: &str, path: &[&str]) -> Result<String, EditError> {
         .parse()
         .map_err(|e: toml_edit::TomlError| EditError::Parse(e.to_string()))?;
 
-    let (last, parents) = path.split_last().expect("путь к настройке не бывает пустым");
+    let (last, parents) = path.split_last().expect("a setting path is never empty");
 
     let mut item: &mut Item = document.as_item_mut();
     for key in parents {
@@ -185,7 +186,7 @@ pub fn unset(source: &str, path: &[&str]) -> Result<String, EditError> {
         if item.get(key).is_none() {
             return Ok(document.to_string());
         }
-        item = item.get_mut(key).expect("проверено условием");
+        item = item.get_mut(key).expect("checked by the condition above");
     }
 
     if let Some(table) = item.as_table_mut() {
@@ -443,7 +444,7 @@ family = \"Verdana\"
     #[test]
     fn default_template_can_be_edited() {
         let out = set(
-            crate::settings::DEFAULT_TEMPLATE,
+            crate::settings::template(),
             &["appearance", "density"],
             &Setting::Text("compact".into()),
         )
@@ -514,7 +515,7 @@ family = \"Verdana\"
     #[test]
     fn new_nested_table_goes_to_the_end() {
         let out = set(
-            crate::settings::DEFAULT_TEMPLATE,
+            crate::settings::template(),
             &["font", "editor", "family"],
             &Setting::Text("Consolas".into()),
         )

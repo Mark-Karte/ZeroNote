@@ -42,15 +42,11 @@ pub enum RecycleError {
 impl std::fmt::Display for RecycleError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RecycleError::Missing => write!(f, "этого файла или папки уже нет на диске"),
-            RecycleError::NoBin => write!(
-                f,
-                "на этом диске нет корзины, а мимо корзины ZeroNote не удаляет. \
-                 Удалите вручную в проводнике, если это правда нужно"
-            ),
-            RecycleError::Cancelled => write!(f, "удаление отменено"),
+            RecycleError::Missing => f.write_str(&crate::l10n::tr("error.entry.gone")),
+            RecycleError::NoBin => f.write_str(&crate::l10n::tr("recycle.no-bin")),
+            RecycleError::Cancelled => f.write_str(&crate::l10n::tr("recycle.cancelled")),
             RecycleError::Failed(code) => {
-                write!(f, "система отказалась удалять, код ошибки {code}")
+                f.write_str(&crate::l10n::tr_with("recycle.failed", &[("code", &code.to_string())]))
             }
         }
     }

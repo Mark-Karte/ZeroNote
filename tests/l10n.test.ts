@@ -364,6 +364,13 @@ function scanRustSource(code: string): { stripped: string; literals: string[] } 
   return { stripped, literals };
 }
 
+/** Идентификаторы команд из канонического списка ядра (`keymap::COMMANDS`). */
+function commandIds(): string[] {
+  const rust = readFileSync(join(root, 'src-tauri', 'src', 'keymap', 'mod.rs'), 'utf8');
+  const block = /pub const COMMANDS[^=]*=\s*&\[(.*?)\];/s.exec(rust)?.[1] ?? '';
+  return [...block.replace(/\/\/[^\n]*/g, '').matchAll(/"([a-z0-9.-]+)"/g)].map((match) => match[1]!);
+}
+
 function scanCore(): Map<string, Scan> {
   const scans = new Map<string, Scan>();
   for (const path of walk(join(root, 'src-tauri', 'src'), ['.rs'])) {
@@ -405,6 +412,9 @@ describe('ключи в коде', () => {
 
   it('каждый ключ таблицы кто-то зовёт', () => {
     const used = new Set(all.flatMap((scan) => scan.keys.map(({ key }) => key)));
+    // Названия команд ядро ищет ключом из идентификатора (задача 155,
+    // `l10n::command_title`); их полноту сверяет тест ядра.
+    for (const id of commandIds()) used.add(`command.${id}`);
     expect(Object.keys(ru).filter((key) => !used.has(key))).toEqual([]);
   });
 
@@ -484,58 +494,8 @@ const SKIPPED_FRONT = ['src/bench/'];
 // Окно переведено целиком задачами 153 и 154.
 const PENDING_FRONT: string[] = [];
 
-const PENDING_CORE: string[] = [
-  'src-tauri/src/callouts/edit.rs',
-  'src-tauri/src/callouts/mod.rs',
-  'src-tauri/src/clipboard.rs',
-  'src-tauri/src/commands/appearance.rs',
-  'src-tauri/src/commands/callouts.rs',
-  'src-tauri/src/commands/edits.rs',
-  'src-tauri/src/commands/entries.rs',
-  'src-tauri/src/commands/export.rs',
-  'src-tauri/src/commands/files.rs',
-  'src-tauri/src/commands/index.rs',
-  'src-tauri/src/commands/keymap.rs',
-  'src-tauri/src/commands/layout.rs',
-  'src-tauri/src/commands/notes.rs',
-  'src-tauri/src/commands/roots.rs',
-  'src-tauri/src/commands/session.rs',
-  'src-tauri/src/commands/settings.rs',
-  'src-tauri/src/commands/tree.rs',
-  'src-tauri/src/commands/update.rs',
-  'src-tauri/src/fsx/atomic_save.rs',
-  'src-tauri/src/fsx/config.rs',
-  'src-tauri/src/fsx/entry_ops.rs',
-  'src-tauri/src/fsx/paths.rs',
-  'src-tauri/src/fsx/recycle.rs',
-  'src-tauri/src/fsx/reveal.rs',
-  'src-tauri/src/fsx/text_edit.rs',
-  'src-tauri/src/fsx/text_file.rs',
-  'src-tauri/src/index/jobs.rs',
-  'src-tauri/src/index/writer.rs',
-  'src-tauri/src/keymap/edit.rs',
-  'src-tauri/src/keymap/mod.rs',
-  'src-tauri/src/lib.rs',
-  'src-tauri/src/markdown/attachment.rs',
-  'src-tauri/src/markdown/daily.rs',
-  'src-tauri/src/markdown/new_note.rs',
-  'src-tauri/src/model/buffer.rs',
-  'src-tauri/src/model/layout.rs',
-  'src-tauri/src/model/root.rs',
-  'src-tauri/src/pdf.rs',
-  'src-tauri/src/project/ignore.rs',
-  'src-tauri/src/project/mod.rs',
-  'src-tauri/src/replace/matcher.rs',
-  'src-tauri/src/session/mod.rs',
-  'src-tauri/src/settings/edit.rs',
-  'src-tauri/src/settings/mod.rs',
-  'src-tauri/src/state.rs',
-  'src-tauri/src/text/detect.rs',
-  'src-tauri/src/text/encoding.rs',
-  'src-tauri/src/theme/editor.rs',
-  'src-tauri/src/theme/mod.rs',
-  'src-tauri/src/tree/watch.rs',
-];
+// Ядро переведено целиком задачей 155.
+const PENDING_CORE: string[] = [];
 
 /** Ядро: вывод стенда замеров — для разработчика, а не для человека в окне. */
 const SKIPPED_CORE = ['src-tauri/src/bench.rs'];

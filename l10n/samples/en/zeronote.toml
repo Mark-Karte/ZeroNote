@@ -1,0 +1,38 @@
+# ZeroNote project.
+#
+# This file describes a folder as a project: what to hide from the tree and
+# search, and what to assume for files whose encoding isn't obvious. Edit it
+# by hand and keep it in git.
+#
+# Commented-out keys show the default values.
+
+schema = 1
+
+[project]
+# What to call the folder in the sidebar. Without the key — the folder's own name.
+# name = "My notes"
+
+[ignore]
+# Built-in list: .git, node_modules, target, dist, .obsidian
+use_defaults = true
+
+# Respect the project's .gitignore.
+use_gitignore = true
+
+# Your own rules, with .gitignore semantics. They apply last, so a line
+# starting with an exclamation mark brings back what the defaults hid.
+#
+#   rules = ["*.tmp", "drafts/", "!node_modules/"]
+rules = []
+
+[index]
+# Larger files don't get into project search. Binary files are filtered
+# out by their content; there is no list of extensions.
+max_file_size = 2097152
+
+[editor]
+# What to read a file as when its encoding couldn't be detected reliably.
+# Useful when the whole folder uses one single-byte encoding.
+# Doesn't affect files with a byte order mark or valid UTF-8.
+#
+#   default_encoding = "windows1251"

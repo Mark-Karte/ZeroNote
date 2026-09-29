@@ -28,6 +28,7 @@ use ::ignore::Match;
 use ::ignore::gitignore::{Gitignore, GitignoreBuilder};
 
 use super::IgnoreSettings;
+use crate::l10n::tr_with;
 
 /// Встроенный список: то, что не стоит показывать почти никогда.
 ///
@@ -68,14 +69,17 @@ fn matcher_from_lines(anchor: &Path, lines: &[String], problems: &mut Vec<String
 
     for line in lines {
         if let Err(e) = builder.add_line(None, line) {
-            problems.push(format!("правило «{line}»: {e}"));
+            problems.push(tr_with(
+                "config.project.rule",
+                &[("rule", line), ("error", &e.to_string())],
+            ));
         }
     }
 
     match builder.build() {
         Ok(matcher) => matcher,
         Err(e) => {
-            problems.push(format!("правила не собрались: {e}"));
+            problems.push(tr_with("config.project.rules.failed", &[("error", &e.to_string())]));
             Gitignore::empty()
         }
     }
@@ -100,7 +104,7 @@ pub fn build(root: &Path, settings: &IgnoreSettings) -> IgnoreRules {
     // Уточняем, откуда взялась кривая строка: «правило такое-то» без указания
     // файла пользователю ничего не говорит.
     for problem in problems.iter_mut().skip(before) {
-        problem.push_str(" в zeronote.toml");
+        *problem = tr_with("config.project.where", &[("problem", problem)]);
     }
 
     IgnoreRules {

@@ -120,11 +120,10 @@ pub enum EncodeError {
 impl std::fmt::Display for EncodeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            EncodeError::Unmappable { encoding, sample } => write!(
-                f,
-                "текст не записывается в {}: нет символа {sample}",
-                encoding.label()
-            ),
+            EncodeError::Unmappable { encoding, sample } => f.write_str(&crate::l10n::tr_with(
+                "encoding.unmappable",
+                &[("encoding", encoding.label()), ("sample", sample)],
+            )),
         }
     }
 }
@@ -164,7 +163,7 @@ pub fn encode(text: &str, encoding: Encoding) -> Result<Vec<u8>, EncodeError> {
                         bad
                     })
                     .map(|c| format!("«{c}» (U+{:04X})", c as u32))
-                    .unwrap_or_else(|| "неизвестный".to_owned());
+                    .unwrap_or_else(|| crate::l10n::tr("encoding.unknown-char"));
 
                 return Err(EncodeError::Unmappable { encoding, sample });
             }

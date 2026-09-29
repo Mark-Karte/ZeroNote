@@ -5,6 +5,7 @@
 
 use crate::callouts::{self, Callout, edit};
 use crate::fsx::atomic_save;
+use crate::l10n::tr_with;
 use crate::state::AppState;
 
 /// Всё, что нужно окну параметров и превью.
@@ -28,7 +29,7 @@ pub fn build(path: &std::path::Path) -> CalloutsState {
     let (callouts, problems, broken) = match callouts::load_full(path) {
         Ok(loaded) => (loaded.callouts, loaded.problems, None),
         Err(e) => {
-            let fallback = callouts::parse(callouts::DEFAULT_TEMPLATE)
+            let fallback = callouts::parse(callouts::template())
                 .map(|loaded| loaded.callouts)
                 .unwrap_or_default();
             (fallback, Vec::new(), Some(e.to_string()))
@@ -54,8 +55,8 @@ pub fn callouts_state(state: tauri::State<'_, AppState>) -> CalloutsState {
 /// как отсутствующий, и образец ложился поверх своих коллаутов человека.
 fn source(path: &std::path::Path) -> Result<String, String> {
     Ok(crate::fsx::config::read(path)
-        .map_err(|message| format!("{message}; правка отменена"))?
-        .unwrap_or_else(|| callouts::DEFAULT_TEMPLATE.to_owned()))
+        .map_err(|message| tr_with("config.edit.cancelled", &[("problem", &message)]))?
+        .unwrap_or_else(|| callouts::template().to_owned()))
 }
 
 #[tauri::command]

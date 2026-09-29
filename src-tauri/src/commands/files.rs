@@ -68,7 +68,7 @@ pub fn open_requests(
 
 #[tauri::command]
 pub fn list_buffers(state: tauri::State<'_, AppState>) -> Vec<Buffer> {
-    let buffers = state.buffers.lock().expect("реестр буферов повреждён");
+    let buffers = state.buffers.lock().expect("buffer registry lock poisoned");
     buffers.list().to_vec()
 }
 
@@ -78,14 +78,14 @@ pub fn list_buffers(state: tauri::State<'_, AppState>) -> Vec<Buffer> {
 /// где буфер попадает в раскладку. Блокировка раскладки берётся после
 /// блокировки реестра и всегда отдельно — см. правило порядка в `AppState`.
 fn show(state: &AppState, id: BufferId) {
-    let mut layout = state.layout.lock().expect("раскладка повреждена");
+    let mut layout = state.layout.lock().expect("layout lock poisoned");
     layout.open(id);
 }
 
 #[tauri::command]
 pub fn new_buffer(state: tauri::State<'_, AppState>) -> Buffer {
     let buffer = {
-        let mut buffers = state.buffers.lock().expect("реестр буферов повреждён");
+        let mut buffers = state.buffers.lock().expect("buffer registry lock poisoned");
         buffers.create_untitled(eol::DEFAULT).clone()
     };
     show(&state, buffer.id);
@@ -102,7 +102,7 @@ pub fn new_buffer(state: tauri::State<'_, AppState>) -> Buffer {
 #[tauri::command]
 pub fn open_settings(state: tauri::State<'_, AppState>) -> Buffer {
     let buffer = {
-        let mut buffers = state.buffers.lock().expect("реестр буферов повреждён");
+        let mut buffers = state.buffers.lock().expect("buffer registry lock poisoned");
         buffers.create_settings().clone()
     };
     show(&state, buffer.id);
@@ -129,13 +129,13 @@ fn open_path(state: &AppState, path: PathBuf) -> Fallible<Opened> {
     // строки (`cli::file_paths`); сюда такой доехать не должен, и если
     // доехал, в буфер, сессию и недавнее он не попадёт.
     if !path.is_absolute() {
-        return Err(format!("не удалось открыть {}: путь неполный", path.display()));
+        return Err(tr_with("error.open.relative", &[("file", &path.display().to_string())]));
     }
 
     // Сначала смотрим, не открыт ли уже. Блокировку сразу отпускаем:
     // дальше идёт работа с диском, а под блокировкой её держать нельзя.
     let already_open = {
-        let buffers = state.buffers.lock().expect("реестр буферов повреждён");
+        let buffers = state.buffers.lock().expect("buffer registry lock poisoned");
         buffers.find_by_path(&path).map(|b| (b.id, b.kind))
     };
 
@@ -159,10 +159,10 @@ fn open_path(state: &AppState, path: PathBuf) -> Fallible<Opened> {
         // Текст — нет (задача 135): в буфере могут быть несохранённые
         // правки, и перечитывание их стирало. Изменения снаружи ловит
         // проверка при возврате фокуса — и спрашивает (Р-014).
-        let buffers = state.buffers.lock().expect("реестр буферов повреждён");
+        let buffers = state.buffers.lock().expect("buffer registry lock poisoned");
         let buffer = buffers
             .get(id)
-            .ok_or_else(|| format!("буфер {id} не найден"))?
+            .ok_or_else(|| tr_with("error.buffer.missing", &[("id", &id.to_string())]))?
             .clone();
         return Ok(Opened {
             content: BufferWithText {
@@ -179,9 +179,12 @@ fn open_path(state: &AppState, path: PathBuf) -> Fallible<Opened> {
     let kind = TabKind::for_path(&path);
     if kind != TabKind::Text {
         let disk = text_file::DiskState::of(&path)
-            .map_err(|e| format!("не удалось открыть {}: {e}", path.display()))?;
+            .map_err(|e| tr_with(
+                "error.open.failed",
+                &[("file", &path.display().to_string()), ("error", &e.to_string())],
+            ))?;
 
-        let mut buffers = state.buffers.lock().expect("реестр буферов повреждён");
+        let mut buffers = state.buffers.lock().expect("buffer registry lock poisoned");
         let buffer = buffers.create_viewed(path.clone(), disk, kind).clone();
         drop(buffers);
 
@@ -204,9 +207,9 @@ fn open_path(state: &AppState, path: PathBuf) -> Fallible<Opened> {
     // показывает его как есть (С9 ревизии), а голое «C:\x.md: не найден»
     // не говорит, что именно не вышло.
     let opened = text_file::open_with_hint(&path, state.encoding_hint(&path))
-        .map_err(|e| format!("не удалось открыть {e}"))?;
+        .map_err(|e| tr_with("error.open.plain", &[("error", &e.to_string())]))?;
 
-    let mut buffers = state.buffers.lock().expect("реестр буферов повреждён");
+    let mut buffers = state.buffers.lock().expect("buffer registry lock poisoned");
     let buffer = buffers
         .create_from_file(
             opened.path,
@@ -277,15 +280,15 @@ pub fn reload_buffer(
 
 fn reload(state: &AppState, id: BufferId) -> Fallible<BufferWithText> {
     let (path, kind) = {
-        let buffers = state.buffers.lock().expect("реестр буферов повреждён");
+        let buffers = state.buffers.lock().expect("buffer registry lock poisoned");
         let buffer = buffers
             .get(id)
-            .ok_or_else(|| format!("буфер {id} не найден"))?;
+            .ok_or_else(|| tr_with("error.buffer.missing", &[("id", &id.to_string())]))?;
         (
             buffer
                 .path
                 .clone()
-                .ok_or_else(|| "у буфера нет файла на диске".to_owned())?,
+                .ok_or_else(|| tr("error.buffer.no-file"))?,
             buffer.kind,
         )
     };
@@ -295,12 +298,15 @@ fn reload(state: &AppState, id: BufferId) -> Fallible<BufferWithText> {
     // из него берётся вес файла для строки состояния.
     if kind != TabKind::Text {
         let disk = text_file::DiskState::of(&path)
-            .map_err(|e| format!("не удалось открыть {}: {e}", path.display()))?;
+            .map_err(|e| tr_with(
+                "error.open.failed",
+                &[("file", &path.display().to_string()), ("error", &e.to_string())],
+            ))?;
 
-        let mut buffers = state.buffers.lock().expect("реестр буферов повреждён");
+        let mut buffers = state.buffers.lock().expect("buffer registry lock poisoned");
         let buffer = buffers
             .get_mut(id)
-            .ok_or_else(|| format!("буфер {id} не найден"))?;
+            .ok_or_else(|| tr_with("error.buffer.missing", &[("id", &id.to_string())]))?;
         buffer.disk = Some(disk);
 
         return Ok(BufferWithText {
@@ -312,10 +318,10 @@ fn reload(state: &AppState, id: BufferId) -> Fallible<BufferWithText> {
     let opened = text_file::open_with_hint(&path, state.encoding_hint(&path))
         .map_err(|e| e.to_string())?;
 
-    let mut buffers = state.buffers.lock().expect("реестр буферов повреждён");
+    let mut buffers = state.buffers.lock().expect("buffer registry lock poisoned");
     let buffer = buffers
         .get_mut(id)
-        .ok_or_else(|| format!("буфер {id} не найден"))?;
+        .ok_or_else(|| tr_with("error.buffer.missing", &[("id", &id.to_string())]))?;
 
     buffer.encoding = opened.document.encoding;
     buffer.bom = opened.document.bom;
@@ -345,22 +351,22 @@ pub fn reinterpret_encoding(
     encoding: Encoding,
 ) -> Fallible<BufferWithText> {
     let path = {
-        let buffers = state.buffers.lock().expect("реестр буферов повреждён");
+        let buffers = state.buffers.lock().expect("buffer registry lock poisoned");
         buffers
             .get(id)
-            .ok_or_else(|| format!("буфер {id} не найден"))?
+            .ok_or_else(|| tr_with("error.buffer.missing", &[("id", &id.to_string())]))?
             .path
             .clone()
-            .ok_or_else(|| "перечитать можно только буфер с файлом на диске".to_owned())?
+            .ok_or_else(|| tr("error.reread.no-file"))?
     };
 
     let bytes = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
     let document = document::reinterpret(&bytes, encoding);
 
-    let mut buffers = state.buffers.lock().expect("реестр буферов повреждён");
+    let mut buffers = state.buffers.lock().expect("buffer registry lock poisoned");
     let buffer = buffers
         .get_mut(id)
-        .ok_or_else(|| format!("буфер {id} не найден"))?;
+        .ok_or_else(|| tr_with("error.buffer.missing", &[("id", &id.to_string())]))?;
 
     buffer.encoding = document.encoding;
     buffer.bom = document.bom;
@@ -391,10 +397,10 @@ pub fn convert_encoding(
     // непереводимом символе в момент сохранения — слишком поздно.
     enc::encode(&text, encoding).map_err(|e| e.to_string())?;
 
-    let mut buffers = state.buffers.lock().expect("реестр буферов повреждён");
+    let mut buffers = state.buffers.lock().expect("buffer registry lock poisoned");
     let buffer = buffers
         .get_mut(id)
-        .ok_or_else(|| format!("буфер {id} не найден"))?;
+        .ok_or_else(|| tr_with("error.buffer.missing", &[("id", &id.to_string())]))?;
 
     // Метка порядка байтов имеет смысл не у всех кодировок. Переходя
     // на однобайтовую, снимаем её, иначе она уехала бы в файл как мусор.
@@ -413,16 +419,13 @@ pub fn convert_encoding(
 /// файла, и менять его пользователь может не трогая кодировку.
 #[tauri::command]
 pub fn set_bom(state: tauri::State<'_, AppState>, id: BufferId, bom: bool) -> Fallible<Buffer> {
-    let mut buffers = state.buffers.lock().expect("реестр буферов повреждён");
+    let mut buffers = state.buffers.lock().expect("buffer registry lock poisoned");
     let buffer = buffers
         .get_mut(id)
-        .ok_or_else(|| format!("буфер {id} не найден"))?;
+        .ok_or_else(|| tr_with("error.buffer.missing", &[("id", &id.to_string())]))?;
 
     if bom && buffer.encoding.bom_bytes().is_empty() {
-        return Err(format!(
-            "у кодировки {} не бывает метки порядка байтов",
-            buffer.encoding.label()
-        ));
+        return Err(tr_with("error.bom.impossible", &[("encoding", buffer.encoding.label())]));
     }
 
     buffer.bom = bom;
@@ -437,10 +440,10 @@ pub fn set_line_ending(
     id: BufferId,
     line_ending: Eol,
 ) -> Fallible<Buffer> {
-    let mut buffers = state.buffers.lock().expect("реестр буферов повреждён");
+    let mut buffers = state.buffers.lock().expect("buffer registry lock poisoned");
     let buffer = buffers
         .get_mut(id)
-        .ok_or_else(|| format!("буфер {id} не найден"))?;
+        .ok_or_else(|| tr_with("error.buffer.missing", &[("id", &id.to_string())]))?;
 
     buffer.eol = line_ending;
     buffer.modified = true;
@@ -459,10 +462,10 @@ pub fn set_modified(
     id: BufferId,
     modified: bool,
 ) -> Fallible<()> {
-    let mut buffers = state.buffers.lock().expect("реестр буферов повреждён");
+    let mut buffers = state.buffers.lock().expect("buffer registry lock poisoned");
     let buffer = buffers
         .get_mut(id)
-        .ok_or_else(|| format!("буфер {id} не найден"))?;
+        .ok_or_else(|| tr_with("error.buffer.missing", &[("id", &id.to_string())]))?;
     buffer.modified = modified;
     Ok(())
 }
@@ -493,17 +496,17 @@ pub fn save_buffer(
     force: bool,
 ) -> Fallible<SaveResult> {
     let (target, encoding, bom, line_ending, read_only, known_disk) = {
-        let buffers = state.buffers.lock().expect("реестр буферов повреждён");
+        let buffers = state.buffers.lock().expect("buffer registry lock poisoned");
         let buffer = buffers
             .get(id)
-            .ok_or_else(|| format!("буфер {id} не найден"))?;
+            .ok_or_else(|| tr_with("error.buffer.missing", &[("id", &id.to_string())]))?;
 
         let target = match &path {
             Some(explicit) => PathBuf::from(explicit),
             None => buffer
                 .path
                 .clone()
-                .ok_or_else(|| "у буфера нет файла: нужно «сохранить как»".to_owned())?,
+                .ok_or_else(|| tr("error.save.no-file"))?,
         };
 
         (
@@ -519,7 +522,7 @@ pub fn save_buffer(
     // Упрощённый режим и файлы «только для чтения» не сохраняются.
     // «Сохранить как» разрешено: это запись в другой файл.
     if read_only && path.is_none() {
-        return Err("файл открыт только для чтения".to_owned());
+        return Err(tr("error.read-only"));
     }
 
     // Проверка прямо перед записью — последняя возможность заметить, что файл
@@ -540,7 +543,7 @@ pub fn save_buffer(
     let disk = text_file::write(&target, &text, encoding, bom, line_ending)
         .map_err(|e| e.to_string())?;
 
-    let mut buffers = state.buffers.lock().expect("реестр буферов повреждён");
+    let mut buffers = state.buffers.lock().expect("buffer registry lock poisoned");
     buffers.mark_saved(id, target, disk);
 
     Ok(SaveResult {
@@ -552,6 +555,7 @@ pub fn save_buffer(
 // --- Отслеживание внешних изменений ---
 
 use text_file::ExternalStatus;
+use crate::l10n::{tr, tr_with};
 
 #[derive(Debug, Clone, Copy, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -567,7 +571,7 @@ pub struct ExternalChange {
 /// пользователь мог что-то сделать с файлом в другой программе.
 #[tauri::command]
 pub fn check_external(state: tauri::State<'_, AppState>) -> Vec<ExternalChange> {
-    let buffers = state.buffers.lock().expect("реестр буферов повреждён");
+    let buffers = state.buffers.lock().expect("buffer registry lock poisoned");
 
     buffers
         .list()
@@ -593,10 +597,10 @@ pub fn check_external(state: tauri::State<'_, AppState>) -> Vec<ExternalChange> 
 /// повторялся бы при каждом возврате в окно.
 #[tauri::command]
 pub fn accept_external(state: tauri::State<'_, AppState>, id: BufferId) -> Fallible<Buffer> {
-    let mut buffers = state.buffers.lock().expect("реестр буферов повреждён");
+    let mut buffers = state.buffers.lock().expect("buffer registry lock poisoned");
     let buffer = buffers
         .get_mut(id)
-        .ok_or_else(|| format!("буфер {id} не найден"))?;
+        .ok_or_else(|| tr_with("error.buffer.missing", &[("id", &id.to_string())]))?;
 
     if let Some(path) = &buffer.path {
         buffer.disk = text_file::DiskState::of(path).ok();
@@ -613,10 +617,10 @@ pub fn accept_external(state: tauri::State<'_, AppState>, id: BufferId) -> Falli
 /// но сведений о файле на диске больше нет, и сверять их не с чем.
 #[tauri::command]
 pub fn mark_detached(state: tauri::State<'_, AppState>, id: BufferId) -> Fallible<Buffer> {
-    let mut buffers = state.buffers.lock().expect("реестр буферов повреждён");
+    let mut buffers = state.buffers.lock().expect("buffer registry lock poisoned");
     let buffer = buffers
         .get_mut(id)
-        .ok_or_else(|| format!("буфер {id} не найден"))?;
+        .ok_or_else(|| tr_with("error.buffer.missing", &[("id", &id.to_string())]))?;
 
     buffer.disk = None;
     buffer.modified = true;
@@ -634,10 +638,10 @@ pub fn mark_detached(state: tauri::State<'_, AppState>, id: BufferId) -> Fallibl
 #[tauri::command]
 pub fn close_buffer(state: tauri::State<'_, AppState>, id: BufferId) -> Layout {
     {
-        let mut buffers = state.buffers.lock().expect("реестр буферов повреждён");
+        let mut buffers = state.buffers.lock().expect("buffer registry lock poisoned");
         buffers.close(id);
     }
-    let mut layout = state.layout.lock().expect("раскладка повреждена");
+    let mut layout = state.layout.lock().expect("layout lock poisoned");
     layout.remove_everywhere(id);
     layout.clone()
 }
@@ -683,18 +687,18 @@ const IMAGE_LIMIT: u64 = 16 * 1024 * 1024;
 #[tauri::command]
 pub fn image_source(state: tauri::State<'_, AppState>, id: BufferId) -> Fallible<String> {
     let path = {
-        let buffers = state.buffers.lock().expect("реестр буферов повреждён");
+        let buffers = state.buffers.lock().expect("buffer registry lock poisoned");
         let buffer = buffers
             .get(id)
-            .ok_or_else(|| format!("буфер {id} не найден"))?;
+            .ok_or_else(|| tr_with("error.buffer.missing", &[("id", &id.to_string())]))?;
 
         if buffer.kind != TabKind::Image {
-            return Err("это не картинка".to_owned());
+            return Err(tr("error.not-image"));
         }
         buffer
             .path
             .clone()
-            .ok_or_else(|| "у вкладки нет файла на диске".to_owned())?
+            .ok_or_else(|| tr("error.tab.no-file"))?
     };
 
     image_data_url(&path)
@@ -721,19 +725,16 @@ pub fn preview_image(link: String, base: Option<String>) -> Fallible<String> {
     // **путь** — то же самое. Относительный путь у заметки, которая сама
     // лежит на сетевой папке, остаётся: туда человек пришёл сам.
     if crate::fsx::network::is_network(&link) {
-        return Err(format!(
-            "сетевой путь не открывается сам по себе: {}",
-            link.display()
-        ));
+        return Err(tr_with("error.network-path", &[("path", &link.display().to_string())]));
     }
 
     let path = if link.is_absolute() {
         link
     } else {
-        let note = base.ok_or_else(|| "заметка ещё не сохранена на диск".to_owned())?;
+        let note = base.ok_or_else(|| tr("error.note.unsaved"))?;
         PathBuf::from(note)
             .parent()
-            .ok_or_else(|| "у заметки нет папки".to_owned())?
+            .ok_or_else(|| tr("error.note.no-folder"))?
             .join(link)
     };
 
@@ -756,38 +757,46 @@ pub fn preview_embed(
     from: String,
 ) -> Fallible<String> {
     let scope = super::index::scope_of(&state, &from)
-        .ok_or_else(|| "заметка не в проекте: ссылку не по чему разрешать".to_owned())?;
+        .ok_or_else(|| tr("error.note.outside"))?;
 
     let found = state
         .index
         .lock()
-        .expect("индекс повреждён")
+        .expect("index lock poisoned")
         .resolve_link(&target, &from, &scope)
-        .ok_or_else(|| format!("в проекте нет файла «{target}»"))?;
+        .ok_or_else(|| tr_with("error.link.no-file", &[("target", &target.to_string())]))?;
 
     image_data_url(std::path::Path::new(&found.path))
 }
 
 /// Байты картинки адресом `data:` — общая часть вкладки и превью.
 fn image_data_url(path: &std::path::Path) -> Fallible<String> {
-    let mime = TabKind::image_mime(path).ok_or_else(|| "неизвестный вид картинки".to_owned())?;
+    let mime = TabKind::image_mime(path).ok_or_else(|| tr("error.image.unknown"))?;
 
     // Размер спрашивается до чтения: смысл предела в том, чтобы не прочитать
     // в память то, что показать всё равно нельзя.
     let size = std::fs::metadata(path)
-        .map_err(|e| format!("не удалось прочитать {}: {e}", path.display()))?
+        .map_err(|e| tr_with(
+            "error.read.failed",
+            &[("file", &path.display().to_string()), ("error", &e.to_string())],
+        ))?
         .len();
 
     if size > IMAGE_LIMIT {
-        return Err(format!(
-            "картинка весит {} МиБ, а показать можно до {} МиБ",
-            size.div_ceil(1024 * 1024),
-            IMAGE_LIMIT / (1024 * 1024)
+        return Err(tr_with(
+            "error.image.too-big",
+            &[
+                ("size", &size.div_ceil(1024 * 1024).to_string()),
+                ("limit", &(IMAGE_LIMIT / (1024 * 1024)).to_string()),
+            ],
         ));
     }
 
     let bytes = std::fs::read(path)
-        .map_err(|e| format!("не удалось прочитать {}: {e}", path.display()))?;
+        .map_err(|e| tr_with(
+            "error.read.failed",
+            &[("file", &path.display().to_string()), ("error", &e.to_string())],
+        ))?;
 
     Ok(format!(
         "data:{mime};base64,{}",
@@ -816,36 +825,44 @@ pub fn pdf_bytes(
     id: BufferId,
 ) -> Result<tauri::ipc::Response, String> {
     let path = {
-        let buffers = state.buffers.lock().expect("реестр буферов повреждён");
+        let buffers = state.buffers.lock().expect("buffer registry lock poisoned");
         let buffer = buffers
             .get(id)
-            .ok_or_else(|| format!("буфер {id} не найден"))?;
+            .ok_or_else(|| tr_with("error.buffer.missing", &[("id", &id.to_string())]))?;
 
         if buffer.kind != TabKind::Pdf {
-            return Err("это не PDF".to_owned());
+            return Err(tr("error.not-pdf"));
         }
         buffer
             .path
             .clone()
-            .ok_or_else(|| "у вкладки нет файла на диске".to_owned())?
+            .ok_or_else(|| tr("error.tab.no-file"))?
     };
 
     // Размер спрашивается до чтения: смысл предела в том, чтобы не прочитать
     // в память то, что показать всё равно нельзя.
     let size = std::fs::metadata(&path)
-        .map_err(|e| format!("не удалось прочитать {}: {e}", path.display()))?
+        .map_err(|e| tr_with(
+            "error.read.failed",
+            &[("file", &path.display().to_string()), ("error", &e.to_string())],
+        ))?
         .len();
 
     if size > PDF_LIMIT {
-        return Err(format!(
-            "PDF весит {} МиБ, а показать можно до {} МиБ",
-            size.div_ceil(1024 * 1024),
-            PDF_LIMIT / (1024 * 1024)
+        return Err(tr_with(
+            "error.pdf.too-big",
+            &[
+                ("size", &size.div_ceil(1024 * 1024).to_string()),
+                ("limit", &(PDF_LIMIT / (1024 * 1024)).to_string()),
+            ],
         ));
     }
 
     let bytes = std::fs::read(&path)
-        .map_err(|e| format!("не удалось прочитать {}: {e}", path.display()))?;
+        .map_err(|e| tr_with(
+            "error.read.failed",
+            &[("file", &path.display().to_string()), ("error", &e.to_string())],
+        ))?;
 
     Ok(tauri::ipc::Response::new(bytes))
 }

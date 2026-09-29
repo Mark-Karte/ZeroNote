@@ -182,7 +182,7 @@ pub struct Buffer {
 impl Buffer {
     /// Имя вкладки для буфера без файла: «Без имени 1», «Без имени 2», …
     fn untitled_name(number: u32) -> String {
-        format!("Без имени {number}")
+        crate::l10n::tr_with("tab.untitled", &[("number", &number.to_string())])
     }
 
     /// Безымянный буфер с заданными номерами: буфера и имени «Без имени N».
@@ -220,7 +220,7 @@ impl Buffer {
             id,
             kind: TabKind::Settings,
             path: None,
-            title: "Параметры".to_owned(),
+            title: crate::l10n::tr("tab.settings"),
             // Кодировка, переносы и состояние на диске к этой вкладке
             // не относятся: ни файла, ни байтов у неё нет. Значения ниже
             // нейтральные, и смотреть на них нельзя — смотрит только тот,
@@ -253,7 +253,7 @@ impl Buffer {
     pub fn viewed(id: BufferId, path: PathBuf, disk: DiskState, kind: TabKind) -> Buffer {
         debug_assert!(
             matches!(kind, TabKind::Image | TabKind::Pdf),
-            "показом открываются только картинка и PDF"
+            "only an image or a PDF opens as a view"
         );
         let title = Buffer::title_for(&path);
 
@@ -375,7 +375,7 @@ impl Buffers {
 
         self.items.push(Buffer::untitled(id, number, eol));
 
-        self.items.last().expect("буфер только что добавлен")
+        self.items.last().expect("the buffer was just added")
     }
 
     /// Вкладка параметров — одна на окно.
@@ -395,14 +395,14 @@ impl Buffers {
 
         let id = self.take_id();
         self.items.push(Buffer::settings(id));
-        self.items.last().expect("буфер только что добавлен")
+        self.items.last().expect("the buffer was just added")
     }
 
     /// Вкладка, которую только показывают: картинка или PDF.
     pub fn create_viewed(&mut self, path: PathBuf, disk: DiskState, kind: TabKind) -> &Buffer {
         let id = self.take_id();
         self.items.push(Buffer::viewed(id, path, disk, kind));
-        self.items.last().expect("буфер только что добавлен")
+        self.items.last().expect("the buffer was just added")
     }
 
     /// Буфер для прочитанного файла.
@@ -441,7 +441,7 @@ impl Buffers {
             disk: Some(disk),
         });
 
-        self.items.last().expect("буфер только что добавлен")
+        self.items.last().expect("the buffer was just added")
     }
 
     pub fn close(&mut self, id: BufferId) -> bool {

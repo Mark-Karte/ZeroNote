@@ -261,7 +261,7 @@ impl Roots {
         self.next_id += 1;
 
         self.items.push(Root::load(id, path));
-        self.items.last().expect("корень только что добавлен")
+        self.items.last().expect("the root was just added")
     }
 
     pub fn remove(&mut self, id: RootId) -> bool {

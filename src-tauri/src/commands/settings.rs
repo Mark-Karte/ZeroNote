@@ -5,6 +5,7 @@
 //! Здесь только сведение их вместе.
 
 use crate::fsx::atomic_save;
+use crate::l10n::{tr, tr_with};
 use crate::settings::{self, Settings, edit};
 use crate::state::AppState;
 
@@ -69,7 +70,7 @@ pub fn update_setting(
     value: Option<edit::Setting>,
 ) -> Result<(), String> {
     if path.is_empty() {
-        return Err("путь к настройке пуст".to_owned());
+        return Err(tr("config.settings.empty-path"));
     }
 
     write_setting(&settings_path(&state), &path, value)
@@ -88,8 +89,8 @@ fn write_setting(
     // А нечитаемый файл — не «файла нет» (задача 137): до неё образец
     // писался и поверх файла не в UTF-8, стирая всё, что человек настроил.
     let source = crate::fsx::config::read(file)
-        .map_err(|message| format!("{message}; правка отменена"))?
-        .unwrap_or_else(|| settings::DEFAULT_TEMPLATE.to_owned());
+        .map_err(|message| tr_with("config.edit.cancelled", &[("problem", &message)]))?
+        .unwrap_or_else(|| settings::template().to_owned());
 
     let keys: Vec<&str> = path.iter().map(String::as_str).collect();
     let updated = match &value {
@@ -132,7 +133,7 @@ mod tests {
     fn writing_keeps_the_file_readable_and_commented() {
         let dir = temp_dir("write");
         let file = dir.join("settings.toml");
-        fs::write(&file, settings::DEFAULT_TEMPLATE).unwrap();
+        fs::write(&file, settings::template()).unwrap();
 
         let source = fs::read_to_string(&file).unwrap();
         let updated = edit::set(

@@ -10,6 +10,7 @@ use crate::index::query::Hit;
 use crate::index::scope::{Scope, Scopes};
 use crate::model::root::RootId;
 use crate::state::AppState;
+use crate::l10n::{tr, tr_with};
 
 type Fallible<T> = Result<T, String>;
 
@@ -20,7 +21,7 @@ type Fallible<T> = Result<T, String>;
 /// Берутся все корни, и недоступные тоже: их записи в индексе остаются
 /// (Р-052), и вопрос «чей это файл» к ним по-прежнему применим.
 pub(crate) fn scopes(state: &AppState) -> Scopes {
-    let roots = state.roots.lock().expect("реестр корней повреждён");
+    let roots = state.roots.lock().expect("root registry lock poisoned");
     Scopes::new(
         roots
             .list()
@@ -46,7 +47,7 @@ pub fn schedule_scan(state: &AppState, root_id: RootId) {
 
 fn schedule(state: &AppState, root_id: RootId, quiet: bool) {
     let Some((path, rules, max_size)) = ({
-        let roots = state.roots.lock().expect("реестр корней повреждён");
+        let roots = state.roots.lock().expect("root registry lock poisoned");
         roots.get(root_id).filter(|root| root.available).map(|root| {
             (
                 root.path.clone(),
@@ -61,13 +62,13 @@ fn schedule(state: &AppState, root_id: RootId, quiet: bool) {
     state
         .index
         .lock()
-        .expect("индекс повреждён")
+        .expect("index lock poisoned")
         .scan_root(root_id, path, rules, max_size, quiet);
 }
 
 #[tauri::command]
 pub fn index_progress(state: tauri::State<'_, AppState>) -> Progress {
-    state.index.lock().expect("индекс повреждён").progress()
+    state.index.lock().expect("index lock poisoned").progress()
 }
 
 /// Пора ли сверить корень с диском заново (Я15).
@@ -75,7 +76,7 @@ pub fn needs_catch_up(state: &AppState, root_id: RootId) -> bool {
     state
         .index
         .lock()
-        .expect("индекс повреждён")
+        .expect("index lock poisoned")
         .needs_catch_up(root_id)
 }
 
@@ -91,13 +92,13 @@ pub fn index_count(state: tauri::State<'_, AppState>, root_id: RootId) -> u64 {
     let Some(scope) = scopes(&state).get(root_id).cloned() else {
         return 0;
     };
-    state.index.lock().expect("индекс повреждён").count(&scope)
+    state.index.lock().expect("index lock poisoned").count(&scope)
 }
 
 /// Отменить индексацию — и ту, что идёт, и ту, что стоит в очереди.
 #[tauri::command]
 pub fn cancel_index(state: tauri::State<'_, AppState>) {
-    state.index.lock().expect("индекс повреждён").cancel();
+    state.index.lock().expect("index lock poisoned").cancel();
 }
 
 /// Запустить индексацию корня заново.
@@ -120,7 +121,7 @@ pub fn resolve_link(
     state
         .index
         .lock()
-        .expect("индекс повреждён")
+        .expect("index lock poisoned")
         .resolve_link(&target, &from, &scope)
 }
 
@@ -141,7 +142,7 @@ pub fn resolve_links(
         return vec![true; targets.len()];
     };
 
-    let index = state.index.lock().expect("индекс повреждён");
+    let index = state.index.lock().expect("index lock poisoned");
     targets
         .iter()
         .map(|target| index.resolve_link(target, &from, &scope).is_some())
@@ -170,22 +171,22 @@ pub fn create_note(
     // это отсекает файлы вне проектов: класть заметку рядом с чужим файлом,
     // о котором мы ничего не знаем, — не то, о чём просили.
     let root_path = {
-        let roots = state.roots.lock().expect("реестр корней повреждён");
+        let roots = state.roots.lock().expect("root registry lock poisoned");
         roots
             .for_path(&from_path)
             .map(|root| root.path.clone())
-            .ok_or("файл не входит ни в один проект")?
+            .ok_or_else(|| tr("error.file.outside"))?
     };
 
     let path = crate::markdown::new_note::note_path(&target, &from_path, &root_path)
         .map_err(|e| e.to_string())?;
 
     if crate::fsx::atomic_save::is_inside_obsidian(&path) {
-        return Err("в .obsidian ничего не пишется (инвариант 2)".to_owned());
+        return Err(tr("error.obsidian.write"));
     }
 
     if path.exists() {
-        return Err(format!("{} уже существует", path.display()));
+        return Err(tr_with("error.exists", &[("file", &path.display().to_string())]));
     }
 
     // Папки из пути ссылки может не быть: `[[архив/Старое]]` называет её
@@ -194,7 +195,10 @@ pub fn create_note(
         && !parent.exists()
     {
         std::fs::create_dir_all(parent)
-            .map_err(|e| format!("не удалось создать папку {}: {e}", parent.display()))?;
+            .map_err(|e| tr_with(
+                "error.folder.create.named",
+                &[("folder", &parent.display().to_string()), ("error", &e.to_string())],
+            ))?;
     }
 
     // Через атомарную запись, как и всё остальное. Заметка пустая: заполнять
@@ -212,7 +216,7 @@ pub fn backlinks(state: tauri::State<'_, AppState>, path: String) -> Vec<Backlin
     state
         .index
         .lock()
-        .expect("индекс повреждён")
+        .expect("index lock poisoned")
         .backlinks(&path, &scopes)
 }
 
@@ -232,7 +236,7 @@ pub fn files_with_tag(
     let files = state
         .index
         .lock()
-        .expect("индекс повреждён")
+        .expect("index lock poisoned")
         .files_with_tag(&tag, limit.unwrap_or(200));
     files
         .into_iter()
@@ -256,7 +260,7 @@ pub fn find_tags(
     state
         .index
         .lock()
-        .expect("индекс повреждён")
+        .expect("index lock poisoned")
         .find_tags(&query, limit.unwrap_or(50))
 }
 
@@ -275,7 +279,7 @@ pub fn find_files(
     query: String,
     limit: Option<u32>,
 ) -> Vec<FileHit> {
-    let files = state.index.lock().expect("индекс повреждён").files();
+    let files = state.index.lock().expect("index lock poisoned").files();
     let scopes = scopes(&state);
 
     // Путь корня из сопоставления убираем. Иначе совпадать будет он сам:
@@ -318,7 +322,7 @@ pub fn find_notes(
     // файл», и там нужны картинки; `[[` — это «сослаться на заметку»,
     // и снимки экрана в таком списке только мешают. Правило видно
     // из набранного, поэтому спрашивать о нём никого не надо.
-    let index = state.index.lock().expect("индекс повреждён");
+    let index = state.index.lock().expect("index lock poisoned");
     let files = if embed.unwrap_or(false) {
         index.files()
     } else {
@@ -364,7 +368,7 @@ pub fn link_target(
     state
         .index
         .lock()
-        .expect("индекс повреждён")
+        .expect("index lock poisoned")
         .link_text(&path, &from, &scope, &relative)
 }
 
@@ -386,27 +390,36 @@ pub fn note_text(state: tauri::State<'_, AppState>, path: String) -> Result<Stri
         .and_then(|ext| ext.to_str())
         .is_some_and(|ext| ext.eq_ignore_ascii_case("md") || ext.eq_ignore_ascii_case("markdown"));
     if !markdown {
-        return Err(format!("{} — не заметка markdown", path.display()));
+        return Err(tr_with("error.not-markdown", &[("path", &path.display().to_string())]));
     }
     let in_root = state
         .roots
         .lock()
-        .expect("реестр корней повреждён")
+        .expect("root registry lock poisoned")
         .for_path(&path)
         .is_some();
     if !in_root {
-        return Err(format!("{} — не в проекте", path.display()));
+        return Err(tr_with("error.not-in-project", &[("path", &path.display().to_string())]));
     }
     let size = std::fs::metadata(&path)
-        .map_err(|e| format!("не удалось прочитать {}: {e}", path.display()))?
+        .map_err(|e| tr_with(
+            "error.read.failed",
+            &[("file", &path.display().to_string()), ("error", &e.to_string())],
+        ))?
         .len();
     if size > NOTE_TEXT_LIMIT {
-        return Err(format!("{} слишком большая для подсказки", path.display()));
+        return Err(tr_with("error.note.too-big", &[("path", &path.display().to_string())]));
     }
-    let bytes = std::fs::read(&path).map_err(|e| format!("не удалось прочитать {}: {e}", path.display()))?;
+    let bytes = std::fs::read(&path).map_err(|e| tr_with(
+        "error.read.failed",
+        &[("file", &path.display().to_string()), ("error", &e.to_string())],
+    ))?;
     crate::text::document::read_raw(&bytes, None)
         .map(|raw| raw.text)
-        .map_err(|e| format!("не удалось прочитать {}: {e}", path.display()))
+        .map_err(|e| tr_with(
+            "error.read.failed",
+            &[("file", &path.display().to_string()), ("error", &e.to_string())],
+        ))
 }
 
 /// Поиск по содержимому.
@@ -434,7 +447,7 @@ pub fn search_project(
     let hits = state
         .index
         .lock()
-        .expect("индекс повреждён")
+        .expect("index lock poisoned")
         .search(&query, scope, limit.unwrap_or(200))?;
     Ok(hits
         .into_iter()

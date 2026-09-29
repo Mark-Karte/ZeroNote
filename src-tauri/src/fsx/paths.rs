@@ -30,12 +30,13 @@ impl std::fmt::Display for DataDirError {
             DataDirError::NoWritableLocation {
                 preferred,
                 fallback,
-            } => write!(
-                f,
-                "нет папки для данных, доступной на запись: ни {}, ни {}",
-                preferred.display(),
-                fallback.display()
-            ),
+            } => f.write_str(&crate::l10n::tr_with(
+                "data.no-folder",
+                &[
+                    ("preferred", &preferred.display().to_string()),
+                    ("fallback", &fallback.display().to_string()),
+                ],
+            )),
         }
     }
 }

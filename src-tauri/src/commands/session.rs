@@ -12,6 +12,7 @@ use crate::state::AppState;
 
 use super::files::BufferWithText;
 use super::roots::RootView;
+use crate::l10n::{tr_n, tr_with};
 
 type Fallible<T> = Result<T, String>;
 
@@ -84,7 +85,7 @@ pub fn save_session(
     // в разном порядке разными командами, — это взаимная блокировка, которая
     // проявится один раз в год и будет выглядеть как зависшее окно.
     let (roots, next_root_id) = {
-        let roots = state.roots.lock().expect("реестр корней повреждён");
+        let roots = state.roots.lock().expect("root registry lock poisoned");
         let list = roots
             .list()
             .iter()
@@ -98,8 +99,8 @@ pub fn save_session(
 
     let snapshot = {
         // Порядок блокировок — буферы, потом раскладка (см. `AppState`).
-        let buffers = state.buffers.lock().expect("реестр буферов повреждён");
-        let layout = state.layout.lock().expect("раскладка повреждена");
+        let buffers = state.buffers.lock().expect("buffer registry lock poisoned");
+        let layout = state.layout.lock().expect("layout lock poisoned");
 
         // Пока область одна, порядок вкладок пишется порядком списка,
         // а раскладка — нет: снимок остаётся читаемым для 0.10.0. С двумя
@@ -179,14 +180,17 @@ fn flush(data: &std::path::Path, entries: &[DraftEntry]) -> Fallible<()> {
         .filter_map(|entry| {
             session::write_draft(data, entry.id, &entry.text)
                 .err()
-                .map(|e| format!("буфер {}: {e}", entry.id))
+                .map(|e| tr_with(
+                    "error.draft.buffer",
+                    &[("id", &entry.id.to_string()), ("error", &e.to_string())],
+                ))
         })
         .collect();
 
     if failed.is_empty() {
         Ok(())
     } else {
-        Err(format!("черновики не записаны — {}", failed.join("; ")))
+        Err(tr_with("error.drafts.failed", &[("problems", &failed.join("; "))]))
     }
 }
 
@@ -276,7 +280,10 @@ fn restore(state: &AppState) -> RestoredSession {
         // отключённый диск или сетевой ресурс (Р-052). Но и молчать о ней
         // нельзя — пустое дерево без объяснений выглядит как поломка.
         if !root.available {
-            notices.push(format!("папка недоступна: {}", root.path.display()));
+            notices.push(tr_with(
+                "error.folder.unavailable",
+                &[("folder", &root.path.display().to_string())],
+            ));
         }
         for problem in &root.problems {
             notices.push(problem.clone());
@@ -284,7 +291,7 @@ fn restore(state: &AppState) -> RestoredSession {
     }
 
     {
-        let mut watchers = state.watchers.lock().expect("наблюдатели повреждены");
+        let mut watchers = state.watchers.lock().expect("watchers lock poisoned");
         for root in &restored_roots {
             if root.available {
                 watchers.watch(root.id, &root.path);
@@ -298,7 +305,7 @@ fn restore(state: &AppState) -> RestoredSession {
         .map(|root| root.id)
         .collect();
 
-    *state.roots.lock().expect("реестр корней повреждён") =
+    *state.roots.lock().expect("root registry lock poisoned") =
         Roots::restore(restored_roots, snapshot.next_root_id);
 
     // Папка заметок (задача 94) приходит из настройки, а не из сессии:
@@ -308,7 +315,7 @@ fn restore(state: &AppState) -> RestoredSession {
     super::roots::sync_vault(state, &mut notices);
 
     let root_views: Vec<RootView> = {
-        let roots = state.roots.lock().expect("реестр корней повреждён");
+        let roots = state.roots.lock().expect("root registry lock poisoned");
         roots.list().iter().map(RootView::of).collect()
     };
 
@@ -317,7 +324,7 @@ fn restore(state: &AppState) -> RestoredSession {
     // ниже отдавали бы их поиску ещё какое-то время.
     {
         let live: Vec<_> = root_views.iter().map(|view| view.id).collect();
-        state.index.lock().expect("индекс повреждён").keep_only(live);
+        state.index.lock().expect("index lock poisoned").keep_only(live);
     }
 
     // Индексация восстановленных корней идёт в фоне и старт не задерживает:
@@ -336,9 +343,9 @@ fn restore(state: &AppState) -> RestoredSession {
             // Вкладка из более новой версии: показать её нечем. Пропускаем
             // одну, а не отвергаем снимок целиком, — иначе откат на прошлую
             // версию закрывал бы человеку все вкладки разом.
-            notices.push(format!(
-                "вкладка «{}» пропущена: неизвестный вид «{}»",
-                item.title, item.kind
+            notices.push(tr_with(
+                "error.session.tab.kind",
+                &[("title", &item.title), ("kind", &item.kind.to_string())],
             ));
             continue;
         };
@@ -370,7 +377,7 @@ fn restore(state: &AppState) -> RestoredSession {
             // их возьмёт показ, когда вкладка окажется на экране.
             TabKind::Image | TabKind::Pdf => {
                 let Some(path) = item.path.clone() else {
-                    notices.push(format!("вкладка «{}» без файла пропущена", item.title));
+                    notices.push(tr_with("error.session.tab.no-file", &[("title", &item.title)]));
                     continue;
                 };
 
@@ -390,7 +397,10 @@ fn restore(state: &AppState) -> RestoredSession {
                         buffers.push(buffer);
                     }
                     Err(e) => {
-                        notices.push(format!("не удалось открыть {}: {e}", path.display()));
+                        notices.push(tr_with(
+                            "error.open.failed",
+                            &[("file", &path.display().to_string()), ("error", &e.to_string())],
+                        ));
                     }
                 }
                 continue;
@@ -430,7 +440,10 @@ fn restore(state: &AppState) -> RestoredSession {
                     // Файл исчез или стал недоступен. Несохранённого в нём не
                     // было, поэтому вкладку просто не открываем — но молчать
                     // об этом нельзя.
-                    notices.push(format!("не удалось открыть {}: {e}", path.display()));
+                    notices.push(tr_with(
+                        "error.open.failed",
+                        &[("file", &path.display().to_string()), ("error", &e.to_string())],
+                    ));
                     continue;
                 }
             },
@@ -467,9 +480,9 @@ fn restore(state: &AppState) -> RestoredSession {
         .and_then(|item| Layout::from_snapshot(item, &ids))
         .unwrap_or_else(|| Layout::single(ids.clone(), active));
 
-    *state.buffers.lock().expect("реестр буферов повреждён") =
+    *state.buffers.lock().expect("buffer registry lock poisoned") =
         Buffers::restore(buffers, snapshot.next_id, snapshot.next_untitled);
-    *state.layout.lock().expect("раскладка повреждена") = layout.clone();
+    *state.layout.lock().expect("layout lock poisoned") = layout.clone();
 
     // Черновики без буфера мог оставить сбой между записью черновика
     // и записью снимка. Копить их незачем.
@@ -510,11 +523,14 @@ fn restore_unreadable(state: &AppState, problem: String) -> RestoredSession {
     let mut notices = Vec::new();
 
     notices.push(match session::set_aside(data) {
-        Ok(kept) => format!(
-            "вкладки не восстановлены: {problem}. Прежний снимок сохранён в {}",
-            kept.display()
+        Ok(kept) => tr_with(
+            "error.session.kept",
+            &[("problem", &problem.to_string()), ("file", &kept.display().to_string())],
         ),
-        Err(e) => format!("вкладки не восстановлены: {problem}. Отложить прежний снимок не удалось: {e}"),
+        Err(e) => tr_with(
+            "error.session.not-kept",
+            &[("problem", &problem.to_string()), ("error", &e.to_string())],
+        ),
     });
 
     let mut restored = Vec::new();
@@ -536,19 +552,16 @@ fn restore_unreadable(state: &AppState, problem: String) -> RestoredSession {
         buffers.push(buffer);
     }
     if !buffers.is_empty() {
-        notices.push(format!(
-            "несохранённое из прошлой сессии открыто безымянными вкладками: {}",
-            buffers.len()
-        ));
+        notices.push(tr_n("error.session.orphans", buffers.len() as u64, &[]));
     }
 
     let ids: Vec<BufferId> = buffers.iter().map(|b| b.id).collect();
     let next_untitled = u32::try_from(buffers.len()).unwrap_or(u32::MAX - 1) + 1;
     let layout = Layout::single(ids.clone(), ids.first().copied());
     // `restore` поднимает счётчик номеров выше наибольшего черновика.
-    *state.buffers.lock().expect("реестр буферов повреждён") =
+    *state.buffers.lock().expect("buffer registry lock poisoned") =
         Buffers::restore(buffers, 1, next_untitled);
-    *state.layout.lock().expect("раскладка повреждена") = layout.clone();
+    *state.layout.lock().expect("layout lock poisoned") = layout.clone();
 
     let vault = super::roots::sync_vault(state, &mut notices);
     RestoredSession {

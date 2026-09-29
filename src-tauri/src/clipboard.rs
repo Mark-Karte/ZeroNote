@@ -30,7 +30,7 @@ const CF_UNICODETEXT: u32 = 13;
 /// с сообщением на каждую такую вставку.
 pub fn text() -> Result<String, String> {
     if !open() {
-        return Err("буфер обмена занят другой программой".to_owned());
+        return Err(crate::l10n::tr("clipboard.busy"));
     }
 
     // Читаем и закрываем в любом случае. Незакрытый буфер обмена — это
@@ -81,12 +81,12 @@ fn read_unicode() -> Result<String, String> {
 
     let handle = unsafe { GetClipboardData(CF_UNICODETEXT) };
     if handle.is_null() {
-        return Err("в буфере обмена нет текста".to_owned());
+        return Err(crate::l10n::tr("clipboard.no-text"));
     }
 
     let pointer = unsafe { GlobalLock(handle) } as *const u16;
     if pointer.is_null() {
-        return Err("не удалось прочитать буфер обмена".to_owned());
+        return Err(crate::l10n::tr("clipboard.unreadable"));
     }
 
     // Размер в байтах, а знаков вдвое меньше: каждый знак UTF-16 — два байта.
@@ -127,7 +127,7 @@ pub fn image() -> Result<Vec<u8>, String> {
     let png = unsafe { RegisterClipboardFormatW(name.as_ptr()) };
 
     if !open() {
-        return Err("буфер обмена занят другой программой".to_owned());
+        return Err(crate::l10n::tr("clipboard.busy"));
     }
     let result = read_image(png);
     unsafe { CloseClipboard() };

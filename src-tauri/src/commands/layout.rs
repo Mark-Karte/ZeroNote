@@ -13,7 +13,7 @@ fn snapshot(state: &tauri::State<'_, AppState>) -> Layout {
     state
         .layout
         .lock()
-        .expect("раскладка повреждена")
+        .expect("layout lock poisoned")
         .clone()
 }
 
@@ -26,7 +26,7 @@ pub fn layout_state(state: tauri::State<'_, AppState>) -> Layout {
 /// Фокус ушёл в область (Р-210).
 #[tauri::command]
 pub fn set_active_pane(state: tauri::State<'_, AppState>, pane: NodeId) -> Layout {
-    let mut layout = state.layout.lock().expect("раскладка повреждена");
+    let mut layout = state.layout.lock().expect("layout lock poisoned");
     layout.set_active_pane(pane);
     layout.clone()
 }
@@ -34,7 +34,7 @@ pub fn set_active_pane(state: tauri::State<'_, AppState>, pane: NodeId) -> Layou
 /// Вкладку выбрали щелчком: она активна в своей области, область — в окне.
 #[tauri::command]
 pub fn set_active_tab(state: tauri::State<'_, AppState>, pane: NodeId, id: BufferId) -> Layout {
-    let mut layout = state.layout.lock().expect("раскладка повреждена");
+    let mut layout = state.layout.lock().expect("layout lock poisoned");
     layout.set_active_tab(pane, id);
     layout.clone()
 }
@@ -47,7 +47,7 @@ pub fn reorder_tab(
     id: BufferId,
     to: usize,
 ) -> Layout {
-    let mut layout = state.layout.lock().expect("раскладка повреждена");
+    let mut layout = state.layout.lock().expect("layout lock poisoned");
     layout.reorder(pane, id, to);
     layout.clone()
 }
@@ -56,7 +56,7 @@ pub fn reorder_tab(
 /// Из последней области вкладку так не убирают — это уже `close_buffer`.
 #[tauri::command]
 pub fn remove_tab(state: tauri::State<'_, AppState>, pane: NodeId, id: BufferId) -> Layout {
-    let mut layout = state.layout.lock().expect("раскладка повреждена");
+    let mut layout = state.layout.lock().expect("layout lock poisoned");
     if layout.panes_with(id).len() > 1 {
         layout.remove(pane, id);
     }
@@ -73,7 +73,7 @@ pub fn split_pane(
     id: Option<BufferId>,
     first: bool,
 ) -> Layout {
-    let mut layout = state.layout.lock().expect("раскладка повреждена");
+    let mut layout = state.layout.lock().expect("layout lock poisoned");
     layout.split_at(pane, direction, id, first);
     layout.clone()
 }
@@ -88,7 +88,7 @@ pub fn move_tab_to_split(
     direction: Direction,
     first: bool,
 ) -> Layout {
-    let mut layout = state.layout.lock().expect("раскладка повреждена");
+    let mut layout = state.layout.lock().expect("layout lock poisoned");
     layout.move_to_split(id, from, to, direction, first);
     layout.clone()
 }
@@ -97,7 +97,7 @@ pub fn move_tab_to_split(
 /// он же перед этим спрашивает про несохранённое.
 #[tauri::command]
 pub fn close_pane(state: tauri::State<'_, AppState>, pane: NodeId) -> Layout {
-    let mut layout = state.layout.lock().expect("раскладка повреждена");
+    let mut layout = state.layout.lock().expect("layout lock poisoned");
     layout.close_pane(pane);
     layout.clone()
 }
@@ -111,7 +111,7 @@ pub fn move_tab(
     to: NodeId,
     at: Option<usize>,
 ) -> Layout {
-    let mut layout = state.layout.lock().expect("раскладка повреждена");
+    let mut layout = state.layout.lock().expect("layout lock poisoned");
     layout.move_tab(id, from, to, at);
     layout.clone()
 }
@@ -119,7 +119,7 @@ pub fn move_tab(
 /// Границу между областями подвинули.
 #[tauri::command]
 pub fn set_split_ratio(state: tauri::State<'_, AppState>, split: NodeId, ratio: f64) -> Layout {
-    let mut layout = state.layout.lock().expect("раскладка повреждена");
+    let mut layout = state.layout.lock().expect("layout lock poisoned");
     layout.set_ratio(split, ratio);
     layout.clone()
 }

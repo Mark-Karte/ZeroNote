@@ -82,22 +82,34 @@ pub enum ThemeError {
 impl std::fmt::Display for ThemeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ThemeError::Parse(message) => write!(f, "не удалось разобрать тему: {message}"),
-            ThemeError::UnsupportedSchema { found } => write!(
-                f,
-                "версия формата темы {found} не поддерживается, ожидается {THEME_SCHEMA}"
-            ),
-            ThemeError::UnknownToken { name } => {
-                write!(f, "неизвестный токен оформления: {name}")
+            ThemeError::Parse(message) => f.write_str(&crate::l10n::tr_with(
+                "theme.parse",
+                &[("error", message)],
+            )),
+            ThemeError::UnsupportedSchema { found } => f.write_str(&crate::l10n::tr_with(
+                "theme.schema",
+                &[("found", &found.to_string()), ("expected", &THEME_SCHEMA.to_string())],
+            )),
+            ThemeError::UnknownToken { name } => f.write_str(&crate::l10n::tr_with(
+                "theme.token.unknown",
+                &[("name", name)],
+            )),
+            ThemeError::UnknownPaletteKey { token, key } => {
+                f.write_str(&crate::l10n::tr_with(
+                    "theme.token.palette",
+                    &[("token", token), ("key", key)],
+                ))
             }
-            ThemeError::UnknownPaletteKey { token, key } => write!(
-                f,
-                "токен {token} ссылается на отсутствующий цвет палитры: {key}"
-            ),
             ThemeError::UnclosedReference { token, value } => {
-                write!(f, "в значении токена {token} не закрыта ссылка: {value}")
+                f.write_str(&crate::l10n::tr_with(
+                    "theme.token.unclosed",
+                    &[("token", token), ("value", value)],
+                ))
             }
-            ThemeError::Io(message) => write!(f, "ошибка чтения темы: {message}"),
+            ThemeError::Io(message) => f.write_str(&crate::l10n::tr_with(
+                "theme.io",
+                &[("error", message)],
+            )),
             ThemeError::Invalid(message) => write!(f, "{message}"),
         }
     }
@@ -187,7 +199,7 @@ pub fn builtin(appearance: Appearance) -> ThemeFile {
     // Встроенные темы вкомпилированы в бинарник. Если они не разбираются —
     // это ошибка сборки проекта, а не пользователя, и её надо увидеть сразу.
     // Тест builtin_themes_parse ловит такое до выпуска.
-    parse(source).expect("встроенная тема должна разбираться")
+    parse(source).expect("a built-in theme must parse")
 }
 
 pub fn builtin_source(appearance: Appearance) -> &'static str {
@@ -200,7 +212,7 @@ pub fn builtin_source(appearance: Appearance) -> &'static str {
 /// Встроенная тема по идентификатору. `None` — такой встроенной темы нет.
 pub fn builtin_by_id(id: &str) -> Option<ThemeFile> {
     let (_, source) = BUILTIN.iter().find(|(name, _)| *name == id)?;
-    Some(parse(source).expect("встроенная тема должна разбираться"))
+    Some(parse(source).expect("a built-in theme must parse"))
 }
 
 /// Подстановка ссылок `{palette.ключ}` внутри значения токена.
@@ -559,7 +571,7 @@ fn load_all(themes_dir: &Path) -> (Vec<(ThemeFile, bool)>, Vec<String>) {
     let mut list: Vec<(ThemeFile, bool)> = BUILTIN
         .iter()
         .map(|(_, source)| {
-            let theme = parse(source).expect("встроенная тема должна разбираться");
+            let theme = parse(source).expect("a built-in theme must parse");
             (theme, true)
         })
         .collect();
@@ -595,9 +607,17 @@ fn load_all(themes_dir: &Path) -> (Vec<(ThemeFile, bool)>, Vec<String>) {
 }
 
 fn info_of(theme: &ThemeFile, builtin: bool) -> ThemeInfo {
+    // Встроенные темы названы именами — One Dark, Dracula, — и имена
+    // не переводятся. «Контраст» — слово, и его название берётся из таблицы
+    // строк (задача 155).
+    let name = if builtin && theme.id == "contrast" {
+        crate::l10n::tr("theme.contrast.name")
+    } else {
+        theme.name.clone()
+    };
     ThemeInfo {
         id: theme.id.clone(),
-        name: theme.name.clone(),
+        name,
         appearance: theme.appearance,
         builtin,
     }
@@ -719,21 +739,26 @@ pub struct CopyNaming {
 pub fn free_copy_naming(base_id: &str, base_name: &str, taken: &BTreeSet<String>) -> CopyNaming {
     let stem = id_stem(base_id);
 
-    let first = format!("{stem}-копия");
+    // Имя копии — на языке окна (задача 155): «-копия» и «(копия)»,
+    // «-copy» и «(copy)». Это имя файла темы — живёт дальше своей жизнью.
+    let first = crate::l10n::tr_with("theme.copy.id", &[("id", &stem)]);
     if !taken.contains(&first) {
         return CopyNaming {
             id: first,
-            name: format!("{base_name} (копия)"),
+            name: crate::l10n::tr_with("theme.copy.name", &[("name", base_name)]),
         };
     }
 
     (2..)
         .map(|n| CopyNaming {
-            id: format!("{stem}-копия-{n}"),
-            name: format!("{base_name} (копия {n})"),
+            id: crate::l10n::tr_with("theme.copy.id.n", &[("id", &stem), ("n", &n.to_string())]),
+            name: crate::l10n::tr_with(
+                "theme.copy.name.n",
+                &[("name", base_name), ("n", &n.to_string())],
+            ),
         })
         .find(|naming| !taken.contains(&naming.id))
-        .expect("перебор без конца обязан найти свободный идентификатор")
+        .expect("an endless search must find a free id")
 }
 
 /// Основа идентификатора: то, что годится и в имя файла.
@@ -754,7 +779,7 @@ fn id_stem(base: &str) -> String {
 
     let trimmed = out.trim_matches('-');
     if trimmed.is_empty() {
-        "тема".to_owned()
+        crate::l10n::tr("theme.copy.fallback")
     } else {
         trimmed.to_owned()
     }
@@ -789,7 +814,7 @@ pub fn retitle(source: &str, id: &str, name: &str) -> Result<String, ThemeError>
 /// правило, что у образца `settings.toml`.
 pub fn create_copy(themes_dir: &Path, id: &str) -> Result<ThemeInfo, ThemeError> {
     let source = source_of(themes_dir, id)
-        .ok_or_else(|| ThemeError::Io(format!("тема «{id}» не найдена")))?;
+        .ok_or_else(|| ThemeError::Io(crate::l10n::tr_with("theme.not-found", &[("id", id)])))?;
     let theme = parse(&source)?;
 
     let (existing, _) = load_all(themes_dir);

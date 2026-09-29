@@ -11,6 +11,7 @@
 //! заготовок: путь проверяет ядро, а не тот, кто его прислал (Р-240).
 
 use std::path::Path;
+use crate::l10n::{tr, tr_with};
 
 type Fallible<T> = Result<T, String>;
 
@@ -24,18 +25,14 @@ fn check_path(path: &Path, allowed: &[&str]) -> Fallible<()> {
         .map(str::to_lowercase)
         .unwrap_or_default();
     if !allowed.contains(&extension.as_str()) {
-        return Err(format!(
-            "экспорт пишет только файлы {}, а не «{}»",
-            allowed
-                .iter()
-                .map(|e| format!(".{e}"))
-                .collect::<Vec<_>>()
-                .join(" и "),
-            path.display()
+        let kinds: Vec<String> = allowed.iter().map(|e| format!(".{e}")).collect();
+        return Err(tr_with(
+            "error.export.kind",
+            &[("kinds", &kinds.join(", ")), ("file", &path.display().to_string())],
         ));
     }
     if crate::fsx::atomic_save::is_inside_obsidian(path) {
-        return Err("в .obsidian ничего не пишется (инвариант 2)".to_owned());
+        return Err(tr("error.obsidian.write"));
     }
     Ok(())
 }
@@ -94,15 +91,18 @@ pub async fn export_pdf(
     let printing = temp.clone();
     window
         .with_webview(move |webview| crate::pdf::start(webview, printing, page, done))
-        .map_err(|e| format!("окно недоступно: {e}"))?;
+        .map_err(|e| tr_with("error.window.unavailable", &[("error", &e.to_string())]))?;
 
     let printed = tauri::async_runtime::spawn_blocking(move || answer.recv_timeout(PDF_TIMEOUT))
         .await
         .map_err(|e| e.to_string())?
-        .unwrap_or_else(|_| Err("WebView2 не ответил за две минуты".to_owned()));
+        .unwrap_or_else(|_| Err(tr("error.webview.timeout")));
 
     let written = printed.and_then(|()| {
-        let bytes = std::fs::read(&temp).map_err(|e| format!("PDF не прочитан: {e}"))?;
+        let bytes = std::fs::read(&temp).map_err(|e| tr_with(
+            "error.pdf.unreadable",
+            &[("error", &e.to_string())],
+        ))?;
         crate::fsx::atomic_save::save(&target, &bytes).map_err(|e| e.to_string())
     });
     let _ = std::fs::remove_file(&temp);

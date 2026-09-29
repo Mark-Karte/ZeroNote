@@ -19,6 +19,8 @@ pub mod edit;
 
 use std::path::Path;
 
+use crate::l10n::tr_with;
+
 /// Один коллаут.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
@@ -74,12 +76,15 @@ impl std::fmt::Display for CalloutsError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             CalloutsError::Parse(message) => {
-                write!(f, "не удалось разобрать callouts.toml: {message}")
+                f.write_str(&tr_with(
+                    "config.parse",
+                    &[("file", "callouts.toml"), ("error", message)],
+                ))
             }
-            CalloutsError::UnsupportedSchema { found } => write!(
-                f,
-                "версия формата коллаутов {found} не поддерживается, ожидается {CALLOUTS_SCHEMA}"
-            ),
+            CalloutsError::UnsupportedSchema { found } => f.write_str(&tr_with(
+                "config.callouts.schema",
+                &[("found", &found.to_string()), ("expected", &CALLOUTS_SCHEMA.to_string())],
+            )),
             CalloutsError::Unreadable(message) => f.write_str(message),
         }
     }
@@ -128,11 +133,14 @@ pub fn parse(source: &str) -> Result<Loaded, CalloutsError> {
     let schema = match root.remove("schema") {
         None => CALLOUTS_SCHEMA,
         Some(toml::Value::Integer(n)) => u32::try_from(n)
-            .map_err(|_| CalloutsError::Parse(format!("schema = {n} — версия формата не бывает такой")))?,
+            .map_err(|_| CalloutsError::Parse(tr_with(
+                "config.schema.impossible",
+                &[("n", &n.to_string())],
+            )))?,
         Some(other) => {
-            return Err(CalloutsError::Parse(format!(
-                "schema должна быть числом, а в файле {}",
-                other.type_str()
+            return Err(CalloutsError::Parse(tr_with(
+                "config.schema.not-number",
+                &[("value", other.type_str())],
             )));
         }
     };
@@ -149,7 +157,10 @@ pub fn parse(source: &str) -> Result<Loaded, CalloutsError> {
             for (index, entry) in entries.into_iter().enumerate() {
                 let number = index + 1;
                 let toml::Value::Table(table) = entry else {
-                    problems.push(format!("запись {number} — не таблица, пропущена"));
+                    problems.push(tr_with(
+                        "config.callouts.entry.not-table",
+                        &[("number", &number.to_string())],
+                    ));
                     continue;
                 };
 
@@ -162,21 +173,17 @@ pub fn parse(source: &str) -> Result<Loaded, CalloutsError> {
 
                 callout.id = callout.id.trim().to_lowercase();
                 if !valid_id(&callout.id) {
-                    problems.push(format!(
-                        "[{label}] тип пуст или содержит пробел и скобки — запись пропущена"
-                    ));
+                    problems.push(tr_with("config.callouts.entry.bad-id", &[("label", &label)]));
                     continue;
                 }
                 if callouts.iter().any(|known| known.id == callout.id) {
-                    problems.push(format!(
-                        "[{label}] такой тип уже есть выше — запись пропущена"
-                    ));
+                    problems.push(tr_with("config.callouts.entry.duplicate", &[("label", &label)]));
                     continue;
                 }
                 if !valid_color(&callout.color) {
-                    problems.push(format!(
-                        "[{label}] color = «{}» — это не роль темы и не #rrggbb; взят акцент",
-                        callout.color
+                    problems.push(tr_with(
+                        "config.callouts.entry.bad-color",
+                        &[("label", &label), ("color", &callout.color)],
                     ));
                     callout.color = DEFAULT_COLOR.to_owned();
                 }
@@ -186,14 +193,14 @@ pub fn parse(source: &str) -> Result<Loaded, CalloutsError> {
                 callouts.push(callout);
             }
         }
-        Some(other) => problems.push(format!(
-            "callout должен быть списком записей [[callout]], а в файле {}",
-            other.type_str()
+        Some(other) => problems.push(tr_with(
+            "config.callouts.list",
+            &[("value", other.type_str())],
         )),
     }
 
     for key in root.keys() {
-        problems.push(format!("ключ «{key}» незнаком — пропущен"));
+        problems.push(tr_with("config.key.unknown", &[("key", key)]));
     }
 
     Ok(Loaded { callouts, problems })
@@ -207,7 +214,7 @@ pub fn parse(source: &str) -> Result<Loaded, CalloutsError> {
 pub fn load_full(path: &Path) -> Result<Loaded, CalloutsError> {
     match crate::fsx::config::read(path) {
         Ok(Some(source)) => parse(&source),
-        Ok(None) => parse(DEFAULT_TEMPLATE),
+        Ok(None) => parse(template()),
         Err(message) => Err(CalloutsError::Unreadable(message)),
     }
 }
@@ -220,7 +227,7 @@ pub fn write_default_if_missing(path: &Path) -> std::io::Result<bool> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    std::fs::write(path, DEFAULT_TEMPLATE)?;
+    std::fs::write(path, template())?;
     Ok(true)
 }
 
@@ -229,188 +236,17 @@ pub fn write_default_if_missing(path: &Path) -> std::io::Result<bool> {
 /// Цвета — роли темы, подобранные под цвета Obsidian: синий — акцент,
 /// голубой — цвет функций, зелёный — успех, жёлтый — внимание, красный —
 /// опасность, фиолетовый — цвет ключевых слов, серый — приглушённый.
-pub const DEFAULT_TEMPLATE: &str = r##"# Коллауты ZeroNote.
-#
-# Коллаут — цитата, первая строка которой написана так: > [!тип] Подпись.
-# Obsidian рисует её карточкой, ZeroNote тоже. Здесь — какие типы бывают,
-# какой у каждого значок и цвет и какую подпись кладёт в заметку вставка.
-# Удобнее править во вкладке «Коллауты» окна параметров, но и здесь всё видно.
-#
-#   id    — тип, как он пишется в заметке: [!tip]. Без пробелов и скобок.
-#   title — подпись, которую вставка пишет после типа. Это текст заметки:
-#           его увидит и Obsidian.
-#   icon  — значок: имя из списка во вкладке «Коллауты».
-#   color — цвет: роль темы — "accent", "success", "warning", "danger",
-#           "muted", "keyword", "string", "number", "type", "function" —
-#           или свой "#rrggbb". Роль меняется вместе с темой и всегда
-#           читается; за свой цвет отвечаете вы.
-#
-# Тип, которого здесь нет, рисуется как "note".
+pub const TEMPLATE_RU: &str = include_str!("../../../l10n/samples/ru/callouts.toml");
+/// Английский образец — для английского и для своих переводов.
+pub const TEMPLATE_EN: &str = include_str!("../../../l10n/samples/en/callouts.toml");
 
-schema = 1
-
-[[callout]]
-id = "note"
-title = "Заметка"
-icon = "md.callout-pencil"
-color = "accent"
-
-[[callout]]
-id = "info"
-title = "Информация"
-icon = "md.callout-note"
-color = "accent"
-
-[[callout]]
-id = "todo"
-title = "Задача"
-icon = "md.callout-todo"
-color = "accent"
-
-[[callout]]
-id = "abstract"
-title = "Аннотация"
-icon = "md.callout-clipboard"
-color = "function"
-
-[[callout]]
-id = "summary"
-title = "Сводка"
-icon = "md.callout-clipboard"
-color = "function"
-
-[[callout]]
-id = "tldr"
-title = "Кратко"
-icon = "md.callout-clipboard"
-color = "function"
-
-[[callout]]
-id = "tip"
-title = "Совет"
-icon = "md.callout-flame"
-color = "function"
-
-[[callout]]
-id = "hint"
-title = "Подсказка"
-icon = "md.callout-flame"
-color = "function"
-
-[[callout]]
-id = "important"
-title = "Важно"
-icon = "md.callout-flame"
-color = "function"
-
-[[callout]]
-id = "success"
-title = "Успех"
-icon = "action.check"
-color = "success"
-
-[[callout]]
-id = "check"
-title = "Проверено"
-icon = "action.check"
-color = "success"
-
-[[callout]]
-id = "done"
-title = "Готово"
-icon = "action.check"
-color = "success"
-
-[[callout]]
-id = "question"
-title = "Вопрос"
-icon = "md.callout-question"
-color = "warning"
-
-[[callout]]
-id = "help"
-title = "Помощь"
-icon = "md.callout-question"
-color = "warning"
-
-[[callout]]
-id = "faq"
-title = "ЧаВо"
-icon = "md.callout-question"
-color = "warning"
-
-[[callout]]
-id = "warning"
-title = "Предупреждение"
-icon = "md.callout-warning"
-color = "warning"
-
-[[callout]]
-id = "caution"
-title = "Осторожно"
-icon = "md.callout-warning"
-color = "warning"
-
-[[callout]]
-id = "attention"
-title = "Внимание"
-icon = "md.callout-warning"
-color = "warning"
-
-[[callout]]
-id = "failure"
-title = "Неудача"
-icon = "md.callout-fail"
-color = "danger"
-
-[[callout]]
-id = "fail"
-title = "Провал"
-icon = "md.callout-fail"
-color = "danger"
-
-[[callout]]
-id = "missing"
-title = "Отсутствует"
-icon = "md.callout-fail"
-color = "danger"
-
-[[callout]]
-id = "danger"
-title = "Опасность"
-icon = "md.callout-danger"
-color = "danger"
-
-[[callout]]
-id = "error"
-title = "Ошибка"
-icon = "md.callout-danger"
-color = "danger"
-
-[[callout]]
-id = "bug"
-title = "Баг"
-icon = "md.callout-bug"
-color = "danger"
-
-[[callout]]
-id = "example"
-title = "Пример"
-icon = "md.bullet-list"
-color = "keyword"
-
-[[callout]]
-id = "quote"
-title = "Цитата"
-icon = "md.callout-quote"
-color = "muted"
-
-[[callout]]
-id = "cite"
-title = "Источник"
-icon = "md.callout-quote"
-color = "muted"
-"##;
+/// Образец на языке образцов процесса (`l10n::samples`, задача 155).
+pub fn template() -> &'static str {
+    match crate::l10n::samples() {
+        crate::l10n::Builtin::Ru => TEMPLATE_RU,
+        crate::l10n::Builtin::En => TEMPLATE_EN,
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -430,16 +266,31 @@ mod tests {
     /// бы строку в полосе предупреждений о файле, которого не трогал.
     #[test]
     fn template_reads_without_problems() {
-        let loaded = read(DEFAULT_TEMPLATE);
-        assert!(loaded.problems.is_empty(), "{:?}", loaded.problems);
-        assert_eq!(loaded.callouts.len(), 27);
-        assert!(loaded.callouts.iter().any(|c| c.id == "note"));
+        for sample in [TEMPLATE_RU, TEMPLATE_EN] {
+            let loaded = read(sample);
+            assert!(loaded.problems.is_empty(), "{:?}", loaded.problems);
+            assert_eq!(loaded.callouts.len(), 27);
+            assert!(loaded.callouts.iter().any(|c| c.id == "note"));
+        }
+    }
+
+    /// Образцы на двух языках различаются только подписями (задача 155):
+    /// типы, значки и цвета — одни и те же, в том же порядке.
+    #[test]
+    fn samples_differ_only_in_titles() {
+        let ru = read(TEMPLATE_RU).callouts;
+        let en = read(TEMPLATE_EN).callouts;
+        let shape = |list: &[Callout]| -> Vec<(String, String, String)> {
+            list.iter().map(|c| (c.id.clone(), c.icon.clone(), c.color.clone())).collect()
+        };
+        assert_eq!(shape(&ru), shape(&en));
+        assert_eq!(en.iter().find(|c| c.id == "note").map(|c| c.title.as_str()), Some("Note"));
     }
 
     /// Все цвета образца — роли темы: образец обязан читаться в любой теме.
     #[test]
     fn template_uses_theme_roles_only() {
-        for callout in read(DEFAULT_TEMPLATE).callouts {
+        for callout in read(TEMPLATE_RU).callouts.into_iter().chain(read(TEMPLATE_EN).callouts) {
             assert!(
                 COLOR_ROLES.contains(&callout.color.as_str()),
                 "{}: {}",

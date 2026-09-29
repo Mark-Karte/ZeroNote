@@ -155,7 +155,7 @@ impl Layout {
     pub fn active_pane(&self) -> &Pane {
         self.pane(self.active_pane)
             .or_else(|| self.panes().into_iter().next())
-            .expect("в дереве всегда есть хотя бы одна область")
+            .expect("the tree always has at least one pane")
     }
 
     /// Активная вкладка окна — активная вкладка активной области.
@@ -752,7 +752,7 @@ fn replace_pane(node: &mut Node, id: NodeId, build: impl FnOnce(Pane) -> Node) {
                 active: None,
             });
             let Node::Pane(old) = std::mem::replace(node, placeholder) else {
-                unreachable!("только что проверили, что это область");
+                unreachable!("just checked that this is a pane");
             };
             *node = build(old);
         }

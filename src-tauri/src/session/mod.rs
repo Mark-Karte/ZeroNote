@@ -21,6 +21,7 @@ pub mod recent;
 use std::path::{Path, PathBuf};
 
 use crate::fsx::atomic_save;
+use crate::l10n::tr_with;
 use crate::fsx::text_file::DiskState;
 use crate::model::buffer::BufferId;
 use crate::model::layout::LayoutSnapshot;
@@ -240,17 +241,27 @@ pub fn load_session(data: &Path) -> Loaded {
     let text = match std::fs::read_to_string(session_path(data)) {
         Ok(text) => text,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Loaded::Missing,
-        Err(e) => return Loaded::Unreadable(format!("не удалось прочитать session.toml: {e}")),
+        Err(e) => {
+            return Loaded::Unreadable(tr_with(
+                "config.read.failed",
+                &[("file", "session.toml"), ("error", &e.to_string())],
+            ));
+        }
     };
     let file: SessionFile = match toml::from_str(&text) {
         Ok(file) => file,
-        Err(e) => return Loaded::Unreadable(format!("session.toml не разбирается: {}", e.message())),
+        Err(e) => {
+            return Loaded::Unreadable(tr_with(
+                "config.session.unparsable",
+                &[("error", e.message())],
+            ));
+        }
     };
 
     if file.schema != SESSION_SCHEMA {
-        return Loaded::Unreadable(format!(
-            "версия формата сессии {} не поддерживается, ожидается {SESSION_SCHEMA}",
-            file.schema
+        return Loaded::Unreadable(tr_with(
+            "config.session.schema",
+            &[("found", &file.schema.to_string()), ("expected", &SESSION_SCHEMA.to_string())],
         ));
     }
 

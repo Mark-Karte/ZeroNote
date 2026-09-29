@@ -7,6 +7,7 @@
 use toml_edit::{ArrayOfTables, DocumentMut, Item, Table, value};
 
 use super::{Callout, parse, valid_color, valid_id};
+use crate::l10n::{tr, tr_with};
 
 /// Найти запись по типу. Сравнение без регистра: так читает разбор.
 fn position(list: &ArrayOfTables, id: &str) -> Option<usize> {
@@ -26,7 +27,7 @@ fn entries(document: &mut DocumentMut) -> Result<&mut ArrayOfTables, String> {
     }
     document["callout"]
         .as_array_of_tables_mut()
-        .ok_or_else(|| "в callouts.toml «callout» записан не списком [[callout]]".to_owned())
+        .ok_or_else(|| tr("config.callouts.not-list"))
 }
 
 /// Записать коллаут: новый — в конец, существующий (по типу `original`) —
@@ -37,18 +38,18 @@ fn entries(document: &mut DocumentMut) -> Result<&mut ArrayOfTables, String> {
 pub fn upsert(source: &str, original: Option<&str>, callout: &Callout) -> Result<String, String> {
     let id = callout.id.trim().to_lowercase();
     if !valid_id(&id) {
-        return Err("тип коллаута не может быть пустым, содержать пробел или скобки".to_owned());
+        return Err(tr("config.callouts.bad-id"));
     }
     if !valid_color(&callout.color) {
-        return Err(format!(
-            "«{}» — не роль темы и не цвет вида #rrggbb",
-            callout.color
-        ));
+        return Err(tr_with("config.callouts.bad-color", &[("color", &callout.color)]));
     }
 
     let mut document: DocumentMut = source
         .parse()
-        .map_err(|e: toml_edit::TomlError| format!("callouts.toml не разбирается: {e}"))?;
+        .map_err(|e: toml_edit::TomlError| tr_with(
+            "config.callouts.unparsable",
+            &[("error", &e.to_string())],
+        ))?;
     let list = entries(&mut document)?;
 
     let original = original.map(|id| id.trim().to_lowercase());
@@ -57,15 +58,15 @@ pub fn upsert(source: &str, original: Option<&str>, callout: &Callout) -> Result
     if let Some(other) = position(list, &id)
         && Some(other) != here
     {
-        return Err(format!("коллаут с типом «{id}» уже есть"));
+        return Err(tr_with("config.callouts.exists", &[("id", &id)]));
     }
 
     let table: &mut Table = match here {
-        Some(index) => list.get_mut(index).expect("позиция найдена в этом же списке"),
+        Some(index) => list.get_mut(index).expect("the position was found in this same list"),
         None => {
             list.push(Table::new());
             let last = list.len() - 1;
-            list.get_mut(last).expect("запись только что добавлена")
+            list.get_mut(last).expect("the entry was just added")
         }
     };
 
@@ -85,7 +86,10 @@ pub fn upsert(source: &str, original: Option<&str>, callout: &Callout) -> Result
 pub fn remove(source: &str, id: &str) -> Result<String, String> {
     let mut document: DocumentMut = source
         .parse()
-        .map_err(|e: toml_edit::TomlError| format!("callouts.toml не разбирается: {e}"))?;
+        .map_err(|e: toml_edit::TomlError| tr_with(
+            "config.callouts.unparsable",
+            &[("error", &e.to_string())],
+        ))?;
     let list = entries(&mut document)?;
 
     let id = id.trim().to_lowercase();
@@ -109,7 +113,7 @@ fn verify(before: &str, after: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::callouts::DEFAULT_TEMPLATE;
+    use crate::callouts::template;
 
     fn callout(id: &str, title: &str, color: &str) -> Callout {
         Callout {
@@ -124,7 +128,7 @@ mod tests {
     /// образца на месте.
     #[test]
     fn editing_keeps_the_comments_and_the_rest() {
-        let out = upsert(DEFAULT_TEMPLATE, Some("tip"), &callout("tip", "Совет дня", "success")).unwrap();
+        let out = upsert(template(), Some("tip"), &callout("tip", "Совет дня", "success")).unwrap();
 
         assert!(out.contains("# Коллауты ZeroNote."));
         let loaded = parse(&out).unwrap();
@@ -138,7 +142,7 @@ mod tests {
 
     #[test]
     fn new_callout_goes_to_the_end() {
-        let out = upsert(DEFAULT_TEMPLATE, None, &callout("идея", "Идея", "#ff8800")).unwrap();
+        let out = upsert(template(), None, &callout("идея", "Идея", "#ff8800")).unwrap();
         let loaded = parse(&out).unwrap();
         assert_eq!(loaded.callouts.last().unwrap().id, "идея");
         assert!(loaded.problems.is_empty(), "{:?}", loaded.problems);
@@ -153,14 +157,14 @@ mod tests {
     /// Смена типа на чужой отвергается: один из двух не рисовался бы никогда.
     #[test]
     fn renaming_onto_another_type_is_refused() {
-        let error = upsert(DEFAULT_TEMPLATE, Some("tip"), &callout("note", "Совет", "accent"))
+        let error = upsert(template(), Some("tip"), &callout("note", "Совет", "accent"))
             .expect_err("тип «note» уже занят");
         assert!(error.contains("note"), "{error}");
     }
 
     #[test]
     fn renaming_keeps_the_place() {
-        let out = upsert(DEFAULT_TEMPLATE, Some("tip"), &callout("совет", "Совет", "accent")).unwrap();
+        let out = upsert(template(), Some("tip"), &callout("совет", "Совет", "accent")).unwrap();
         let loaded = parse(&out).unwrap();
         assert_eq!(loaded.callouts[6].id, "совет");
         assert!(!loaded.callouts.iter().any(|c| c.id == "tip"));
@@ -174,7 +178,7 @@ mod tests {
 
     #[test]
     fn removal_takes_out_one_entry() {
-        let out = remove(DEFAULT_TEMPLATE, "bug").unwrap();
+        let out = remove(template(), "bug").unwrap();
         let loaded = parse(&out).unwrap();
         assert_eq!(loaded.callouts.len(), 26);
         assert!(!loaded.callouts.iter().any(|c| c.id == "bug"));

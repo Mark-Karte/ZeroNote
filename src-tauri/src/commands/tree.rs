@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use crate::model::root::RootId;
 use crate::state::AppState;
 use crate::tree::{self, Entry};
+use crate::l10n::tr_with;
 
 type Fallible<T> = Result<T, String>;
 
@@ -24,10 +25,10 @@ pub fn read_children(
     // работа с диском, и держать на ней блокировку нельзя: медленный сетевой
     // диск заморозил бы все остальные команды.
     let (root_path, rules) = {
-        let roots = state.roots.lock().expect("реестр корней повреждён");
+        let roots = state.roots.lock().expect("root registry lock poisoned");
         let root = roots
             .get(root_id)
-            .ok_or_else(|| format!("корень {root_id} не найден"))?;
+            .ok_or_else(|| tr_with("error.root.missing.id", &[("root_id", &root_id.to_string())]))?;
         (root.path.clone(), root.rules.clone())
     };
 
@@ -40,7 +41,7 @@ pub fn read_children(
     // с диска можно было бы перечислить через окно приложения — фронтенду
     // такого доверия не выдано.
     if !dir.starts_with(&root_path) {
-        return Err(format!("{} вне корня", dir.display()));
+        return Err(tr_with("error.outside-root", &[("path", &dir.display().to_string())]));
     }
 
     tree::read_children(&dir, &rules).map_err(|e| e.to_string())

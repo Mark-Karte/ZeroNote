@@ -76,7 +76,12 @@ export function applyKeymap(state: KeymapState): void {
  * на несколько сочетаний. В список берём первое по алфавиту — чтобы подпись
  * не прыгала от запуска к запуску.
  */
-export function commandList(): { id: string; title: string; binding: string | null }[] {
+export function commandList(): {
+  id: string;
+  title: string;
+  alias: string | null;
+  binding: string | null;
+}[] {
   const byCommand = new Map<string, string>();
   for (const binding of Object.keys(keymap.bindings).sort()) {
     const id = keymap.bindings[binding]!;
@@ -90,6 +95,7 @@ export function commandList(): { id: string; title: string; binding: string | nu
     .map((command) => ({
       id: command.id,
       title: command.title,
+      alias: command.alias ?? null,
       binding: byCommand.get(command.id) ?? null,
     }));
 }

@@ -1,0 +1,182 @@
+# ZeroNote callouts.
+#
+# A callout is a quote whose first line is written like this: > [!type] Title.
+# Obsidian draws it as a card, and so does ZeroNote. This file says which
+# types exist, what icon and color each has and what title inserting puts
+# into the note. It is easier to edit on the "Callouts" tab of the settings,
+# but everything is visible here too.
+#
+#   id    — the type as written in the note: [!tip]. No spaces or brackets.
+#   title — the title that inserting writes after the type. It is note text:
+#           Obsidian will see it too.
+#   icon  — the icon: a name from the list on the "Callouts" tab.
+#   color — the color: a theme role — "accent", "success", "warning", "danger",
+#           "muted", "keyword", "string", "number", "type", "function" —
+#           or your own "#rrggbb". A role changes with the theme and is always
+#           readable; your own color is your responsibility.
+#
+# A type that isn't here is drawn as "note".
+
+schema = 1
+
+[[callout]]
+id = "note"
+title = "Note"
+icon = "md.callout-pencil"
+color = "accent"
+
+[[callout]]
+id = "info"
+title = "Info"
+icon = "md.callout-note"
+color = "accent"
+
+[[callout]]
+id = "todo"
+title = "Todo"
+icon = "md.callout-todo"
+color = "accent"
+
+[[callout]]
+id = "abstract"
+title = "Abstract"
+icon = "md.callout-clipboard"
+color = "function"
+
+[[callout]]
+id = "summary"
+title = "Summary"
+icon = "md.callout-clipboard"
+color = "function"
+
+[[callout]]
+id = "tldr"
+title = "TL;DR"
+icon = "md.callout-clipboard"
+color = "function"
+
+[[callout]]
+id = "tip"
+title = "Tip"
+icon = "md.callout-flame"
+color = "function"
+
+[[callout]]
+id = "hint"
+title = "Hint"
+icon = "md.callout-flame"
+color = "function"
+
+[[callout]]
+id = "important"
+title = "Important"
+icon = "md.callout-flame"
+color = "function"
+
+[[callout]]
+id = "success"
+title = "Success"
+icon = "action.check"
+color = "success"
+
+[[callout]]
+id = "check"
+title = "Check"
+icon = "action.check"
+color = "success"
+
+[[callout]]
+id = "done"
+title = "Done"
+icon = "action.check"
+color = "success"
+
+[[callout]]
+id = "question"
+title = "Question"
+icon = "md.callout-question"
+color = "warning"
+
+[[callout]]
+id = "help"
+title = "Help"
+icon = "md.callout-question"
+color = "warning"
+
+[[callout]]
+id = "faq"
+title = "FAQ"
+icon = "md.callout-question"
+color = "warning"
+
+[[callout]]
+id = "warning"
+title = "Warning"
+icon = "md.callout-warning"
+color = "warning"
+
+[[callout]]
+id = "caution"
+title = "Caution"
+icon = "md.callout-warning"
+color = "warning"
+
+[[callout]]
+id = "attention"
+title = "Attention"
+icon = "md.callout-warning"
+color = "warning"
+
+[[callout]]
+id = "failure"
+title = "Failure"
+icon = "md.callout-fail"
+color = "danger"
+
+[[callout]]
+id = "fail"
+title = "Fail"
+icon = "md.callout-fail"
+color = "danger"
+
+[[callout]]
+id = "missing"
+title = "Missing"
+icon = "md.callout-fail"
+color = "danger"
+
+[[callout]]
+id = "danger"
+title = "Danger"
+icon = "md.callout-danger"
+color = "danger"
+
+[[callout]]
+id = "error"
+title = "Error"
+icon = "md.callout-danger"
+color = "danger"
+
+[[callout]]
+id = "bug"
+title = "Bug"
+icon = "md.callout-bug"
+color = "danger"
+
+[[callout]]
+id = "example"
+title = "Example"
+icon = "md.bullet-list"
+color = "keyword"
+
+[[callout]]
+id = "quote"
+title = "Quote"
+icon = "md.callout-quote"
+color = "muted"
+
+[[callout]]
+id = "cite"
+title = "Cite"
+icon = "md.callout-quote"
+color = "muted"

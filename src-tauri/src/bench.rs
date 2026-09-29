@@ -223,7 +223,7 @@ pub fn bench_run_open() -> Result<String, String> {
             lines = document.text.lines().count();
         }
 
-        samples.sort_by(|a, b| a.partial_cmp(b).expect("время не бывает NaN"));
+        samples.sort_by(|a, b| a.partial_cmp(b).expect("time is never NaN"));
         let median = samples[samples.len() / 2];
 
         report.push_str(&format!(
@@ -333,7 +333,7 @@ pub fn bench_run_tree() -> Result<String, String> {
             samples.push(start.elapsed().as_secs_f64() * 1000.0);
             count = entries.len();
         }
-        samples.sort_by(|a, b| a.partial_cmp(b).expect("время не бывает NaN"));
+        samples.sort_by(|a, b| a.partial_cmp(b).expect("time is never NaN"));
         report.push_str(&format!(
             "| {label} | {count} | {:.1} мс |\n",
             samples[samples.len() / 2]
@@ -537,7 +537,7 @@ pub fn bench_start_index(
     let rules = std::sync::Arc::new(ignore::build(&dir, &IgnoreSettings::default()));
     let max_size = IndexSettings::default().max_file_size;
 
-    state.index.lock().expect("индекс повреждён").scan_root(
+    state.index.lock().expect("index lock poisoned").scan_root(
         BENCH_ROOT_ID,
         dir.clone(),
         rules,
@@ -559,7 +559,7 @@ pub fn bench_stop_index(
     }
 
     {
-        let mut index = state.index.lock().expect("индекс повреждён");
+        let mut index = state.index.lock().expect("index lock poisoned");
         index.cancel();
         index.forget_root(BENCH_ROOT_ID);
     }

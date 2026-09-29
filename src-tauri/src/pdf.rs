@@ -92,7 +92,7 @@ fn begin(
     page: &Page,
     done: Sender<Result<(), String>>,
 ) -> Result<(), String> {
-    let failed = |what: &str, e: windows_core::Error| format!("{what}: {}", e.message());
+    let failed = |what: String, e: windows_core::Error| format!("{what}: {}", e.message());
 
     // SAFETY: мы в потоке окна (см. шапку модуля) — там, где живут объекты
     // WebView2; объекты получены у Tauri и живы, пока живо окно, а окно живо,
@@ -103,21 +103,23 @@ fn begin(
         let core = webview
             .controller()
             .CoreWebView2()
-            .map_err(|e| failed("вебвью окна недоступен", e))?;
+            .map_err(|e| failed(crate::l10n::tr("pdf.webview"), e))?;
         // Печать в PDF появилась в WebView2 1.0.1020 — у всех, кто обновлял
         // Windows за последние годы. Старее — честный отказ, а не падение.
         let printer: ICoreWebView2_7 = core
             .cast()
-            .map_err(|_| "WebView2 слишком старый: печати в PDF в нём нет".to_owned())?;
+            .map_err(|_| crate::l10n::tr("pdf.old.print"))?;
         let environment: ICoreWebView2Environment6 = webview
             .environment()
             .cast()
-            .map_err(|_| "WebView2 слишком старый: настроек печати в нём нет".to_owned())?;
+            .map_err(|_| crate::l10n::tr("pdf.old.settings"))?;
 
         let settings = environment
             .CreatePrintSettings()
-            .map_err(|e| failed("настройки печати не создались", e))?;
-        let apply = |result: windows_core::Result<()>| result.map_err(|e| failed("настройка листа", e));
+            .map_err(|e| failed(crate::l10n::tr("pdf.settings"), e))?;
+        let apply = |result: windows_core::Result<()>| {
+            result.map_err(|e| failed(crate::l10n::tr("pdf.page"), e))
+        };
         apply(settings.SetOrientation(COREWEBVIEW2_PRINT_ORIENTATION_PORTRAIT))?;
         apply(settings.SetPageWidth(A4_WIDTH_IN))?;
         apply(settings.SetPageHeight(A4_HEIGHT_IN))?;
@@ -136,8 +138,8 @@ fn begin(
 
         let handler = PrintToPdfCompletedHandler::create(Box::new(move |result, written| {
             let answer = match result {
-                Err(e) => Err(format!("PDF не записан: {}", e.message())),
-                Ok(()) if !written => Err("WebView2 не смог записать PDF".to_owned()),
+                Err(e) => Err(crate::l10n::tr_with("pdf.not-written", &[("error", &e.message())])),
+                Ok(()) if !written => Err(crate::l10n::tr("pdf.write-failed")),
                 Ok(()) => Ok(()),
             };
             let _ = done.send(answer);
@@ -146,7 +148,7 @@ fn begin(
 
         printer
             .PrintToPdf(&HSTRING::from(target), &settings, &handler)
-            .map_err(|e| failed("печать в PDF не началась", e))?;
+            .map_err(|e| failed(crate::l10n::tr("pdf.not-started"), e))?;
     }
     Ok(())
 }

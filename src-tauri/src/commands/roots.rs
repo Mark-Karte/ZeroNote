@@ -9,6 +9,7 @@ use crate::fsx::atomic_save;
 use crate::model::root::{Root, RootId};
 use crate::project;
 use crate::state::AppState;
+use crate::l10n::{tr, tr_with};
 
 type Fallible<T> = Result<T, String>;
 
@@ -70,9 +71,9 @@ pub fn sync_vault(state: &AppState, notices: &mut Vec<String>) -> Option<RootVie
     // в пути не должна оставлять после себя папку.
     if !named && !path.is_dir() {
         if let Err(error) = std::fs::create_dir_all(&path) {
-            notices.push(format!(
-                "не удалось создать папку заметок {}: {error}",
-                path.display()
+            notices.push(tr_with(
+                "error.vault.create",
+                &[("folder", &path.display().to_string()), ("error", &error.to_string())],
             ));
             return None;
         }
@@ -82,11 +83,14 @@ pub fn sync_vault(state: &AppState, notices: &mut Vec<String>) -> Option<RootVie
         // Папка недоступна — например, отключён диск. Корень всё равно
         // остаётся в списке (Р-052), но молчать об этом нельзя: пустое
         // дерево без объяснений выглядит как поломка.
-        notices.push(format!("папка заметок недоступна: {}", path.display()));
+        notices.push(tr_with(
+            "error.vault.unavailable",
+            &[("folder", &path.display().to_string())],
+        ));
     }
 
     let (id, view, appeared) = {
-        let mut roots = state.roots.lock().expect("реестр корней повреждён");
+        let mut roots = state.roots.lock().expect("root registry lock poisoned");
         let known = roots.find_by_path(&crate::model::root::normalize(&path)).is_some();
         let root = roots.add(path.clone());
         let id = root.id;
@@ -102,7 +106,7 @@ pub fn sync_vault(state: &AppState, notices: &mut Vec<String>) -> Option<RootVie
         state
             .watchers
             .lock()
-            .expect("наблюдатели повреждены")
+            .expect("watchers lock poisoned")
             .watch(id, &path);
         super::index::schedule_scan(state, id);
     }
@@ -120,13 +124,13 @@ pub fn ensure_vault(state: tauri::State<'_, AppState>) -> Vec<RootView> {
     let mut notices = Vec::new();
     sync_vault(&state, &mut notices);
 
-    let roots = state.roots.lock().expect("реестр корней повреждён");
+    let roots = state.roots.lock().expect("root registry lock poisoned");
     roots.list().iter().map(RootView::of).collect()
 }
 
 #[tauri::command]
 pub fn list_roots(state: tauri::State<'_, AppState>) -> Vec<RootView> {
-    let roots = state.roots.lock().expect("реестр корней повреждён");
+    let roots = state.roots.lock().expect("root registry lock poisoned");
     roots.list().iter().map(RootView::of).collect()
 }
 
@@ -142,11 +146,11 @@ pub fn add_root(state: tauri::State<'_, AppState>, path: String) -> Fallible<Roo
     // системным диалогом, и промах здесь означает опечатку в чужом сценарии.
     // Пропавший позже корень — другое дело, он остаётся в списке (Р-052).
     if !path.is_dir() {
-        return Err(format!("{} — это не папка", path.display()));
+        return Err(tr_with("error.not-folder", &[("path", &path.display().to_string())]));
     }
 
     let view = {
-        let mut roots = state.roots.lock().expect("реестр корней повреждён");
+        let mut roots = state.roots.lock().expect("root registry lock poisoned");
         RootView::of(roots.add(path))
     };
 
@@ -155,7 +159,7 @@ pub fn add_root(state: tauri::State<'_, AppState>, path: String) -> Fallible<Roo
     state
         .watchers
         .lock()
-        .expect("наблюдатели повреждены")
+        .expect("watchers lock poisoned")
         .watch(view.id, std::path::Path::new(&view.path));
 
     // Индексация уходит в фон и на возврат из команды не влияет: папка
@@ -172,7 +176,7 @@ pub fn remove_root(state: tauri::State<'_, AppState>, id: RootId) -> bool {
 
 fn remove(state: &AppState, id: RootId) -> bool {
     let (removed, overlapping) = {
-        let mut roots = state.roots.lock().expect("реестр корней повреждён");
+        let mut roots = state.roots.lock().expect("root registry lock poisoned");
         // Папку заметок «Убрать папку» не берёт: её роль задана настройкой,
         // и корень вернулся бы на место при следующем запуске. Отказ здесь
         // честнее исчезновения на один сеанс.
@@ -204,7 +208,7 @@ fn remove(state: &AppState, id: RootId) -> bool {
         state
             .watchers
             .lock()
-            .expect("наблюдатели повреждены")
+            .expect("watchers lock poisoned")
             .unwatch(id);
         // Индекс убранного корня больше не нужен: он занимает место и портит
         // выдачу поиска путями, которых в рабочем пространстве уже нет.
@@ -212,7 +216,7 @@ fn remove(state: &AppState, id: RootId) -> bool {
         state
             .index
             .lock()
-            .expect("индекс повреждён")
+            .expect("index lock poisoned")
             .forget_root(id);
         for other in overlapping {
             super::index::schedule_scan(state, other);
@@ -249,7 +253,7 @@ pub fn refresh_roots(app: tauri::AppHandle, state: tauri::State<'_, AppState>) -
 /// Перечитывание без окна: список корней и папки, которые могли устареть.
 fn refresh(state: &AppState) -> (Vec<RootView>, Vec<String>) {
     let (views, changed) = {
-        let mut roots = state.roots.lock().expect("реестр корней повреждён");
+        let mut roots = state.roots.lock().expect("root registry lock poisoned");
         // Что было до перечитывания — по этому видно, чьи правила сменились.
         let before: Vec<(RootId, project::IgnoreSettings, u64, bool)> = roots
             .list()
@@ -294,7 +298,7 @@ fn refresh(state: &AppState) -> (Vec<RootView>, Vec<String>) {
 
     let mut rescan = changed.clone();
     {
-        let mut watchers = state.watchers.lock().expect("наблюдатели повреждены");
+        let mut watchers = state.watchers.lock().expect("watchers lock poisoned");
         for view in views.iter().filter(|view| view.available) {
             let path = std::path::Path::new(&view.path);
             // Корень мог стать доступным — подключили диск, поднялся VPN:
@@ -351,8 +355,8 @@ pub fn obsidian_preview(
     state: tauri::State<'_, AppState>,
     id: RootId,
 ) -> Fallible<ObsidianPreview> {
-    let roots = state.roots.lock().expect("реестр корней повреждён");
-    let root = roots.get(id).ok_or("корень не найден")?;
+    let roots = state.roots.lock().expect("root registry lock poisoned");
+    let root = roots.get(id).ok_or_else(|| tr("error.root.missing"))?;
 
     let import = project::obsidian::read_import(&root.path);
 
@@ -376,16 +380,13 @@ pub fn obsidian_import(
     id: RootId,
 ) -> Fallible<RootView> {
     let (root_path, path) = {
-        let roots = state.roots.lock().expect("реестр корней повреждён");
-        let root = roots.get(id).ok_or("корень не найден")?;
+        let roots = state.roots.lock().expect("root registry lock poisoned");
+        let root = roots.get(id).ok_or_else(|| tr("error.root.missing"))?;
         (root.path.clone(), project::project_path(&root.path))
     };
 
     if path.exists() {
-        return Err(format!(
-            "{} уже существует — правила нужно перенести руками",
-            path.display()
-        ));
+        return Err(tr_with("error.project.exists", &[("file", &path.display().to_string())]));
     }
 
     let import = project::obsidian::read_import(&root_path);
@@ -393,8 +394,8 @@ pub fn obsidian_import(
 
     atomic_save::save(&path, text.as_bytes()).map_err(|e| e.to_string())?;
 
-    let mut roots = state.roots.lock().expect("реестр корней повреждён");
-    let root = roots.get_mut(id).ok_or("корень не найден")?;
+    let mut roots = state.roots.lock().expect("root registry lock poisoned");
+    let root = roots.get_mut(id).ok_or_else(|| tr("error.root.missing"))?;
     root.reload();
     Ok(RootView::of(root))
 }
@@ -406,21 +407,21 @@ pub fn obsidian_import(
 #[tauri::command]
 pub fn create_project_file(state: tauri::State<'_, AppState>, id: RootId) -> Fallible<RootView> {
     let path = {
-        let roots = state.roots.lock().expect("реестр корней повреждён");
-        let root = roots.get(id).ok_or("корень не найден")?;
+        let roots = state.roots.lock().expect("root registry lock poisoned");
+        let root = roots.get(id).ok_or_else(|| tr("error.root.missing"))?;
         project::project_path(&root.path)
     };
 
     if path.exists() {
-        return Err(format!("{} уже существует", path.display()));
+        return Err(tr_with("error.exists", &[("file", &path.display().to_string())]));
     }
 
     // Через атомарную запись, как и всё остальное: заодно она откажется
     // писать внутрь `.obsidian` (инвариант 2).
-    atomic_save::save(&path, project::DEFAULT_TEMPLATE.as_bytes()).map_err(|e| e.to_string())?;
+    atomic_save::save(&path, project::template().as_bytes()).map_err(|e| e.to_string())?;
 
-    let mut roots = state.roots.lock().expect("реестр корней повреждён");
-    let root = roots.get_mut(id).ok_or("корень не найден")?;
+    let mut roots = state.roots.lock().expect("root registry lock poisoned");
+    let root = roots.get_mut(id).ok_or_else(|| tr("error.root.missing"))?;
     root.reload();
     Ok(RootView::of(root))
 }

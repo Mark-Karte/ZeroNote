@@ -15,176 +15,182 @@ pub mod edit;
 
 use std::collections::BTreeMap;
 
+use crate::l10n::tr_with;
+
 /// Все команды, которым можно назначить сочетание.
 ///
 /// Список канонический: имена отсюда обязаны совпадать с реестром обработчиков
 /// во фронтенде, это проверяет тест `tests/keymap.test.ts`. Опечатка в файле
 /// пользователя тоже сверяется с этим списком и называется по имени.
-pub const COMMANDS: &[(&str, &str)] = &[
-    ("file.new", "Создать файл"),
-    ("file.open", "Открыть файл"),
-    ("file.save", "Сохранить"),
-    ("file.save-as", "Сохранить как"),
-    ("file.save-all", "Сохранить всё"),
-    ("file.close-tab", "Закрыть вкладку"),
-    ("file.close-all", "Закрыть все вкладки"),
+///
+/// Названия — в таблицах строк, ключом `command.<id>` (задача 155): здесь
+/// только идентификаторы. Название на языке окна — `l10n::command_title`,
+/// английское для поиска в палитре — `l10n::command_alias`.
+pub const COMMANDS: &[&str] = &[
+    "file.new",
+    "file.open",
+    "file.save",
+    "file.save-as",
+    "file.save-all",
+    "file.close-tab",
+    "file.close-all",
     // Привычка из браузера (задача 86). Возвращается вкладка с файлом:
     // безымянному буферу возвращать нечего — черновик удалён, а на вопрос
     // про несохранённое человек уже ответил (Р-219).
-    ("file.reopen-tab", "Вернуть закрытую вкладку"),
+    "file.reopen-tab",
     // Печать (задача 109): заметка — как её показывает превью, код —
     // с раскраской и переносом, картинка — по размеру страницы. Сочетания
     // нет: `Ctrl+P` — быстрое открытие, как в VS Code (Р-127).
-    ("file.print", "Печать…"),
+    "file.print",
     // Экспорт в HTML (задача 110): один файл со стилем и картинками внутри,
     // для чужих глаз. Сочетания нет — команду жмут не каждый день (Р-127).
-    ("file.export-html", "Экспорт в HTML…"),
+    "file.export-html",
     // Экспорт в PDF одной командой (задача 111): лист A4, свои колонтитулы —
     // имя файла и номер страницы, без адреса страницы приложения.
-    ("file.export-pdf", "Экспорт в PDF…"),
-    ("edit.undo", "Отменить"),
-    ("edit.redo", "Повторить"),
+    "file.export-pdf",
+    "edit.undo",
+    "edit.redo",
     // Буфер обмена. Сочетания за ними записаны, но нажатие перехватывает
     // не приложение, а вебвью — он делает это правильно (Р-108). Команды
     // нужны меню и палитре: пункт меню нажатием клавиши не является.
-    ("edit.cut", "Вырезать"),
-    ("edit.copy", "Копировать"),
+    "edit.cut",
+    "edit.copy",
     // Копировать с оформлением (задача 112): в буфер HTML и текст — для
     // почты и Word. Сочетания нет: `Ctrl+C` остаётся за вебвью и копирует
     // исходник (Р-108, Р-160).
-    ("edit.copy-rich", "Копировать с оформлением"),
-    ("edit.paste", "Вставить"),
-    ("edit.select-all", "Выделить всё"),
-    ("edit.select-line", "Выделить строку"),
+    "edit.copy-rich",
+    "edit.paste",
+    "edit.select-all",
+    "edit.select-line",
     // Отмена курсора, а не текста: снимает последний добавленный курсор
     // или возвращает выделение, каким оно было до промаха. До задачи 41
     // команда была недоступна вовсе — сочетание над ней перекрывалось.
-    ("edit.undo-cursor", "Отменить последний курсор"),
-    ("edit.redo-cursor", "Вернуть последний курсор"),
-    ("edit.toggle-comment", "Закомментировать или раскомментировать"),
-    ("edit.duplicate-line", "Продублировать строку"),
-    ("edit.add-cursor-next", "Курсор на следующее совпадение"),
-    ("edit.toggle-wrap", "Перенос длинных строк"),
-    ("edit.delete-line", "Удалить строку"),
-    ("edit.move-line-up", "Переместить строку вверх"),
-    ("edit.move-line-down", "Переместить строку вниз"),
-    ("edit.upper-case", "В верхний регистр"),
-    ("edit.lower-case", "В нижний регистр"),
-    ("search.find", "Найти"),
-    ("search.replace", "Заменить"),
-    ("search.find-next", "Найти далее"),
-    ("search.find-previous", "Найти ранее"),
-    ("view.bookmark", "Поставить или снять закладку"),
-    ("view.bookmark-next", "Следующая закладка"),
-    ("view.bookmark-previous", "Предыдущая закладка"),
-    ("view.bookmarks-clear", "Снять все закладки"),
-    ("view.invisibles", "Показывать невидимые символы"),
-    ("view.live-preview", "Живое превью markdown"),
-    ("view.fold", "Свернуть блок"),
-    ("view.unfold", "Развернуть блок"),
-    ("view.fold-all", "Свернуть всё"),
-    ("view.unfold-all", "Развернуть всё"),
-    ("view.go-to-bracket", "Перейти к парной скобке"),
-    ("view.go-to-line", "Перейти к строке"),
-    ("view.next-tab", "Следующая вкладка"),
-    ("view.previous-tab", "Предыдущая вкладка"),
+    "edit.undo-cursor",
+    "edit.redo-cursor",
+    "edit.toggle-comment",
+    "edit.duplicate-line",
+    "edit.add-cursor-next",
+    "edit.toggle-wrap",
+    "edit.delete-line",
+    "edit.move-line-up",
+    "edit.move-line-down",
+    "edit.upper-case",
+    "edit.lower-case",
+    "search.find",
+    "search.replace",
+    "search.find-next",
+    "search.find-previous",
+    "view.bookmark",
+    "view.bookmark-next",
+    "view.bookmark-previous",
+    "view.bookmarks-clear",
+    "view.invisibles",
+    "view.live-preview",
+    "view.fold",
+    "view.unfold",
+    "view.fold-all",
+    "view.unfold-all",
+    "view.go-to-bracket",
+    "view.go-to-line",
+    "view.next-tab",
+    "view.previous-tab",
     // История мест курсора (задача 85). «Место» — вкладка, область
     // и строка; записывается при смене вкладки и при дальнем прыжке внутри
     // файла. Названия говорят «по местам», а не «назад»: назад по чему —
     // первый вопрос, который задаёт человек, читая палитру.
-    ("view.back", "Назад по местам"),
-    ("view.forward", "Вперёд по местам"),
+    "view.back",
+    "view.forward",
     // Области редактора (этап 11). Текущая вкладка получает зеркало в новой
     // области — как в VS Code (Р-209, Р-210). У «вниз» сочетания нет:
     // в VS Code оно аккордом, а аккордов у нас не будет (Р-123).
-    ("view.split-right", "Разделить область вправо"),
-    ("view.split-down", "Разделить область вниз"),
+    "view.split-right",
+    "view.split-down",
     // Область по номеру — порядок обхода дерева слева направо и сверху
     // вниз, как нумерует VS Code. Девять команд, а не одна с аргументом:
     // у сочетания нет аргумента, и у пункта палитры тоже.
-    ("view.pane-1", "Область 1"),
-    ("view.pane-2", "Область 2"),
-    ("view.pane-3", "Область 3"),
-    ("view.pane-4", "Область 4"),
-    ("view.pane-5", "Область 5"),
-    ("view.pane-6", "Область 6"),
-    ("view.pane-7", "Область 7"),
-    ("view.pane-8", "Область 8"),
-    ("view.pane-9", "Область 9"),
-    ("view.move-tab-next-pane", "Перенести вкладку в следующую область"),
-    ("view.move-tab-previous-pane", "Перенести вкладку в предыдущую область"),
-    ("view.close-pane", "Закрыть область"),
-    ("view.sidebar", "Показать боковую панель"),
+    "view.pane-1",
+    "view.pane-2",
+    "view.pane-3",
+    "view.pane-4",
+    "view.pane-5",
+    "view.pane-6",
+    "view.pane-7",
+    "view.pane-8",
+    "view.pane-9",
+    "view.move-tab-next-pane",
+    "view.move-tab-previous-pane",
+    "view.close-pane",
+    "view.sidebar",
     // Сочетания нет: в VS Code и Obsidian у оглавления его тоже нет,
     // а место в раскладке дорого. Назначить можно во вкладке «Клавиши».
-    ("view.outline", "Оглавление документа"),
+    "view.outline",
     // Отличается от «Палитры тегов» тем, что отвечает на другой вопрос:
     // палитра ищет тег, который знаешь, панель показывает все, какие есть.
-    ("view.tags", "Панель тегов"),
+    "view.tags",
     // Список отдельно от меток у номеров строк: метки показывают, где
     // закладка в открытом файле, список — что на этих строках написано
     // и какие закладки в соседних вкладках (Р-157).
-    ("view.bookmarks", "Панель закладок"),
-    ("view.settings", "Параметры"),
-    ("project.add-root", "Открыть папку"),
-    ("project.quick-open", "Быстрое открытие по имени"),
-    ("project.commands", "Палитра команд"),
-    ("project.tags", "Палитра тегов"),
-    ("project.search", "Найти в проекте"),
+    "view.bookmarks",
+    "view.settings",
+    "project.add-root",
+    "project.quick-open",
+    "project.commands",
+    "project.tags",
+    "project.search",
     // Сочетания у обеих нет по умолчанию (Р-127): `Ctrl+H` занят заменой
     // в файле, а замену по проекту делают не каждый день. Назначить можно
     // во вкладке «Клавиши».
-    ("project.replace", "Заменить в проекте"),
+    "project.replace",
     // Заметка на сегодня (задача 90). Сочетания нет: в Obsidian у неё его
     // тоже нет по умолчанию, а свободных сочетаний в раскладке Notepad++
     // почти не осталось. Назначить можно во вкладке «Клавиши».
-    ("project.daily-note", "Заметка на сегодня"),
-    ("view.notes", "Панель заметок"),
-    ("notes.insert-template", "Вставить шаблон"),
-    ("notes.new-from-template", "Новая заметка из шаблона"),
-    ("project.undo-replace", "Отменить замену в проекте"),
-    ("project.follow-link", "Перейти по ссылке под курсором"),
-    ("project.backlinks", "Обратные ссылки"),
+    "project.daily-note",
+    "view.notes",
+    "notes.insert-template",
+    "notes.new-from-template",
+    "project.undo-replace",
+    "project.follow-link",
+    "project.backlinks",
     // Подпись начинается со слова «версия» намеренно: в палитре ищут по ней,
     // а не по «о программе». Спрашивают всегда версию.
-    ("help.about", "Версия и сведения о программе"),
+    "help.about",
     // Единственная команда, открывающая сетевое соединение (Р-118).
-    ("help.check-updates", "Проверить обновления"),
+    "help.check-updates",
     // Разметка markdown. Сочетаний у них нет по решению владельца: в Obsidian
     // это Ctrl+B, Ctrl+I и Ctrl+K, но Ctrl+B у нас боковая панель (Р-053),
     // и жмут её постоянно. Команды в реестре есть, и назначить им сочетание
     // можно во вкладке «Клавиши» (Р-127).
-    ("md.bold", "Жирный"),
-    ("md.italic", "Курсив"),
-    ("md.strikethrough", "Зачёркнутый"),
+    "md.bold",
+    "md.italic",
+    "md.strikethrough",
     // В markdown подчёркивания нет, и Obsidian пишет его тегом `<u>` —
     // так же делаем и мы: файл обязан читаться там одинаково (задача 102).
-    ("md.underline", "Подчёркнутый"),
-    ("md.highlight", "Выделение цветом"),
-    ("md.code", "Код в строке"),
-    ("md.link", "Ссылка"),
-    ("md.wikilink", "Ссылка на заметку"),
-    ("md.image", "Картинка"),
-    ("md.heading-1", "Заголовок 1"),
-    ("md.heading-2", "Заголовок 2"),
-    ("md.heading-3", "Заголовок 3"),
-    ("md.heading-4", "Заголовок 4"),
-    ("md.heading-5", "Заголовок 5"),
-    ("md.heading-6", "Заголовок 6"),
-    ("md.bullet-list", "Маркированный список"),
-    ("md.ordered-list", "Нумерованный список"),
-    ("md.task-list", "Список задач"),
-    ("md.quote", "Цитата"),
+    "md.underline",
+    "md.highlight",
+    "md.code",
+    "md.link",
+    "md.wikilink",
+    "md.image",
+    "md.heading-1",
+    "md.heading-2",
+    "md.heading-3",
+    "md.heading-4",
+    "md.heading-5",
+    "md.heading-6",
+    "md.bullet-list",
+    "md.ordered-list",
+    "md.task-list",
+    "md.quote",
     // Заготовки. Подпись начинается с «Заготовка», чтобы все три находились
     // в палитре одним словом.
-    ("md.table", "Заготовка: таблица"),
-    ("md.code-block", "Заготовка: блок кода"),
-    ("md.divider", "Заготовка: разделитель"),
-    ("md.mermaid", "Заготовка: схема mermaid"),
+    "md.table",
+    "md.code-block",
+    "md.divider",
+    "md.mermaid",
     // Список коллаутов у курсора (задача 103). Сам список — файл
     // `callouts.toml`, и у каждого коллаута своей команды нет: реестр
     // канонический, строки из файла человека в него не попадают.
-    ("md.callout", "Коллаут…"),
+    "md.callout",
 ];
 
 /// Раскладка по умолчанию.
@@ -331,12 +337,15 @@ impl std::fmt::Display for KeymapError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             KeymapError::Parse(message) => {
-                write!(f, "не удалось разобрать keymap.toml: {message}")
+                f.write_str(&tr_with(
+                    "config.parse",
+                    &[("file", "keymap.toml"), ("error", message)],
+                ))
             }
-            KeymapError::UnsupportedSchema { found } => write!(
-                f,
-                "версия формата раскладки {found} не поддерживается, ожидается {KEYMAP_SCHEMA}"
-            ),
+            KeymapError::UnsupportedSchema { found } => f.write_str(&tr_with(
+                "config.keymap.schema",
+                &[("found", &found.to_string()), ("expected", &KEYMAP_SCHEMA.to_string())],
+            )),
         }
     }
 }
@@ -410,7 +419,7 @@ pub fn normalize(binding: &str) -> Option<String> {
 }
 
 fn known_commands() -> Vec<&'static str> {
-    COMMANDS.iter().map(|(id, _)| *id).collect()
+    COMMANDS.to_vec()
 }
 
 /// Раскладка без файла пользователя.
@@ -418,7 +427,7 @@ pub fn defaults() -> BTreeMap<String, String> {
     DEFAULTS
         .iter()
         .map(|(binding, command)| {
-            let normalized = normalize(binding).expect("умолчания обязаны разбираться");
+            let normalized = normalize(binding).expect("defaults must parse");
             (normalized, (*command).to_owned())
         })
         .collect()
@@ -443,12 +452,12 @@ pub fn parse(source: &str) -> Result<Loaded, KeymapError> {
     let schema = match root.remove("schema") {
         None => KEYMAP_SCHEMA,
         Some(toml::Value::Integer(n)) => u32::try_from(n).map_err(|_| {
-            KeymapError::Parse(format!("schema = {n} — версия формата не бывает такой"))
+            KeymapError::Parse(tr_with("config.schema.impossible", &[("n", &n.to_string())]))
         })?,
         Some(other) => {
-            return Err(KeymapError::Parse(format!(
-                "schema должна быть числом, а в файле {}",
-                other.type_str()
+            return Err(KeymapError::Parse(tr_with(
+                "config.schema.not-number",
+                &[("value", other.type_str())],
             )));
         }
     };
@@ -464,10 +473,7 @@ pub fn parse(source: &str) -> Result<Loaded, KeymapError> {
         None => toml::Table::new(),
         Some(toml::Value::Table(table)) => table,
         Some(other) => {
-            problems.push(format!(
-                "bindings должен быть разделом, а в файле {} — действует раскладка по умолчанию",
-                other.type_str()
-            ));
+            problems.push(tr_with("config.keymap.bindings", &[("value", other.type_str())]));
             toml::Table::new()
         }
     };
@@ -480,27 +486,29 @@ pub fn parse(source: &str) -> Result<Loaded, KeymapError> {
 
     for (binding, command) in table {
         let toml::Value::String(command) = command else {
-            problems.push(format!(
-                "сочетание «{binding}»: команда пишется строкой, а в файле {} — строка пропущена",
-                command.type_str()
+            problems.push(tr_with(
+                "config.keymap.not-string",
+                &[("binding", &binding), ("value", command.type_str())],
             ));
             continue;
         };
         let Some(normalized) = normalize(&binding) else {
-            problems.push(format!("сочетание «{binding}» не разбирается — строка пропущена"));
+            problems.push(tr_with("config.keymap.bad-binding", &[("binding", &binding)]));
             continue;
         };
         // Пустая команда — не опечатка, а снятие умолчания.
         if !command.is_empty() && !known.contains(&command.as_str()) {
-            problems.push(format!(
-                "сочетание «{binding}»: команды «{command}» нет — строка пропущена"
+            problems.push(tr_with(
+                "config.keymap.unknown-command",
+                &[("binding", &binding), ("command", &command)],
             ));
             continue;
         }
 
         if let Some(earlier) = written.insert(normalized.clone(), binding.clone()) {
-            problems.push(format!(
-                "сочетание {normalized} записано дважды, «{earlier}» и «{binding}» — действует «{binding}»"
+            problems.push(tr_with(
+                "config.keymap.twice",
+                &[("normalized", &normalized), ("earlier", &earlier), ("binding", &binding)],
             ));
         }
 
@@ -515,9 +523,9 @@ pub fn parse(source: &str) -> Result<Loaded, KeymapError> {
     // (`[bindigns]`) выглядят одинаково, и оба случая заслуживают слова.
     for (key, value) in root {
         if value.is_table() {
-            problems.push(format!("раздел [{key}] незнаком — пропущен"));
+            problems.push(tr_with("config.section.unknown", &[("key", &key)]));
         } else {
-            problems.push(format!("ключ «{key}» незнаком — пропущен"));
+            problems.push(tr_with("config.key.unknown", &[("key", &key)]));
         }
     }
 
@@ -528,28 +536,17 @@ pub fn parse(source: &str) -> Result<Loaded, KeymapError> {
 ///
 /// Записывается дословно вместе с комментариями: сериализация через serde
 /// их не переживает, а для файла, который правят руками, они и есть польза.
-pub const DEFAULT_TEMPLATE: &str = r#"# Горячие клавиши ZeroNote.
-#
-# По умолчанию действует раскладка ZeroNote: основа взята у Notepad++,
-# часть сочетаний — у VS Code. Здесь задаются только отличия: всё, что
-# не упомянуто, остаётся как было. Приложение подхватывает изменения
-# на лету, перезапуск не нужен.
-#
-# Формат: "сочетание" = "команда"
-# Порядок частей и регистр не важны: "Shift+Ctrl+D" и "ctrl+shift+d" — одно
-# и то же. Пустая команда снимает сочетание.
-#
-# Пример:
-#   [bindings]
-#   "ctrl+shift+d" = "edit.duplicate-line"   # добавить своё
-#   "ctrl+l" = ""                            # снять стандартное
-#
-# Список команд — в DESIGN.md, раздел «Горячие клавиши».
+pub const TEMPLATE_RU: &str = include_str!("../../../l10n/samples/ru/keymap.toml");
+/// Английский образец — для английского и для своих переводов.
+pub const TEMPLATE_EN: &str = include_str!("../../../l10n/samples/en/keymap.toml");
 
-schema = 1
-
-[bindings]
-"#;
+/// Образец на языке образцов процесса (`l10n::samples`, задача 155).
+pub fn template() -> &'static str {
+    match crate::l10n::samples() {
+        crate::l10n::Builtin::Ru => TEMPLATE_RU,
+        crate::l10n::Builtin::En => TEMPLATE_EN,
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -795,9 +792,11 @@ mod tests {
     /// Образец должен разбираться и не менять раскладку по умолчанию.
     #[test]
     fn template_parses_and_changes_nothing() {
-        let loaded = parse(DEFAULT_TEMPLATE).expect("образец должен разбираться");
-        assert_eq!(loaded.bindings, defaults());
-        assert!(loaded.problems.is_empty(), "{:?}", loaded.problems);
+        for sample in [TEMPLATE_RU, TEMPLATE_EN] {
+            let loaded = parse(sample).expect("образец должен разбираться");
+            assert_eq!(loaded.bindings, defaults());
+            assert!(loaded.problems.is_empty(), "{:?}", loaded.problems);
+        }
     }
 
     /// Файл без версии — текущая версия, как у настроек. Сломанный TOML

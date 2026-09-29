@@ -45,24 +45,29 @@ pub enum SaveError {
 impl std::fmt::Display for SaveError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SaveError::ObsidianIsReadOnly { path } => write!(
-                f,
-                "запись в .obsidian запрещена: {}",
-                path.display()
-            ),
+            SaveError::ObsidianIsReadOnly { path } => {
+                f.write_str(&crate::l10n::tr_with(
+                    "save.obsidian",
+                    &[("path", &path.display().to_string())],
+                ))
+            }
             SaveError::NoParentDirectory { path } => {
-                write!(f, "у пути нет родительской папки: {}", path.display())
+                f.write_str(&crate::l10n::tr_with(
+                    "save.no-parent",
+                    &[("path", &path.display().to_string())],
+                ))
             }
             SaveError::Io { path, source } => {
                 write!(f, "{}: {source}", path.display())
             }
-            SaveError::Stranded { path, temp, source } => write!(
-                f,
-                "{}: {source}. Замена оборвалась на полпути — новое содержимое \
-                 сохранено в {}",
-                path.display(),
-                temp.display()
-            ),
+            SaveError::Stranded { path, temp, source } => f.write_str(&crate::l10n::tr_with(
+                "save.stranded",
+                &[
+                    ("path", &path.display().to_string()),
+                    ("error", &source.to_string()),
+                    ("temp", &temp.display().to_string()),
+                ],
+            )),
         }
     }
 }
@@ -251,7 +256,7 @@ fn temp_path(target: &Path) -> PathBuf {
     let name: String = target
         .file_name()
         .map(|n| n.to_string_lossy().chars().take(60).collect())
-        .unwrap_or_else(|| "файл".to_owned());
+        .unwrap_or_else(|| "file".to_owned());
 
     // Идентификатор процесса и время делают имя уникальным: два окна
     // приложения, сохраняющие один файл, не должны наступить друг на друга.

@@ -31,6 +31,7 @@ use crate::project::ignore::IgnoreRules;
 
 use super::scope::{Scope, Scopes};
 use super::{query, schema, writer};
+use crate::l10n::tr_with;
 
 /// Как давно корень сверялся с диском, чтобы при возвращении фокуса
 /// сверить его снова (задача 140, находка Я15).
@@ -157,12 +158,12 @@ impl Index {
     /// То же для тестов: ход работы никуда не сообщается.
     #[cfg(test)]
     pub fn start_for_tests(&mut self, data_dir: &Path) {
-        self.start_with(data_dir, Box::new(|_| {})).expect("индекс для теста");
+        self.start_with(data_dir, Box::new(|_| {})).expect("index for the test");
     }
 
     fn start_with(&mut self, data_dir: &Path, report: Report) -> Result<(), String> {
         let connection = schema::open(&schema::index_path(data_dir))
-            .map_err(|e| format!("индекс недоступен, поиск по проекту не работает: {e}"))?;
+            .map_err(|e| tr_with("error.index.unavailable", &[("error", &e.to_string())]))?;
 
         let connection = Arc::new(Mutex::new(connection));
         let (tx, rx) = std::sync::mpsc::channel();
@@ -222,7 +223,7 @@ impl Index {
     ) {
         // Проход корня, который забывали, — корень вернули. В приложении
         // номер не переиспользуется, а замерочный стенд берёт один и тот же.
-        self.gone.lock().expect("индекс повреждён").remove(&root_id);
+        self.gone.lock().expect("index lock poisoned").remove(&root_id);
         self.scanned.insert(root_id, Instant::now());
         self.submit(Task::ScanRoot {
             root_id,
@@ -272,7 +273,7 @@ impl Index {
         let Some(connection) = self.connection.as_ref() else {
             return;
         };
-        let connection = connection.lock().expect("соединение с индексом повреждено");
+        let connection = connection.lock().expect("index connection lock poisoned");
         for path in paths {
             let _ = super::writer::index_file(&connection, root_id, path, max_size);
         }
@@ -281,7 +282,7 @@ impl Index {
     /// Забыть убранный корень (Я10). Его идущий проход прерывается сразу,
     /// а само забывание отмена не снимает.
     pub fn forget_root(&mut self, root_id: RootId) {
-        self.gone.lock().expect("индекс повреждён").insert(root_id);
+        self.gone.lock().expect("index lock poisoned").insert(root_id);
         self.scanned.remove(&root_id);
         self.submit(Task::ForgetRoot { root_id });
     }
@@ -299,7 +300,7 @@ impl Index {
     }
 
     pub fn progress(&self) -> Progress {
-        *self.progress.lock().expect("состояние индекса повреждено")
+        *self.progress.lock().expect("index state lock poisoned")
     }
 
     /// Поиск по индексу. Идёт в потоке команды, а не в рабочем: запрос —
@@ -313,7 +314,7 @@ impl Index {
         let Some(connection) = &self.connection else {
             return Ok(Vec::new());
         };
-        let connection = connection.lock().expect("соединение с индексом повреждено");
+        let connection = connection.lock().expect("index connection lock poisoned");
         query::search(&connection, input, scope, limit).map_err(|e| e.to_string())
     }
 
@@ -326,7 +327,7 @@ impl Index {
         scope: &Scope,
     ) -> Option<super::graph::Resolved> {
         let connection = self.connection.as_ref()?;
-        let connection = connection.lock().expect("соединение с индексом повреждено");
+        let connection = connection.lock().expect("index connection lock poisoned");
         super::graph::resolve(&connection, target, from, scope)
             .ok()
             .flatten()
@@ -345,7 +346,7 @@ impl Index {
         hint: Option<crate::text::encoding::Encoding>,
     ) -> Option<super::rename::RenamePlan> {
         let connection = self.connection.as_ref()?;
-        let mut connection = connection.lock().expect("соединение с индексом повреждено");
+        let mut connection = connection.lock().expect("index connection lock poisoned");
         super::rename::plan(&mut connection, scopes, from, to, hint).ok()
     }
 
@@ -358,7 +359,7 @@ impl Index {
         relative: &str,
     ) -> Option<String> {
         let connection = self.connection.as_ref()?;
-        let connection = connection.lock().expect("соединение с индексом повреждено");
+        let connection = connection.lock().expect("index connection lock poisoned");
         super::graph::link_text(&connection, path, from, scope, relative).ok()
     }
 
@@ -367,7 +368,7 @@ impl Index {
         let Some(connection) = &self.connection else {
             return Vec::new();
         };
-        let connection = connection.lock().expect("соединение с индексом повреждено");
+        let connection = connection.lock().expect("index connection lock poisoned");
         super::graph::backlinks(&connection, path, scopes).unwrap_or_default()
     }
 
@@ -376,7 +377,7 @@ impl Index {
         let Some(connection) = &self.connection else {
             return Vec::new();
         };
-        let connection = connection.lock().expect("соединение с индексом повреждено");
+        let connection = connection.lock().expect("index connection lock poisoned");
         super::graph::files_with_tag(&connection, tag, limit).unwrap_or_default()
     }
 
@@ -385,7 +386,7 @@ impl Index {
         let Some(connection) = &self.connection else {
             return Vec::new();
         };
-        let connection = connection.lock().expect("соединение с индексом повреждено");
+        let connection = connection.lock().expect("index connection lock poisoned");
         super::graph::find_tags(&connection, query, limit).unwrap_or_default()
     }
 
@@ -395,7 +396,7 @@ impl Index {
         let Some(connection) = &self.connection else {
             return Vec::new();
         };
-        let connection = connection.lock().expect("соединение с индексом повреждено");
+        let connection = connection.lock().expect("index connection lock poisoned");
         writer::all_files(&connection).unwrap_or_default()
     }
 
@@ -405,7 +406,7 @@ impl Index {
         let Some(connection) = &self.connection else {
             return Vec::new();
         };
-        let connection = connection.lock().expect("соединение с индексом повреждено");
+        let connection = connection.lock().expect("index connection lock poisoned");
         writer::text_files(&connection).unwrap_or_default()
     }
 
@@ -415,7 +416,7 @@ impl Index {
         let Some(connection) = &self.connection else {
             return 0;
         };
-        let connection = connection.lock().expect("соединение с индексом повреждено");
+        let connection = connection.lock().expect("index connection lock poisoned");
         writer::count_under(&connection, scope).unwrap_or(0)
     }
 }
@@ -469,7 +470,7 @@ fn write_batch(
     max_size: u64,
     should_stop: &dyn Fn() -> bool,
 ) -> bool {
-    let db = connection.lock().expect("соединение с индексом повреждено");
+    let db = connection.lock().expect("index connection lock poisoned");
 
     // `unchecked_transaction` берёт сделку по общей ссылке — обычная требует
     // `&mut`, а соединение у нас за блокировкой и раздаётся по ссылке.
@@ -494,7 +495,7 @@ fn write_batch(
 
 /// Убрать из индекса записи о файлах, которых больше нет на диске.
 fn forget_missing(connection: &Mutex<Connection>, root_id: RootId, seen: &[PathBuf]) {
-    let db = connection.lock().expect("соединение с индексом повреждено");
+    let db = connection.lock().expect("index connection lock poisoned");
 
     let Ok(known) = writer::known_paths(&db, root_id) else {
         return;
@@ -528,14 +529,14 @@ struct Shared {
 
 impl Shared {
     fn publish(&self, value: Progress) {
-        *self.progress.lock().expect("состояние индекса повреждено") = value;
+        *self.progress.lock().expect("index state lock poisoned") = value;
         (self.report)(value);
     }
 
     /// Задание больше не нужно: его отменили или убрали его корень.
     fn stale(&self, mine: u64, root_id: RootId) -> bool {
         self.generation.load(Ordering::SeqCst) != mine
-            || self.gone.lock().expect("индекс повреждён").contains(&root_id)
+            || self.gone.lock().expect("index lock poisoned").contains(&root_id)
     }
 }
 
@@ -558,12 +559,12 @@ fn work(connection: Arc<Mutex<Connection>>, rx: Receiver<Job>, shared: Shared) {
 
         match job.task {
             Task::ForgetRoot { root_id } => {
-                let db = connection.lock().expect("соединение с индексом повреждено");
+                let db = connection.lock().expect("index connection lock poisoned");
                 let _ = writer::forget_root(&db, root_id);
             }
 
             Task::KeepOnly { live } => {
-                let db = connection.lock().expect("соединение с индексом повреждено");
+                let db = connection.lock().expect("index connection lock poisoned");
                 let _ = writer::forget_roots_except(&db, &live);
             }
 
@@ -666,7 +667,7 @@ fn work(connection: Arc<Mutex<Connection>>, rx: Receiver<Job>, shared: Shared) {
 
 /// Убрать из индекса всё, что лежало внутри исчезнувшей папки.
 fn forget_under(connection: &Mutex<Connection>, root_id: RootId, dir: &Path) {
-    let db = connection.lock().expect("соединение с индексом повреждено");
+    let db = connection.lock().expect("index connection lock poisoned");
     let Ok(known) = writer::known_paths(&db, root_id) else {
         return;
     };
@@ -690,7 +691,7 @@ fn forget_missing_in_dir(
     dir: &Path,
     seen: &[PathBuf],
 ) {
-    let db = connection.lock().expect("соединение с индексом повреждено");
+    let db = connection.lock().expect("index connection lock poisoned");
     let Ok(known) = writer::known_paths(&db, root_id) else {
         return;
     };
